@@ -61,7 +61,7 @@ class WebResearchRouter(
     private fun runProvider(req: WebResearchRequest): WebResearchOutcome {
         val maxResults = req.maxResults.coerceIn(1, 10)
         val maxFetch = req.maxFetch.coerceIn(1, 5)
-        val results = searcher.searchDuckDuckGo(req.query, limit = maxResults)
+        val results = searcher.search(req.query, limit = maxResults)
             .map { WebResearchHit(title = it.title, url = it.url, snippet = it.snippet) }
 
         val filtered = results.filter { hit ->

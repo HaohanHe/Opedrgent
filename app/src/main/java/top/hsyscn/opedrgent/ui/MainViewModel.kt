@@ -47,6 +47,7 @@ import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.ResearchStore
 import top.hsyscn.opedrgent.storage.SkillsStore
 import top.hsyscn.opedrgent.pdf.PdfProcessor
+import top.hsyscn.opedrgent.docx.DocxProcessor
 import top.hsyscn.opedrgent.utils.PromptSafety
 import top.hsyscn.opedrgent.utils.PromptBlocks
 import top.hsyscn.opedrgent.utils.PromptBuilder
@@ -1620,6 +1621,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val idx = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (idx < 0) return null
             return it.getString(idx)
+        }
+    }
+
+    fun importDocx(uri: Uri) {
+        val sessionId = _state.value.current?.id ?: return
+        viewModelScope.launch {
+            setLoading(true)
+            try {
+                val name = resolveDisplayName(uri)?.removeSuffix(".docx") ?: "Word 文档"
+                val text = withContext(Dispatchers.IO) {
+                    DocxProcessor.extractText(getApplication(), uri)
+                }
+                if (text.isBlank()) throw IllegalStateException("Word 文档内容为空")
+                addTextSource(title = name, text = text)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message ?: "Word 文档读取失败")
+            } finally {
+                setLoading(false)
+            }
         }
     }
 
