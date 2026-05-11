@@ -121,6 +121,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         system: String,
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
+        thinkingEnabled: Boolean = false,
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -129,7 +130,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         val url = buildUrl(config.baseUrl, "/chat/completions")
         val msgCount = messages.size
         val toolsCount = tools.size
-        DebugLog.i("streamChatCompletions → $url model=${config.model} msgs=$msgCount tools=$toolsCount")
+        DebugLog.i("streamChatCompletions → $url model=${config.model} msgs=$msgCount tools=$toolsCount thinking=$thinkingEnabled")
         DebugLog.d("streamChatCompletions: system=${system.length} chars")
 
         val json = JSONObject().apply {
@@ -159,6 +160,12 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                     }
                 },
             )
+            if (thinkingEnabled) {
+                put("thinking", JSONObject().apply {
+                    put("type", "enabled")
+                    put("budget_tokens", 4000)
+                })
+            }
             if (tools.isNotEmpty()) {
                 put("tools", JSONArray().apply {
                     tools.forEach { put(toolToJson(it)) }
@@ -196,6 +203,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                     val toolCallMap = mutableMapOf<Int, StringBuilder>() // index -> name
                     val toolArgMap = mutableMapOf<Int, StringBuilder>() // index -> args
                     val toolIdMap = mutableMapOf<Int, String>() // index -> id
+                    val thinkingTagBuffer = StringBuilder()
 
                     while (!source.exhausted()) {
                         val line = source.readUtf8Line() ?: continue
@@ -219,11 +227,34 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                             val reasoning = delta.optString("reasoning_content", "")
                                 .ifEmpty { delta.optString("reasoning", "") }
 
-                            if (content.isNotEmpty()) fullContent.append(content)
-                            if (reasoning.isNotEmpty()) fullReasoning.append(reasoning)
-
-                            if (content.isNotEmpty() || reasoning.isNotEmpty()) {
-                                onDelta(StreamDelta(content = content, reasoning = reasoning))
+                            thinkingTagBuffer.append(content)
+                            val thinkingRegex = Regex("<thinking>\\s*(.*?)\\s*</thinking>", RegexOption.DOT_MATCHES_ALL)
+                            val thinkingMatches = thinkingRegex.findAll(thinkingTagBuffer.toString()).toList()
+                            val hasCompleteThinking = thinkingMatches.isNotEmpty()
+                            if (hasCompleteThinking) {
+                                for (match in thinkingMatches) {
+                                    val thinkContent = match.groupValues[1].trim()
+                                    if (thinkContent.isNotEmpty()) {
+                                        fullReasoning.append(thinkContent)
+                                        onDelta(StreamDelta(content = "", reasoning = thinkContent))
+                                    }
+                                }
+                                val lastMatch = thinkingMatches.last()
+                                val afterLastTag = thinkingTagBuffer.toString().substringAfter(lastMatch.value)
+                                thinkingTagBuffer.clear()
+                                if (afterLastTag.isNotEmpty()) thinkingTagBuffer.append(afterLastTag)
+                                val cleanContent = thinkingRegex.replace(thinkingTagBuffer.toString(), "")
+                                if (cleanContent.isNotEmpty()) {
+                                    fullContent.append(cleanContent)
+                                    onDelta(StreamDelta(content = cleanContent, reasoning = ""))
+                                }
+                                thinkingTagBuffer.clear()
+                            } else {
+                                if (content.isNotEmpty()) fullContent.append(content)
+                            }
+                            if (reasoning.isNotEmpty()) {
+                                fullReasoning.append(reasoning)
+                                onDelta(StreamDelta(content = "", reasoning = reasoning))
                             }
 
                             val tcArray = delta.optJSONArray("tool_calls")
