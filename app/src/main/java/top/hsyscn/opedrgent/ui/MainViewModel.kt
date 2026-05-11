@@ -813,11 +813,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             tools = tools,
                             thinkingEnabled = deepThinkingEnabled,
                             onDelta = { delta ->
-                                if (delta.content.isNotEmpty()) {
-                                    contentBuilder.append(delta.content)
-                                }
-                                if (delta.reasoning.isNotEmpty()) {
-                                    reasoningBuilder.append(delta.reasoning)
+                                when (delta) {
+                                    is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
+                                        if (delta.text.isNotEmpty()) contentBuilder.append(delta.text)
+                                    }
+                                    is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
+                                        if (delta.text.isNotEmpty()) reasoningBuilder.append(delta.text)
+                                    }
                                 }
                             },
                             onToolCallDelta = { tc ->

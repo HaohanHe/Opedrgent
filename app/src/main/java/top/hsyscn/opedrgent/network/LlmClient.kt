@@ -19,10 +19,10 @@ import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import kotlin.coroutines.resume
 
-data class StreamDelta(
-    val content: String = "",
-    val reasoning: String = "",
-)
+sealed class StreamDelta {
+    data class ReasoningDelta(val text: String) : StreamDelta()
+    data class TextDelta(val text: String) : StreamDelta()
+}
 
 data class ToolCallDelta(
     val id: String,
@@ -234,12 +234,12 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                                 if (endTagIdx >= 0) {
                                     val thinkChunk = remainingContent.substring(0, endTagIdx)
                                     fullReasoning.append(thinkChunk)
-                                    onDelta(StreamDelta(content = "", reasoning = thinkChunk))
+                                    onDelta(StreamDelta.ReasoningDelta(thinkChunk))
                                     inThinkingTag = false
                                     remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
                                 } else {
                                     fullReasoning.append(remainingContent)
-                                    onDelta(StreamDelta(content = "", reasoning = remainingContent))
+                                    onDelta(StreamDelta.ReasoningDelta(remainingContent))
                                     remainingContent = ""
                                 }
                             }
@@ -253,7 +253,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                                         val beforeThink = remainingContent.substring(0, startTagIdx)
                                         if (beforeThink.isNotEmpty()) {
                                             fullContent.append(beforeThink)
-                                            onDelta(StreamDelta(content = beforeThink, reasoning = ""))
+                                            onDelta(StreamDelta.TextDelta(beforeThink))
                                         }
                                         remainingContent = remainingContent.substring(startTagIdx + "<thinking>".length)
                                         inThinkingTag = true
@@ -261,13 +261,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                                     endTagIdx >= 0 -> {
                                         val thinkChunk = remainingContent.substring(0, endTagIdx)
                                         fullReasoning.append(thinkChunk)
-                                        onDelta(StreamDelta(content = "", reasoning = thinkChunk))
+                                        onDelta(StreamDelta.ReasoningDelta(thinkChunk))
                                         inThinkingTag = false
                                         remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
                                     }
                                     else -> {
                                         fullContent.append(remainingContent)
-                                        onDelta(StreamDelta(content = remainingContent, reasoning = ""))
+                                        onDelta(StreamDelta.TextDelta(remainingContent))
                                         remainingContent = ""
                                     }
                                 }
@@ -275,7 +275,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
 
                             if (reasoning.isNotEmpty()) {
                                 fullReasoning.append(reasoning)
-                                onDelta(StreamDelta(content = "", reasoning = reasoning))
+                                onDelta(StreamDelta.ReasoningDelta(reasoning))
                             }
 
                             val tcArray = delta.optJSONArray("tool_calls")
