@@ -1,7 +1,9 @@
 package top.hsyscn.opedrgent.network
 
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.jsoup.Jsoup
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.net.URLEncoder
@@ -14,6 +16,11 @@ data class SearchResult(
     val url: String,
     val snippet: String?,
 )
+
+var SEARXNG_BASE_URL: String = ""
+    set(value) {
+        field = value.trimEnd('/')
+    }
 
 data class JinaResult(
     val title: String,
@@ -94,6 +101,47 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         }
     }
 
+    fun searchSearxng(query: String, limit: Int = 5): List<SearchResult> {
+        if (SEARXNG_BASE_URL.isBlank()) return emptyList()
+
+        val q = URLEncoder.encode(query, "UTF-8")
+        val url = "$SEARXNG_BASE_URL/search?q=$q&format=json&pageno=1&safesearch=1&language=all&theme=simple"
+        DebugLog.i("WebSearcher SearXNG: $url")
+
+        val req = Request.Builder().url(url).get()
+            .header("User-Agent", "Mozilla/5.0 Opedrgent/1.0")
+            .build()
+
+        return http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                DebugLog.w("WebSearcher SearXNG failed: HTTP ${resp.code}")
+                return emptyList()
+            }
+            val body = resp.body?.string().orEmpty()
+            if (body.isBlank()) return emptyList()
+
+            try {
+                val json = org.json.JSONObject(body)
+                val results = json.optJSONArray("results") ?: return emptyList()
+                val out = ArrayList<SearchResult>()
+                for (i in 0 until results.length()) {
+                    if (out.size >= limit) break
+                    val item = results.getJSONObject(i)
+                    val title = item.optString("title", "").trim()
+                    val href = item.optString("url", "").trim()
+                    val content = item.optString("content", "").trim()
+                    if (href.isBlank() || title.isBlank()) continue
+                    out.add(SearchResult(title = title, url = href, snippet = content.ifBlank { null }))
+                }
+                DebugLog.i("WebSearcher SearXNG: ${out.size} results")
+                out
+            } catch (e: Exception) {
+                DebugLog.w("WebSearcher SearXNG parse error: ${e.message}")
+                emptyList()
+            }
+        }
+    }
+
     fun searchBaidu(query: String, limit: Int = 5): List<SearchResult> {
         val q = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://www.baidu.com/s?wd=$q&rn=$limit"
@@ -157,11 +205,11 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         val isZh = containsChinese(query)
         val q = if (isZh) query else "$query site:zh.wikipedia.org OR site:en.wikipedia.org"
 
-        val baidu = runCatching { searchBaidu(q, limit) }.getOrNull()
-        if (!baidu.isNullOrEmpty()) {
-            DebugLog.i("WebSearcher: Baidu returned ${baidu.size} results")
-            searchCache[key] = Pair(System.currentTimeMillis(), baidu)
-            return baidu
+        val searxng = runCatching { searchSearxng(query, limit) }.getOrNull()
+        if (!searxng.isNullOrEmpty()) {
+            DebugLog.i("WebSearcher: SearXNG returned ${searxng.size} results")
+            searchCache[key] = Pair(System.currentTimeMillis(), searxng)
+            return searxng
         }
 
         val bing = runCatching { searchBingCn(query, limit) }.getOrNull()
@@ -171,8 +219,66 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             return bing
         }
 
+        val baidu = runCatching { searchBaidu(q, limit) }.getOrNull()
+        if (!baidu.isNullOrEmpty()) {
+            DebugLog.i("WebSearcher: Baidu returned ${baidu.size} results")
+            searchCache[key] = Pair(System.currentTimeMillis(), baidu)
+            return baidu
+        }
+
+        val jina = runCatching { searchJina(query, limit) }.getOrNull()
+        if (!jina.isNullOrEmpty()) {
+            DebugLog.i("WebSearcher: Jina Search returned ${jina.size} results")
+            searchCache[key] = Pair(System.currentTimeMillis(), jina)
+            return jina
+        }
+
         DebugLog.w("WebSearcher: all engines failed, returning empty")
         return emptyList()
+    }
+
+    fun searchJina(query: String, limit: Int = 5): List<SearchResult> {
+        val url = "https://s.jina.ai/search"
+        val jsonBody = """{"q":"$query","count":$limit}"""
+        DebugLog.i("WebSearcher Jina Search: $query")
+
+        val req = Request.Builder()
+            .url(url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .header("User-Agent", "Opedrgent/1.0")
+            .post(jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+
+        return http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                DebugLog.w("WebSearcher Jina Search failed: HTTP ${resp.code}")
+                return emptyList()
+            }
+            val body = resp.body?.string().orEmpty()
+            if (body.isBlank()) return emptyList()
+
+            try {
+                val json = org.json.JSONObject(body)
+                val data = json.optJSONArray("data") ?: return emptyList()
+                val out = ArrayList<SearchResult>()
+                for (i in 0 until data.length()) {
+                    if (out.size >= limit) break
+                    val item = data.getJSONObject(i)
+                    val title = item.optString("title", "").trim()
+                    val href = item.optString("url", "").trim()
+                    val snippet = item.optString("description", "").trim()
+                        .ifBlank { item.optString("content", "").trim().take(200).ifBlank { null } }
+                    if (href.isBlank() || title.isBlank()) continue
+                    out.add(SearchResult(title = title, url = href, snippet = snippet))
+                }
+                DebugLog.i("WebSearcher Jina Search: ${out.size} results")
+                out
+            } catch (e: Exception) {
+                DebugLog.w("WebSearcher Jina Search parse error: ${e.message}")
+                emptyList()
+            }
+        }
     }
 
     fun fetchViaJina(url: String): JinaResult? {
