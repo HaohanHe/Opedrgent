@@ -508,27 +508,67 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         break
                     }
 
-                    val parallelResults = coroutineScope {
-                        result.toolCalls.map { tc ->
+                    val toolCallIds = result.toolCalls.map { it.id }
+                    val toolCallMap = result.toolCalls.associateBy { it.id }
+
+                    val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
+                        val parsedArgs: Map<String, String> = runCatching {
+                            org.json.JSONObject(tc.arguments).let { json ->
+                                json.keys().asSequence().associateWith { json.opt(it).toString() }
+                            }
+                        }.getOrDefault(emptyMap())
+                        ToolPart(
+                            tool = tc.name,
+                            state = ToolState(
+                                status = ToolStateType.PENDING,
+                                input = parsedArgs,
+                                startTime = System.currentTimeMillis(),
+                            ),
+                        )
+                    }
+                    allToolParts.addAll(pendingToolParts)
+                    _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
+
+                    coroutineScope {
+                        result.toolCalls.forEachIndexed { idx, tc ->
                             async(Dispatchers.IO) {
-                                if (cancelled.get()) return@async null
+                                if (cancelled.get()) return@async
 
-                                val parsedArgs: Map<String, String> = runCatching {
-                                    org.json.JSONObject(tc.arguments).let { json ->
-                                        json.keys().asSequence().associateWith { json.opt(it).toString() }
+                                val tp = pendingToolParts[idx]
+                                val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
+
+                                val phaseText = when {
+                                    tc.name == "web_search" -> {
+                                        val q = tc.arguments.substringAfter("\"query\":\"").substringBefore("\"").ifEmpty {
+                                            tc.arguments.substringAfter("\"keyword\":\"").substringBefore("\"")
+                                        }
+                                        if (q.isNotBlank() && q != "{{query}}") "正在搜索: $q" else "正在搜索…"
                                     }
-                                }.getOrDefault(emptyMap())
+                                    tc.name == "read_url" -> {
+                                        val u = tc.arguments.substringAfter("\"url\":\"").substringBefore("\"")
+                                        if (u.isNotBlank()) {
+                                            val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
+                                            "正在读取: $host"
+                                        } else "正在读取网页…"
+                                    }
+                                    else -> "正在执行: ${tc.name}"
+                                }
+                                _state.value = _state.value.copy(streamingPhase = phaseText)
 
-                                val tp = ToolPart(
-                                    tool = tc.name,
-                                    state = ToolState(
-                                        status = ToolStateType.PENDING,
-                                        input = parsedArgs,
-                                        startTime = System.currentTimeMillis(),
-                                    ),
-                                )
+                                synchronized(allToolParts) {
+                                    val pos = allToolParts.indexOfFirst { it.tool == tc.name && it.state.status == ToolStateType.PENDING }
+                                    if (pos >= 0) allToolParts[pos] = runningTp
+                                }
+                                _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
 
                                 val execResult = toolExecutor.execute(tp, config, system, useProviderSearch = isProviderWebSearchEnabled())
+
+                                val doneTp = execResult.toolPart
+                                synchronized(allToolParts) {
+                                    val pos = allToolParts.indexOfFirst { it.tool == tc.name && it.state.status == ToolStateType.RUNNING }
+                                    if (pos >= 0) allToolParts[pos] = doneTp
+                                }
+                                _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
 
                                 val newSources = execResult.addedSources.filter { usedUrls.add(it) }
                                 if (newSources.isNotEmpty()) {
@@ -540,76 +580,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     }
                                 }
 
-                                Triple(tc.id, execResult, tp)
-                            }
-                        }.mapNotNull { it.await() }
-                    }
-
-                    val orderedResults = parallelResults.sortedBy { triple ->
-                         result.toolCalls.indexOfFirst { it.id == triple.first }
-                     }
-
-                    for ((tcId, execResult, tp) in orderedResults) {
-                        if (cancelled.get()) return@launch
-
-                        val toolPhaseText = when {
-                            tp.tool == "web_search" -> {
-                                val q = tp.state.input["query"] ?: ""
-                                if (q.isNotBlank()) "正在搜索: $q" else "正在搜索…"
-                            }
-                            tp.tool == "read_url" -> {
-                                val u = tp.state.input["url"] ?: ""
-                                val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
-                                "正在读取: $host"
-                            }
-                            else -> "正在执行: ${tp.tool}"
-                        }
-                        _state.value = _state.value.copy(streamingPhase = toolPhaseText)
-
-                        val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
-                        allToolParts.add(runningTp)
-                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                        val doneTp = execResult.toolPart
-                        val idx = allToolParts.lastIndex
-                        allToolParts[idx] = doneTp
-                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-                        refreshSessions()
-
-                        if (execResult.openBrowserUrl != null) {
-                            _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
-                        }
-
-                        val newSources = execResult.addedSources.filter { it.isNotBlank() && !usedUrls.contains(it) }
-                        if (newSources.isNotEmpty()) {
-                            val s = store.getSession(sessionId)
-                            newSources.forEach { url ->
-                                if (s != null && s.sources.none { it.url == url }) {
-                                    store.addSource(sessionId, SourceType.URL, title = url, url = url, content = "")
+                                if (execResult.openBrowserUrl != null) {
+                                    _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
                                 }
+
+                                val newSources2 = execResult.addedSources.filter { it.isNotBlank() && !usedUrls.contains(it) }
+                                if (newSources2.isNotEmpty()) {
+                                    val s = store.getSession(sessionId)
+                                    newSources2.forEach { url ->
+                                        if (s != null && s.sources.none { it.url == url }) {
+                                            store.addSource(sessionId, SourceType.URL, title = url, url = url, content = "")
+                                        }
+                                    }
+                                }
+
+                                val taggedSources = execResult.addedSources.mapNotNull { url ->
+                                    if (url.isBlank()) return@mapNotNull null
+                                    sourceTagIdx++
+                                    "S$sourceTagIdx"
+                                }
+                                val sourceTags = if (taggedSources.isNotEmpty()) {
+                                    "\n[来源: ${taggedSources.joinToString(" ")}]"
+                                } else ""
+
+                                val toolOutput = execResult.toolPart.state.output
+                                    ?: execResult.toolPart.state.error
+                                    ?: "工具执行完成"
+                                toolMessages.add(ChatMessage(
+                                    role = Role.USER,
+                                    content = "$toolOutput$sourceTags",
+                                    createdAt = System.currentTimeMillis(),
+                                    toolCallId = tc.id,
+                                ))
                             }
-                            refreshSessions()
                         }
-
-                        val taggedSources = execResult.addedSources.mapNotNull { url ->
-                            if (url.isBlank()) return@mapNotNull null
-                            sourceTagIdx++
-                            "S$sourceTagIdx"
-                        }
-                        val sourceTags = if (taggedSources.isNotEmpty()) {
-                            "\n[来源: ${taggedSources.joinToString(" ")}]"
-                        } else ""
-
-                        val toolOutput = execResult.toolPart.state.output
-                            ?: execResult.toolPart.state.error
-                            ?: "工具执行完成"
-                        toolMessages.add(ChatMessage(
-                            role = Role.USER,
-                            content = "$toolOutput$sourceTags",
-                            createdAt = System.currentTimeMillis(),
-                            toolCallId = tcId,
-                        ))
                     }
+
+                    refreshSessions()
 
                     if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
                         val tcJsonArr = org.json.JSONArray()
