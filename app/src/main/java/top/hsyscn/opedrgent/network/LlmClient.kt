@@ -203,7 +203,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                     val toolCallMap = mutableMapOf<Int, StringBuilder>() // index -> name
                     val toolArgMap = mutableMapOf<Int, StringBuilder>() // index -> args
                     val toolIdMap = mutableMapOf<Int, String>() // index -> id
-                    val thinkingTagBuffer = StringBuilder()
+                    var inThinkingTag = false
 
                     while (!source.exhausted()) {
                         val line = source.readUtf8Line() ?: continue
@@ -212,7 +212,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
 
                         val data = line.removePrefix("data: ").trim()
                         if (data == "[DONE]") {
-                            DebugLog.i("streamChatCompletions ← DONE, text=${fullContent.length} chars, tools=${toolCallMap.size}")
+                            DebugLog.i("streamChatCompletions ← DONE, text=${fullContent.length} chars, reasoning=${fullReasoning.length} chars, tools=${toolCallMap.size}")
                             break
                         }
 
@@ -227,31 +227,52 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                             val reasoning = delta.optString("reasoning_content", "")
                                 .ifEmpty { delta.optString("reasoning", "") }
 
-                            thinkingTagBuffer.append(content)
-                            val thinkingRegex = Regex("<thinking>\\s*(.*?)\\s*</thinking>", RegexOption.DOT_MATCHES_ALL)
-                            val thinkingMatches = thinkingRegex.findAll(thinkingTagBuffer.toString()).toList()
-                            val hasCompleteThinking = thinkingMatches.isNotEmpty()
-                            if (hasCompleteThinking) {
-                                for (match in thinkingMatches) {
-                                    val thinkContent = match.groupValues[1].trim()
-                                    if (thinkContent.isNotEmpty()) {
-                                        fullReasoning.append(thinkContent)
-                                        onDelta(StreamDelta(content = "", reasoning = thinkContent))
+                            var remainingContent = content
+
+                            if (inThinkingTag) {
+                                val endTagIdx = remainingContent.indexOf("</thinking>")
+                                if (endTagIdx >= 0) {
+                                    val thinkChunk = remainingContent.substring(0, endTagIdx)
+                                    fullReasoning.append(thinkChunk)
+                                    onDelta(StreamDelta(content = "", reasoning = thinkChunk))
+                                    inThinkingTag = false
+                                    remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
+                                } else {
+                                    fullReasoning.append(remainingContent)
+                                    onDelta(StreamDelta(content = "", reasoning = remainingContent))
+                                    remainingContent = ""
+                                }
+                            }
+
+                            while (remainingContent.isNotEmpty()) {
+                                val startTagIdx = remainingContent.indexOf("<thinking>")
+                                val endTagIdx = remainingContent.indexOf("</thinking>")
+
+                                when {
+                                    startTagIdx >= 0 && (endTagIdx < 0 || startTagIdx < endTagIdx) -> {
+                                        val beforeThink = remainingContent.substring(0, startTagIdx)
+                                        if (beforeThink.isNotEmpty()) {
+                                            fullContent.append(beforeThink)
+                                            onDelta(StreamDelta(content = beforeThink, reasoning = ""))
+                                        }
+                                        remainingContent = remainingContent.substring(startTagIdx + "<thinking>".length)
+                                        inThinkingTag = true
+                                    }
+                                    endTagIdx >= 0 -> {
+                                        val thinkChunk = remainingContent.substring(0, endTagIdx)
+                                        fullReasoning.append(thinkChunk)
+                                        onDelta(StreamDelta(content = "", reasoning = thinkChunk))
+                                        inThinkingTag = false
+                                        remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
+                                    }
+                                    else -> {
+                                        fullContent.append(remainingContent)
+                                        onDelta(StreamDelta(content = remainingContent, reasoning = ""))
+                                        remainingContent = ""
                                     }
                                 }
-                                val lastMatch = thinkingMatches.last()
-                                val afterLastTag = thinkingTagBuffer.toString().substringAfter(lastMatch.value)
-                                thinkingTagBuffer.clear()
-                                if (afterLastTag.isNotEmpty()) thinkingTagBuffer.append(afterLastTag)
-                                val cleanContent = thinkingRegex.replace(thinkingTagBuffer.toString(), "")
-                                if (cleanContent.isNotEmpty()) {
-                                    fullContent.append(cleanContent)
-                                    onDelta(StreamDelta(content = cleanContent, reasoning = ""))
-                                }
-                                thinkingTagBuffer.clear()
-                            } else {
-                                if (content.isNotEmpty()) fullContent.append(content)
                             }
+
                             if (reasoning.isNotEmpty()) {
                                 fullReasoning.append(reasoning)
                                 onDelta(StreamDelta(content = "", reasoning = reasoning))
