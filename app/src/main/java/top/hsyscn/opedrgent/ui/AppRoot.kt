@@ -2149,6 +2149,30 @@ private fun StreamingCard(
     reasoning: String,
     toolParts: List<ToolPart>,
 ) {
+    var animatedText by remember(text) { mutableStateOf(text) }
+    val displayText = remember(animatedText) { animatedText.trimEnd() }
+    val animating = remember { mutableStateOf(false) }
+
+    LaunchedEffect(text) {
+        if (text.length > animatedText.length) {
+            animating.value = true
+            val newChars = text.substring(animatedText.length)
+            for (ch in newChars) {
+                animatedText += ch
+                val delay = when {
+                    ch == '\n' -> 30L
+                    ch in listOf('.', '。', '!', '！', '?', '？', ',', '，', '、') -> 40L
+                    ch == ' ' -> 5L
+                    else -> (20L..50L).random()
+                }
+                kotlinx.coroutines.delay(delay)
+            }
+            animating.value = false
+        } else if (text.length < animatedText.length) {
+            animatedText = text
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -2158,7 +2182,9 @@ private fun StreamingCard(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
+                if (animating.value) {
+                    CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
+                }
             }
             if (reasoning.isNotEmpty()) {
                 ThinkingSection(parts = listOf(ReasoningPart(text = reasoning)))
@@ -2169,8 +2195,12 @@ private fun StreamingCard(
                     Spacer(modifier = Modifier.height(4.dp))
                 }
             }
-            if (text.isNotEmpty()) {
-                MarkdownText(text = text, maxChars = 8000)
+            if (displayText.isNotEmpty()) {
+                Text(
+                    text = displayText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
