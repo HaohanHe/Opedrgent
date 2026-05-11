@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -55,6 +57,7 @@ import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
 import org.json.JSONArray
 import android.net.Uri
@@ -134,7 +137,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
-    private var cancelled = false
+    private val cancelled = AtomicBoolean(false)
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -436,7 +439,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun runModel(sessionId: String, artifactKind: ArtifactKind? = null) {
-        cancelled = false
+        cancelled.set(false)
         currentRunJob = viewModelScope.launch {
             setLoading(true)
             try {
@@ -450,7 +453,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val maxContextTokens = 16000
 
                 for (round in 0 until 10) {
-                    if (cancelled) {
+                    if (cancelled.get()) {
                         DebugLog.i("runModel cancelled at round $round")
                         return@launch
                     }
@@ -471,7 +474,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         streamLlm(config, compressedSystem, messages, tools = agentTools)
                     }
 
-                    if (cancelled) {
+                    if (cancelled.get()) {
                         DebugLog.i("runModel cancelled after streaming round $round")
                         return@launch
                     }
@@ -491,7 +494,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val parallelResults = coroutineScope {
                         result.toolCalls.map { tc ->
                             async(Dispatchers.IO) {
-                                if (cancelled) return@async null
+                                if (cancelled.get()) return@async null
 
                                 val parsedArgs: Map<String, String> = runCatching {
                                     org.json.JSONObject(tc.arguments).let { json ->
@@ -530,7 +533,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                      }
 
                     for ((tcId, execResult, tp) in orderedResults) {
-                        if (cancelled) return@launch
+                        if (cancelled.get()) return@launch
 
                         val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
                         allToolParts.add(runningTp)
@@ -597,7 +600,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ))
                     }
 
-                    if (cancelled) return@launch
+                    if (cancelled.get()) return@launch
                 }
 
                 val cleanFinal = top.hsyscn.opedrgent.utils.ToolCallParser.stripAllTags(finalContent).trim()
@@ -646,7 +649,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 DebugLog.i("runModel: complete, final=${displayContent.length} chars, tools=${allToolParts.size}")
             } catch (e: Exception) {
-                if (!cancelled) {
+                if (!cancelled.get()) {
                     DebugLog.e("runModel error: ${e.message}", e)
                     _state.value = _state.value.copy(
                         error = e.message ?: "请求失败",
@@ -657,7 +660,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             } finally {
-                if (!cancelled) {
+                if (!cancelled.get()) {
                     setLoading(false)
                 }
                 currentCall = null
@@ -674,11 +677,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     ): StreamResult = withContext(Dispatchers.IO) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
+        val ctx = currentCoroutineContext()
 
         kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
             var completed = false
             try {
-                val job = kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                val job = CoroutineScope(ctx).launch(Dispatchers.IO) {
                     try {
                         val call = llm.streamChatCompletions(
                             config = config,
@@ -844,7 +848,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stopGeneration() {
-        cancelled = true
+        cancelled.set(true)
         currentCall?.cancel()
         currentRunJob?.cancel()
         currentCall = null
@@ -921,11 +925,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val loc = withContext(Dispatchers.IO) { EnvironmentProvider.getCurrentLocation(app) }
                 if (loc != null) {
-                    val address = withContext(Dispatchers.IO) {
+                    val geo = withContext(Dispatchers.IO) {
                         EnvironmentProvider.reverseGeocode(loc.first, loc.second)
                     }
-                    val display = address ?: "${loc.first}, ${loc.second}"
+                    val display = geo?.displayName ?: "${loc.first}, ${loc.second}"
                     apiSettings.saveLastLocation(display)
+                    geo?.detail?.let { apiSettings.saveLastLocationDetail(it) }
                 }
             } catch (_: Exception) { }
         }
@@ -1251,17 +1256,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return EvolutionSuggestion(memory = "", skillName = "新技能", skillPrompt = "", raw = raw)
     }
 
-    fun exportMarkdown(): File? {
-        val session = _state.value.current ?: return null
+    suspend fun exportMarkdown(): File? = withContext(Dispatchers.IO) {
+        val session = _state.value.current ?: return@withContext null
         val app = getApplication<Application>()
         val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
         val safeTitle = session.title.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(60)
         val file = File(exportsDir, "${safeTitle}_${System.currentTimeMillis()}.md")
         file.writeText(buildMarkdown(session), Charsets.UTF_8)
-        return file
+        file
     }
 
-    fun exportMemoryMarkdown(): File {
+    suspend fun exportMemoryMarkdown(): File = withContext(Dispatchers.IO) {
         val app = getApplication<Application>()
         val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
         val file = File(exportsDir, "Memory_${System.currentTimeMillis()}.md")
@@ -1280,11 +1285,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         file.writeText(md, Charsets.UTF_8)
-        return file
+        file
     }
 
-    fun exportChatMarkdown(): File? {
-        val session = _state.value.current ?: return null
+    suspend fun exportChatMarkdown(): File? = withContext(Dispatchers.IO) {
+        val session = _state.value.current ?: return@withContext null
         val app = getApplication<Application>()
         val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
         val safeTitle = session.title.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(60)
@@ -1307,11 +1312,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         file.writeText(md.trim() + "\n", Charsets.UTF_8)
-        return file
+        file
     }
 
-    fun exportContextMarkdown(): File? {
-        val session = _state.value.current ?: return null
+    suspend fun exportContextMarkdown(): File? = withContext(Dispatchers.IO) {
+        val session = _state.value.current ?: return@withContext null
         val app = getApplication<Application>()
         val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
         val safeTitle = session.title.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(60)
@@ -1357,14 +1362,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             appendLine("```")
         }
         file.writeText(md.trim() + "\n", Charsets.UTF_8)
-        return file
+        file
     }
 
     private fun buildSystemPrompt(session: ResearchSession): String {
         val app = getApplication<Application>()
         val includeLoc = apiSettings.isLocationEnabled()
         val cachedLoc = apiSettings.getLastLocation()
-        val envInfo = EnvironmentProvider.getEnvironmentInfo(app, includeLocation = includeLoc, cachedLocation = cachedLoc)
+        val cachedDetail = apiSettings.getLastLocationDetail()
+        val envInfo = EnvironmentProvider.getEnvironmentInfo(app, includeLocation = includeLoc, cachedLocation = cachedLoc, cachedLocationDetail = cachedDetail)
         return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo)
     }
 

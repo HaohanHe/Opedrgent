@@ -27,11 +27,16 @@ data class EnvironmentInfo(
     val locationDetail: String?,
 )
 
+data class GeocodingResult(
+    val displayName: String,
+    val detail: String?,
+)
+
 object EnvironmentProvider {
 
     private val WEEKDAY_CN = arrayOf("星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六")
 
-    fun getEnvironmentInfo(context: Context, includeLocation: Boolean = false, cachedLocation: String? = null): EnvironmentInfo {
+    fun getEnvironmentInfo(context: Context, includeLocation: Boolean = false, cachedLocation: String? = null, cachedLocationDetail: String? = null): EnvironmentInfo {
         val now = Calendar.getInstance()
         val sdfDate = SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.CHINA)
         val sdfTz = SimpleDateFormat("zzz", Locale.ENGLISH)
@@ -50,7 +55,7 @@ object EnvironmentProvider {
             platform = platform,
             osVersion = osVersion,
             location = cachedLocation,
-            locationDetail = null,
+            locationDetail = cachedLocationDetail,
         )
     }
 
@@ -65,9 +70,8 @@ object EnvironmentProvider {
         return null
     }
 
-    fun reverseGeocode(lat: Double, lon: Double, http: OkHttpClient = HttpClients.default): String? {
+    fun reverseGeocode(lat: Double, lon: Double, http: OkHttpClient = HttpClients.default): GeocodingResult? {
         return try {
-            val q = URLEncoder.encode("$lat, $lon", "UTF-8")
             val url = "https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&accept-language=zh-CN"
             val req = Request.Builder()
                 .url(url)
@@ -78,7 +82,18 @@ object EnvironmentProvider {
                 if (!resp.isSuccessful) return null
                 val body = resp.body?.string().orEmpty()
                 val json = JSONObject(body)
-                json.optString("display_name").ifBlank { null }
+                val displayName = json.optString("display_name").ifBlank { null } ?: return null
+                val address = json.optJSONObject("address")
+                val detail = address?.let { addr ->
+                    val parts = mutableListOf<String>()
+                    addr.optString("city", "").takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    addr.optString("district", "").takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    addr.optString("town", "").takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    addr.optString("state", "").takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    addr.optString("country", "").takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    parts.joinToString(", ").takeIf { it.isNotBlank() }
+                }
+                GeocodingResult(displayName = displayName, detail = detail)
             }
         } catch (_: Exception) {
             null

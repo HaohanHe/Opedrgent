@@ -633,7 +633,7 @@ private fun SessionScreen(
                     label = { Text("深度研究") },
                     leadingIcon = if (state.deepResearchEnabled) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
                 )
-                Button(onClick = { vm.generateReport() }, enabled = vm.hasApiKey()) { Text("帮我写") }
+                Button(onClick = { vm.generateReport() }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading) { Text("帮我写") }
                 Button(onClick = { actionSheetOpen = true }) { Text("更多") }
             }
 
@@ -692,8 +692,10 @@ private fun SessionScreen(
                             p.startsWith("/summary") -> vm.generateSummary()
                             p.startsWith("/report") -> vm.generateReport()
                             p.startsWith("/export") -> {
-                                val f = vm.exportMarkdown()
-                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
+                                scope.launch {
+                                    val f = vm.exportMarkdown()
+                                    if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                                }
                             }
                             p.startsWith("/url ") -> vm.addUrlSource(p.removePrefix("/url").trim())
                             p == "/skills" -> vm.listSkillsAsMessage()
@@ -702,7 +704,7 @@ private fun SessionScreen(
                         }
                         prompt = ""
                     },
-                    enabled = state.isStreaming || prompt.isNotBlank(),
+                    enabled = state.isStreaming || (prompt.isNotBlank() && !state.loading),
                 ) {
                     if (state.isStreaming) {
                         Icon(Icons.Default.FlashOn, contentDescription = "stop", tint = MaterialTheme.colorScheme.error)
@@ -831,36 +833,42 @@ private fun SessionScreen(
                 HorizontalDivider()
                 Text("生成", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.generateSummary(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("摘要") }
-                    Button(onClick = { vm.generateReport(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("报告") }
+                    Button(onClick = { vm.generateSummary(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("摘要") }
+                    Button(onClick = { vm.generateReport(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("报告") }
                     Button(onClick = { skillsOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("技能") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.generateSessionNotes(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("整理笔记") }
-                    Button(onClick = { vm.suggestEvolution(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("进化") }
+                    Button(onClick = { vm.generateSessionNotes(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("整理笔记") }
+                    Button(onClick = { vm.suggestEvolution(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("进化") }
                 }
                 HorizontalDivider()
                 Text("计划", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.suggestAutomation(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("心跳/自动化") }
-                    Button(onClick = { vm.suggestCalendar(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("日程" ) }
+                    Button(onClick = { vm.suggestAutomation(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("心跳/自动化") }
+                    Button(onClick = { vm.suggestCalendar(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("日程" ) }
                 }
                 HorizontalDivider()
                 Text("导出", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = {
-                        val f = vm.exportMarkdown()
-                        if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
+                        scope.launch {
+                            val f = vm.exportMarkdown()
+                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                        }
                         actionSheetOpen = false
                     }, modifier = Modifier.weight(1f)) { Text("会话") }
                     Button(onClick = {
-                        val f = vm.exportChatMarkdown()
-                        if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
+                        scope.launch {
+                            val f = vm.exportChatMarkdown()
+                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                        }
                         actionSheetOpen = false
                     }, modifier = Modifier.weight(1f)) { Text("聊天") }
                     Button(onClick = {
-                        val f = vm.exportContextMarkdown()
-                        if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
+                        scope.launch {
+                            val f = vm.exportContextMarkdown()
+                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                        }
                         actionSheetOpen = false
                     }, modifier = Modifier.weight(1f)) { Text("上下文") }
                 }
@@ -887,7 +895,7 @@ private fun SessionScreen(
                     )
                     webQuery = ""
                     webSearchOpen = false
-                }) { Text("查询") }
+                }, enabled = !state.isStreaming && !state.loading) { Text("查询") }
             },
             dismissButton = { TextButton(onClick = { webSearchOpen = false }) { Text("取消") } },
             title = { Text("联网查询") },
@@ -2162,7 +2170,7 @@ private fun StreamingCard(
                 }
             }
             if (text.isNotEmpty()) {
-                Text(text = text)
+                MarkdownText(text = text, maxChars = 8000)
             }
         }
     }

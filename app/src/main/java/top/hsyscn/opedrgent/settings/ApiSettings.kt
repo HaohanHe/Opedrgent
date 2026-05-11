@@ -148,6 +148,12 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putString("lastLocation", location).apply()
     }
 
+    fun getLastLocationDetail(): String? = prefs.getString("lastLocationDetail", null)?.trim()?.takeIf { it.isNotBlank() }
+
+    fun saveLastLocationDetail(detail: String) {
+        prefs.edit().putString("lastLocationDetail", detail).apply()
+    }
+
     fun setLastSessionId(id: String?) {
         prefs.edit().putString("lastSessionId", id).apply()
     }
