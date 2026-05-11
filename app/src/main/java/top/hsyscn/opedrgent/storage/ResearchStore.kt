@@ -6,11 +6,17 @@ import org.json.JSONObject
 import top.hsyscn.opedrgent.model.Artifact
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
+import top.hsyscn.opedrgent.model.QuestionOption
+import top.hsyscn.opedrgent.model.QuestionPart
+import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ResearchSession
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.SessionSummary
 import top.hsyscn.opedrgent.model.Source
 import top.hsyscn.opedrgent.model.SourceType
+import top.hsyscn.opedrgent.model.ToolPart
+import top.hsyscn.opedrgent.model.ToolState
+import top.hsyscn.opedrgent.model.ToolStateType
 import java.io.File
 
 class ResearchStore(context: Context) {
@@ -216,11 +222,91 @@ class ResearchStore(context: Context) {
             val id = o.optString("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val role = runCatching { Role.valueOf(o.optString("role")) }.getOrNull() ?: return@mapNotNull null
             val content = o.optString("content")
+
+            val reasoningParts = o.optJSONArray("reasoningParts")?.let { arr ->
+                (0 until arr.length()).mapNotNull { j ->
+                    val rp = arr.optJSONObject(j) ?: return@mapNotNull null
+                    ReasoningPart(
+                        id = rp.optString("id"),
+                        text = rp.optString("text"),
+                        startTime = rp.optLong("startTime", 0L),
+                        endTime = rp.optLong("endTime", 0L),
+                    )
+                }
+            } ?: emptyList()
+
+            val toolParts = o.optJSONArray("toolParts")?.let { arr ->
+                (0 until arr.length()).mapNotNull { j ->
+                    val tp = arr.optJSONObject(j) ?: return@mapNotNull null
+                    val stateObj = tp.optJSONObject("state") ?: return@mapNotNull null
+                    val tpStateType = runCatching { ToolStateType.valueOf(stateObj.optString("status")) }.getOrNull() ?: return@mapNotNull null
+                    val inputMap = mutableMapOf<String, String>()
+                    stateObj.optJSONObject("input")?.let { inp ->
+                        inp.keys().forEach { key -> inputMap[key] = inp.optString(key) }
+                    }
+                    val tpQp = tp.optJSONObject("questionPart")?.let { qp ->
+                        val qpOptsArray = qp.optJSONArray("options")
+                        val qpOpts = if (qpOptsArray != null) {
+                            (0 until qpOptsArray.length()).mapNotNull { k ->
+                                qpOptsArray.optJSONObject(k)?.let { opt ->
+                                    QuestionOption(value = opt.optString("value"), label = opt.optString("label"))
+                                }
+                            }
+                        } else { emptyList() }
+                        QuestionPart(
+                            id = qp.optString("id"),
+                            prompt = qp.optString("prompt"),
+                            multiSelect = qp.optBoolean("multiSelect", false),
+                            options = qpOpts,
+                            answer = qp.optString("answer").ifBlank { null },
+                        )
+                    }
+                    ToolPart(
+                        id = tp.optString("id"),
+                        tool = tp.optString("tool"),
+                        state = ToolState(
+                            status = tpStateType,
+                            input = inputMap,
+                            output = stateObj.optString("output").ifBlank { null },
+                            error = stateObj.optString("error").ifBlank { null },
+                            startTime = stateObj.optLong("startTime", 0L),
+                            endTime = stateObj.optLong("endTime", 0L),
+                        ),
+                        questionPart = tpQp,
+                    )
+                }
+            } ?: emptyList()
+
+            val questionPartOptionsArray = o.optJSONObject("questionPart")?.optJSONArray("options")
+            val questionPartOptions = if (questionPartOptionsArray != null) {
+                (0 until questionPartOptionsArray.length()).mapNotNull { k ->
+                    questionPartOptionsArray.optJSONObject(k)?.let { opt ->
+                        QuestionOption(value = opt.optString("value"), label = opt.optString("label"))
+                    }
+                }
+            } else {
+                emptyList()
+            }
+            val questionPart = o.optJSONObject("questionPart")?.let { qp ->
+                QuestionPart(
+                    id = qp.optString("id"),
+                    prompt = qp.optString("prompt"),
+                    multiSelect = qp.optBoolean("multiSelect", false),
+                    options = questionPartOptions,
+                    answer = qp.optString("answer").ifBlank { null },
+                )
+            }
+
             ChatMessage(
                 id = id,
                 role = role,
                 content = content,
                 createdAt = o.optLong("createdAt", 0L),
+                toolParts = toolParts,
+                reasoningParts = reasoningParts,
+                questionPart = questionPart,
+                toolCallId = o.optString("toolCallId").ifBlank { null },
+                apiToolCallsJson = o.optString("apiToolCallsJson").ifBlank { null },
             )
         }
     }
@@ -272,6 +358,70 @@ class ResearchStore(context: Context) {
         obj.put("role", msg.role.name)
         obj.put("content", msg.content)
         obj.put("createdAt", msg.createdAt)
+        obj.put("toolCallId", msg.toolCallId ?: JSONObject.NULL)
+        obj.put("apiToolCallsJson", msg.apiToolCallsJson ?: JSONObject.NULL)
+        if (msg.reasoningParts.isNotEmpty()) {
+            obj.put("reasoningParts", JSONArray().apply {
+                msg.reasoningParts.forEach { rp ->
+                    put(JSONObject().apply {
+                        put("id", rp.id)
+                        put("text", rp.text)
+                        put("startTime", rp.startTime)
+                        put("endTime", rp.endTime)
+                    })
+                }
+            })
+        }
+        if (msg.toolParts.isNotEmpty()) {
+            obj.put("toolParts", JSONArray().apply {
+                msg.toolParts.forEach { tp ->
+                    put(JSONObject().apply {
+                        put("id", tp.id)
+                        put("tool", tp.tool)
+                        put("state", JSONObject().apply {
+                            put("status", tp.state.status.name)
+                            put("input", JSONObject(tp.state.input))
+                            put("output", tp.state.output ?: JSONObject.NULL)
+                            put("error", tp.state.error ?: JSONObject.NULL)
+                            put("startTime", tp.state.startTime)
+                            put("endTime", tp.state.endTime)
+                        })
+                        tp.questionPart?.let { qp ->
+                            put("questionPart", JSONObject().apply {
+                                put("id", qp.id)
+                                put("prompt", qp.prompt)
+                                put("multiSelect", qp.multiSelect)
+                                put("options", JSONArray().apply {
+                                    qp.options.forEach { opt ->
+                                        put(JSONObject().apply {
+                                            put("value", opt.value)
+                                            put("label", opt.label)
+                                        })
+                                    }
+                                })
+                                put("answer", qp.answer ?: JSONObject.NULL)
+                            })
+                        }
+                    })
+                }
+            })
+        }
+        msg.questionPart?.let { qp ->
+            obj.put("questionPart", JSONObject().apply {
+                put("id", qp.id)
+                put("prompt", qp.prompt)
+                put("multiSelect", qp.multiSelect)
+                put("options", JSONArray().apply {
+                    qp.options.forEach { opt ->
+                        put(JSONObject().apply {
+                            put("value", opt.value)
+                            put("label", opt.label)
+                        })
+                    }
+                })
+                put("answer", qp.answer ?: JSONObject.NULL)
+            })
+        }
         return obj
     }
 
