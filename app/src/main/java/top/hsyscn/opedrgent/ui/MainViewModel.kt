@@ -139,6 +139,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
     private val cancelled = AtomicBoolean(false)
+    private val sessionCache = mutableMapOf<String, ResearchSession>()
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -158,19 +159,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshSessions() {
-        _state.value = _state.value.copy(sessions = store.listSessions())
+        val sessions = store.listSessions()
+        sessionCache.clear()
+        sessions.forEach { sessionCache[it.id] = store.getSession(it.id)!! }
+        _state.value = _state.value.copy(sessions = sessions)
     }
 
     fun setSessionSearchQuery(q: String) {
         val query = q.trim()
-        val all = store.listSessions()
+        val allSessions = sessionCache.values.toList()
         if (query.isEmpty()) {
-            _state.value = _state.value.copy(sessions = all, sessionSearchQuery = "")
+            _state.value = _state.value.copy(
+                sessions = allSessions.map { SessionSummary(it.id, it.title, it.updatedAt) },
+                sessionSearchQuery = "",
+            )
             return
         }
         val lowered = query.lowercase()
-        val matchedIds = all.map { it.id }.filter { id ->
-            val s = store.getSession(id) ?: return@filter false
+        val filtered = allSessions.filter { s ->
             val hay = buildString {
                 append(s.title)
                 append("\n")
@@ -181,9 +187,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 s.artifacts.forEach { append(it.content); append("\n") }
             }.lowercase()
             hay.contains(lowered)
-        }.toSet()
-        val filtered = all.filter { matchedIds.contains(it.id) }
-        _state.value = _state.value.copy(sessions = filtered, sessionSearchQuery = query)
+        }
+        _state.value = _state.value.copy(
+            sessions = filtered.map { SessionSummary(it.id, it.title, it.updatedAt) },
+            sessionSearchQuery = query,
+        )
     }
 
     fun refreshSkills() {
