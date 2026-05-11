@@ -2,6 +2,9 @@ package top.hsyscn.opedrgent.network
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
@@ -175,30 +178,35 @@ class ToolExecutor(
         val fetchedSources = mutableListOf<String>()
         val toFetch = searchResults.take(maxFetch)
 
-        toFetch.forEach { result ->
-            val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
-            if (jinaResult != null && jinaResult.text.length > 100) {
-                val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
-                val content = sanitized.content.take(4000)
-                fetchedResults.add("\n--- 来源：${jinaResult.title.takeIf { it.isNotBlank() } ?: result.title} (${result.url}) ---\n$content\n")
-                fetchedSources.add(result.url)
-                return@forEach
-            }
+        coroutineScope {
+            val deferreds = toFetch.map { result ->
+                async(Dispatchers.IO) {
+                    val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
+                    if (jinaResult != null && jinaResult.text.length > 100) {
+                        val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
+                        val content = sanitized.content.take(4000)
+                        return@async Pair("\n--- 来源：${jinaResult.title.takeIf { it.isNotBlank() } ?: result.title} (${result.url}) ---\n$content\n", result.url)
+                    }
 
-            runCatching { fetcher.fetchUrl(result.url) }.onSuccess { fetched ->
-                val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = result.url)
-                val content = sanitized.content.take(4000)
-                fetchedResults.add("\n--- 来源：${fetched.title?.takeIf { it.isNotBlank() } ?: result.url} ---\n$content\n")
-                fetchedSources.add(result.url)
-            }.onFailure { e ->
-                DebugLog.w("web_search fetch failed: ${result.url} - ${e.message}, trying WebView")
-                runCatching { getWebViewAgent().fetchUrl(result.url) }.onSuccess { wvFetched ->
+                    val fetched = runCatching { fetcher.fetchUrl(result.url) }.getOrNull()
+                    if (fetched != null) {
+                        val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = result.url)
+                        val content = sanitized.content.take(4000)
+                        return@async Pair("\n--- 来源：${fetched.title?.takeIf { it.isNotBlank() } ?: result.url} ---\n$content\n", result.url)
+                    }
+
+                    val wvFetched = runCatching { getWebViewAgent().fetchUrl(result.url) }.getOrNull()
                     if (wvFetched != null) {
                         val wvContent = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = result.url).content.take(4000)
-                        fetchedResults.add("\n--- 来源（WebView降级）：${wvFetched.title} ---\n$wvContent\n")
-                        fetchedSources.add(result.url)
+                        return@async Pair("\n--- 来源（WebView降级）：${wvFetched.title} ---\n$wvContent\n", result.url)
                     }
+
+                    null
                 }
+            }
+            deferreds.awaitAll().filterNotNull().forEach { (content, url) ->
+                fetchedResults.add(content)
+                fetchedSources.add(url)
             }
         }
 
@@ -236,15 +244,20 @@ class ToolExecutor(
         val maxFetch = maxResults.coerceAtMost(results.size)
         val fetchedResults = mutableListOf<String>()
         val fetchedSources = mutableListOf<String>()
-        results.take(maxFetch).forEach { r ->
-            if (r.url.isNotBlank()) {
-                runCatching { getWebViewAgent().fetchUrl(r.url) }.onSuccess { wvFetched ->
-                    if (wvFetched != null) {
-                        val content = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = r.url).content.take(4000)
-                        fetchedResults.add("\n--- 来源：${wvFetched.title} (${r.url}) ---\n$content\n")
-                        fetchedSources.add(r.url)
+        coroutineScope {
+            val deferreds = results.take(maxFetch).map { r ->
+                if (r.url.isNotBlank()) {
+                    async(Dispatchers.IO) {
+                        runCatching { getWebViewAgent().fetchUrl(r.url) }.getOrNull()?.let { wvFetched ->
+                            val content = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = r.url).content.take(4000)
+                            Pair("\n--- 来源：${wvFetched.title} (${r.url}) ---\n$content\n", r.url)
+                        }
                     }
-                }
+                } else null
+            }
+            deferreds.filterNotNull().awaitAll().filterNotNull().forEach { (content, url) ->
+                fetchedResults.add(content)
+                fetchedSources.add(url)
             }
         }
 
