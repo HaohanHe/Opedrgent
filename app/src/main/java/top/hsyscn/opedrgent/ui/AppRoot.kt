@@ -449,17 +449,6 @@ private fun SessionScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (state.loading) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
             if (session == null) {
                 Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("会话不存在")
@@ -494,12 +483,20 @@ private fun SessionScreen(
                                     clipboard = clipboard,
                                 )
                             }
+                            if (state.loading && !state.isStreaming) {
+                                item {
+                                    PhaseIndicator(
+                                        phase = state.streamingPhase.ifEmpty { "正在思考…" },
+                                    )
+                                }
+                            }
                             if (state.isStreaming) {
                                 item {
                                     StreamingCard(
                                         text = state.streamingText,
                                         reasoning = state.streamingReasoning,
                                         toolParts = state.streamingToolParts,
+                                        phase = state.streamingPhase,
                                     )
                                 }
                             }
@@ -625,8 +622,8 @@ private fun SessionScreen(
                 FilterChip(
                     selected = state.deepThinkingEnabled,
                     onClick = { vm.toggleDeepThinking() },
-                    label = { Text("快速") },
-                    leadingIcon = if (state.deepThinkingEnabled) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
+                    label = { Text(if (state.deepThinkingEnabled) "深度思考" else "快速思考") },
+                    leadingIcon = if (state.deepThinkingEnabled) {{ Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
                 )
                 FilterChip(
                     selected = state.deepResearchEnabled,
@@ -2177,10 +2174,37 @@ private fun MessageCard(
 }
 
 @Composable
+private fun PhaseIndicator(phase: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.height(14.dp).width(14.dp),
+                strokeWidth = 2.dp,
+            )
+            Text(
+                text = phase,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun StreamingCard(
     text: String,
     reasoning: String,
     toolParts: List<ToolPart>,
+    phase: String = "",
 ) {
     var animatedText by remember(text) { mutableStateOf(text) }
     val displayText = remember(animatedText) { animatedText.trimEnd() }
@@ -2206,6 +2230,8 @@ private fun StreamingCard(
         }
     }
 
+    val isToolRunning = toolParts.any { it.state.status == ToolStateType.RUNNING }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -2215,7 +2241,7 @@ private fun StreamingCard(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                if (animating.value) {
+                if (isToolRunning || animating.value) {
                     CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
                 }
             }
@@ -2225,15 +2251,19 @@ private fun StreamingCard(
             if (toolParts.isNotEmpty()) {
                 toolParts.forEach { tp ->
                     ToolCard(toolPart = tp)
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
             }
             if (displayText.isNotEmpty()) {
-                Text(
-                    text = displayText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                MarkdownText(text = displayText, maxChars = 900)
+            }
+            if (displayText.isEmpty() && toolParts.isEmpty() && reasoning.isEmpty() && phase.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.height(12.dp).width(12.dp), strokeWidth = 1.5.dp)
+                    Text(text = phase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -2284,6 +2314,41 @@ private fun ToolCard(toolPart: ToolPart) {
         ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.secondary
     }
 
+    val summaryText = when (toolPart.state.status) {
+        ToolStateType.PENDING -> "等待执行…"
+        ToolStateType.RUNNING -> {
+            val q = toolPart.state.input["query"]
+            val u = toolPart.state.input["url"]
+            when {
+                !q.isNullOrBlank() -> "搜索: $q"
+                !u.isNullOrBlank() -> {
+                    val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
+                    "读取: $host"
+                }
+                else -> "执行中…"
+            }
+        }
+        ToolStateType.COMPLETED -> {
+            val out = toolPart.state.output
+            when {
+                toolPart.tool == "web_search" && !out.isNullOrBlank() -> {
+                    val count = out.lines().count { it.isNotBlank() }
+                    "搜索完成 · $count 条结果"
+                }
+                toolPart.tool == "read_url" && !out.isNullOrBlank() -> {
+                    val chars = out.length
+                    "读取完成 · ${chars} 字"
+                }
+                else -> "完成"
+            }
+        }
+        ToolStateType.ERROR -> {
+            val err = toolPart.state.error?.take(40) ?: "未知错误"
+            "错误: $err"
+        }
+        ToolStateType.SOURCE_ADDED -> "已添加来源"
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -2304,6 +2369,15 @@ private fun ToolCard(toolPart: ToolPart) {
                 if (toolPart.state.status == ToolStateType.RUNNING) {
                     CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
                 }
+            }
+            if (!expanded) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = summaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
             if (expanded) {
                 Spacer(Modifier.height(6.dp))

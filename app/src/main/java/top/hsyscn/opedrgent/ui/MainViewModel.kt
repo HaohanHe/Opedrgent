@@ -83,6 +83,7 @@ data class UiState(
     val streamingText: String = "",
     val streamingReasoning: String = "",
     val streamingToolParts: List<ToolPart> = emptyList(),
+    val streamingPhase: String = "",
     val activeQuestion: QuestionPart? = null,
     val isStreaming: Boolean = false,
     val deepThinkingEnabled: Boolean = false,
@@ -479,8 +480,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                     DebugLog.d("runModel: round $round, messages=${messages.size}, tokens=${compressed.tokenCount}")
 
+                    val phaseLabel = if (_state.value.deepThinkingEnabled) {
+                        if (round == 0) "深度思考中…" else "继续深度思考…"
+                    } else {
+                        if (round == 0) "正在思考…" else "继续思考…"
+                    }
+                    _state.value = _state.value.copy(streamingPhase = phaseLabel)
+
                     val result = withContext(Dispatchers.IO) {
-                        streamLlm(config, compressedSystem, messages, tools = agentTools)
+                        streamLlm(config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
                     }
 
                     if (cancelled.get()) {
@@ -543,6 +551,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                     for ((tcId, execResult, tp) in orderedResults) {
                         if (cancelled.get()) return@launch
+
+                        val toolPhaseText = when {
+                            tp.tool == "web_search" -> {
+                                val q = tp.state.input["query"] ?: ""
+                                if (q.isNotBlank()) "正在搜索: $q" else "正在搜索…"
+                            }
+                            tp.tool == "read_url" -> {
+                                val u = tp.state.input["url"] ?: ""
+                                val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
+                                "正在读取: $host"
+                            }
+                            else -> "正在执行: ${tp.tool}"
+                        }
+                        _state.value = _state.value.copy(streamingPhase = toolPhaseText)
 
                         val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
                         allToolParts.add(runningTp)
@@ -636,6 +658,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     streamingText = "",
                     streamingReasoning = "",
                     streamingToolParts = emptyList(),
+                    streamingPhase = "",
                 )
                 refreshSessions()
 
@@ -666,6 +689,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         streamingText = "",
                         streamingReasoning = "",
                         streamingToolParts = emptyList(),
+                        streamingPhase = "",
                     )
                 }
             } finally {
@@ -755,6 +779,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         system: String,
         messages: List<ChatMessage>,
         tools: List<top.hsyscn.opedrgent.network.ToolDefinition> = emptyList(),
+        deepThinkingEnabled: Boolean = false,
     ): StreamResult = withContext(Dispatchers.IO) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
@@ -779,6 +804,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             system = system,
                             messages = messages,
                             tools = tools,
+                            thinkingEnabled = deepThinkingEnabled,
                             onDelta = { delta ->
                                 if (delta.content.isNotEmpty()) {
                                     contentBuilder.append(delta.content)
