@@ -59,6 +59,14 @@ class WebViewAgent(private val context: Context) {
 
     private val jsBridge = JsBridge()
 
+    @Suppress("unused")
+    private inner class LoadingState {
+        var pageLoaded = false
+        var networkIdle = false
+        var title = ""
+        var text = ""
+    }
+
     suspend fun ensureInitialized() = withContext(Dispatchers.Main) {
         if (isInitialized && webView != null) return@withContext
         webView?.destroy()
@@ -68,7 +76,7 @@ class WebViewAgent(private val context: Context) {
                 domStorageEnabled = true
                 databaseEnabled = true
                 cacheMode = WebSettings.LOAD_DEFAULT
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
                 setSupportZoom(false)
                 builtInZoomControls = false
@@ -77,8 +85,18 @@ class WebViewAgent(private val context: Context) {
                 useWideViewPort = true
             }
             addJavascriptInterface(jsBridge, "OpedrgentBridge")
-            webViewClient = object : WebViewClient() {}
-            webChromeClient = object : WebChromeClient() {}
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    val s = view?.tag as? LoadingState
+                    if (s != null) s.pageLoaded = true
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: String, lineNumber: Int, sourceID: String) {
+                    DebugLog.d("WebView console: $message at line $lineNumber in $sourceID")
+                }
+            }
+            tag = LoadingState()
         }
         isInitialized = true
         DebugLog.i("WebViewAgent initialized")
@@ -92,7 +110,7 @@ class WebViewAgent(private val context: Context) {
         ensureInitialized()
         val deferred = CompletableDeferred<List<WebSearchResult>>()
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val searchUrl = "https://www.bing.com/search?q=$encodedQuery&count=$maxResults"
+        val searchUrl = "https://cn.bing.com/search?q=$encodedQuery&count=$maxResults"
 
         DebugLog.i("WebViewAgent.searchQuery: $query → bing")
 
@@ -166,63 +184,65 @@ class WebViewAgent(private val context: Context) {
 
     suspend fun fetchUrl(
         url: String,
-        timeoutMs: Long = 20000L,
+        timeoutMs: Long = 25000L,
     ): WebFetchResult? = withContext(Dispatchers.IO) {
         ensureInitialized()
         val deferred = CompletableDeferred<WebFetchResult?>()
+        val state = (webView?.tag as? LoadingState) ?: LoadingState().also { webView?.tag = it }
+        state.pageLoaded = false
+        state.title = ""
+        state.text = ""
 
         DebugLog.i("WebViewAgent.fetchUrl: $url")
 
-        mainHandler.post {
+        withContext(Dispatchers.Main) {
             webView?.loadUrl(url)
         }
 
-        var attempts = 0
-        val maxAttempts = (timeoutMs / 1000).toInt().coerceAtLeast(5)
-        var pageTitle = ""
-        var pageText = ""
+        val startTime = System.currentTimeMillis()
+        val maxWait = timeoutMs - 2000
 
-        while (!deferred.isCompleted && attempts < maxAttempts) {
-            withContext(Dispatchers.Default) { Thread.sleep(1000) }
-            attempts++
+        while (!deferred.isCompleted && (System.currentTimeMillis() - startTime) < maxWait) {
+            if (state.pageLoaded) {
+                withContext(Dispatchers.Default) { Thread.sleep(2000) }
 
-            mainHandler.post {
-                webView?.evaluateJavascript("(function(){ return document.title; })()") { result ->
-                    if (result != null && result != "null") {
-                        pageTitle = result.trim('"')
+                val captured = CompletableDeferred<String>()
+                val titleRef = CompletableDeferred<String>()
+                withContext(Dispatchers.Main) {
+                    webView?.evaluateJavascript("(function(){ return document.title; })()") { r ->
+                        titleRef.complete(r?.trim('"').orEmpty())
+                    }
+                    webView?.evaluateJavascript("""
+                        (function() {
+                            var el = document.body;
+                            if (!el) return '';
+                            var clone = el.cloneNode(true);
+                            var navs = clone.querySelectorAll('nav, header, footer, aside, script, style, noscript');
+                            navs.forEach(function(n){ n.remove(); });
+                            var text = clone.innerText || clone.textContent || '';
+                            return text.replace(/\s+/g, ' ').trim();
+                        })()
+                    """.trimIndent()) { r ->
+                        captured.complete(r?.trim('"').orEmpty() ?: "")
                     }
                 }
-                webView?.evaluateJavascript("""
-                    (function() {
-                        var el = document.body;
-                        if (!el) return '';
-                        var scripts = el.querySelectorAll('script, style, nav, footer, header, aside');
-                        scripts.forEach(function(s){ s.remove(); });
-                        return el.innerText.replace(/\s+/g, ' ').substring(0, 8000);
-                    })()
-                """.trimIndent()) { result ->
-                    if (result != null && result != "null" && result.length > 50) {
-                        pageText = result.trim('"')
-                    }
+
+                val text = captured.await()
+                val title = titleRef.await()
+
+                if (text.isNotEmpty() && text.length > 100) {
+                    DebugLog.i("WebViewAgent.fetchUrl: got ${text.length} chars after page load")
+                    deferred.complete(WebFetchResult(title = title.ifEmpty { url }, url = url, text = text))
+                    break
                 }
             }
-
             withContext(Dispatchers.Default) { Thread.sleep(500) }
-
-            if (pageText.length > 200) {
-                DebugLog.i("WebViewAgent.fetchUrl: got ${pageText.length} chars in ${attempts}s")
-                deferred.complete(WebFetchResult(
-                    title = pageTitle.ifEmpty { url },
-                    url = url,
-                    text = pageText,
-                ))
-            }
         }
 
         if (!deferred.isCompleted) {
-            DebugLog.w("WebViewAgent.fetchUrl: timeout after ${attempts}s, got ${pageText.length} chars")
-            if (pageText.isNotEmpty()) {
-                deferred.complete(WebFetchResult(title = pageTitle.ifEmpty { url }, url = url, text = pageText))
+            DebugLog.w("WebViewAgent.fetchUrl: timeout, returning partial ${state.text.length} chars")
+            if (state.text.isNotEmpty()) {
+                deferred.complete(WebFetchResult(title = state.title.ifEmpty { url }, url = url, text = state.text))
             } else {
                 deferred.complete(null)
             }

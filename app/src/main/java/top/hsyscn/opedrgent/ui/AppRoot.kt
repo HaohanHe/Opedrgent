@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -94,7 +95,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -320,6 +326,8 @@ private fun SessionScreen(
     var webAllowBrowser by rememberSaveable { mutableStateOf(false) }
     var pendingPdfUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pdfModeOpen by rememberSaveable { mutableStateOf(false) }
+    var pendingDocxUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var docxModeOpen by rememberSaveable { mutableStateOf(false) }
     var editNotesOpen by rememberSaveable { mutableStateOf(false) }
     var editNotesText by rememberSaveable { mutableStateOf("") }
 
@@ -392,6 +400,13 @@ private fun SessionScreen(
         if (uri != null) {
             pendingPdfUri = uri.toString()
             pdfModeOpen = true
+        }
+    }
+
+    val docxPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            pendingDocxUri = uri.toString()
+            docxModeOpen = true
         }
     }
 
@@ -523,7 +538,24 @@ private fun SessionScreen(
                     2 -> {
                         val enabledCount = session.sources.count { it.includeInContext }
                         item {
-                            Text("用于回答：$enabledCount / ${session.sources.size}")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("用于回答：$enabledCount / ${session.sources.size}")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (state.contextTokenCount > 0) {
+                                        Text(
+                                            text = "≈ ${state.contextTokenCount} tokens",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    TextButton(onClick = { vm.refreshContextTokenCount() }) { Text("刷新") }
+                                }
+                            }
                         }
                         if (session.sources.isEmpty()) {
                             item { Text("还没有来源。建议先添加 URL / PDF / 文本。") }
@@ -547,6 +579,8 @@ private fun SessionScreen(
                                                 TextButton(onClick = { vm.openBrowser(s.url) }) { Text("打开") }
                                             }
                                             TextButton(onClick = { clipboard.setText(AnnotatedString(s.content)) }) { Text("复制") }
+                                            Spacer(Modifier.weight(1f))
+                                            TextButton(onClick = { vm.removeSource(s.id) }, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
                                         }
                                     }
                                 }
@@ -570,7 +604,7 @@ private fun SessionScreen(
                                             Text(text = title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                             TextButton(onClick = { clipboard.setText(AnnotatedString(a.content)) }) { Text("复制") }
                                         }
-                                        ExpandableText(text = a.content, maxChars = 900)
+                                        MarkdownText(text = a.content, maxChars = 900)
                                     }
                                 }
                             }
@@ -587,9 +621,18 @@ private fun SessionScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = { vm.generateSummary() }, enabled = vm.hasApiKey()) { Text("快速") }
-                Button(onClick = { webSearchOpen = true }, enabled = vm.hasApiKey()) { Text("深入研究") }
-                Button(onClick = { skillsOpen = true }) { Text("AI 创作") }
+                FilterChip(
+                    selected = state.deepThinkingEnabled,
+                    onClick = { vm.toggleDeepThinking() },
+                    label = { Text("快速") },
+                    leadingIcon = if (state.deepThinkingEnabled) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
+                )
+                FilterChip(
+                    selected = state.deepResearchEnabled,
+                    onClick = { vm.saveDeepResearch(!state.deepResearchEnabled) },
+                    label = { Text("深度研究") },
+                    leadingIcon = if (state.deepResearchEnabled) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
+                )
                 Button(onClick = { vm.generateReport() }, enabled = vm.hasApiKey()) { Text("帮我写") }
                 Button(onClick = { actionSheetOpen = true }) { Text("更多") }
             }
@@ -779,27 +822,28 @@ private fun SessionScreen(
                     Button(onClick = { addUrlOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("URL") }
                     Button(onClick = { addTextOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("文本") }
                     Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("PDF") }
+                    Button(onClick = { docxPicker.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document")); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("Word") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { webSearchOpen = true; actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("联网") }
+                    Button(onClick = { webSearchOpen = true; actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("联网查询") }
                     Button(onClick = { vm.openBrowser("https://duckduckgo.com"); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("浏览器") }
-                    Button(onClick = { skillsOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("技能") }
                 }
                 HorizontalDivider()
                 Text("生成", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = { vm.generateSummary(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("摘要") }
                     Button(onClick = { vm.generateReport(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("报告") }
+                    Button(onClick = { skillsOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("技能") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.generateSessionNotes(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("整理") }
+                    Button(onClick = { vm.generateSessionNotes(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("整理笔记") }
                     Button(onClick = { vm.suggestEvolution(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("进化") }
                 }
                 HorizontalDivider()
                 Text("计划", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = { vm.suggestAutomation(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("心跳/自动化") }
-                    Button(onClick = { vm.suggestCalendar(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("日程") }
+                    Button(onClick = { vm.suggestCalendar(); actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("日程" ) }
                 }
                 HorizontalDivider()
                 Text("导出", fontWeight = FontWeight.SemiBold)
@@ -814,18 +858,11 @@ private fun SessionScreen(
                         if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
                         actionSheetOpen = false
                     }, modifier = Modifier.weight(1f)) { Text("聊天") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = {
                         val f = vm.exportContextMarkdown()
                         if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else scope.launch { snackbar.showSnackbar("导出失败") }
                         actionSheetOpen = false
                     }, modifier = Modifier.weight(1f)) { Text("上下文") }
-                    Button(onClick = {
-                        val f = vm.exportMemoryMarkdown()
-                        shareFile(context, vm.getPackageNameForShare(context), f)
-                        actionSheetOpen = false
-                    }, modifier = Modifier.weight(1f)) { Text("记忆") }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -902,6 +939,21 @@ private fun SessionScreen(
                 dismissButton = { TextButton(onClick = { pdfModeOpen = false; pendingPdfUri = null }) { Text("取消") } },
                 title = { Text("PDF 处理方式") },
                 text = { Text("OCR：转成文本来源；图片给模型：把前几页转成图片走多模态（需要支持图片输入的模型）。") },
+            )
+        }
+    }
+
+    if (docxModeOpen) {
+        val u = pendingDocxUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        if (u != null) {
+            AlertDialog(
+                onDismissRequest = { docxModeOpen = false; pendingDocxUri = null },
+                confirmButton = {
+                    Button(onClick = { vm.importDocx(u); docxModeOpen = false; pendingDocxUri = null }) { Text("导入") }
+                },
+                dismissButton = { TextButton(onClick = { docxModeOpen = false; pendingDocxUri = null }) { Text("取消") } },
+                title = { Text("导入 Word 文档") },
+                text = { Text("将 Word 文档（.docx）解析为文本来源。") },
             )
         }
     }
@@ -990,6 +1042,159 @@ private fun SessionScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun MarkdownText(text: String, maxChars: Int) {
+    var expanded by rememberSaveable(text) { mutableStateOf(false) }
+    val t = text.trim()
+    val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
+
+    val isCodeBlock = { line: String -> line.startsWith("```") }
+    val isHeading = { line: String -> line.startsWith("#") }
+    val isBullet = { line: String -> line.trimStart().startsWith("- ") || line.trimStart().startsWith("* ") }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val lines = show.split("\n")
+        var inCodeBlock = false
+        val codeBlockLines = mutableListOf<String>()
+
+        for (line in lines) {
+            if (isCodeBlock(line)) {
+                if (inCodeBlock) {
+                    val code = codeBlockLines.joinToString("\n")
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    ) {
+                        Text(
+                            text = code,
+                            modifier = Modifier.padding(8.dp),
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    codeBlockLines.clear()
+                    inCodeBlock = false
+                } else {
+                    inCodeBlock = true
+                }
+                continue
+            }
+            if (inCodeBlock) {
+                codeBlockLines.add(line)
+                continue
+            }
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                continue
+            }
+            when {
+                isHeading(trimmed) -> {
+                    val level = trimmed.takeWhile { it == '#' }.length
+                    val headingText = trimmed.removePrefix("#".repeat(level)).trim()
+                    val style = when (level) {
+                        1 -> MaterialTheme.typography.titleLarge
+                        2 -> MaterialTheme.typography.titleMedium
+                        else -> MaterialTheme.typography.titleSmall
+                    }
+                    Text(text = headingText, fontWeight = FontWeight.Bold, style = style)
+                }
+                isBullet(trimmed) -> {
+                    val bulletText = trimmed.removePrefix("- ").removePrefix("* ").trim()
+                    Text(buildAnnotatedString {
+                        append("• ")
+                        appendMarkdownInline(bulletText)
+                    })
+                }
+                trimmed.startsWith("[S") && trimmed.length < 10 -> {
+                    Text(
+                        text = trimmed,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                else -> {
+                    Text(buildAnnotatedString { appendMarkdownInline(trimmed) })
+                }
+            }
+        }
+        if (inCodeBlock && codeBlockLines.isNotEmpty()) {
+            val code = codeBlockLines.joinToString("\n")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            ) {
+                Text(
+                    text = code,
+                    modifier = Modifier.padding(8.dp),
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        if (t.length > maxChars) {
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起" else "展开") }
+        }
+    }
+}
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMarkdownInline(text: String) {
+    val boldPattern = Regex("""\*\*(.+?)\*\*""")
+    val italicPattern = Regex("""\*(.+?)\*""")
+    val codePattern = Regex("""`(.+?)`""")
+    val citationPattern = Regex("""\[S\d+]""")
+
+    var remaining = text
+    while (remaining.isNotEmpty()) {
+        val firstBold = boldPattern.find(remaining)
+        val firstItalic = italicPattern.find(remaining)
+        val firstCode = codePattern.find(remaining)
+        val firstCitation = citationPattern.find(remaining)
+
+        val first = listOfNotNull(firstBold, firstItalic, firstCode, firstCitation).minByOrNull { it.range.first }
+
+        if (first == null) {
+            append(remaining)
+            break
+        }
+
+        if (first.range.first > 0) {
+            append(remaining.substring(0, first.range.first))
+        }
+
+        when (first) {
+            firstBold -> {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(first.groupValues[1])
+                }
+                remaining = remaining.substring(first.range.last + 1)
+            }
+            firstItalic -> {
+                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                    append(first.groupValues[1])
+                }
+                remaining = remaining.substring(first.range.last + 1)
+            }
+            firstCode -> {
+                withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) {
+                    append(first.groupValues[1])
+                }
+                remaining = remaining.substring(first.range.last + 1)
+            }
+            firstCitation -> {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF1976D2))) {
+                    append(first.value)
+                }
+                remaining = remaining.substring(first.range.last + 1)
+            }
+            else -> {
+                append(remaining)
+                break
+            }
+        }
     }
 }
 
@@ -1129,6 +1334,18 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
     var modelMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val state by vm.state.collectAsStateCompat()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val locationPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            locationEnabled = true
+            vm.saveLocationEnabled(true)
+            vm.refreshLocation()
+        } else {
+            locationEnabled = false
+            scope.launch { snackbar.showSnackbar("未授予位置权限") }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1141,6 +1358,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 },
             )
         },
+        snackbarHost = { SnackbarHost(hostState = snackbar) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -1329,15 +1547,12 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                             )
                         }
                         Switch(checked = locationEnabled, onCheckedChange = {
-                            locationEnabled = it
                             if (it) {
-                                val activity = context as? Activity
-                                if (activity != null) {
-                                    val perms = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-                                    activity.requestPermissions(perms, 2001)
-                                }
+                                locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                            } else {
+                                locationEnabled = false
+                                vm.saveLocationEnabled(false)
                             }
-                            vm.saveLocationEnabled(it)
                         })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1915,7 +2130,7 @@ private fun MessageCard(
                     readonly = true,
                 )
             }
-            ExpandableText(text = message.content, maxChars = 900)
+            MarkdownText(text = message.content, maxChars = 900)
         }
     }
 }

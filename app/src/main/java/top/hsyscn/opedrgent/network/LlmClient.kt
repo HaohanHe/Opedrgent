@@ -130,7 +130,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         val msgCount = messages.size
         val toolsCount = tools.size
         DebugLog.i("streamChatCompletions → $url model=${config.model} msgs=$msgCount tools=$toolsCount")
-        DebugLog.json("system_first_300", system.take(300))
+        DebugLog.d("streamChatCompletions: system=${system.length} chars")
 
         val json = JSONObject().apply {
             put("model", config.model)

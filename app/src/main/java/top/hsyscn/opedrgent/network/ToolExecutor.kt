@@ -144,14 +144,8 @@ class ToolExecutor(
             return webviewSearch(tp, query)
         }
 
-        val hasChinese = WebSearcher.containsChinese(query)
-        val searchResults = if (hasChinese) {
-            val queryEn = translateQueryToEnglish(query, config)
-            DebugLog.i("web_search: dual search zh='$query' en='$queryEn'")
-            searcher.searchDual(query, queryEn, limit = 5)
-        } else {
-            searcher.search(query, limit = 5)
-        }
+        DebugLog.i("web_search: query='$query'")
+        val searchResults = searcher.search(query, limit = 5)
 
         val sourceLabel = if (searchResults.isNotEmpty()) {
             val first = searchResults.first()
@@ -388,13 +382,7 @@ class ToolExecutor(
         var usedWv = false
 
         if (useProviderSearch) {
-            val hasChinese = WebSearcher.containsChinese(query)
-            results = if (hasChinese) {
-                val queryEn = translateQueryToEnglish(query, config)
-                runCatching { searcher.searchDual(query, queryEn, limit = 8) }.getOrNull()
-            } else {
-                runCatching { searcher.searchDuckDuckGo(query, limit = 8) }.getOrNull()
-            }
+            results = runCatching { searcher.search(query, limit = 8) }.getOrNull()
         }
 
         if (results.isNullOrEmpty()) {

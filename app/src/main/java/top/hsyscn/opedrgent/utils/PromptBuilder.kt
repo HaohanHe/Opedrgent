@@ -7,6 +7,8 @@ import top.hsyscn.opedrgent.storage.MemoryStore
 
 object PromptBuilder {
 
+    const val DYNAMIC_BOUNDARY = "\n---\n# 以下内容随会话动态变化（不可缓存）\n---\n"
+
     fun buildSystemPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
@@ -22,6 +24,9 @@ object PromptBuilder {
         if (envInfo != null) sb.appendLine(buildEnvironmentSection(envInfo))
         sb.appendLine(buildToolsAndStrategySection())
         sb.appendLine(buildOutputSection())
+        sb.appendLine(buildDefenseInstructions())
+
+        sb.append(DYNAMIC_BOUNDARY)
 
         if (memory.isNotBlank()) {
             sb.appendLine()
@@ -29,7 +34,6 @@ object PromptBuilder {
         }
 
         sb.appendLine()
-        sb.appendLine(buildDefenseInstructions())
 
         if (session.notes.isNotBlank()) {
             sb.appendLine()
