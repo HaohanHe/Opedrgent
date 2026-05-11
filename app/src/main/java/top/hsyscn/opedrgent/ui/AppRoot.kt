@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -1054,6 +1055,83 @@ private fun SessionScreen(
 }
 
 @Composable
+private fun MarkdownTable(tableLines: List<String>) {
+    if (tableLines.size < 2) return
+    val sepIdx = tableLines.indexOfFirst { line ->
+        Regex("""\|[\s\-:\|]+\|""").matches(line.trim())
+    }
+    if (sepIdx < 1) return
+
+    val headerLine = tableLines[sepIdx - 1]
+    val headers = parseTableRow(headerLine)
+    val aligns = parseAlignments(tableLines.getOrNull(sepIdx) ?: "")
+    val rows = tableLines.drop(sepIdx + 1).filter { it.trim().isNotEmpty() && it.trim().startsWith("|") }
+        .map { parseTableRow(it) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            TableRow(headers, aligns, isHeader = true)
+            if (sepIdx + 1 < tableLines.size && tableLines.drop(sepIdx + 1).any { it.trim().isNotEmpty() }) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            }
+            rows.forEach { cells ->
+                TableRow(cells, aligns, isHeader = false)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableRow(cells: List<String>, aligns: List<String>, isHeader: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        cells.forEachIndexed { idx, cell ->
+            val align = aligns.getOrNull(idx) ?: "left"
+            val textAlign = when (align) {
+                "center" -> androidx.compose.ui.text.style.TextAlign.Center
+                "right" -> androidx.compose.ui.text.style.TextAlign.Right
+                else -> androidx.compose.ui.text.style.TextAlign.Start
+            }
+            Text(
+                text = cell.trim(),
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 3.dp),
+                style = if (isHeader) MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        else MaterialTheme.typography.bodySmall,
+                textAlign = textAlign,
+                color = if (isHeader) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            if (idx < cells.lastIndex) {
+                Spacer(modifier = Modifier.width(1.dp).height(16.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)))
+            }
+        }
+    }
+}
+
+private fun parseTableRow(line: String): List<String> {
+    return line.split("|").filter { it.isNotEmpty() }.map { it.trim() }
+}
+
+private fun parseAlignments(sepLine: String): List<String> {
+    return sepLine.split("|").filter { it.isNotEmpty() }.map { cell ->
+        val t = cell.trim()
+        when {
+            t.startsWith(":") && t.endsWith(":") -> "center"
+            t.endsWith(":") -> "right"
+            else -> "left"
+        }
+    }
+}
+
+private val TABLE_LINE_PATTERN = Regex("""^\s*\|""")
+
+@Composable
 private fun MarkdownText(text: String, maxChars: Int) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     val t = text.trim()
@@ -1062,13 +1140,17 @@ private fun MarkdownText(text: String, maxChars: Int) {
     val isCodeBlock = { line: String -> line.startsWith("```") }
     val isHeading = { line: String -> line.startsWith("#") }
     val isBullet = { line: String -> line.trimStart().startsWith("- ") || line.trimStart().startsWith("* ") }
+    val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val lines = show.split("\n")
         var inCodeBlock = false
         val codeBlockLines = mutableListOf<String>()
+        var i = 0
 
-        for (line in lines) {
+        while (i < lines.size) {
+            val line = lines[i]
+
             if (isCodeBlock(line)) {
                 if (inCodeBlock) {
                     val code = codeBlockLines.joinToString("\n")
@@ -1088,17 +1170,33 @@ private fun MarkdownText(text: String, maxChars: Int) {
                 } else {
                     inCodeBlock = true
                 }
+                i++
                 continue
             }
+
             if (inCodeBlock) {
                 codeBlockLines.add(line)
+                i++
                 continue
             }
+
+            if (isTableRow(line)) {
+                val tableLines = mutableListOf<String>()
+                while (i < lines.size && isTableRow(lines[i])) {
+                    tableLines.add(lines[i])
+                    i++
+                }
+                MarkdownTable(tableLines)
+                continue
+            }
+
             val trimmed = line.trim()
             if (trimmed.isEmpty()) {
                 Spacer(Modifier.height(4.dp))
+                i++
                 continue
             }
+
             when {
                 isHeading(trimmed) -> {
                     val level = trimmed.takeWhile { it == '#' }.length
@@ -1128,6 +1226,7 @@ private fun MarkdownText(text: String, maxChars: Int) {
                     Text(buildAnnotatedString { appendMarkdownInline(trimmed) })
                 }
             }
+            i++
         }
         if (inCodeBlock && codeBlockLines.isNotEmpty()) {
             val code = codeBlockLines.joinToString("\n")
