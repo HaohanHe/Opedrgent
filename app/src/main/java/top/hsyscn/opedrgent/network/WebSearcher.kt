@@ -6,6 +6,7 @@ import org.jsoup.Jsoup
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.net.URLEncoder
 import java.net.URLDecoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class SearchResult(
@@ -27,9 +28,12 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
         private val CN_PATTERN = Regex("[\\u4e00-\\u9fa5]")
         private const val SEARCH_TIMEOUT_SEC = 8
+        private const val SEARCH_CACHE_TTL_MS = 30_000L
 
         fun containsChinese(s: String): Boolean = CN_PATTERN.containsMatchIn(s)
     }
+
+    private val searchCache = ConcurrentHashMap<String, Pair<Long, List<SearchResult>>>()
 
     private fun buildClient(timeoutSec: Int = SEARCH_TIMEOUT_SEC): OkHttpClient {
         return http.newBuilder()
@@ -147,18 +151,27 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     }
 
     fun search(query: String, limit: Int = 5): List<SearchResult> {
+        val key = "${query.lowercase().trim()}|$limit"
+        val cached = searchCache[key]
+        if (cached != null && System.currentTimeMillis() - cached.first < SEARCH_CACHE_TTL_MS) {
+            DebugLog.i("WebSearcher: cache hit for '${query.take(50)}'")
+            return cached.second
+        }
+
         val isZh = containsChinese(query)
         val q = if (isZh) query else "$query site:zh.wikipedia.org OR site:en.wikipedia.org"
 
         val baidu = runCatching { searchBaidu(q, limit) }.getOrNull()
         if (!baidu.isNullOrEmpty()) {
             DebugLog.i("WebSearcher: Baidu returned ${baidu.size} results")
+            searchCache[key] = Pair(System.currentTimeMillis(), baidu)
             return baidu
         }
 
         val bing = runCatching { searchBingCn(query, limit) }.getOrNull()
         if (!bing.isNullOrEmpty()) {
             DebugLog.i("WebSearcher: Bing CN returned ${bing.size} results")
+            searchCache[key] = Pair(System.currentTimeMillis(), bing)
             return bing
         }
 
