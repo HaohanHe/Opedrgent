@@ -10,6 +10,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -669,6 +670,78 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private class StreamingBuffer(
+        private val flushIntervalMs: Long = 50L,
+    ) {
+        private val contentBuf = StringBuilder()
+        private val reasoningBuf = StringBuilder()
+        private val toolCallBuf = StringBuilder()
+        private var lastToolCall: String? = null
+        private var flushJob: Job? = null
+
+        fun appendDelta(content: String, reasoning: String) {
+            synchronized(this) {
+                if (content.isNotEmpty()) contentBuf.append(content)
+                if (reasoning.isNotEmpty()) reasoningBuf.append(reasoning)
+            }
+        }
+
+        fun appendToolCall(nameDelta: String, argsDelta: String) {
+            synchronized(this) {
+                if (nameDelta.isNotEmpty()) toolCallBuf.append(nameDelta)
+                else if (argsDelta.isNotEmpty()) lastToolCall = argsDelta.take(20)
+            }
+        }
+
+        suspend fun startFlushing(scope: CoroutineScope, onFlush: (content: String, reasoning: String, toolCallSnippet: String?) -> Unit) {
+            flushJob = scope.launch(Dispatchers.Main) {
+                while (true) {
+                    delay(flushIntervalMs)
+                    val flush = synchronized(this@StreamingBuffer) {
+                        if (contentBuf.isEmpty() && reasoningBuf.isEmpty() && toolCallBuf.isEmpty() && lastToolCall == null) {
+                            return@launch
+                        }
+                        val content = contentBuf.toString()
+                        val reasoning = reasoningBuf.toString()
+                        val toolCall = if (toolCallBuf.isNotEmpty()) toolCallBuf.toString() else lastToolCall?.let { "[调用工具: $it...]" }
+                        contentBuf.clear()
+                        reasoningBuf.clear()
+                        toolCallBuf.clear()
+                        lastToolCall = null
+                        Triple(content, reasoning, toolCall)
+                    }
+                    onFlush(flush.first, flush.second, flush.third)
+                }
+            }
+        }
+
+        fun flushFinal(onFlush: (content: String, reasoning: String) -> Unit) {
+            flushJob?.cancel()
+            val flush = synchronized(this@StreamingBuffer) {
+                val content = contentBuf.toString()
+                val reasoning = reasoningBuf.toString()
+                contentBuf.clear()
+                reasoningBuf.clear()
+                toolCallBuf.clear()
+                lastToolCall = null
+                Pair(content, reasoning)
+            }
+            if (flush.first.isNotEmpty() || flush.second.isNotEmpty()) {
+                onFlush(flush.first, flush.second)
+            }
+        }
+
+        fun cancel() {
+            flushJob?.cancel()
+            synchronized(this) {
+                contentBuf.clear()
+                reasoningBuf.clear()
+                toolCallBuf.clear()
+                lastToolCall = null
+            }
+        }
+    }
+
     private suspend fun streamLlm(
         config: top.hsyscn.opedrgent.settings.ApiConfig,
         system: String,
@@ -678,12 +751,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
         val ctx = currentCoroutineContext()
+        val buffer = StreamingBuffer(flushIntervalMs = 60L)
 
         kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
             var completed = false
             try {
                 val job = CoroutineScope(ctx).launch(Dispatchers.IO) {
                     try {
+                        buffer.startFlushing(CoroutineScope(ctx)) { content, reasoning, toolCall ->
+                            _state.value = _state.value.copy(
+                                streamingText = contentBuilder.toString() + content + (toolCall?.let { "\n$it" } ?: ""),
+                                streamingReasoning = reasoningBuilder.toString() + reasoning,
+                                isStreaming = true,
+                            )
+                        }
+
                         val call = llm.streamChatCompletions(
                             config = config,
                             system = system,
@@ -692,33 +774,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 if (delta.content.isNotEmpty()) {
                                     contentBuilder.append(delta.content)
-                                    launch(Dispatchers.Main) {
-                                        _state.value = _state.value.copy(
-                                            streamingText = contentBuilder.toString(),
-                                            isStreaming = true,
-                                        )
-                                    }
                                 }
                                 if (delta.reasoning.isNotEmpty()) {
                                     reasoningBuilder.append(delta.reasoning)
-                                    launch(Dispatchers.Main) {
-                                        _state.value = _state.value.copy(
-                                            streamingReasoning = reasoningBuilder.toString(),
-                                        )
-                                    }
                                 }
                             },
                             onToolCallDelta = { tc ->
-                                launch(Dispatchers.Main) {
-                                    _state.value = _state.value.copy(
-                                        streamingText = contentBuilder.toString() +
-                                            "\n[调用工具: ${tc.nameDelta.ifEmpty { tc.argsDelta.take(20) }}...]",
-                                    )
-                                }
+                                buffer.appendToolCall(tc.nameDelta, tc.argsDelta)
                             },
                             onDone = { result ->
                                 if (!completed) {
                                     completed = true
+                                    buffer.flushFinal { content, reasoning ->
+                                        if (content.isNotEmpty()) contentBuilder.append(content)
+                                        if (reasoning.isNotEmpty()) reasoningBuilder.append(reasoning)
+                                    }
                                     continuation.resumeWith(Result.success(StreamResult(
                                         content = result.content,
                                         reasoning = result.reasoning,
@@ -729,6 +799,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             onError = { err ->
                                 if (!completed) {
                                     completed = true
+                                    buffer.cancel()
                                     val partial = contentBuilder.toString().trim()
                                     if (partial.isNotEmpty()) {
                                         continuation.resumeWith(Result.success(StreamResult(
@@ -745,6 +816,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     } catch (e: Exception) {
                         if (!completed) {
                             completed = true
+                            buffer.cancel()
                             continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
                         }
                     }
@@ -752,10 +824,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 continuation.invokeOnCancellation {
                     job.cancel()
                     currentCall?.cancel()
+                    buffer.cancel()
                 }
             } catch (e: Exception) {
                 if (!completed) {
                     completed = true
+                    buffer.cancel()
                     continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
                 }
             }
