@@ -72,19 +72,15 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             for (item in items) {
                 if (out.size >= limit) break
 
-                val h2 = item.selectFirst("h2") ?: continue
-                val a = h2.selectFirst("a") ?: continue
-                val title = a.text().trim()
-                var href = a.attr("href")
+                val h2 = item.selectFirst("h2")
+                val title = h2?.text()?.trim() ?: continue
+                val href = item.selectFirst("a")?.attr("href") ?: continue
 
-                if (href.isBlank() || title.isBlank()) continue
-                if (href.startsWith("/")) href = "https://cn.bing.com$href"
-                if (href.contains("bing.com/search") || href.contains("microsoft")) continue
+                if (href.isNullOrBlank() || title.isBlank()) continue
+                if (href.contains("baidu.com") && !href.startsWith("http")) continue
 
-                val snippetEl = item.selectFirst(".b_caption p")
-                    ?: item.selectFirst(".b_snippet")
-                    ?: item.selectFirst("p")
-                val snippet = snippetEl?.text()?.trim()?.ifBlank { null }
+                val snippet = item.selectFirst("p.b_lineclamp3, p.b_snippet, div.b_caption p")?.text()?.trim()?.ifBlank { null }
+                    ?: h2?.text()?.substringAfter(title)?.take(150)?.ifEmpty { null }
 
                 out.add(SearchResult(title = title, url = href, snippet = snippet))
             }
