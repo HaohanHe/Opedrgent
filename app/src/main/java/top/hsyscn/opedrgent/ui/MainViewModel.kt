@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
+import top.hsyscn.opedrgent.agent.ResearchPhase
+import top.hsyscn.opedrgent.agent.ResearchState
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MemoryEntry
@@ -462,9 +464,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 var sourceTagIdx = 0
                 val maxContextTokens = 16000
 
-                for (round in 0 until 10) {
+                val state = ResearchState(maxRounds = 10)
+
+                while (state.shouldContinue()) {
                     if (cancelled.get()) {
-                        DebugLog.i("runModel cancelled at round $round")
+                        DebugLog.i("runModel cancelled at round ${state.roundsUsed}")
                         return@launch
                     }
 
@@ -478,21 +482,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     } else system
                     val messages = compressed.recentMessages
 
-                    DebugLog.d("runModel: round $round, messages=${messages.size}, tokens=${compressed.tokenCount}")
+                    DebugLog.d("runModel: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
 
-                    val phaseLabel = if (_state.value.deepThinkingEnabled) {
-                        if (round == 0) "深度思考中…" else "继续深度思考…"
-                    } else {
-                        if (round == 0) "正在思考…" else "继续思考…"
-                    }
-                    _state.value = _state.value.copy(streamingPhase = phaseLabel)
+                    state.advanceTo(ResearchPhase(
+                        name = if (state.roundsUsed == 0) "思考中" else "继续思考",
+                    ))
+                    _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
 
                     val result = withContext(Dispatchers.IO) {
                         streamLlm(config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
                     }
 
                     if (cancelled.get()) {
-                        DebugLog.i("runModel cancelled after streaming round $round")
+                        DebugLog.i("runModel cancelled after streaming round ${state.roundsUsed}")
                         return@launch
                     }
 
@@ -504,7 +506,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     finalReasoning = result.reasoning
 
                     if (result.toolCalls.isEmpty()) {
-                        DebugLog.i("runModel: no tool_call in response, model is done at round $round")
+                        DebugLog.i("runModel: no tool_call in response, model is done at round ${state.roundsUsed}")
+                        state.recordNoToolCalls(result.content)
+                        _state.value = _state.value.copy(streamingPhase = "生成回答…")
                         break
                     }
 
@@ -617,6 +621,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                     refreshSessions()
+
+                    val searchCount = result.toolCalls.count { it.name == "web_search" }
+                    val fetchCount = result.toolCalls.count { it.name == "read_url" }
+                    if (searchCount > 0) {
+                        state.advanceTo(ResearchPhase(
+                            name = "搜索完成",
+                            searchesCompleted = state.completedSearches.size + searchCount,
+                            lastToolName = "web_search",
+                        ))
+                    } else if (fetchCount > 0) {
+                        state.advanceTo(ResearchPhase(
+                            name = "读取完成",
+                            pagesFetched = state.fetchedUrls.size + fetchCount,
+                            lastToolName = "read_url",
+                        ))
+                    }
+                    _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
 
                     if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
                         val tcJsonArr = org.json.JSONArray()
