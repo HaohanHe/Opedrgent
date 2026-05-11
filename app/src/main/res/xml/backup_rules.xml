@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample backup rules file; uncomment and customize as necessary.
+   See https://developer.android.com/guide/topics/data/autobackup
+   for details.
+   Note: This file is ignored for devices older than API 31
+   See https://developer.android.com/about/versions/12/backup-restore
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="opedrgent_settings.xml" />
+    <exclude domain="sharedpref" path="opedrgent_secure.xml" />
+    <exclude domain="file" path="research_store.json" />
+    <exclude domain="file" path="exports" />
+</full-backup-content>
