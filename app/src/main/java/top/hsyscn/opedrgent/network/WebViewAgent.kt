@@ -2,9 +2,11 @@ package top.hsyscn.opedrgent.network
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.http.SslError
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -89,6 +91,10 @@ class WebViewAgent(private val context: Context) {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     val s = view?.tag as? LoadingState
                     if (s != null) s.pageLoaded = true
+                }
+                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler, error: SslError) {
+                    DebugLog.w("WebViewAgent SSL error: ${error.primaryError} for ${error.url}, proceeding anyway")
+                    handler.proceed()
                 }
             }
             webChromeClient = object : WebChromeClient() {

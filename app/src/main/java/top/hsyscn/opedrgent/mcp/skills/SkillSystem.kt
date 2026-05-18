@@ -1,6 +1,9 @@
 package top.hsyscn.opedrgent.mcp.skills
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -9,6 +12,23 @@ import kotlinx.serialization.json.put
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+@Serializable
+data class ChildAbility(
+    val name: String,
+    val description: String,
+    val parameters: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class Skill(
+    val id: String,
+    val name: String,
+    val description: String,
+    val category: String,
+    val keywords: List<String>,
+    val children: List<ChildAbility> = emptyList(),
+)
 
 @Serializable
 data class SkillDefinition(
@@ -23,6 +43,7 @@ data class SkillDefinition(
     val promptTemplate: String? = null,
     val requiredTools: List<String> = emptyList(),
     val metadata: Map<String, String> = emptyMap(),
+    val body: String = "", // Markdown body content (after YAML frontmatter)
 )
 
 enum class SkillCategory {
@@ -38,6 +59,23 @@ enum class SkillCategory {
 data class SkillIndex(
     val skills: List<SkillDefinition>,
     val lastUpdated: Long = System.currentTimeMillis(),
+)
+
+@Serializable
+data class SkillSnapshotEntry(
+    val skillId: String,
+    val skillName: String,
+    val description: String,
+    val category: String,
+)
+
+@Serializable
+data class SkillPromptSnapshot(
+    val version: Int = 1,
+    val manifest: Map<String, List<Long>> = emptyMap(),
+    val skills: List<SkillSnapshotEntry> = emptyList(),
+    val categoryDescriptions: Map<String, String> = emptyMap(),
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -145,6 +183,10 @@ class SkillRegistry {
         return skills.size
     }
 
+    fun getAllSkills(): List<SkillDefinition> {
+        return skills.values.toList()
+    }
+
     private fun extractKeywords(text: String): List<String> {
         val stopWords = setOf("the", "a", "an", "is", "are", "was", "were", "be", "been",
             "being", "have", "has", "had", "do", "does", "did", "will", "would", "could",
@@ -239,6 +281,12 @@ class SkillRegistry {
 class BuiltinSkillLoader {
 
     companion object {
+        private const val ASSETS_SKILLS_DIR = "skills"
+        private val json = kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+
         fun loadBuiltinSkills(registry: SkillRegistry) {
             registry.registerSkill(SkillDefinition(
                 id = "web_research",
@@ -326,7 +374,277 @@ Structure your analysis with:
                 requiredTools = listOf("web_search"),
             ))
 
-            DebugLog.i("BuiltinSkillLoader: loaded 5 builtin skills")
+            registry.registerSkill(SkillDefinition(
+                id = "mimo_tts",
+                name = "MiMo TTS",
+                description = "使用MiMo V2.5引擎进行高质量语音合成",
+                category = SkillCategory.GENERAL,
+                tags = listOf("tts", "语音", "朗读", "配音", "唱歌", "念出"),
+                metadata = mapOf(
+                    "children" to """[{"name":"synthesize","description":"基础语音合成，支持8个预置音色和风格控制"},{"name":"voicedesign","description":"音色设计：通过文本描述生成自定义音色"},{"name":"voiceclone","description":"音色克隆：通过音频样本复刻声音"}]"""
+                ),
+            ))
+
+            DebugLog.i("BuiltinSkillLoader: loaded 6 builtin skills")
+        }
+
+        /**
+         * 从 Android assets/skills/{skillId}.json 加载单个 SkillDefinition
+         * @param context Android Context
+         * @param skillId 技能 ID（不含 .json 后缀）
+         * @return 解析成功返回 SkillDefinition，失败返回 null
+         */
+        fun loadSkillFromAssets(context: Context, skillId: String): SkillDefinition? {
+            val fileName = "$skillId.json"
+            return try {
+                context.assets.open("$ASSETS_SKILLS_DIR/$fileName").use { inputStream ->
+                    val jsonStr = inputStream.bufferedReader(Charsets.UTF_8).readText()
+                    json.decodeFromString<SkillDefinition>(jsonStr).also {
+                        DebugLog.i("BuiltinSkillLoader: loaded skill '$skillId' from assets")
+                    }
+                }
+            } catch (e: Exception) {
+                DebugLog.w("BuiltinSkillLoader: failed to load skill '$skillId' from assets: ${e.message}")
+                null
+            }
+        }
+
+        /**
+         * 从 Android assets/skills/ 目录加载所有 .json 技能文件
+         * @param context Android Context
+         * @return 成功解析的 SkillDefinition 列表
+         */
+        fun loadAllSkillsFromAssets(context: Context): List<SkillDefinition> {
+            return try {
+                val skillFiles = context.assets.list(ASSETS_SKILLS_DIR)
+                    ?.filter { it.endsWith(".json") }
+                    ?: emptyList()
+
+                skillFiles.mapNotNull { fileName ->
+                    val skillId = fileName.removeSuffix(".json")
+                    loadSkillFromAssets(context, skillId)
+                }.also {
+                    DebugLog.i("BuiltinSkillLoader: loaded ${it.size} skills from assets")
+                }
+            } catch (e: Exception) {
+                DebugLog.w("BuiltinSkillLoader: failed to load skills from assets: ${e.message}")
+                emptyList()
+            }
         }
     }
+}
+
+object SkillPromptCache {
+
+    private val lruCache = linkedMapOf<String, CachedSkillPrompt>()
+    private const val LRU_MAX_SIZE = 8
+    private const val SNAPSHOT_VERSION = 1
+    private var snapshotFile: File? = null
+
+    data class CachedSkillPrompt(
+        val prompt: String,
+        val computedAt: Long,
+        val skillHash: String,
+    ) {
+        fun isExpired(): Boolean = System.currentTimeMillis() - computedAt > 10 * 60 * 1000L
+    }
+
+    fun initialize(cacheDir: File) {
+        snapshotFile = File(cacheDir, "skills_prompt_snapshot.json")
+        DebugLog.d("SkillPromptCache: initialized with snapshot at ${snapshotFile?.absolutePath}")
+    }
+
+    fun buildSkillsPrompt(
+        registry: SkillRegistry,
+        availableTools: Set<String>? = null,
+    ): String {
+        val cacheKey = buildCacheKey(availableTools)
+
+        synchronized(lruCache) {
+            lruCache[cacheKey]?.let { cached ->
+                if (!cached.isExpired()) {
+                    lruCache.remove(cacheKey)
+                    lruCache[cacheKey] = cached
+                    return cached.prompt
+                }
+                lruCache.remove(cacheKey)
+            }
+        }
+
+        val snapshot = loadSnapshot()
+        if (snapshot != null && isValidSnapshot(snapshot)) {
+            val prompt = buildFromSnapshot(snapshot)
+            putLru(cacheKey, prompt, computeSnapshotHash(snapshot))
+            return prompt
+        }
+
+        val skills = registry.getAllSkills()
+        val prompt = formatSkillsIndex(skills)
+
+        writeSnapshotAsync(skills)
+
+        putLru(cacheKey, prompt, computeSkillsHash(skills))
+
+        return prompt
+    }
+
+    private fun buildCacheKey(availableTools: Set<String>?): String {
+        return (availableTools?.sorted()?.joinToString(",") ?: "all")
+    }
+
+    private fun putLru(key: String, prompt: String, hash: String) {
+        synchronized(lruCache) {
+            if (lruCache.size >= LRU_MAX_SIZE) {
+                val oldest = lruCache.keys.first()
+                lruCache.remove(oldest)
+            }
+            lruCache[key] = CachedSkillPrompt(prompt, System.currentTimeMillis(), hash)
+        }
+    }
+
+    private fun moveToEnd(key: String) {
+        synchronized(lruCache) {
+            val entry = lruCache.remove(key) ?: return
+            lruCache[key] = entry
+        }
+    }
+
+    private fun loadSnapshot(): SkillPromptSnapshot? {
+        val file = snapshotFile ?: return null
+        if (!file.exists()) return null
+
+        try {
+            val json = file.readText(Charsets.UTF_8)
+            val snapshot = kotlinx.serialization.json.Json {
+                ignoreUnknownKeys = true
+            }.decodeFromString(SkillPromptSnapshot.serializer(), json)
+
+            if (snapshot.version != SNAPSHOT_VERSION) return null
+
+            return snapshot
+        } catch (e: Exception) {
+            DebugLog.w("SkillPromptCache: failed to load snapshot: ${e.message}")
+            return null
+        }
+    }
+
+    private fun isValidSnapshot(snapshot: SkillPromptSnapshot): Boolean {
+        return snapshot.skills.isNotEmpty() && 
+               (System.currentTimeMillis() - snapshot.timestamp < 24 * 60 * 60 * 1000L)
+    }
+
+    private fun buildFromSnapshot(snapshot: SkillPromptSnapshot): String {
+        val lines = mutableListOf<String>()
+
+        lines.add("## Skills (mandatory)")
+        lines.add("")
+        lines.add("Before replying, scan the skills below. If a skill matches or is even partially relevant to your task, you MUST use it.")
+        lines.add("")
+
+        val groupedByCategory: Map<String, List<SkillSnapshotEntry>> = snapshot.skills.groupBy { it.category }
+
+        for ((category, entries) in groupedByCategory.toList().sortedBy { it.first }) {
+            val desc = snapshot.categoryDescriptions[category]
+            if (desc != null) {
+                lines.add("### $category: $desc")
+            } else {
+                lines.add("### $category:")
+            }
+
+            for (entry in entries.sortedBy { it.skillName }) {
+                lines.add("- **${entry.skillName}**: ${entry.description}")
+            }
+            lines.add("")
+        }
+
+        return lines.joinToString("\n").trim()
+    }
+
+    private fun formatSkillsIndex(skills: List<SkillDefinition>): String {
+        if (skills.isEmpty()) return ""
+
+        val lines = mutableListOf<String>()
+
+        lines.add("## Skills (mandatory)")
+        lines.add("")
+        lines.add("Before replying, scan the skills below. If a skill matches or is even partially relevant to your task, you MUST use it.")
+        lines.add("")
+
+        val groupedByCategory: Map<String, List<SkillDefinition>> = skills.groupBy { it.category.name }
+
+        for ((category, entries) in groupedByCategory.toList().sortedBy { it.first }) {
+            lines.add("### $category:")
+
+            for (skill in entries.sortedBy { it.name }) {
+                lines.add("- **${skill.name}**: ${skill.description}")
+            }
+            lines.add("")
+        }
+
+        return lines.joinToString("\n").trim()
+    }
+
+    private fun writeSnapshotAsync(skills: List<SkillDefinition>) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val file = snapshotFile ?: return@launch
+
+                val manifest = mutableMapOf<String, List<Long>>()
+                val snapshotEntries = skills.map { skill ->
+                    SkillSnapshotEntry(
+                        skillId = skill.id,
+                        skillName = skill.name,
+                        description = skill.description,
+                        category = skill.category.name,
+                    )
+                }
+
+                val categoryDescriptions = skills
+                    .groupBy { it.category.name }
+                    .mapValues { "${it.value.size} skills" }
+
+                val snapshot = SkillPromptSnapshot(
+                    version = SNAPSHOT_VERSION,
+                    manifest = manifest,
+                    skills = snapshotEntries,
+                    categoryDescriptions = categoryDescriptions,
+                    timestamp = System.currentTimeMillis(),
+                )
+
+                val json = kotlinx.serialization.json.Json {
+                    encodeDefaults = true
+                    prettyPrint = true
+                }.encodeToString(SkillPromptSnapshot.serializer(), snapshot)
+
+                file.writeText(json, Charsets.UTF_8)
+
+                DebugLog.d("SkillPromptCache: snapshot written with ${skills.size} skills")
+            } catch (e: Exception) {
+                DebugLog.w("SkillPromptCache: failed to write snapshot: ${e.message}")
+            }
+        }
+    }
+
+    private fun computeSkillsHash(skills: List<SkillDefinition>): String {
+        return skills.joinToString("|") { "${it.id}:${it.version}" }.hashCode().toString()
+    }
+
+    private fun computeSnapshotHash(snapshot: SkillPromptSnapshot): String {
+        return snapshot.skills.joinToString("|") { "${it.skillId}" }.hashCode().toString()
+    }
+
+    fun clearCache() {
+        synchronized(lruCache) {
+            lruCache.clear()
+        }
+        snapshotFile?.let {
+            if (it.exists()) it.delete()
+        }
+        DebugLog.d("SkillPromptCache: cache cleared")
+    }
+
+    fun getStats(): Map<String, Int> = mapOf(
+        "lru_cache_size" to synchronized(lruCache) { lruCache.size },
+        "snapshot_exists" to (snapshotFile?.exists() == true).let { if (it) 1 else 0 },
+    )
 }

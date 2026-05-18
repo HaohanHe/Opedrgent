@@ -42,6 +42,7 @@ import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.network.WebResearchMode
 import top.hsyscn.opedrgent.network.WebResearchRequest
 import top.hsyscn.opedrgent.network.WebResearchRouter
+import top.hsyscn.opedrgent.network.MapTileFetcher
 import top.hsyscn.opedrgent.env.EnvironmentProvider
 import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
@@ -56,6 +57,9 @@ import top.hsyscn.opedrgent.docx.DocxProcessor
 import top.hsyscn.opedrgent.utils.PromptSafety
 import top.hsyscn.opedrgent.utils.PromptBlocks
 import top.hsyscn.opedrgent.utils.PromptBuilder
+import top.hsyscn.opedrgent.utils.ModelInfo
+import top.hsyscn.opedrgent.utils.PlatformContext
+import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.tts.TtsPlayer
@@ -93,6 +97,7 @@ data class UiState(
     val isSpeaking: Boolean = false,
     val contextTokenCount: Int = 0,
     val contextCompressionEnabled: Boolean = true,
+    val debugModeEnabled: Boolean = false,
 )
 
 data class EvolutionSuggestion(
@@ -132,8 +137,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val llm = LlmClient(http)
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm)
-    private val tts = TtsPlayer(app)
+    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings)
+    private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
 
     private val _state = MutableStateFlow(UiState())
@@ -143,6 +148,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var currentRunJob: Job? = null
     private val cancelled = AtomicBoolean(false)
     private val sessionCache = mutableMapOf<String, ResearchSession>()
+    // Tool executor serialized via limitedParallelism(1) dispatcher to prevent concurrent duplicate searches
+    private val searchDispatcher = Dispatchers.IO.limitedParallelism(1)
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -150,6 +157,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             deepThinkingEnabled = apiSettings.isDeepThinking(),
             deepResearchEnabled = apiSettings.isDeepResearch(),
+            debugModeEnabled = apiSettings.isDebugMode(),
         )
         refreshSessions()
         refreshSkills()
@@ -447,6 +455,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     put("required", org.json.JSONArray().apply { put("url") })
                 }
             ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "reverse_geocode",
+                description = "将经纬度坐标转换为具体地名地址。调用后返回该坐标对应的城市、街道等详细信息。",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("lat", org.json.JSONObject().apply {
+                            put("type", "number")
+                            put("description", "纬度")
+                        })
+                        put("lon", org.json.JSONObject().apply {
+                            put("type", "number")
+                            put("description", "经度")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("lat"); put("lon") })
+                }
+            ),
         )
     }
 
@@ -489,8 +515,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ))
                     _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
 
-                    val result = withContext(Dispatchers.IO) {
-                        streamLlm(config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                    val mapImages = if (state.roundsUsed == 0) {
+                        withContext(Dispatchers.IO) { tryFetchLocationMap(messages) }
+                    } else emptyList()
+
+                    val result = if (mapImages.isNotEmpty()) {
+                        _state.value = _state.value.copy(streamingPhase = "正在分析地图…")
+                        withContext(Dispatchers.IO) {
+                            streamMultimodalLlm(config, compressedSystem, messages, mapImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                        }
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            streamLlm(config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                        }
                     }
 
                     if (cancelled.get()) {
@@ -499,7 +536,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                     if (result.error != null) {
-                        throw IllegalStateException(result.error)
+                        DebugLog.e("runModel: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
+                        state.recordNoToolCalls(result.content.ifEmpty { "执行失败: ${result.error}" })
+                        _state.value = _state.value.copy(streamingPhase = "生成回答…")
+                        break
                     }
 
                     finalContent = result.content
@@ -543,13 +583,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                                 val phaseText = when {
                                     tc.name == "web_search" -> {
-                                        val q = tc.arguments.substringAfter("\"query\":\"").substringBefore("\"").ifEmpty {
-                                            tc.arguments.substringAfter("\"keyword\":\"").substringBefore("\"")
-                                        }
+                                        val q = tp.state.input["query"] ?: tp.state.input["keyword"] ?: ""
                                         if (q.isNotBlank() && q != "{{query}}") "正在搜索: $q" else "正在搜索…"
                                     }
                                     tc.name == "read_url" -> {
-                                        val u = tc.arguments.substringAfter("\"url\":\"").substringBefore("\"")
+                                        val u = tp.state.input["url"] ?: ""
                                         if (u.isNotBlank()) {
                                             val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
                                             "正在读取: $host"
@@ -560,16 +598,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 _state.value = _state.value.copy(streamingPhase = phaseText)
 
                                 synchronized(allToolParts) {
-                                    val pos = allToolParts.indexOfFirst { it.tool == tc.name && it.state.status == ToolStateType.PENDING }
+                                    val pos = allToolParts.indexOfFirst { it.id == tp.id }
                                     if (pos >= 0) allToolParts[pos] = runningTp
                                 }
                                 _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
 
-                                val execResult = toolExecutor.execute(tp, config, system, useProviderSearch = isProviderWebSearchEnabled())
+                                val execResult = withContext(searchDispatcher) {
+                                    toolExecutor.execute(tp, config, system, useProviderSearch = isProviderWebSearchEnabled())
+                                }
 
                                 val doneTp = execResult.toolPart
                                 synchronized(allToolParts) {
-                                    val pos = allToolParts.indexOfFirst { it.tool == tc.name && it.state.status == ToolStateType.RUNNING }
+                                    val pos = allToolParts.indexOfFirst { it.id == tp.id }
                                     if (pos >= 0) allToolParts[pos] = doneTp
                                 }
                                 _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
@@ -607,15 +647,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     "\n[来源: ${taggedSources.joinToString(" ")}]"
                                 } else ""
 
-                                val toolOutput = execResult.toolPart.state.output
-                                    ?: execResult.toolPart.state.error
-                                    ?: "工具执行完成"
-                                toolMessages.add(ChatMessage(
-                                    role = Role.USER,
-                                    content = "$toolOutput$sourceTags",
-                                    createdAt = System.currentTimeMillis(),
-                                    toolCallId = tc.id,
-                                ))
+                                val toolOutput = when {
+                                    execResult.toolPart.state.status == ToolStateType.ERROR -> {
+                                        "[工具执行失败: ${execResult.toolPart.state.error?.take(100)}]"
+                                    }
+                                    execResult.toolPart.state.output != null -> execResult.toolPart.state.output
+                                    else -> "工具执行完成"
+                                }
+                                if (execResult.toolPart.state.status != ToolStateType.ERROR) {
+                                    toolMessages.add(ChatMessage(
+                                        role = Role.USER,
+                                        content = "$toolOutput$sourceTags",
+                                        createdAt = System.currentTimeMillis(),
+                                        toolCallId = tc.id,
+                                    ))
+                                }
                             }
                         }
                     }
@@ -651,22 +697,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 })
                             })
                         }
+                        val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(result.reasoning)
                         toolMessages.add(ChatMessage(
                             role = Role.ASSISTANT,
                             content = result.content,
                             createdAt = System.currentTimeMillis(),
                             apiToolCallsJson = tcJsonArr.toString(),
+                            reasoningParts = if (cleanReasoning.isNotEmpty()) {
+                                listOf(ReasoningPart(text = cleanReasoning, endTime = System.currentTimeMillis()))
+                            } else emptyList(),
                         ))
                     }
 
                     if (cancelled.get()) return@launch
                 }
 
-                val cleanFinal = top.hsyscn.opedrgent.utils.ToolCallParser.stripAllTags(finalContent).trim()
+                val rawContent = top.hsyscn.opedrgent.utils.ToolCallParser.stripAllTags(finalContent).trim()
+                val cleanFinal = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(rawContent).let { if (it.isEmpty()) finalContent.trim() else it }
                 val displayContent = cleanFinal.ifEmpty { finalContent.trim() }
 
-                val reasoningParts = if (finalReasoning.isNotEmpty()) {
-                    listOf(ReasoningPart(text = finalReasoning, endTime = System.currentTimeMillis()))
+                val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(finalReasoning)
+                val reasoningParts = if (cleanReasoning.isNotEmpty()) {
+                    listOf(ReasoningPart(text = cleanReasoning, endTime = System.currentTimeMillis()))
                 } else emptyList()
 
                 store.addMessage(
@@ -703,6 +755,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         localeTag = apiSettings.getTtsLocaleTag(),
                         rate = apiSettings.getTtsRate(),
                         pitch = apiSettings.getTtsPitch(),
+                        mimoVoice = apiSettings.getTtsMimoVoice(),
                     )
                     _state.value = _state.value.copy(isSpeaking = true)
                 }
@@ -731,7 +784,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private class StreamingBuffer(
-        private val flushIntervalMs: Long = 50L,
+        private val flushIntervalMs: Long = 30L,
     ) {
         private val contentBuf = StringBuilder()
         private val reasoningBuf = StringBuilder()
@@ -759,18 +812,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     delay(flushIntervalMs)
                     val flush = synchronized(this@StreamingBuffer) {
                         if (contentBuf.isEmpty() && reasoningBuf.isEmpty() && toolCallBuf.isEmpty() && lastToolCall == null) {
-                            return@launch
+                            null
+                        } else {
+                            val content = contentBuf.toString()
+                            val reasoning = reasoningBuf.toString()
+                            val toolCall = if (toolCallBuf.isNotEmpty()) toolCallBuf.toString() else lastToolCall?.let { "[调用工具: $it...]" }
+                            contentBuf.clear()
+                            reasoningBuf.clear()
+                            toolCallBuf.clear()
+                            lastToolCall = null
+                            Triple(content, reasoning, toolCall)
                         }
-                        val content = contentBuf.toString()
-                        val reasoning = reasoningBuf.toString()
-                        val toolCall = if (toolCallBuf.isNotEmpty()) toolCallBuf.toString() else lastToolCall?.let { "[调用工具: $it...]" }
-                        contentBuf.clear()
-                        reasoningBuf.clear()
-                        toolCallBuf.clear()
-                        lastToolCall = null
-                        Triple(content, reasoning, toolCall)
                     }
-                    onFlush(flush.first, flush.second, flush.third)
+                    if (flush != null) {
+                        onFlush(flush.first, flush.second, flush.third)
+                    }
                 }
             }
         }
@@ -812,21 +868,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
         val ctx = currentCoroutineContext()
-        val buffer = StreamingBuffer(flushIntervalMs = 60L)
+        val buffer = StreamingBuffer(flushIntervalMs = 30L)
+
+        val tempToolParts = mutableListOf<ToolPart>()
+        val seenToolIdx = mutableSetOf<Int>()
+
+        var lastFlushTime = 0L
+        val throttleIntervalMs = 30L
 
         kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
             var completed = false
             try {
                 val job = CoroutineScope(ctx).launch(Dispatchers.IO) {
                     try {
-                        buffer.startFlushing(CoroutineScope(ctx)) { content, reasoning, toolCall ->
-                            _state.value = _state.value.copy(
-                                streamingText = contentBuilder.toString() + content + (toolCall?.let { "\n$it" } ?: ""),
-                                streamingReasoning = reasoningBuilder.toString() + reasoning,
-                                isStreaming = true,
-                            )
-                        }
-
                         val call = llm.streamChatCompletions(
                             config = config,
                             system = system,
@@ -836,15 +890,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
-                                        if (delta.text.isNotEmpty()) contentBuilder.append(delta.text)
+                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        if (t.isNotEmpty()) {
+                                            contentBuilder.append(t)
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastFlushTime >= throttleIntervalMs) {
+                                                lastFlushTime = now
+                                                val textSnapshot = contentBuilder.toString()
+                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
+                                                    _state.value = _state.value.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                     is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
-                                        if (delta.text.isNotEmpty()) reasoningBuilder.append(delta.text)
+                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        if (t.isNotEmpty()) {
+                                            reasoningBuilder.append(t)
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastFlushTime >= throttleIntervalMs) {
+                                                lastFlushTime = now
+                                                val textSnapshot = contentBuilder.toString()
+                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
+                                                    _state.value = _state.value.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             },
                             onToolCallDelta = { tc ->
                                 buffer.appendToolCall(tc.nameDelta, tc.argsDelta)
+                                if (tc.nameDelta.isNotEmpty() && tc.index !in seenToolIdx) {
+                                    seenToolIdx.add(tc.index)
+                                    val tempTp = ToolPart(
+                                        tool = tc.nameDelta.trim(),
+                                        state = ToolState(
+                                            status = ToolStateType.PENDING,
+                                            input = emptyMap(),
+                                            startTime = System.currentTimeMillis(),
+                                        ),
+                                    )
+                                    tempToolParts.add(tempTp)
+                                    _state.value = _state.value.copy(
+                                        streamingToolParts = tempToolParts.toList(),
+                                    )
+                                }
                             },
                             onDone = { result ->
                                 if (!completed) {
@@ -900,6 +1001,164 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private suspend fun streamMultimodalLlm(
+        config: top.hsyscn.opedrgent.settings.ApiConfig,
+        system: String,
+        messages: List<top.hsyscn.opedrgent.model.ChatMessage>,
+        mapImages: List<String>,
+        tools: List<top.hsyscn.opedrgent.network.ToolDefinition> = emptyList(),
+        deepThinkingEnabled: Boolean = false,
+    ): StreamResult = withContext(Dispatchers.IO) {
+        val contentBuilder = StringBuilder()
+        val reasoningBuilder = StringBuilder()
+        val ctx = currentCoroutineContext()
+        val buffer = StreamingBuffer(flushIntervalMs = 30L)
+
+        val tempToolParts = mutableListOf<ToolPart>()
+        val seenToolIdx = mutableSetOf<Int>()
+
+        var lastFlushTime = 0L
+        val throttleIntervalMs = 30L
+
+        kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
+            var completed = false
+            try {
+                val job = CoroutineScope(ctx).launch(Dispatchers.IO) {
+                    try {
+                        val call = llm.streamMultimodalChatCompletions(
+                            config = config,
+                            system = system,
+                            messages = messages,
+                            extraImages = mapImages,
+                            tools = tools,
+                            thinkingEnabled = deepThinkingEnabled,
+                            onDelta = { delta ->
+                                when (delta) {
+                                    is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
+                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        if (t.isNotEmpty()) {
+                                            contentBuilder.append(t)
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastFlushTime >= throttleIntervalMs) {
+                                                lastFlushTime = now
+                                                val textSnapshot = contentBuilder.toString()
+                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
+                                                    _state.value = _state.value.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
+                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        if (t.isNotEmpty()) {
+                                            reasoningBuilder.append(t)
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastFlushTime >= throttleIntervalMs) {
+                                                lastFlushTime = now
+                                                val textSnapshot = contentBuilder.toString()
+                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
+                                                    _state.value = _state.value.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            onToolCallDelta = { tc ->
+                                buffer.appendToolCall(tc.nameDelta, tc.argsDelta)
+                                if (tc.nameDelta.isNotEmpty() && tc.index !in seenToolIdx) {
+                                    seenToolIdx.add(tc.index)
+                                    val tempTp = ToolPart(
+                                        tool = tc.nameDelta.trim(),
+                                        state = ToolState(status = ToolStateType.PENDING, input = emptyMap(), startTime = System.currentTimeMillis()),
+                                    )
+                                    tempToolParts.add(tempTp)
+                                    _state.value = _state.value.copy(streamingToolParts = tempToolParts.toList())
+                                }
+                            },
+                            onDone = { result ->
+                                if (!completed) {
+                                    completed = true
+                                    buffer.flushFinal { content, reasoning ->
+                                        if (content.isNotEmpty()) contentBuilder.append(content)
+                                        if (reasoning.isNotEmpty()) reasoningBuilder.append(reasoning)
+                                    }
+                                    continuation.resumeWith(Result.success(StreamResult(content = result.content, reasoning = result.reasoning, toolCalls = result.toolCalls)))
+                                }
+                            },
+                            onError = { err ->
+                                if (!completed) {
+                                    completed = true
+                                    buffer.cancel()
+                                    val partial = contentBuilder.toString().trim()
+                                    if (partial.isNotEmpty()) {
+                                        continuation.resumeWith(Result.success(StreamResult(content = partial, reasoning = reasoningBuilder.toString())))
+                                    } else {
+                                        continuation.resumeWith(Result.success(StreamResult(error = err)))
+                                    }
+                                }
+                            },
+                        )
+                        currentCall = call
+                    } catch (e: Exception) {
+                        if (!completed) {
+                            completed = true
+                            buffer.cancel()
+                            continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                        }
+                    }
+                }
+                continuation.invokeOnCancellation {
+                    job.cancel()
+                    currentCall?.cancel()
+                    buffer.cancel()
+                }
+            } catch (e: Exception) {
+                if (!completed) {
+                    completed = true
+                    buffer.cancel()
+                    continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                }
+            }
+        }
+    }
+
+    private suspend fun tryFetchLocationMap(messages: List<top.hsyscn.opedrgent.model.ChatMessage>): List<String> {
+        val lastUserMsg = messages.lastOrNull { it.role == top.hsyscn.opedrgent.model.Role.USER }?.content.orEmpty().lowercase()
+        val locationKeywords = listOf("我在哪", "在哪里", "位置", "定位", "附近", "周围", "当前位置", "我在哪里")
+        val isLocationQuery = locationKeywords.any { lastUserMsg.contains(it) }
+
+        if (!isLocationQuery) return emptyList()
+
+        val envInfo = top.hsyscn.opedrgent.env.EnvironmentProvider.getEnvironmentInfo(getApplication())
+        val locStr = envInfo.location ?: return emptyList()
+
+        val coordMatch = Regex("(-?\\d+\\.\\d+)\\s*[,，]\\s*(-?\\d+\\.\\d+)").find(locStr) ?: return emptyList()
+        val lat = coordMatch.groupValues[1].toDoubleOrNull() ?: return emptyList()
+        val lon = coordMatch.groupValues[2].toDoubleOrNull() ?: return emptyList()
+
+        DebugLog.i("tryFetchLocationMap: location query detected, fetching map for $lat, $lon")
+
+        val mapResult = MapTileFetcher.fetchMapImage(lat = lat, lon = lon, zoom = 16)
+        return if (mapResult != null) {
+            DebugLog.i("tryFetchLocationMap: map fetched ${mapResult.widthPx}x${mapResult.heightPx}px")
+            listOf(mapResult.base64Png)
+        } else {
+            DebugLog.w("tryFetchLocationMap: map fetch failed")
+            emptyList()
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         tts.shutdown()
@@ -926,6 +1185,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun isTtsEnabled(): Boolean = apiSettings.isTtsEnabled()
     fun isTtsAutoSpeak(): Boolean = apiSettings.isTtsAutoSpeak()
+    fun isTtsMimoEnabled(): Boolean = apiSettings.isTtsMimoEnabled()
+    fun getTtsMimoVoice(): String = apiSettings.getTtsMimoVoice()
     fun getTtsRate(): Float = apiSettings.getTtsRate()
     fun getTtsPitch(): Float = apiSettings.getTtsPitch()
     fun getTtsLocaleTag(): String = apiSettings.getTtsLocaleTag()
@@ -962,6 +1223,121 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val allMessages = session.messages
         val compressed = ContextCompressor.compress(allMessages, system, 16000)
         _state.value = _state.value.copy(contextTokenCount = compressed.tokenCount)
+    }
+
+    fun getDebugDump(): String {
+        val session = _state.value.current ?: return "（无当前会话）"
+        val app = getApplication<Application>()
+        val includeLoc = apiSettings.isLocationEnabled()
+        val cachedLoc = apiSettings.getLastLocation()
+        val cachedDetail = apiSettings.getLastLocationDetail()
+        val envInfo = EnvironmentProvider.getEnvironmentInfo(app, includeLocation = includeLoc, cachedLocation = cachedLoc, cachedLocationDetail = cachedDetail)
+        val systemPrompt = PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo)
+        val state = _state.value
+
+        return buildString {
+            appendLine("═══════════════════════════════════════════")
+            appendLine("  Opedrgent 调试转储")
+            appendLine("  时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+            appendLine("═══════════════════════════════════════════")
+            appendLine()
+            appendLine("【UI状态 (UiState)】")
+            appendLine("─".repeat(40))
+            appendLine("loading: ${state.loading}")
+            appendLine("isStreaming: ${state.isStreaming}")
+            appendLine("streamingPhase: ${state.streamingPhase}")
+            appendLine("streamingText长度: ${state.streamingText.length}")
+            appendLine("streamingText: ${state.streamingText.take(200)}")
+            appendLine("streamingReasoning长度: ${state.streamingReasoning.length}")
+            appendLine("streamingReasoning: ${state.streamingReasoning.take(300)}")
+            appendLine("streamingToolParts数量: ${state.streamingToolParts.size}")
+            appendLine("contextTokenCount: ${state.contextTokenCount}")
+            appendLine("contextCompressionEnabled: ${state.contextCompressionEnabled}")
+            appendLine("activeQuestion: ${state.activeQuestion?.prompt?.take(100)}")
+            appendLine()
+            appendLine("【API配置】")
+            appendLine("─".repeat(40))
+            appendLine("BaseURL: ${apiSettings.getBaseUrl()}")
+            appendLine("Model: ${apiSettings.getModel()}")
+            appendLine("API密钥已配置: ${apiSettings.hasApiKey()}")
+            appendLine("TTS启用: ${apiSettings.isTtsEnabled()}")
+            appendLine("TTS自动播放: ${apiSettings.isTtsAutoSpeak()}")
+            appendLine("TTS MiMo启用: ${apiSettings.isTtsMimoEnabled()}")
+            appendLine("TTS MiMo音色: ${apiSettings.getTtsMimoVoice()}")
+            appendLine("TTS Rate: ${apiSettings.getTtsRate()}")
+            appendLine("TTS Pitch: ${apiSettings.getTtsPitch()}")
+            appendLine("深度思考: ${apiSettings.isDeepThinking()}")
+            appendLine("深度研究: ${apiSettings.isDeepResearch()}")
+            appendLine()
+            appendLine("【系统提示词 (System Prompt)】")
+            appendLine("─".repeat(40))
+            appendLine(systemPrompt)
+            appendLine()
+            appendLine("【会话元信息】")
+            appendLine("─".repeat(40))
+            appendLine("会话ID: ${session.id}")
+            appendLine("标题: ${session.title}")
+            appendLine("消息数: ${session.messages.size}")
+            appendLine("来源数: ${session.sources.size}")
+            appendLine()
+            appendLine("【环境信息】")
+            appendLine("─".repeat(40))
+            appendLine("日期时间: ${envInfo.dateTime}")
+            appendLine("星期: ${envInfo.dayOfWeek}")
+            appendLine("时区: ${envInfo.timeZone}")
+            appendLine("语言: ${envInfo.language}")
+            appendLine("平台: ${envInfo.platform}")
+            appendLine("系统版本: ${envInfo.osVersion}")
+            appendLine("位置: ${envInfo.location ?: "未获取"}")
+            appendLine("位置详情: ${envInfo.locationDetail ?: "无"}")
+            appendLine()
+            appendLine("【对话历史 (共 ${session.messages.size} 条)】")
+            appendLine("─".repeat(40))
+            session.messages.forEachIndexed { idx, msg ->
+                appendLine()
+                appendLine("【$idx】${msg.role.name} | tools=${msg.toolParts.size} reasoning=${msg.reasoningParts.size}")
+                if (msg.reasoningParts.isNotEmpty()) {
+                    appendLine("  [思考]: ${msg.reasoningParts.joinToString("\n         ") { it.text.take(300) }}")
+                }
+                if (msg.toolParts.isNotEmpty()) {
+                    msg.toolParts.forEach { tp ->
+                        val output = tp.state.output?.take(500) ?: "(null)"
+                        val inputStr = if (tp.state.input.isEmpty()) "(空)" else tp.state.input.entries.joinToString(", ") { "${it.key}=${it.value.take(100)}" }
+                        appendLine("  [工具调用] ${tp.tool} → ${tp.state.status.name}")
+                        appendLine("    输入: $inputStr")
+                        appendLine("    输出: $output")
+                    }
+                }
+                appendLine("  [内容]: ${msg.content.take(800)}")
+            }
+            appendLine()
+            if (state.streamingToolParts.isNotEmpty()) {
+                appendLine("【当前流式工具调用 (${state.streamingToolParts.size} 个)】")
+                appendLine("─".repeat(40))
+                state.streamingToolParts.forEachIndexed { idx, tp ->
+                    val inputStr = if (tp.state.input.isEmpty()) "(空)" else tp.state.input.entries.joinToString(", ") { "${it.key}=${it.value.take(100)}" }
+                    appendLine("  [$idx] ${tp.tool} → ${tp.state.status.name}")
+                    appendLine("      输入: $inputStr")
+                }
+            }
+            appendLine()
+            appendLine("【来源 (共 ${session.sources.size} 条)】")
+            appendLine("─".repeat(40))
+            session.sources.forEachIndexed { idx, s ->
+                appendLine("  $idx. ${s.title ?: s.url ?: "无标题"} | ${s.url ?: ""}")
+                appendLine("     内容长度: ${s.content.length} chars")
+            }
+            appendLine()
+            appendLine("【工具定义 (${agentTools.size} 个)】")
+            appendLine("─".repeat(40))
+            agentTools.forEach { t ->
+                appendLine("  - ${t.name}: ${t.description}")
+            }
+            appendLine()
+            appendLine("═══════════════════════════════════════════")
+            appendLine("  调试转储结束")
+            appendLine("═══════════════════════════════════════════")
+        }
     }
 
     fun toggleContextCompression() {
@@ -1019,8 +1395,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(activeQuestion = null)
     }
 
-    fun saveTts(enabled: Boolean, autoSpeak: Boolean, rate: Float, pitch: Float, localeTag: String) {
-        apiSettings.saveTts(enabled = enabled, autoSpeak = autoSpeak, rate = rate, pitch = pitch, localeTag = localeTag)
+    fun saveTts(enabled: Boolean, autoSpeak: Boolean, rate: Float, pitch: Float, localeTag: String, mimoEnabled: Boolean, mimoVoice: String) {
+        apiSettings.saveTts(enabled = enabled, autoSpeak = autoSpeak, rate = rate, pitch = pitch, localeTag = localeTag, mimoEnabled = mimoEnabled, mimoVoice = mimoVoice)
     }
 
     fun saveSttEnabled(enabled: Boolean) {
@@ -1043,8 +1419,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun clearLocationCache() {
+        apiSettings.clearLocationCache()
+        DebugLog.i("MainViewModel: location cache cleared")
+    }
+
     fun saveDebugMode(enabled: Boolean) {
         apiSettings.saveDebugMode(enabled)
+        DebugLog.enabled = enabled
+        _state.value = _state.value.copy(debugModeEnabled = enabled)
     }
 
     fun saveDeepThinking(enabled: Boolean) {
@@ -1055,6 +1438,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveProviderWebSearchEnabled(enabled: Boolean) {
         apiSettings.saveProviderWebSearchEnabled(enabled)
+    }
+
+    fun getSearchProviderOrder(): String = apiSettings.getSearchProviderOrder()
+    fun getJinaApiKey(): String? = apiSettings.getJinaApiKey()
+    fun getSearxngBaseUrl(): String? = apiSettings.getSearxngBaseUrl()
+    fun getBraveApiKey(): String? = apiSettings.getBraveApiKey()
+    fun getTavilyApiKey(): String? = apiSettings.getTavilyApiKey()
+    fun getFirecrawlApiKey(): String? = apiSettings.getFirecrawlApiKey()
+
+    fun saveSearchProviderOrder(order: String) {
+        apiSettings.saveSearchProviderOrder(order)
+    }
+
+    fun saveJinaApiKey(key: String?) {
+        apiSettings.saveJinaApiKey(key)
+    }
+
+    fun saveSearxngBaseUrl(url: String?) {
+        apiSettings.saveSearxngBaseUrl(url)
+    }
+
+    fun saveBraveApiKey(key: String?) {
+        apiSettings.saveBraveApiKey(key)
+    }
+
+    fun saveTavilyApiKey(key: String?) {
+        apiSettings.saveTavilyApiKey(key)
+    }
+
+    fun saveFirecrawlApiKey(key: String?) {
+        apiSettings.saveFirecrawlApiKey(key)
     }
 
     fun refreshLocation() {
@@ -1086,6 +1500,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleSpeak(text: String) {
         if (!apiSettings.isTtsEnabled()) return
+        if (text.isBlank()) return
         when {
             tts.isCurrentlySpeaking() && !tts.isCurrentlyPaused() -> {
                 tts.pause()
@@ -1101,6 +1516,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     localeTag = apiSettings.getTtsLocaleTag(),
                     rate = apiSettings.getTtsRate(),
                     pitch = apiSettings.getTtsPitch(),
+                    mimoVoice = apiSettings.getTtsMimoVoice(),
                 )
                 _state.value = _state.value.copy(isSpeaking = true)
             }
@@ -1509,7 +1925,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val cachedLoc = apiSettings.getLastLocation()
         val cachedDetail = apiSettings.getLastLocationDetail()
         val envInfo = EnvironmentProvider.getEnvironmentInfo(app, includeLocation = includeLoc, cachedLocation = cachedLoc, cachedLocationDetail = cachedDetail)
-        return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo)
+
+        val modelInfo = ModelInfo(
+            modelId = apiSettings.getModel(),
+            provider = inferProviderFromUrl(apiSettings.getBaseUrl())
+        )
+
+        val platformCtx = PlatformContext(
+            platform = Platform.ANDROID,
+            hasTTS = apiSettings.isTtsEnabled(),
+            hasVoiceInput = apiSettings.isSttEnabled(),
+            hasLocation = apiSettings.isLocationEnabled(),
+            hasBrowser = true,
+            hasCalendar = true
+        )
+
+        return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx)
+    }
+
+    private fun inferProviderFromUrl(baseUrl: String): String {
+        return when {
+            baseUrl.contains("openai.com", ignoreCase = true) -> "openai"
+            baseUrl.contains("anthropic.com", ignoreCase = true) -> "anthropic"
+            baseUrl.contains("dashscope", ignoreCase = true) || baseUrl.contains("aliyun", ignoreCase = true) -> "alibaba"
+            baseUrl.contains("deepseek", ignoreCase = true) -> "deepseek"
+            baseUrl.contains("zhipu", ignoreCase = true) || baseUrl.contains("bigmodel", ignoreCase = true) -> "zhipu"
+            baseUrl.contains("localhost", ignoreCase = true) || baseUrl.contains("127.0.0.1") -> "local"
+            else -> "custom"
+        }
     }
 
     private fun buildMarkdown(session: ResearchSession): String {
@@ -1784,6 +2227,74 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 setLoading(false)
             }
+        }
+    }
+
+    fun importFile(uri: Uri) {
+        val sessionId = _state.value.current?.id ?: return
+        viewModelScope.launch {
+            setLoading(true)
+            try {
+                val name = resolveDisplayName(uri) ?: "文件"
+                val text = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                        ?: throw IllegalStateException("无法读取文件")
+                }
+                if (text.isBlank()) throw IllegalStateException("文件内容为空")
+                addTextSource(title = name, text = text)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message ?: "文件读取失败")
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    suspend fun exportContextZip(): File? = withContext(Dispatchers.IO) {
+        val session = _state.value.current ?: return@withContext null
+        try {
+            val cacheDir = getApplication<Application>().cacheDir
+            val timestamp = System.currentTimeMillis()
+            val zipFile = File(cacheDir, "context_${session.id}_$timestamp.zip")
+            
+            val tempDir = File(cacheDir, "export_${session.id}_$timestamp")
+            tempDir.mkdirs()
+            
+            val markdownFile = File(tempDir, "session.md")
+            val sessionText = buildString {
+                appendLine("# ${session.title}")
+                appendLine()
+                session.messages.forEach { msg ->
+                    appendLine("## ${msg.role.name}")
+                    appendLine(msg.content)
+                    appendLine()
+                }
+            }
+            markdownFile.writeText(sessionText)
+            
+            val sourcesDir = File(tempDir, "sources")
+            sourcesDir.mkdirs()
+            session.sources.forEachIndexed { idx, source ->
+                val sourceFile = File(sourcesDir, "source_${idx + 1}.txt")
+                sourceFile.writeText(source.content)
+            }
+            
+            java.util.zip.ZipOutputStream(java.io.FileOutputStream(zipFile)).use { zip ->
+                tempDir.walkTopDown().forEach { file ->
+                    if (file.isFile) {
+                        val entryName = file.relativeTo(tempDir).path.replace("\\", "/")
+                        zip.putNextEntry(java.util.zip.ZipEntry(entryName))
+                        file.inputStream().use { it.copyTo(zip) }
+                        zip.closeEntry()
+                    }
+                }
+            }
+            
+            tempDir.deleteRecursively()
+            zipFile
+        } catch (e: Exception) {
+            DebugLog.e("导出ZIP失败: ${e.message}")
+            null
         }
     }
 

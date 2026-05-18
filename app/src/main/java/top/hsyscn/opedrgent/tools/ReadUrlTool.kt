@@ -1,0 +1,81 @@
+package top.hsyscn.opedrgent.tools
+
+import android.content.Context
+import top.hsyscn.opedrgent.model.ToolPart
+import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.network.SourceFetcher
+import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.WebViewAgent
+import top.hsyscn.opedrgent.settings.ApiConfig
+import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.utils.PromptSafety
+
+class ReadUrlTool(
+    private val context: Context,
+    private val fetcher: SourceFetcher,
+) : ToolSet {
+
+    private var webViewAgent: WebViewAgent? = null
+
+    private suspend fun getWebViewAgent(): WebViewAgent {
+        if (webViewAgent == null) {
+            webViewAgent = WebViewAgent(context)
+        }
+        return webViewAgent!!
+    }
+
+    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
+    }
+
+    @Tool("read_url")
+    @ToolDescription("读取并提取指定URL网页的文字内容。参数中 url 为必填。")
+    suspend fun executeReadUrl(
+        tp: ToolPart,
+        config: ApiConfig,
+        systemPrompt: String,
+        useProviderSearch: Boolean,
+    ): ToolResult {
+        val url = tp.state.input["url"] ?: return emptyResult(tp, "缺少 URL")
+        DebugLog.i("read_url: $url")
+
+        val fetched = runCatching { fetcher.fetchUrl(url) }.getOrNull()
+        if (fetched != null) {
+            val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = url)
+            val title = fetched.title?.takeIf { it.isNotBlank() } ?: "无标题"
+            val output = buildString {
+                appendLine("页面标题：$title")
+                appendLine("URL：${fetched.url}")
+                appendLine()
+                appendLine(sanitized.content.take(6000))
+            }
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())))
+        }
+
+        DebugLog.w("read_url: SourceFetcher failed, trying WebView fallback")
+        val wvFetched = runCatching { getWebViewAgent().fetchUrl(url) }.getOrNull()
+        if (wvFetched != null) {
+            val sanitized = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = url)
+            val output = buildString {
+                appendLine("页面标题：${wvFetched.title}")
+                appendLine("URL：$url")
+                appendLine("（通过内置浏览器获取）")
+                appendLine()
+                appendLine(sanitized.content.take(6000))
+            }
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())))
+        }
+
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "读取失败：$url（已跳过，请尝试其他来源）", endTime = System.currentTimeMillis())))
+    }
+
+    override fun getTools(): Map<String, ToolBinding> {
+        return mapOf(
+            "read_url" to ToolBinding(
+                name = "read_url",
+                description = "读取并提取指定URL网页的文字内容。参数中 url 为必填。",
+                invoker = { tp, config, sp, ups -> executeReadUrl(tp, config, sp, ups) },
+            ),
+        )
+    }
+}

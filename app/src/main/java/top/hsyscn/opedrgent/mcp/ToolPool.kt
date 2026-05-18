@@ -291,8 +291,10 @@ class BuiltInToolsProvider : ToolProvider {
     }
 
     override suspend fun executeTool(name: String, arguments: JsonObject): ToolResult {
-        TODO("Implement built-in tool execution via ToolExecutor")
-    }
+    throw UnsupportedOperationException(
+        "BuiltinToolProvider.executeTool: Builtin tool execution not yet implemented via ToolExecutor"
+    )
+}
 }
 
 class McpToolsProvider(

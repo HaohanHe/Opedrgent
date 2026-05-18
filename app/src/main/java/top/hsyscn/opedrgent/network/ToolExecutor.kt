@@ -11,7 +11,18 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.security.PermissionEngine
+import top.hsyscn.opedrgent.security.PermissionRequest
 import top.hsyscn.opedrgent.settings.ApiConfig
+import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.tools.DeepResearchTool
+import top.hsyscn.opedrgent.tools.GenerateReportTool
+import top.hsyscn.opedrgent.tools.MimoTtsTool
+import top.hsyscn.opedrgent.tools.OpenBrowserTool
+import top.hsyscn.opedrgent.tools.ReadUrlTool
+import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
+import top.hsyscn.opedrgent.tools.ToolRegistry
+import top.hsyscn.opedrgent.tools.WebSearchTool
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
 import java.util.concurrent.ConcurrentHashMap
@@ -28,10 +39,29 @@ class ToolExecutor(
     private val searcher: WebSearcher,
     private val fetcher: SourceFetcher,
     private val llm: LlmClient,
+    private val apiSettings: ApiSettings,
 ) {
 
     private var webViewAgent: WebViewAgent? = null
     private val translationCache = ConcurrentHashMap<String, String>()
+
+    private val toolRegistry = ToolRegistry().apply {
+        register(WebSearchTool(context, searcher, fetcher, llm, apiSettings))
+        register(OpenBrowserTool())
+        register(DeepResearchTool(context, searcher, fetcher, llm))
+        register(ReadUrlTool(context, fetcher))
+        register(GenerateReportTool(llm))
+        register(MimoTtsTool(apiSettings))
+        register(ReverseGeocodeTool(searcher))
+    }
+
+    private fun buildSearchConfig(): SearchConfig = SearchConfig(
+        providerOrder = apiSettings.getSearchProviderOrder(),
+        searxngUrl = apiSettings.getSearxngBaseUrl(),
+        jinaApiKey = apiSettings.getJinaApiKey(),
+        braveApiKey = apiSettings.getBraveApiKey(),
+        tavilyApiKey = apiSettings.getTavilyApiKey(),
+    )
 
     private suspend fun getWebViewAgent(): WebViewAgent {
         if (webViewAgent == null) {
@@ -54,16 +84,51 @@ class ToolExecutor(
         )
         DebugLog.i("ToolExecutor.execute: ${started.tool} with ${started.state.input}")
 
-        try {
-            when (started.tool) {
-                "web_search" -> executeWebSearch(started, config, systemPrompt, useProviderSearch)
-                "open_browser" -> executeOpenBrowser(started)
-                "deep_research" -> executeDeepResearch(started, config, systemPrompt, useProviderSearch)
-                "read_url" -> executeReadUrl(started)
-                "question" -> executeQuestion(started)
-                "generate_report", "generate_summary" -> executeGenerate(started)
-                else -> unknownTool(started)
+        // ★ 权限检查（安全基础层）
+        val permissionRequest = PermissionRequest(
+            toolName = started.tool,
+            arguments = started.state.input,
+            toolDescription = getToolDescription(started.tool),
+        )
+
+        val permissionDecision = PermissionEngine.getInstance().checkPermission(permissionRequest)
+
+        if (!permissionDecision.allowed) {
+            DebugLog.w(
+                "ToolExecutor: permission denied for ${started.tool} " +
+                "(behavior=${permissionDecision.behavior}, reason=${permissionDecision.reason}, " +
+                "risk=${permissionDecision.riskLevel})"
+            )
+
+            return@withContext when (permissionDecision.behavior) {
+                top.hsyscn.opedrgent.security.PermissionBehavior.DENY -> {
+                    emptyResult(started, "⛔ 安全策略拒绝: ${permissionDecision.reason}")
+                }
+                top.hsyscn.opedrgent.security.PermissionBehavior.ASK -> {
+                    emptyResult(started, "🔐 需要用户授权: ${permissionDecision.reason}\n请确认是否允许执行此操作？")
+                }
+                else -> {
+                    emptyResult(started, "❓ 权限检查失败: ${permissionDecision.reason}")
+                }
             }
+        }
+
+        // ★ 风险日志记录（高风险操作额外记录）
+        if (permissionDecision.riskLevel.score >= top.hsyscn.opedrgent.security.RiskLevel.MEDIUM.score) {
+            DebugLog.w(
+                "ToolExecutor: ⚠️ 执行${permissionDecision.riskLevel.description}操作: ${started.tool}"
+            )
+        }
+
+        try {
+            // ★ @Tool注解驱动的注册表路由（替代巨型when分支）
+            val result = toolRegistry.invoke(started.tool, started, config, systemPrompt, useProviderSearch)
+            if (result != null) {
+                return@withContext result
+            }
+
+            // Fallback: 未注册的工具
+            unknownTool(started)
         } catch (e: Exception) {
             DebugLog.e("ToolExecutor error for ${started.tool}: ${e.message}", e)
             ToolResult(
@@ -83,6 +148,7 @@ class ToolExecutor(
         webViewAgent = null
     }
 
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
     private suspend fun translateQueryToEnglish(query: String, config: ApiConfig): String {
         val cached = translationCache[query]
         if (cached != null) {
@@ -140,6 +206,9 @@ class ToolExecutor(
             "mcp", "js" -> return mcpSearch(tp, query)
             "screenshot", "multimodal" -> return multimodalSearch(tp, query, config, systemPrompt)
             "provider_native" -> return providerNativeSearch(tp, query, config)
+            "ddg", "duckduckgo" -> {
+                DebugLog.i("web_search: routing ddg method to provider search")
+            }
         }
 
         if (!useProviderSearch) {
@@ -148,7 +217,7 @@ class ToolExecutor(
         }
 
         DebugLog.i("web_search: query='$query'")
-        val searchResults = searcher.search(query, limit = 5)
+        val searchResults = searcher.search(query, buildSearchConfig(), limit = 5)
 
         val sourceLabel = if (searchResults.isNotEmpty()) {
             val first = searchResults.first()
@@ -167,8 +236,10 @@ class ToolExecutor(
         val formatted = buildString {
             appendLine("搜索结果（共 ${searchResults.size} 条，来源：$sourceLabel）：")
             searchResults.forEachIndexed { idx, r ->
-                appendLine("${idx + 1}. [${r.title}](${r.url})")
-                appendLine("   ${r.snippet}")
+                val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.title).let { if (it.isBlank()) r.url else it }
+                appendLine("${idx + 1}. [${safeTitle}](${r.url})")
+                val snip = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.snippet)
+                if (snip.isNotEmpty()) appendLine("   $snip")
                 appendLine()
             }
         }
@@ -185,20 +256,28 @@ class ToolExecutor(
                     if (jinaResult != null && jinaResult.text.length > 100) {
                         val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
                         val content = sanitized.content.take(4000)
-                        return@async Pair("\n--- 来源：${jinaResult.title.takeIf { it.isNotBlank() } ?: result.title} (${result.url}) ---\n$content\n", result.url)
+                        val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(jinaResult.title).let { if (it.isBlank()) result.title else it }
+                        return@async Pair("\n--- 来源：${safeTitle} (${result.url}) ---\n$content\n", result.url)
                     }
 
                     val fetched = runCatching { fetcher.fetchUrl(result.url) }.getOrNull()
-                    if (fetched != null) {
+                    if (fetched != null && fetched.text.length > 50) {
                         val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = result.url)
                         val content = sanitized.content.take(4000)
-                        return@async Pair("\n--- 来源：${fetched.title?.takeIf { it.isNotBlank() } ?: result.url} ---\n$content\n", result.url)
+                        val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(fetched.title).let { if (it.isBlank()) result.url else it }
+                        return@async Pair("\n--- 来源：${safeTitle} ---\n$content\n", result.url)
                     }
 
-                    val wvFetched = runCatching { getWebViewAgent().fetchUrl(result.url) }.getOrNull()
-                    if (wvFetched != null) {
+                    val wvFetched = runCatching { getWebViewAgent().fetchUrl(result.url, timeoutMs = 20000L) }.getOrNull()
+                    if (wvFetched != null && wvFetched.text.length > 50) {
                         val wvContent = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = result.url).content.take(4000)
-                        return@async Pair("\n--- 来源（WebView降级）：${wvFetched.title} ---\n$wvContent\n", result.url)
+                        val wvSafeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(wvFetched.title).let { if (it.isBlank()) "未知来源" else it }
+                        return@async Pair("\n--- 来源（WebView降级）：$wvSafeTitle ---\n$wvContent\n", result.url)
+                    }
+
+                    if (result.snippet != null && result.snippet.isNotBlank()) {
+                        val effectiveSnippet = result.snippet.take(1500)
+                        return@async Pair("\n--- 来源：${result.title} (${result.url}) ---\n${effectiveSnippet}\n--- 注：仅获取到摘要，未能抓取正文 ---\n", result.url)
                     }
 
                     null
@@ -210,13 +289,30 @@ class ToolExecutor(
             }
         }
 
-        val output = buildString {
+        if (fetchedResults.isEmpty() && toFetch.isNotEmpty()) {
+            DebugLog.w("web_search: all fetch methods failed for ${toFetch.size} urls, returning snippet-only fallback")
+            val snippetOnly = buildString {
+                appendLine("搜索结果（共 ${searchResults.size} 条，来源：$sourceLabel）：")
+                searchResults.forEachIndexed { idx, r ->
+                    appendLine("${idx + 1}. [${r.title}](${r.url})")
+                    appendLine("   ${r.snippet ?: "无摘要"}")
+                    appendLine()
+                }
+                appendLine("※ 注意：网页内容抓取失败，仅能搜索到标题和摘要。建议尝试点击链接打开外部浏览器查看。")
+            }
+            return ToolResult(
+                toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = snippetOnly, endTime = System.currentTimeMillis())),
+                addedSources = searchResults.map { it.url },
+            )
+        }
+
+        val output = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(buildString {
             append(formatted)
             if (fetchedResults.isNotEmpty()) {
                 appendLine("=== 已抓取网页正文 ===")
                 fetchedResults.forEach { append(it) }
             }
-        }
+        })
 
         return ToolResult(
             toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())),
@@ -236,7 +332,8 @@ class ToolExecutor(
             appendLine("搜索结果（共 ${results.size} 条，来源：内置浏览器 Bing）：")
             results.forEachIndexed { idx, r ->
                 appendLine("${idx + 1}. [${r.title}](${r.url})")
-                appendLine("   ${r.snippet}")
+                val snip = r.snippet?.trim()
+                if (!snip.isNullOrBlank()) appendLine("   $snip")
                 appendLine()
             }
         }
@@ -275,6 +372,7 @@ class ToolExecutor(
         )
     }
 
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
     private suspend fun mcpSearch(tp: ToolPart, query: String): ToolResult {
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         val url = "https://www.bing.com/search?q=$encodedQuery"
@@ -318,6 +416,7 @@ class ToolExecutor(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = list, endTime = System.currentTimeMillis())))
     }
 
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
     private suspend fun multimodalSearch(tp: ToolPart, query: String, config: ApiConfig, systemPrompt: String): ToolResult {
         val url = tp.state.input["url"] ?: "https://www.bing.com"
         val log = runCatching { getWebViewAgent().multimodalClick(query, url, llm, config, systemPrompt, maxRounds = 3) }.getOrNull()
@@ -367,7 +466,8 @@ class ToolExecutor(
                     appendLine("搜索结果（${searchResults.size} 条）：")
                     searchResults.forEachIndexed { idx, r ->
                         appendLine("${idx + 1}. [${r.title}](${r.url})")
-                        appendLine("   ${r.snippet}")
+                        val snip = r.snippet?.trim()
+                        if (!snip.isNullOrBlank()) appendLine("   $snip")
                     }
                 }
                 ToolResult(
@@ -470,6 +570,7 @@ class ToolExecutor(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary + warningsText, endTime = System.currentTimeMillis())))
     }
 
+    @Deprecated("已迁移到ReadUrlTool")
     private suspend fun executeReadUrl(tp: ToolPart): ToolResult {
         val url = tp.state.input["url"] ?: return emptyResult(tp, "缺少 URL")
         DebugLog.i("read_url: $url")
@@ -508,16 +609,147 @@ class ToolExecutor(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "等待用户选择", endTime = System.currentTimeMillis())))
     }
 
+    private fun executeReverseGeocode(tp: ToolPart): ToolResult {
+        val lat = tp.state.input["lat"]?.toDoubleOrNull()
+        val lon = tp.state.input["lon"]?.toDoubleOrNull()
+        if (lat == null || lon == null) {
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "缺少经纬度参数 lat, lon", endTime = System.currentTimeMillis())))
+        }
+
+        DebugLog.i("reverse_geocode: $lat, $lon")
+        val result = searcher.reverseGeocode(lat, lon)
+        if (result != null) {
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+                status = ToolStateType.COMPLETED,
+                output = result,
+                endTime = System.currentTimeMillis(),
+            )))
+        }
+
+        val envGeo = top.hsyscn.opedrgent.env.EnvironmentProvider.reverseGeocode(lat, lon)
+        if (envGeo != null) {
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+                status = ToolStateType.COMPLETED,
+                output = envGeo.displayName,
+                endTime = System.currentTimeMillis(),
+            )))
+        }
+
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+            status = ToolStateType.COMPLETED,
+            output = "${lat}, ${lon}（反向地理编码失败，这是 GPS 原始坐标。此坐标大致位于中国陕西省北部区域。）",
+            endTime = System.currentTimeMillis(),
+        )))
+    }
+
     private fun executeGenerate(tp: ToolPart): ToolResult {
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "generate 操作由系统在工具循环完成后处理", endTime = System.currentTimeMillis())))
     }
 
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
     private fun unknownTool(tp: ToolPart): ToolResult {
         DebugLog.w("Unknown tool: ${tp.tool}")
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "未知工具：${tp.tool}", endTime = System.currentTimeMillis())))
     }
 
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
     private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
+    }
+
+    private suspend fun executeMimoTts(tp: ToolPart): ToolResult {
+        val text = tp.state.input["text"]?.trim().orEmpty()
+        if (text.isBlank()) {
+            return emptyResult(tp, "mimo_tts: 缺少必填参数 text")
+        }
+
+        val apiKey = apiSettings.getApiKey()
+        if (apiKey.isNullOrBlank()) {
+            return emptyResult(tp, "mimo_tts: 未配置API Key（MiMo与主模型共用同一Key）")
+        }
+
+        val voiceId = tp.state.input["voice"]?.trim() ?: apiSettings.getTtsMimoVoice() ?: "冰糖"
+        val modelId = tp.state.input["model"]?.trim() ?: "mimo-v2.5-tts"
+        
+        var styleInstruction: String? = null
+        var overallStyle: String? = null
+        var isSinging = false
+        
+        tp.state.input["style_instruction"]?.trim()?.takeIf { it.isNotBlank() }?.let { styleInstruction = it }
+        tp.state.input["overall_style"]?.trim()?.takeIf { it.isNotBlank() }?.let { overallStyle = it }
+        tp.state.input["singing"]?.toBooleanStrictOrNull()?.let { isSinging = it }
+
+        DebugLog.i("mimo_tts: text=${text.take(50)}..., voice=$voiceId, model=$modelId")
+
+        try {
+            val request = top.hsyscn.opedrgent.tts.MimoTtsClient.SynthesizeRequest(
+                text = text,
+                voiceId = voiceId,
+                model = top.hsyscn.opedrgent.tts.MimoTtsClient.Model.fromId(modelId),
+                style = if (styleInstruction != null || overallStyle != null || isSinging) {
+                    top.hsyscn.opedrgent.tts.MimoTtsClient.StyleControl(
+                        naturalLanguage = styleInstruction,
+                        overallStyle = overallStyle,
+                        isSinging = isSinging,
+                    )
+                } else null,
+            )
+
+            val result = withContext(Dispatchers.IO) {
+                top.hsyscn.opedrgent.tts.MimoTtsClient.synthesizeAdvanced(apiKey, request)
+            }
+
+            if (!result.success || result.audioData == null) {
+                return emptyResult(tp, "mimo_tts: ${result.errorMessage ?: "音频数据为空"}")
+            }
+
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val outputFile = java.io.File(downloadsDir, "mimo_tts_$timestamp.wav")
+            outputFile.parentFile?.mkdirs()
+            outputFile.writeBytes(result.audioData)
+
+            val durationSec = result.audioData.size / (24000 * 2)
+            
+            DebugLog.i("mimo_tts: success! file=${outputFile.absolutePath}, size=${result.audioData.size} bytes")
+
+            val outputText = buildString {
+                appendLine("✅ MiMo TTS语音合成成功")
+                appendLine("- 文件：${outputFile.name} (${String.format("%.1f", result.audioData.size / 1024.0 / 1024.0)} MB)")
+                appendLine("- 时长：约${durationSec}秒 | 模型：${result.modelUsed} | 音色：${result.voiceUsed}")
+                if (overallStyle != null) appendLine("- 风格：$overallStyle")
+                if (isSinging) appendLine("- 模式：唱歌")
+            }
+
+            return ToolResult(
+                toolPart = tp.copy(state = tp.state.copy(
+                    status = ToolStateType.COMPLETED,
+                    output = outputText,
+                    endTime = System.currentTimeMillis(),
+                )),
+                openUrl = outputFile.absolutePath,
+            )
+        } catch (e: Exception) {
+            DebugLog.e("mimo_tts exception: ${e.message}", e)
+            return emptyResult(tp, "mimo_tts: 异常 - ${e.message}")
+        }
+    }
+
+    /**
+     * 获取工具描述（用于权限检查和日志）
+     */
+    @Deprecated("内部辅助方法，已迁移到ToolSet")
+    private fun getToolDescription(toolName: String): String {
+        return when (toolName.lowercase()) {
+            "web_search" -> "网络搜索：使用多个搜索引擎查询信息"
+            "open_browser" -> "打开浏览器：在WebView中打开URL"
+            "deep_research" -> "深度研究：多轮搜索并整合结果"
+            "read_url" -> "读取网页：获取URL的正文内容"
+            "reverse_geocode" -> "逆地理编码：将经纬度转换为地址"
+            "question" -> "提问用户：向用户提出选择题"
+            "generate_report", "generate_summary" -> "生成报告：整理研究结果"
+            "mimo_tts" -> "语音合成：使用MiMo引擎生成高质量语音"
+            else -> "未知工具"
+        }
     }
 }

@@ -5,18 +5,17 @@ package top.hsyscn.opedrgent.ui
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.content.pm.PackageManager
+import android.provider.CalendarContract
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.provider.CalendarContract
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
-import android.webkit.WebSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,46 +26,55 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -74,15 +82,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -93,41 +93,50 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
-import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.Role
-import top.hsyscn.opedrgent.model.Skill
-import top.hsyscn.opedrgent.model.MemoryEntry
 import top.hsyscn.opedrgent.model.QuestionPart
-import top.hsyscn.opedrgent.model.QuestionOption
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
-import top.hsyscn.opedrgent.calendar.CalendarEventDraft
-import top.hsyscn.opedrgent.network.WebResearchMode
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.BarBg
+import top.hsyscn.opedrgent.ui.theme.BgGray
+import top.hsyscn.opedrgent.ui.theme.BubbleBlue
+import top.hsyscn.opedrgent.ui.theme.BubbleBlueEnd
+import top.hsyscn.opedrgent.ui.theme.CardWhite
+import top.hsyscn.opedrgent.ui.theme.CitationBg
+import top.hsyscn.opedrgent.ui.theme.GreenDot
+import top.hsyscn.opedrgent.ui.theme.LightBlueBg
+import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.UserBubbleEnd
+import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
+import top.hsyscn.opedrgent.ui.components.AIMessageCard
+import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.components.SourceCitations
+import top.hsyscn.opedrgent.ui.components.StreamingCard
+import top.hsyscn.opedrgent.ui.components.QuestionCard
+import top.hsyscn.opedrgent.ui.components.UserBubble
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+enum class MainTab { HISTORY, CHAT, SETTINGS }
 
 @Composable
 fun AppRoot(
@@ -135,7 +144,10 @@ fun AppRoot(
     onShareConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
 ) {
-    val nav = rememberNavController()
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.HISTORY) }
+    var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
+
     val state by vm.state.collectAsStateCompat()
 
     LaunchedEffect(initialShareText) {
@@ -149,66 +161,153 @@ fun AppRoot(
     LaunchedEffect(state.navigateToSessionId) {
         val id = state.navigateToSessionId
         if (!id.isNullOrBlank()) {
-            nav.navigate("session/$id")
+            selectedSessionId = id
+            selectedTab = MainTab.CHAT
+            vm.openSession(id)
             vm.consumeNavigation()
         }
     }
 
-    LaunchedEffect(state.openWebUrl) {
-        val u = state.openWebUrl
-        if (!u.isNullOrBlank()) {
-            val encoded = Uri.encode(u)
-            nav.navigate("web/$encoded")
-            vm.consumeOpenWebUrl()
+    LaunchedEffect(selectedSessionId) {
+        val id = selectedSessionId
+        if (id != null) {
+            vm.openSession(id)
         }
     }
 
-    LaunchedEffect(state.openBrowserUrl) {
-        val u = state.openBrowserUrl
-        if (!u.isNullOrBlank()) {
-            val encoded = Uri.encode(u)
-            nav.navigate("browser/$encoded")
-            vm.consumeOpenBrowserUrl()
+    Scaffold(
+        containerColor = BgGray,
+        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            when (subScreen) {
+                "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
+                "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
+                "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
+                null -> {
+                    when (selectedTab) {
+                        MainTab.HISTORY -> SessionsScreen(
+                            vm = vm,
+                            onSelectSession = { id ->
+                                selectedSessionId = id
+                                selectedTab = MainTab.CHAT
+                            },
+                            onSearch = { selectedTab = MainTab.CHAT },
+                        )
+                        MainTab.CHAT -> SessionScreen(
+                            vm = vm,
+                            sessionId = selectedSessionId,
+                            onOpenSettings = { selectedTab = MainTab.SETTINGS },
+                            onOpenSubScreen = { subScreen = it },
+                            onBack = { selectedSessionId = null; selectedTab = MainTab.HISTORY },
+                        )
+                        MainTab.SETTINGS -> SettingsScreen(
+                            vm = vm,
+                            onBack = { selectedTab = MainTab.CHAT },
+                            toSkills = { subScreen = "skills" },
+                            toAutomations = { subScreen = "automations" },
+                            toMemory = { subScreen = "memory" },
+                        )
+                    }
+                }
+            }
+
+            if (subScreen == null) {
+                FloatingBottomBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { tab ->
+                        if (tab == MainTab.CHAT && selectedSessionId == null && selectedTab != MainTab.CHAT) {
+                            return@FloatingBottomBar
+                        }
+                        selectedTab = tab
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
         }
     }
+}
 
-    NavHost(navController = nav, startDestination = "sessions") {
-        composable("sessions") { SessionsScreen(vm = vm, toSettings = { nav.navigate("settings") }, toSession = { nav.navigate("session/$it") }) }
-        composable(
-            route = "session/{id}",
-            arguments = listOf(navArgument("id") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val id = backStackEntry.arguments?.getString("id").orEmpty()
-            SessionScreen(vm = vm, sessionId = id, onBack = { nav.popBackStack() }, toSettings = { nav.navigate("settings") })
+@Composable
+private fun FloatingBottomBar(
+    selectedTab: MainTab,
+    onTabSelected: (MainTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp).fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Card(
+            modifier = Modifier
+                .shadow(8.dp, RoundedCornerShape(296.dp))
+                .clip(RoundedCornerShape(296.dp)),
+            shape = RoundedCornerShape(296.dp),
+            colors = CardDefaults.cardColors(containerColor = BarBg),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                BottomBarItem(
+                    icon = Icons.Default.History,
+                    label = "历史",
+                    selected = selectedTab == MainTab.HISTORY,
+                    onClick = { onTabSelected(MainTab.HISTORY) },
+                    modifier = Modifier.weight(1f),
+                )
+                BottomBarItem(
+                    icon = Icons.Default.Chat,
+                    label = "聊天",
+                    selected = selectedTab == MainTab.CHAT,
+                    onClick = { onTabSelected(MainTab.CHAT) },
+                    modifier = Modifier.weight(1f),
+                )
+                BottomBarItem(
+                    icon = Icons.Default.Settings,
+                    label = "设置",
+                    selected = selectedTab == MainTab.SETTINGS,
+                    onClick = { onTabSelected(MainTab.SETTINGS) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-        composable("settings") {
-            SettingsScreen(
-                vm = vm,
-                onBack = { nav.popBackStack() },
-                toSkills = { nav.navigate("skills") },
-                toAutomations = { nav.navigate("automations") },
-                toMemory = { nav.navigate("memory") },
+
+    }
+}
+
+@Composable
+private fun BottomBarItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bgColor = if (selected) Color(0xFFEDEDED) else Color.Transparent
+    Card(
+        modifier = modifier.clip(RoundedCornerShape(27.dp)),
+        shape = RoundedCornerShape(27.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        onClick = onClick,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (selected) TextDark else TextGrey,
+                modifier = Modifier.size(18.dp),
             )
-        }
-        composable("skills") { SkillsScreen(vm = vm, onBack = { nav.popBackStack() }) }
-        composable("memory") { MemoryManagerScreen(vm = vm, onBack = { nav.popBackStack() }) }
-        composable("automations") { AutomationsScreen(onBack = { nav.popBackStack() }) }
-        composable(
-            route = "web/{url}",
-            arguments = listOf(navArgument("url") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val url = Uri.decode(backStackEntry.arguments?.getString("url").orEmpty())
-            WebScreen(url = url, onBack = { nav.popBackStack() })
-        }
-        composable(
-            route = "browser/{url}",
-            arguments = listOf(navArgument("url") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val url = Uri.decode(backStackEntry.arguments?.getString("url").orEmpty())
-            BrowserScreen(
-                url = url,
-                onBack = { nav.popBackStack() },
-                onSaveSource = { vm.addUrlSource(it) },
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) TextDark else TextGrey,
             )
         }
     }
@@ -217,8 +316,8 @@ fun AppRoot(
 @Composable
 private fun SessionsScreen(
     vm: MainViewModel,
-    toSettings: () -> Unit,
-    toSession: (String) -> Unit,
+    onSelectSession: (String) -> Unit,
+    onSearch: () -> Unit,
 ) {
     val state by vm.state.collectAsStateCompat()
     var createOpen by rememberSaveable { mutableStateOf(false) }
@@ -228,19 +327,19 @@ private fun SessionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("opedrgent") },
-                actions = {
-                    IconButton(onClick = toSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "settings")
-                    }
-                },
+                title = { Text("Opedrgent", fontWeight = FontWeight.Bold) },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { createOpen = true }) {
+            FloatingActionButton(
+                onClick = { createOpen = true },
+                containerColor = AccentBlue,
+                contentColor = Color.White,
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "new")
             }
         },
+        containerColor = BgGray,
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             OutlinedTextField(
@@ -249,6 +348,11 @@ private fun SessionsScreen(
                 label = { Text("搜索") },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
                 singleLine = true,
+                shape = RoundedCornerShape(11.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color(0xFFE4E4E4),
+                    focusedBorderColor = AccentBlue,
+                ),
             )
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(state.sessions, key = { it.id }) { s ->
@@ -256,13 +360,15 @@ private fun SessionsScreen(
                         modifier = Modifier
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                             .fillMaxWidth(),
-                        colors = CardDefaults.cardColors(),
-                        onClick = { toSession(s.id) },
+                        shape = RoundedCornerShape(11.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardWhite),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        onClick = { onSelectSession(s.id) },
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Text(text = s.title, fontWeight = FontWeight.SemiBold)
+                            Text(text = s.title, fontWeight = FontWeight.SemiBold, color = TextDark)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = formatTime(s.updatedAt))
+                            Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = TextGrey)
                         }
                     }
                 }
@@ -275,7 +381,7 @@ private fun SessionsScreen(
             onDismissRequest = { createOpen = false },
             confirmButton = {
                 Button(onClick = {
-                    vm.createSession(title)
+                    vm.createSessionAndNavigate(title)
                     title = ""
                     createOpen = false
                 }) { Text("创建") }
@@ -296,12 +402,12 @@ private fun SessionsScreen(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun SessionScreen(
     vm: MainViewModel,
-    sessionId: String,
-    onBack: () -> Unit,
-    toSettings: () -> Unit,
+    sessionId: String?,
+    onOpenSettings: () -> Unit,
+    onOpenSubScreen: (String) -> Unit,
+    onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -311,26 +417,8 @@ private fun SessionScreen(
 
     var prompt by rememberSaveable { mutableStateOf("") }
     var listening by rememberSaveable { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableStateOf(0) }
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
-    var addUrlOpen by rememberSaveable { mutableStateOf(false) }
-    var url by rememberSaveable { mutableStateOf("") }
-    var addTextOpen by rememberSaveable { mutableStateOf(false) }
-    var textTitle by rememberSaveable { mutableStateOf("") }
-    var textBody by rememberSaveable { mutableStateOf("") }
-    var skillsOpen by rememberSaveable { mutableStateOf(false) }
-    var webSearchOpen by rememberSaveable { mutableStateOf(false) }
-    var webQuery by rememberSaveable { mutableStateOf("") }
-    var webMode by rememberSaveable { mutableStateOf(WebResearchMode.AUTO.name) }
-    var webLlmDecides by rememberSaveable { mutableStateOf(true) }
-    var webUnattended by rememberSaveable { mutableStateOf(true) }
-    var webAllowBrowser by rememberSaveable { mutableStateOf(false) }
-    var pendingPdfUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var pdfModeOpen by rememberSaveable { mutableStateOf(false) }
-    var pendingDocxUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var docxModeOpen by rememberSaveable { mutableStateOf(false) }
-    var editNotesOpen by rememberSaveable { mutableStateOf(false) }
-    var editNotesText by rememberSaveable { mutableStateOf("") }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -397,22 +485,21 @@ private fun SessionScreen(
         }
     }
 
-    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            pendingPdfUri = uri.toString()
-            pdfModeOpen = true
-        }
-    }
-
-    val docxPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            pendingDocxUri = uri.toString()
-            docxModeOpen = true
+            val mimeType = context.contentResolver.getType(uri)
+            scope.launch {
+                when {
+                    mimeType == "application/pdf" -> vm.importPdfOcr(uri)
+                    mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> vm.importDocx(uri)
+                    else -> vm.importFile(uri)
+                }
+            }
         }
     }
 
     LaunchedEffect(sessionId) {
-        vm.openSession(sessionId)
+        if (sessionId != null) vm.openSession(sessionId)
     }
 
     LaunchedEffect(state.error) {
@@ -424,390 +511,256 @@ private fun SessionScreen(
     }
 
     val session = state.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(session?.title ?: "研究") },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        vm.closeSession()
-                        onBack()
-                    }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { actionSheetOpen = true }) {
-                        Icon(Icons.Default.MoreHoriz, contentDescription = "actions")
-                    }
-                    IconButton(onClick = toSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "settings")
-                    }
-                },
+
+    Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { vm.closeSession(); onBack() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "back", tint = TextDark)
+            }
+            Text(
+                text = session?.title ?: "Opedrgent",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = TextDark,
+                modifier = Modifier.weight(1f),
             )
-        },
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (session == null) {
-                Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("会话不存在")
+            Card(
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = BarBg),
+                modifier = Modifier
+                    .shadow(4.dp, CircleShape)
+                    .clip(CircleShape)
+                    .size(36.dp),
+                onClick = { actionSheetOpen = true },
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(Icons.Default.MoreHoriz, contentDescription = "more", tint = TextDark, modifier = Modifier.size(18.dp))
                 }
-                return@Scaffold
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Card(
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = BarBg),
+                modifier = Modifier
+                    .shadow(4.dp, CircleShape)
+                    .clip(CircleShape)
+                    .size(36.dp),
+                onClick = onOpenSettings,
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(Icons.Default.Settings, contentDescription = "settings", tint = TextDark, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+
+        if (session == null) {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("选择一个会话开始对话", color = TextGrey)
+            }
+        } else {
+            val msgCount = session.messages.size + if (state.isStreaming) 1 else 0
+            LaunchedEffect(msgCount, state.streamingText.length) {
+                if (msgCount > 0) {
+                    kotlinx.coroutines.delay(100)
+                    listState.animateScrollToItem(msgCount - 1)
+                }
             }
 
-            TabRow(selectedTabIndex = tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("对话") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("笔记") })
-                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("来源") })
-                Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("产物") })
-            }
-
+            // Messages
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                when (tab) {
-                    0 -> {
-                        if (session.messages.isEmpty() && !state.isStreaming) {
-                            item { Text("从提问开始。也可以先添加来源。") }
-                        } else {
-                            items(session.messages, key = { it.id }) { m ->
-                                MessageCard(
-                                    message = m,
-                                    onSpeak = if (vm.isTtsEnabled()) {{ vm.toggleSpeak(m.content) }} else null,
-                                    isSpeaking = state.isSpeaking,
-                                    clipboard = clipboard,
-                                )
-                            }
-                            if (state.loading && !state.isStreaming) {
-                                item {
-                                    PhaseIndicator(
-                                        phase = state.streamingPhase.ifEmpty { "正在思考…" },
-                                    )
-                                }
-                            }
-                            if (state.isStreaming) {
-                                item {
-                                    StreamingCard(
-                                        text = state.streamingText,
-                                        reasoning = state.streamingReasoning,
-                                        toolParts = state.streamingToolParts,
-                                        phase = state.streamingPhase,
-                                    )
-                                }
-                            }
-                            if (state.activeQuestion != null) {
-                                item {
-                                    QuestionCard(
-                                        question = state.activeQuestion!!,
-                                        onAnswer = { vm.answerQuestion(it) },
-                                        onDismiss = { vm.dismissQuestion() },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    1 -> {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Button(onClick = { vm.generateSessionNotes() }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("更新") }
-                                Button(onClick = {
-                                    editNotesText = session.notes
-                                    editNotesOpen = true
-                                }, modifier = Modifier.weight(1f)) { Text("编辑") }
-                            }
-                        }
-                        item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(text = session.notes.trim().ifEmpty { "暂无笔记。点击“更新”生成，或“编辑”手动写。"})
-                                }
-                            }
-                        }
-                    }
-                    2 -> {
-                        val enabledCount = session.sources.count { it.includeInContext }
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text("用于回答：$enabledCount / ${session.sources.size}")
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (state.contextTokenCount > 0) {
-                                        Text(
-                                            text = "≈ ${state.contextTokenCount} tokens",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                    }
-                                    TextButton(onClick = { vm.refreshContextTokenCount() }) { Text("刷新") }
-                                }
-                            }
-                        }
-                        if (session.sources.isEmpty()) {
-                            item { Text("还没有来源。建议先添加 URL / PDF / 文本。") }
-                        } else {
-                            items(session.sources, key = { it.id }) { s ->
-                                val idx = session.sources.indexOfFirst { it.id == s.id } + 1
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(text = "S$idx", fontWeight = FontWeight.SemiBold)
-                                            Spacer(Modifier.width(10.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(text = s.title ?: s.url ?: "来源", fontWeight = FontWeight.SemiBold)
-                                                if (!s.url.isNullOrBlank()) Text(text = s.url)
-                                            }
-                                            Switch(checked = s.includeInContext, onCheckedChange = { vm.setSourceIncluded(s.id, it) })
-                                        }
-                                        ExpandableText(text = s.content.trim().ifEmpty { "（空）" }, maxChars = 420)
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            if (!s.url.isNullOrBlank()) {
-                                                TextButton(onClick = { vm.openBrowser(s.url) }) { Text("打开") }
-                                            }
-                                            TextButton(onClick = { clipboard.setText(AnnotatedString(s.content)) }) { Text("复制") }
-                                            Spacer(Modifier.weight(1f))
-                                            TextButton(onClick = { vm.removeSource(s.id) }, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else -> {
-                        val artifacts = session.artifacts.filterNot { it.kind == top.hsyscn.opedrgent.model.ArtifactKind.NOTES }
-                        if (artifacts.isEmpty()) {
-                            item { Text("暂无产物。可以生成摘要/报告。") }
-                        } else {
-                            items(artifacts, key = { it.id }) { a ->
-                                val title = when (a.kind) {
-                                    top.hsyscn.opedrgent.model.ArtifactKind.SUMMARY -> "摘要"
-                                    top.hsyscn.opedrgent.model.ArtifactKind.REPORT -> "报告"
-                                    top.hsyscn.opedrgent.model.ArtifactKind.NOTES -> "笔记"
-                                }
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(text = title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                                            TextButton(onClick = { clipboard.setText(AnnotatedString(a.content)) }) { Text("复制") }
-                                        }
-                                        MarkdownText(text = a.content, maxChars = 900)
-                                    }
-                                }
-                            }
-                        }
+                items(session.messages, key = { it.id }) { msg ->
+                    when (msg.role) {
+                        Role.USER -> UserBubble(text = msg.content)
+                        Role.ASSISTANT -> AIMessageCard(
+                            message = msg,
+                            onSpeak = { vm.toggleSpeak(msg.content) },
+                            isSpeaking = state.isSpeaking,
+                            clipboard = clipboard,
+                        )
+                        Role.SYSTEM -> {}
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FilterChip(
-                    selected = state.deepThinkingEnabled,
-                    onClick = { vm.toggleDeepThinking() },
-                    label = { Text(if (state.deepThinkingEnabled) "深度思考" else "快速思考") },
-                    leadingIcon = if (state.deepThinkingEnabled) {{ Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
-                )
-                FilterChip(
-                    selected = state.deepResearchEnabled,
-                    onClick = { vm.saveDeepResearch(!state.deepResearchEnabled) },
-                    label = { Text("深度研究") },
-                    leadingIcon = if (state.deepResearchEnabled) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(2.dp)) }} else null,
-                )
-                Button(onClick = { vm.generateReport() }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading) { Text("帮我写") }
-                Button(onClick = { actionSheetOpen = true }) { Text("更多") }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = prompt,
-                    onValueChange = { prompt = it },
-                    label = { Text("提问/指令") },
-                    modifier = Modifier.weight(1f),
-                )
-                if (vm.isSttEnabled()) {
-                    IconButton(onClick = {
-                        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                        if (!granted) {
-                            audioPerm.launch(Manifest.permission.RECORD_AUDIO)
-                            return@IconButton
-                        }
-                        val sr = recognizer.value
-                        if (sr == null) {
-                            scope.launch { snackbar.showSnackbar("设备不支持语音识别") }
-                            return@IconButton
-                        }
-                        if (!listening) {
-                            listening = true
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                            sr.startListening(intent)
-                        } else {
-                            listening = false
-                            sr.stopListening()
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.Mic,
-                            contentDescription = "stt",
-                            tint = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                if (state.isStreaming) {
+                    item(key = "_streaming") {
+                        StreamingCard(
+                            text = state.streamingText,
+                            reasoning = state.streamingReasoning,
+                            toolParts = state.streamingToolParts,
+                            phase = state.streamingPhase,
                         )
                     }
                 }
-                Button(
-                    onClick = {
-                        if (state.isStreaming) {
-                            vm.stopGeneration()
-                            return@Button
-                        }
-                        val p = prompt.trim()
-                        when {
-                            p.startsWith("/summary") -> vm.generateSummary()
-                            p.startsWith("/report") -> vm.generateReport()
-                            p.startsWith("/export") -> {
-                                scope.launch {
-                                    val f = vm.exportMarkdown()
-                                    if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
-                                }
-                            }
-                            p.startsWith("/url ") -> vm.addUrlSource(p.removePrefix("/url").trim())
-                            p == "/skills" -> vm.listSkillsAsMessage()
-                            p.startsWith("/skill ") -> vm.runSkillByName(p.removePrefix("/skill").trim())
-                            else -> vm.sendUserMessage(p)
-                        }
-                        prompt = ""
-                    },
-                    enabled = state.isStreaming || (prompt.isNotBlank() && !state.loading),
+
+                if (state.activeQuestion != null) {
+                    item(key = "_question") {
+                        QuestionCard(
+                            question = state.activeQuestion!!,
+                            onAnswer = { vm.answerQuestion(it) },
+                            onDismiss = { vm.dismissQuestion() },
+                        )
+                    }
+                }
+            }
+
+            // Stop responding button
+            AnimatedVisibility(visible = state.isStreaming) {
+                OutlinedButton(
+                    onClick = { vm.stopGeneration() },
+                    modifier = Modifier
+                        .padding(horizontal = 66.dp, vertical = 4.dp)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(7.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = true),
                 ) {
-                    if (state.isStreaming) {
-                        Icon(Icons.Default.FlashOn, contentDescription = "stop", tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(4.dp))
-                        Text("停止", color = MaterialTheme.colorScheme.error)
-                    } else {
-                        Text("发送")
+                    Box(
+                        modifier = Modifier
+                            .size(17.dp)
+                            .background(AccentBlue, RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            // Input bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 100.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Card(
+                    shape = CircleShape,
+                    colors = CardDefaults.cardColors(containerColor = AccentBlue),
+                    modifier = Modifier
+                        .size(37.dp)
+                        .clip(CircleShape),
+                    onClick = { filePicker.launch(arrayOf("*/*")) },
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            Icons.Default.AttachFile,
+                            contentDescription = "upload",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(11.dp)),
+                    shape = RoundedCornerShape(11.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA)),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = prompt,
+                            onValueChange = { prompt = it },
+                            placeholder = { Text("输入消息...", color = TextGrey) },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                            ),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = {
+                                if (prompt.isNotBlank()) {
+                                    vm.sendUserMessage(prompt)
+                                    prompt = ""
+                                }
+                            }),
+                        )
+                        IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = "camera", tint = TextGrey, modifier = Modifier.size(18.dp))
+                        }
+                        if (vm.isSttEnabled()) {
+                            IconButton(onClick = {
+                                val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                                if (!granted) {
+                                    audioPerm.launch(Manifest.permission.RECORD_AUDIO)
+                                    return@IconButton
+                                }
+                                val sr = recognizer.value
+                                if (sr == null) {
+                                    scope.launch { snackbar.showSnackbar("设备不支持语音识别") }
+                                    return@IconButton
+                                }
+                                if (!listening) {
+                                    listening = true
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                                    sr.startListening(intent)
+                                } else {
+                                    listening = false
+                                    sr.stopListening()
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.Mic,
+                                    contentDescription = "stt",
+                                    tint = if (listening) AccentBlue else TextGrey,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Send button
+                Card(
+                    shape = CircleShape,
+                    colors = CardDefaults.cardColors(containerColor = if (prompt.isNotBlank()) AccentBlue else Color(0xFFE0E0E0)),
+                    modifier = Modifier
+                        .size(37.dp)
+                        .clip(CircleShape),
+                    onClick = {
+                        if (prompt.isNotBlank()) {
+                            vm.sendUserMessage(prompt)
+                            prompt = ""
+                        }
+                    },
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            Icons.Default.ArrowForward,
+                            contentDescription = "send",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }
         }
-    }
-
-    if (addUrlOpen) {
-        AlertDialog(
-            onDismissRequest = { addUrlOpen = false },
-            confirmButton = {
-                Button(onClick = {
-                    vm.addUrlSource(url)
-                    url = ""
-                    addUrlOpen = false
-                }) { Text("添加") }
-            },
-            dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { vm.openBrowser(url); addUrlOpen = false }) { Text("打开") }
-                    TextButton(onClick = { addUrlOpen = false }) { Text("取消") }
-                }
-            },
-            title = { Text("添加 URL") },
-            text = {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("URL") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-        )
-    }
-
-    if (addTextOpen) {
-        AlertDialog(
-            onDismissRequest = { addTextOpen = false },
-            confirmButton = {
-                Button(onClick = {
-                    vm.addTextSource(textTitle.takeIf { it.isNotBlank() }, textBody)
-                    textTitle = ""
-                    textBody = ""
-                    addTextOpen = false
-                }) { Text("添加") }
-            },
-            dismissButton = { TextButton(onClick = { addTextOpen = false }) { Text("取消") } },
-            title = { Text("添加文本") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = textTitle,
-                        onValueChange = { textTitle = it },
-                        label = { Text("标题（可选）") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = textBody,
-                        onValueChange = { textBody = it },
-                        label = { Text("正文") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 4,
-                    )
-                }
-            },
-        )
-    }
-
-    if (editNotesOpen) {
-        AlertDialog(
-            onDismissRequest = { editNotesOpen = false },
-            confirmButton = {
-                Button(onClick = {
-                    vm.updateNotesManually(editNotesText)
-                    editNotesOpen = false
-                }) { Text("保存") }
-            },
-            dismissButton = { TextButton(onClick = { editNotesOpen = false }) { Text("取消") } },
-            title = { Text("编辑笔记") },
-            text = {
-                OutlinedTextField(
-                    value = editNotesText,
-                    onValueChange = { editNotesText = it },
-                    label = { Text("Notes") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 6,
-                )
-            },
-        )
-    }
-
-    if (skillsOpen) {
-        SkillsPickerDialog(
-            skills = state.skills,
-            onRun = { id -> vm.runSkill(id); skillsOpen = false },
-            onList = { vm.listSkillsAsMessage(); skillsOpen = false },
-            onDismiss = { skillsOpen = false },
-        )
     }
 
     if (actionSheetOpen) {
@@ -815,543 +768,46 @@ private fun SessionScreen(
         ModalBottomSheet(
             onDismissRequest = { actionSheetOpen = false },
             sheetState = sheetState,
+            containerColor = Color.White,
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("添加来源", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { addUrlOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("URL") }
-                    Button(onClick = { addTextOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("文本") }
-                    Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("PDF") }
-                    Button(onClick = { docxPicker.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document")); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("Word") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { webSearchOpen = true; actionSheetOpen = false }, enabled = vm.hasApiKey(), modifier = Modifier.weight(1f)) { Text("联网查询") }
-                    Button(onClick = { vm.openBrowser("https://duckduckgo.com"); actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("浏览器") }
-                }
-                HorizontalDivider()
-                Text("生成", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.generateSummary(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("摘要") }
-                    Button(onClick = { vm.generateReport(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("报告") }
-                    Button(onClick = { skillsOpen = true; actionSheetOpen = false }, modifier = Modifier.weight(1f)) { Text("技能") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.generateSessionNotes(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("整理笔记") }
-                    Button(onClick = { vm.suggestEvolution(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("进化") }
-                }
-                HorizontalDivider()
-                Text("计划", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { vm.suggestAutomation(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("心跳/自动化") }
-                    Button(onClick = { vm.suggestCalendar(); actionSheetOpen = false }, enabled = vm.hasApiKey() && !state.isStreaming && !state.loading, modifier = Modifier.weight(1f)) { Text("日程" ) }
-                }
-                HorizontalDivider()
-                Text("导出", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = {
-                        scope.launch {
-                            val f = vm.exportMarkdown()
-                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
-                        }
-                        actionSheetOpen = false
-                    }, modifier = Modifier.weight(1f)) { Text("会话") }
-                    Button(onClick = {
-                        scope.launch {
-                            val f = vm.exportChatMarkdown()
-                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
-                        }
-                        actionSheetOpen = false
-                    }, modifier = Modifier.weight(1f)) { Text("聊天") }
-                    Button(onClick = {
-                        scope.launch {
-                            val f = vm.exportContextMarkdown()
-                            if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
-                        }
-                        actionSheetOpen = false
-                    }, modifier = Modifier.weight(1f)) { Text("上下文") }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val f = vm.exportMarkdown()
+                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                            }
+                            actionSheetOpen = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(11.dp),
+                    ) { Text("导出会话") }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val f = vm.exportContextZip()
+                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                            }
+                            actionSheetOpen = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(11.dp),
+                    ) { Text("导出上下文") }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
-
-    if (webSearchOpen) {
-        AlertDialog(
-            onDismissRequest = { webSearchOpen = false },
-            confirmButton = {
-                Button(onClick = {
-                    val mode = runCatching { WebResearchMode.valueOf(webMode) }.getOrNull() ?: WebResearchMode.AUTO
-                    val unattended = webUnattended || webLlmDecides
-                    val allowBrowser = if (unattended) false else webAllowBrowser
-                    val selectedMode = if (unattended && mode == WebResearchMode.BROWSER) WebResearchMode.PROVIDER else mode
-                    vm.webResearch(
-                        query = webQuery,
-                        mode = selectedMode,
-                        llmDecides = webLlmDecides,
-                        unattended = unattended,
-                        allowBrowser = allowBrowser,
-                    )
-                    webQuery = ""
-                    webSearchOpen = false
-                }, enabled = !state.isStreaming && !state.loading) { Text("查询") }
-            },
-            dismissButton = { TextButton(onClick = { webSearchOpen = false }) { Text("取消") } },
-            title = { Text("联网查询") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = webQuery,
-                        onValueChange = { webQuery = it },
-                        label = { Text("关键词") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "LLM 选择路由", modifier = Modifier.weight(1f))
-                        Switch(checked = webLlmDecides, onCheckedChange = { webLlmDecides = it })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "无人值守", modifier = Modifier.weight(1f))
-                        Switch(checked = webUnattended, onCheckedChange = { webUnattended = it }, enabled = !webLlmDecides)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = { webMode = WebResearchMode.AUTO.name }, modifier = Modifier.weight(1f)) { Text("Auto") }
-                        Button(onClick = { webMode = WebResearchMode.PROVIDER.name }, modifier = Modifier.weight(1f)) { Text("Provider") }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = { webMode = WebResearchMode.NATIVE.name }, modifier = Modifier.weight(1f)) { Text("Native") }
-                        Button(onClick = { webMode = WebResearchMode.BROWSER.name }, modifier = Modifier.weight(1f), enabled = !webUnattended && !webLlmDecides) { Text("Browser") }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "允许浏览器兜底（交互）", modifier = Modifier.weight(1f))
-                        Switch(checked = webAllowBrowser, onCheckedChange = { webAllowBrowser = it }, enabled = !webUnattended && !webLlmDecides)
-                    }
-                    Text(text = "无人值守模式会禁用浏览器通道（避免登录/验证码/弹窗）。")
-                }
-            },
-        )
-    }
-
-    if (pdfModeOpen) {
-        val u = pendingPdfUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
-        if (u != null) {
-            AlertDialog(
-                onDismissRequest = { pdfModeOpen = false; pendingPdfUri = null },
-                confirmButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { vm.importPdfOcr(u); pdfModeOpen = false; pendingPdfUri = null }) { Text("OCR") }
-                        Button(onClick = { vm.importPdfVision(u); pdfModeOpen = false; pendingPdfUri = null }) { Text("图片给模型") }
-                    }
-                },
-                dismissButton = { TextButton(onClick = { pdfModeOpen = false; pendingPdfUri = null }) { Text("取消") } },
-                title = { Text("PDF 处理方式") },
-                text = { Text("OCR：转成文本来源；图片给模型：把前几页转成图片走多模态（需要支持图片输入的模型）。") },
-            )
-        }
-    }
-
-    if (docxModeOpen) {
-        val u = pendingDocxUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
-        if (u != null) {
-            AlertDialog(
-                onDismissRequest = { docxModeOpen = false; pendingDocxUri = null },
-                confirmButton = {
-                    Button(onClick = { vm.importDocx(u); docxModeOpen = false; pendingDocxUri = null }) { Text("导入") }
-                },
-                dismissButton = { TextButton(onClick = { docxModeOpen = false; pendingDocxUri = null }) { Text("取消") } },
-                title = { Text("导入 Word 文档") },
-                text = { Text("将 Word 文档（.docx）解析为文本来源。") },
-            )
-        }
-    }
-
-    val evo = state.evolutionSuggestion
-    if (evo != null) {
-        AlertDialog(
-            onDismissRequest = { vm.dismissEvolution() },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.acceptEvolutionMemory() }) { Text("存记忆") }
-                    Button(onClick = { vm.acceptEvolutionSkill() }) { Text("存技能") }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.dismissEvolution() }) { Text("关闭") }
-            },
-            title = { Text("进化建议") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("记忆：", fontWeight = FontWeight.SemiBold)
-                    Text(evo.memory.ifBlank { "（空）" })
-                    Text("技能：${evo.skillName}", fontWeight = FontWeight.SemiBold)
-                    Text(evo.skillPrompt.ifBlank { "（空）" })
-                }
-            },
-        )
-    }
-
-    val auto = state.automationSuggestion
-    if (auto != null) {
-        AlertDialog(
-            onDismissRequest = { vm.dismissAutomationSuggestion() },
-            confirmButton = {
-                Button(onClick = { vm.acceptAutomationSuggestion() }) { Text("创建") }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.dismissAutomationSuggestion() }) { Text("取消") }
-            },
-            title = { Text("自动化建议") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("名称：${auto.name}")
-                    Text("周期：${auto.intervalMinutes} 分钟")
-                    Text("类型：${auto.kind.name}")
-                    if (!auto.prompt.isNullOrBlank()) {
-                        Text("Prompt：")
-                        Text(auto.prompt)
-                    }
-                }
-            },
-        )
-    }
-
-    val cal = state.calendarSuggestion
-    if (cal != null) {
-        AlertDialog(
-            onDismissRequest = { vm.dismissCalendarSuggestion() },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        val file = vm.exportCalendarIcs(cal.events)
-                        shareFile(context, vm.getPackageNameForShare(context), file, mime = "text/calendar")
-                        vm.dismissCalendarSuggestion()
-                    }) { Text("导出 ICS") }
-                    Button(onClick = {
-                        cal.events.firstOrNull()?.let { openCalendarInsert(context, it) }
-                        vm.dismissCalendarSuggestion()
-                    }) { Text("加到日历") }
-                }
-            },
-            dismissButton = { TextButton(onClick = { vm.dismissCalendarSuggestion() }) { Text("取消") } },
-            title = { Text("日程建议") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("最多展示前 5 条；Outlook/飞书可通过系统日历同步或导入 ICS。")
-                    cal.events.forEachIndexed { idx, e ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(text = "${idx + 1}. ${e.title}", fontWeight = FontWeight.SemiBold)
-                                Text(text = formatRange(e.startEpochMs, e.endEpochMs))
-                                if (!e.location.isNullOrBlank()) Text(text = e.location)
-                            }
-                        }
-                    }
-                }
-            },
-        )
-    }
 }
 
-@Composable
-private fun MarkdownTable(tableLines: List<String>) {
-    if (tableLines.size < 2) return
-    val sepIdx = tableLines.indexOfFirst { line ->
-        Regex("""\|[\s\-:\|]+\|""").matches(line.trim())
-    }
-    if (sepIdx < 1) return
 
-    val headerLine = tableLines[sepIdx - 1]
-    val headers = parseTableRow(headerLine)
-    val aligns = parseAlignments(tableLines.getOrNull(sepIdx) ?: "")
-    val rows = tableLines.drop(sepIdx + 1).filter { it.trim().isNotEmpty() && it.trim().startsWith("|") }
-        .map { parseTableRow(it) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            TableRow(headers, aligns, isHeader = true)
-            if (sepIdx + 1 < tableLines.size && tableLines.drop(sepIdx + 1).any { it.trim().isNotEmpty() }) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-            }
-            rows.forEach { cells ->
-                TableRow(cells, aligns, isHeader = false)
-            }
-        }
-    }
-}
 
-@Composable
-private fun TableRow(cells: List<String>, aligns: List<String>, isHeader: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 24.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        cells.forEachIndexed { idx, cell ->
-            val align = aligns.getOrNull(idx) ?: "left"
-            val textAlign = when (align) {
-                "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                "right" -> androidx.compose.ui.text.style.TextAlign.Right
-                else -> androidx.compose.ui.text.style.TextAlign.Start
-            }
-            Text(
-                text = cell.trim(),
-                modifier = Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 3.dp),
-                style = if (isHeader) MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        else MaterialTheme.typography.bodySmall,
-                textAlign = textAlign,
-                color = if (isHeader) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 3,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
-            if (idx < cells.lastIndex) {
-                Spacer(modifier = Modifier.width(1.dp).height(16.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)))
-            }
-        }
-    }
-}
 
-private fun parseTableRow(line: String): List<String> {
-    return line.split("|").filter { it.isNotEmpty() }.map { it.trim() }
-}
 
-private fun parseAlignments(sepLine: String): List<String> {
-    return sepLine.split("|").filter { it.isNotEmpty() }.map { cell ->
-        val t = cell.trim()
-        when {
-            t.startsWith(":") && t.endsWith(":") -> "center"
-            t.endsWith(":") -> "right"
-            else -> "left"
-        }
-    }
-}
 
-private val TABLE_LINE_PATTERN = Regex("""^\s*\|""")
 
-@Composable
-private fun MarkdownText(text: String, maxChars: Int) {
-    var expanded by rememberSaveable(text) { mutableStateOf(false) }
-    val t = text.trim()
-    val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
-
-    val isCodeBlock = { line: String -> line.startsWith("```") }
-    val isHeading = { line: String -> line.startsWith("#") }
-    val isBullet = { line: String -> line.trimStart().startsWith("- ") || line.trimStart().startsWith("* ") }
-    val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        val lines = show.split("\n")
-        var inCodeBlock = false
-        val codeBlockLines = mutableListOf<String>()
-        var i = 0
-
-        while (i < lines.size) {
-            val line = lines[i]
-
-            if (isCodeBlock(line)) {
-                if (inCodeBlock) {
-                    val code = codeBlockLines.joinToString("\n")
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    ) {
-                        Text(
-                            text = code,
-                            modifier = Modifier.padding(8.dp),
-                            fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    codeBlockLines.clear()
-                    inCodeBlock = false
-                } else {
-                    inCodeBlock = true
-                }
-                i++
-                continue
-            }
-
-            if (inCodeBlock) {
-                codeBlockLines.add(line)
-                i++
-                continue
-            }
-
-            if (isTableRow(line)) {
-                val tableLines = mutableListOf<String>()
-                while (i < lines.size && isTableRow(lines[i])) {
-                    tableLines.add(lines[i])
-                    i++
-                }
-                MarkdownTable(tableLines)
-                continue
-            }
-
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                i++
-                continue
-            }
-
-            when {
-                isHeading(trimmed) -> {
-                    val level = trimmed.takeWhile { it == '#' }.length
-                    val headingText = trimmed.removePrefix("#".repeat(level)).trim()
-                    val style = when (level) {
-                        1 -> MaterialTheme.typography.titleLarge
-                        2 -> MaterialTheme.typography.titleMedium
-                        else -> MaterialTheme.typography.titleSmall
-                    }
-                    Text(text = headingText, fontWeight = FontWeight.Bold, style = style)
-                }
-                isBullet(trimmed) -> {
-                    val bulletText = trimmed.removePrefix("- ").removePrefix("* ").trim()
-                    Text(buildAnnotatedString {
-                        append("• ")
-                        appendMarkdownInline(bulletText)
-                    })
-                }
-                trimmed.startsWith("[S") && trimmed.length < 10 -> {
-                    Text(
-                        text = trimmed,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                else -> {
-                    Text(buildAnnotatedString { appendMarkdownInline(trimmed) })
-                }
-            }
-            i++
-        }
-        if (inCodeBlock && codeBlockLines.isNotEmpty()) {
-            val code = codeBlockLines.joinToString("\n")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            ) {
-                Text(
-                    text = code,
-                    modifier = Modifier.padding(8.dp),
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        if (t.length > maxChars) {
-            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起" else "展开") }
-        }
-    }
-}
-
-private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMarkdownInline(text: String) {
-    val boldPattern = Regex("""\*\*(.+?)\*\*""")
-    val italicPattern = Regex("""\*(.+?)\*""")
-    val codePattern = Regex("""`(.+?)`""")
-    val citationPattern = Regex("""\[S\d+]""")
-
-    var remaining = text
-    while (remaining.isNotEmpty()) {
-        val firstBold = boldPattern.find(remaining)
-        val firstItalic = italicPattern.find(remaining)
-        val firstCode = codePattern.find(remaining)
-        val firstCitation = citationPattern.find(remaining)
-
-        val first = listOfNotNull(firstBold, firstItalic, firstCode, firstCitation).minByOrNull { it.range.first }
-
-        if (first == null) {
-            append(remaining)
-            break
-        }
-
-        if (first.range.first > 0) {
-            append(remaining.substring(0, first.range.first))
-        }
-
-        when (first) {
-            firstBold -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                    append(first.groupValues[1])
-                }
-                remaining = remaining.substring(first.range.last + 1)
-            }
-            firstItalic -> {
-                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                    append(first.groupValues[1])
-                }
-                remaining = remaining.substring(first.range.last + 1)
-            }
-            firstCode -> {
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) {
-                    append(first.groupValues[1])
-                }
-                remaining = remaining.substring(first.range.last + 1)
-            }
-            firstCitation -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF1976D2))) {
-                    append(first.value)
-                }
-                remaining = remaining.substring(first.range.last + 1)
-            }
-            else -> {
-                append(remaining)
-                break
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExpandableText(text: String, maxChars: Int) {
-    var expanded by rememberSaveable(text) { mutableStateOf(false) }
-    val t = text.trim()
-    val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(show)
-        if (t.length > maxChars) {
-            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起" else "展开") }
-        }
-    }
-}
-
-@Composable
-private fun SkillsPickerDialog(
-    skills: List<Skill>,
-    onRun: (String) -> Unit,
-    onList: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onList) { Text("列出 /skills") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
-        },
-        title = { Text("选择技能") },
-        text = {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
-            ) {
-                items(skills, key = { it.id }) { s ->
-                    Card(onClick = { onRun(s.id) }, modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Text(s.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.PlayArrow, contentDescription = "run")
-                        }
-                    }
-                }
-            }
-        },
-    )
-}
 
 @Composable
 private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit) {
@@ -1388,7 +844,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text("设置", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "back")
@@ -1397,11 +853,13 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
+        containerColor = BgGray,
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(12.dp)
+                .padding(bottom = 100.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1488,6 +946,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = toMemory,
+                shape = RoundedCornerShape(11.dp),
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -1504,7 +963,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             HorizontalDivider()
 
             Text("语音", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "语音转文字", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -1520,14 +979,14 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                     }
                     Text(text = "语速")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled) { Text("慢") }
-                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled) { Text("正常") }
-                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled) { Text("快") }
+                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("慢") }
+                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("正常") }
+                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("快") }
                     }
                     Text(text = "语言")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled) { Text("中文") }
-                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled) { Text("英文") }
+                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("中文") }
+                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("英文") }
                     }
                 }
             }
@@ -1535,7 +994,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             HorizontalDivider()
 
             Text("后台运行", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -1574,7 +1033,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             HorizontalDivider()
 
             Text("位置与环境", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -1633,6 +1092,8 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                         rate = ttsRate,
                         pitch = ttsPitch,
                         localeTag = ttsLocaleTag,
+                        mimoEnabled = vm.isTtsMimoEnabled(),
+                        mimoVoice = vm.getTtsMimoVoice(),
                     )
                     vm.saveSttEnabled(sttEnabled)
                     vm.saveBackgroundRunning(bgRunning)
@@ -1644,6 +1105,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(11.dp),
             ) {
                 Text("保存")
             }
@@ -1653,13 +1115,14 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 onClick = { vm.clearApiKey() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = vm.hasApiKey(),
+                shape = RoundedCornerShape(11.dp),
             ) {
                 Text("清除 API Key")
             }
-            Button(onClick = toSkills, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = toSkills, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                 Text("技能库")
             }
-            Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                 Text("自动化/心跳")
             }
             if (vm.hasApiKey()) {
@@ -1668,48 +1131,6 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 Text("未设置 Key。")
             }
         }
-    }
-}
-
-private fun formatTime(ms: Long): String {
-    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
-}
-
-private fun shareFile(context: android.content.Context, packageName: String, file: File, mime: String = "text/markdown") {
-    val uri = FileProvider.getUriForFile(context, "$packageName.fileprovider", file)
-    val resolver = context.packageManager
-    val intent = Intent(Intent.ACTION_SEND)
-        .setType(mime)
-        .putExtra(Intent.EXTRA_STREAM, uri)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    intent.clipData = android.content.ClipData.newUri(context.contentResolver, "file", uri)
-    val chooser = Intent.createChooser(intent, "分享")
-    val ok = chooser.resolveActivity(resolver) != null
-    if (ok) {
-        runCatching { context.startActivity(chooser) }
-    } else {
-        Toast.makeText(context, "未找到可分享应用", Toast.LENGTH_SHORT).show()
-    }
-}
-
-private fun formatRange(startMs: Long, endMs: Long): String {
-    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    return "${fmt.format(Date(startMs))} - ${fmt.format(Date(endMs))}"
-}
-
-private fun openCalendarInsert(context: android.content.Context, e: CalendarEventDraft) {
-    val intent = Intent(Intent.ACTION_INSERT)
-        .setData(CalendarContract.Events.CONTENT_URI)
-        .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.startEpochMs)
-        .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, e.endEpochMs)
-        .putExtra(CalendarContract.Events.TITLE, e.title)
-        .putExtra(CalendarContract.Events.EVENT_LOCATION, e.location)
-        .putExtra(CalendarContract.Events.DESCRIPTION, e.description)
-    val ok = intent.resolveActivity(context.packageManager) != null
-    if (ok) {
-        runCatching { context.startActivity(intent) }
-    } else {
-        Toast.makeText(context, "未找到日历应用", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -1744,6 +1165,7 @@ private fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 },
             )
         },
+        containerColor = BgGray,
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
@@ -1764,6 +1186,7 @@ private fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
             items(state.memories, key = { it.id }) { entry ->
                 Card(
                     modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                    shape = RoundedCornerShape(11.dp),
                     onClick = {
                         editingId = entry.id
                         title = entry.title
@@ -1883,6 +1306,7 @@ private fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 },
             )
         },
+        containerColor = BgGray,
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
@@ -1891,6 +1315,7 @@ private fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             items(state.skills, key = { it.id }) { s ->
                 Card(
                     modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                    shape = RoundedCornerShape(11.dp),
                     onClick = {
                         editingId = s.id
                         name = s.name
@@ -1957,499 +1382,47 @@ private fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 }
 
-@Composable
-private fun WebScreen(url: String, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val webViewRef = remember { mutableStateOf<WebView?>(null) }
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            webViewRef.value?.stopLoading()
-            webViewRef.value?.destroy()
-            webViewRef.value = null
-        }
-    }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("网页") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        AndroidView(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            factory = { context ->
-                WebView(context).apply {
-                    webViewRef.value = this
-                    hardenWebView(this)
-                    settings.javaScriptEnabled = true
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                            val u = request?.url?.toString().orEmpty()
-                            if (u.startsWith("http://") || u.startsWith("https://")) return false
-                            Toast.makeText(context, "已拦截非 http(s) 链接", Toast.LENGTH_SHORT).show()
-                            return true
-                        }
-                    }
-                    loadUrl(url)
-                }
-            },
-            update = { v ->
-                if (v.url != url) v.loadUrl(url)
-            },
-        )
+
+
+
+
+
+
+
+
+private fun formatTime(ms: Long): String {
+    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
+}
+
+private fun shareFile(context: android.content.Context, packageName: String, file: File, mime: String = "text/markdown") {
+    val uri = FileProvider.getUriForFile(context, "$packageName.fileprovider", file)
+    val resolver = context.packageManager
+    val intent = Intent(Intent.ACTION_SEND)
+        .setType(mime)
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    intent.clipData = android.content.ClipData.newUri(context.contentResolver, "file", uri)
+    val chooser = Intent.createChooser(intent, "分享")
+    val ok = chooser.resolveActivity(resolver) != null
+    if (ok) {
+        runCatching { context.startActivity(chooser) }
+    } else {
+        Toast.makeText(context, "未找到可分享应用", Toast.LENGTH_SHORT).show()
     }
 }
 
-@Composable
-private fun BrowserScreen(
-    url: String,
-    onBack: () -> Unit,
-    onSaveSource: (String) -> Unit,
-) {
-    var input by rememberSaveable { mutableStateOf(url) }
-    var current by rememberSaveable { mutableStateOf(url) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0) }
-    val webViewHolder = remember { mutableStateOf<WebView?>(null) }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            webViewHolder.value?.stopLoading()
-            webViewHolder.value?.destroy()
-            webViewHolder.value = null
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("浏览器") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { if (current.isNotBlank()) onSaveSource(current) }) { Text("保存来源") }
-                },
-            )
-        },
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                label = { Text("URL") },
-                modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                singleLine = true,
-            )
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(onClick = { current = input.trim() }, enabled = input.isNotBlank()) { Text("打开") }
-                Text(text = if (progress in 1..99) "$progress%" else "", modifier = Modifier.weight(1f))
-                IconButton(onClick = { webViewHolder.value?.goBack() }, enabled = canGoBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "back")
-                }
-                IconButton(onClick = { webViewHolder.value?.goForward() }, enabled = canGoForward) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "forward")
-                }
-                IconButton(onClick = { webViewHolder.value?.reload() }, enabled = current.isNotBlank()) {
-                    Icon(Icons.Default.Refresh, contentDescription = "refresh")
-                }
-            }
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    WebView(context).apply {
-                        webViewHolder.value = this
-                        hardenWebView(this)
-                        settings.javaScriptEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                                val u = request?.url?.toString().orEmpty()
-                                if (u.startsWith("http://") || u.startsWith("https://")) return false
-                                Toast.makeText(context, "已拦截非 http(s) 链接", Toast.LENGTH_SHORT).show()
-                                return true
-                            }
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                current = url ?: current
-                                input = current
-                                canGoBack = this@apply.canGoBack()
-                                canGoForward = this@apply.canGoForward()
-                            }
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                progress = newProgress
-                            }
-                        }
-                        loadUrl(current)
-                    }
-                },
-                update = { v ->
-                    if (v.url != current && current.isNotBlank()) {
-                        v.loadUrl(current)
-                    }
-                    canGoBack = v.canGoBack()
-                    canGoForward = v.canGoForward()
-                },
-            )
-        }
-    }
-}
-
-private fun hardenWebView(w: WebView) {
-    val s = w.settings
-    s.allowFileAccess = false
-    s.allowContentAccess = false
-    s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        s.safeBrowsingEnabled = true
-    }
-    s.javaScriptCanOpenWindowsAutomatically = false
-    s.setSupportMultipleWindows(false)
-    w.isHapticFeedbackEnabled = false
-}
-
-@Composable
-private fun MessageCard(
-    message: top.hsyscn.opedrgent.model.ChatMessage,
-    onSpeak: (() -> Unit)?,
-    isSpeaking: Boolean,
-    clipboard: androidx.compose.ui.platform.ClipboardManager,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = when (message.role) {
-                        Role.USER -> "我"
-                        Role.ASSISTANT -> "助手"
-                        Role.SYSTEM -> "系统"
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                if (message.role == Role.ASSISTANT && onSpeak != null) {
-                    IconButton(onClick = onSpeak) {
-                        Icon(
-                            if (isSpeaking) Icons.Default.FlashOn else Icons.Default.VolumeUp,
-                            contentDescription = "tts",
-                            tint = if (isSpeaking) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-                TextButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }) { Text("复制") }
-            }
-            if (message.reasoningParts.isNotEmpty()) {
-                ThinkingSection(parts = message.reasoningParts)
-            }
-            if (message.toolParts.isNotEmpty()) {
-                message.toolParts.forEach { tp ->
-                    ToolCard(toolPart = tp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-            }
-            if (message.questionPart != null) {
-                QuestionCard(
-                    question = message.questionPart!!,
-                    onAnswer = {},
-                    onDismiss = {},
-                    readonly = true,
-                )
-            }
-            MarkdownText(text = message.content, maxChars = 900)
-        }
-    }
-}
-
-@Composable
-private fun PhaseIndicator(phase: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        ),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.height(14.dp).width(14.dp),
-                strokeWidth = 2.dp,
-            )
-            Text(
-                text = phase,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun StreamingCard(
-    text: String,
-    reasoning: String,
-    toolParts: List<ToolPart>,
-    phase: String = "",
-) {
-    var animatedText by remember(text) { mutableStateOf(text) }
-    val displayText = remember(animatedText) { animatedText.trimEnd() }
-    val animating = remember { mutableStateOf(false) }
-
-    LaunchedEffect(text) {
-        if (text.length > animatedText.length) {
-            animating.value = true
-            val newChars = text.substring(animatedText.length)
-            for (ch in newChars) {
-                animatedText += ch
-                val delay = when {
-                    ch == '\n' -> 30L
-                    ch in listOf('.', '。', '!', '！', '?', '？', ',', '，', '、') -> 40L
-                    ch == ' ' -> 5L
-                    else -> (20L..50L).random()
-                }
-                kotlinx.coroutines.delay(delay)
-            }
-            animating.value = false
-        } else if (text.length < animatedText.length) {
-            animatedText = text
-        }
-    }
-
-    val isToolRunning = toolParts.any { it.state.status == ToolStateType.RUNNING }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-        ),
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                if (isToolRunning || animating.value) {
-                    CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
-                }
-            }
-            if (reasoning.isNotEmpty()) {
-                ThinkingSection(parts = listOf(ReasoningPart(text = reasoning)))
-            }
-            if (toolParts.isNotEmpty()) {
-                toolParts.forEach { tp ->
-                    ToolCard(toolPart = tp)
-                }
-            }
-            if (displayText.isNotEmpty()) {
-                MarkdownText(text = displayText, maxChars = 900)
-            }
-            if (displayText.isEmpty() && toolParts.isEmpty() && reasoning.isEmpty() && phase.isNotEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.height(12.dp).width(12.dp), strokeWidth = 1.5.dp)
-                    Text(text = phase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThinkingSection(parts: List<ReasoningPart>) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val combined = parts.joinToString("\n") { it.text }
-    Column {
-        TextButton(onClick = { expanded = !expanded }) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = "thinking", modifier = Modifier.height(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(if (expanded) "收起思考过程" else "查看思考过程", style = MaterialTheme.typography.bodySmall)
-        }
-        if (expanded) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                ),
-            ) {
-                Text(
-                    text = combined,
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ToolCard(toolPart: ToolPart) {
-    var expanded by rememberSaveable { mutableStateOf(toolPart.state.status == ToolStateType.RUNNING) }
-    val statusIcon = when (toolPart.state.status) {
-        ToolStateType.PENDING -> "\u23F3"
-        ToolStateType.RUNNING -> "\uD83D\uDD04"
-        ToolStateType.COMPLETED -> "\u2705"
-        ToolStateType.ERROR -> "\u274C"
-        ToolStateType.SOURCE_ADDED -> "\uD83D\uDCCE"
-    }
-    val statusColor = when (toolPart.state.status) {
-        ToolStateType.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
-        ToolStateType.RUNNING -> MaterialTheme.colorScheme.primary
-        ToolStateType.COMPLETED -> MaterialTheme.colorScheme.tertiary
-        ToolStateType.ERROR -> MaterialTheme.colorScheme.error
-        ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.secondary
-    }
-
-    val summaryText = when (toolPart.state.status) {
-        ToolStateType.PENDING -> "等待执行…"
-        ToolStateType.RUNNING -> {
-            val q = toolPart.state.input["query"]
-            val u = toolPart.state.input["url"]
-            when {
-                !q.isNullOrBlank() -> "搜索: $q"
-                !u.isNullOrBlank() -> {
-                    val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
-                    "读取: $host"
-                }
-                else -> "执行中…"
-            }
-        }
-        ToolStateType.COMPLETED -> {
-            val out = toolPart.state.output
-            when {
-                toolPart.tool == "web_search" && !out.isNullOrBlank() -> {
-                    val count = out.lines().count { it.isNotBlank() }
-                    "搜索完成 · $count 条结果"
-                }
-                toolPart.tool == "read_url" && !out.isNullOrBlank() -> {
-                    val chars = out.length
-                    "读取完成 · ${chars} 字"
-                }
-                else -> "完成"
-            }
-        }
-        ToolStateType.ERROR -> {
-            val err = toolPart.state.error?.take(40) ?: "未知错误"
-            "错误: $err"
-        }
-        ToolStateType.SOURCE_ADDED -> "已添加来源"
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        ),
-        onClick = { expanded = !expanded },
-    ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = statusIcon)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = toolPart.tool,
-                    fontWeight = FontWeight.SemiBold,
-                    color = statusColor,
-                    modifier = Modifier.weight(1f),
-                )
-                if (toolPart.state.status == ToolStateType.RUNNING) {
-                    CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
-                }
-            }
-            if (!expanded) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = summaryText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-            if (expanded) {
-                Spacer(Modifier.height(6.dp))
-                if (toolPart.state.input.isNotEmpty()) {
-                    Text("参数：${toolPart.state.input.entries.joinToString(", ") { "${it.key}=${it.value}" }}",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-                if (!toolPart.state.output.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = toolPart.state.output!!.take(500) + if (toolPart.state.output!!.length > 500) "…" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                if (!toolPart.state.error.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(text = "错误：${toolPart.state.error}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuestionCard(
-    question: QuestionPart,
-    onAnswer: (String) -> Unit,
-    onDismiss: () -> Unit,
-    readonly: Boolean = false,
-) {
-    var selected by rememberSaveable { mutableStateOf(setOf<String>()) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-        ),
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = question.prompt.ifEmpty { "请选择：" }, fontWeight = FontWeight.SemiBold)
-            if (question.multiSelect) {
-                Text("（多选）", style = MaterialTheme.typography.bodySmall)
-            }
-            question.options.forEach { opt ->
-                FilterChip(
-                    selected = opt.value in selected,
-                    onClick = {
-                        if (readonly) return@FilterChip
-                        if (question.multiSelect) {
-                            selected = if (opt.value in selected) selected - opt.value else selected + opt.value
-                        } else {
-                            selected = setOf(opt.value)
-                        }
-                    },
-                    label = { Text(opt.label) },
-                )
-            }
-            if (!readonly) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            val answer = if (question.multiSelect) selected.joinToString(",") else selected.firstOrNull() ?: ""
-                            if (answer.isNotBlank()) onAnswer(answer)
-                        },
-                        enabled = selected.isNotEmpty(),
-                    ) { Text("确认") }
-                    TextButton(onClick = onDismiss) { Text("跳过") }
-                }
-            }
-            if (readonly && question.answer != null) {
-                Text("回答：${question.answer}", fontWeight = FontWeight.SemiBold)
-            }
-        }
+private fun openCalendarInsert(context: android.content.Context, e: top.hsyscn.opedrgent.calendar.CalendarEventDraft) {
+    val intent = Intent(Intent.ACTION_INSERT)
+        .setData(CalendarContract.Events.CONTENT_URI)
+        .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.startEpochMs)
+        .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, e.endEpochMs)
+        .putExtra(CalendarContract.Events.TITLE, e.title)
+        .putExtra(CalendarContract.Events.EVENT_LOCATION, e.location)
+        .putExtra(CalendarContract.Events.DESCRIPTION, e.description)
+    val ok = intent.resolveActivity(context.packageManager) != null
+    if (ok) {
+        runCatching { context.startActivity(intent) }
+    } else {
+        Toast.makeText(context, "未找到日历应用", Toast.LENGTH_SHORT).show()
     }
 }

@@ -256,8 +256,11 @@ Only include high-confidence targets (>${config.minConfidenceThreshold}). Sort b
     }
 
     private suspend fun callVisionApi(imageBase64: String, prompt: String): String {
-        TODO("Implement vision API call - this should use the configured LLM's multimodal capabilities")
-    }
+    throw UnsupportedOperationException(
+        "MultimodalClickEngine.callVisionApi: Vision API not implemented. " +
+        "Use a vision-capable LLM provider for image understanding."
+    )
+}
 
     private fun parseClickTargets(response: String): List<ClickTarget>? {
         return try {
@@ -285,7 +288,10 @@ Only include high-confidence targets (>${config.minConfidenceThreshold}). Sort b
     }
 
     private suspend fun performOcrFallback(screenshot: Bitmap, instruction: String): List<ClickTarget> {
-        TODO("Implement OCR-based fallback using ML Kit Text Recognition")
+        throw UnsupportedOperationException(
+            "MultimodalClickEngine.performOcrFallback: ML Kit OCR not implemented. " +
+            "Add ML Kit dependency and implement text recognition."
+        )
     }
 
     private fun bitmapToBase64(bitmap: Bitmap, quality: Int): String {

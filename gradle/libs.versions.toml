@@ -14,6 +14,7 @@ jsoup = "1.18.1"
 coroutines = "1.9.0"
 coroutinesPlayServices = "1.9.0"
 mlkitTextRecognition = "16.0.1"
+mlkitGenai = "0.3.0"
 playServicesTasks = "18.0.2"
 work = "2.9.0"
 securityCrypto = "1.1.0-alpha06"
@@ -43,6 +44,7 @@ jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai", version.ref = "mlkitGenai" }
 play-services-tasks = { group = "com.google.android.gms", name = "play-services-tasks", version.ref = "playServicesTasks" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
