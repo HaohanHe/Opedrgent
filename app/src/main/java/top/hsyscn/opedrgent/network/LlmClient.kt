@@ -153,6 +153,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                                 if (m.content.isNotEmpty()) put("content", m.content)
                                 else put("content", JSONObject.NULL)
                                 put("tool_calls", JSONArray(m.apiToolCallsJson))
+                                val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                                if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
                             })
                         } else {
                             put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
@@ -193,144 +195,249 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                         return
                     }
 
-                    val source = response.body?.source() ?: run {
-                        onError("响应体为空")
-                        return
-                    }
-
-                    val fullContent = StringBuilder()
-                    val fullReasoning = StringBuilder()
-                    val toolCallMap = mutableMapOf<Int, StringBuilder>() // index -> name
-                    val toolArgMap = mutableMapOf<Int, StringBuilder>() // index -> args
-                    val toolIdMap = mutableMapOf<Int, String>() // index -> id
-                    var inThinkingTag = false
-
-                    while (!source.exhausted()) {
-                        val line = source.readUtf8Line() ?: continue
-                        if (line.isEmpty()) continue
-                        if (!line.startsWith("data: ")) continue
-
-                        val data = line.removePrefix("data: ").trim()
-                        if (data == "[DONE]") {
-                            DebugLog.i("streamChatCompletions ← DONE, text=${fullContent.length} chars, reasoning=${fullReasoning.length} chars, tools=${toolCallMap.size}")
-                            break
-                        }
-
-                        runCatching {
-                            val root = JSONObject(data)
-                            val choices = root.optJSONArray("choices") ?: return@runCatching
-                            if (choices.length() == 0) return@runCatching
-                            val choice = choices.getJSONObject(0)
-                            val delta = choice.optJSONObject("delta") ?: return@runCatching
-
-                            val content = delta.optString("content", "")
-                            val reasoning = delta.optString("reasoning_content", "")
-                                .ifEmpty { delta.optString("reasoning", "") }
-
-                            var remainingContent = content
-
-                            if (inThinkingTag) {
-                                val endTagIdx = remainingContent.indexOf("</thinking>")
-                                if (endTagIdx >= 0) {
-                                    val thinkChunk = remainingContent.substring(0, endTagIdx)
-                                    fullReasoning.append(thinkChunk)
-                                    onDelta(StreamDelta.ReasoningDelta(thinkChunk))
-                                    inThinkingTag = false
-                                    remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
-                                } else {
-                                    fullReasoning.append(remainingContent)
-                                    onDelta(StreamDelta.ReasoningDelta(remainingContent))
-                                    remainingContent = ""
-                                }
-                            }
-
-                            while (remainingContent.isNotEmpty()) {
-                                val startTagIdx = remainingContent.indexOf("<thinking>")
-                                val endTagIdx = remainingContent.indexOf("</thinking>")
-
-                                when {
-                                    startTagIdx >= 0 && (endTagIdx < 0 || startTagIdx < endTagIdx) -> {
-                                        val beforeThink = remainingContent.substring(0, startTagIdx)
-                                        if (beforeThink.isNotEmpty()) {
-                                            fullContent.append(beforeThink)
-                                            onDelta(StreamDelta.TextDelta(beforeThink))
-                                        }
-                                        remainingContent = remainingContent.substring(startTagIdx + "<thinking>".length)
-                                        inThinkingTag = true
-                                    }
-                                    endTagIdx >= 0 -> {
-                                        val thinkChunk = remainingContent.substring(0, endTagIdx)
-                                        fullReasoning.append(thinkChunk)
-                                        onDelta(StreamDelta.ReasoningDelta(thinkChunk))
-                                        inThinkingTag = false
-                                        remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
-                                    }
-                                    else -> {
-                                        fullContent.append(remainingContent)
-                                        onDelta(StreamDelta.TextDelta(remainingContent))
-                                        remainingContent = ""
-                                    }
-                                }
-                            }
-
-                            if (reasoning.isNotEmpty()) {
-                                fullReasoning.append(reasoning)
-                                onDelta(StreamDelta.ReasoningDelta(reasoning))
-                            }
-
-                            val tcArray = delta.optJSONArray("tool_calls")
-                            if (tcArray != null) {
-                                for (i in 0 until tcArray.length()) {
-                                    val tc = tcArray.getJSONObject(i)
-                                    val idx = tc.optInt("index", 0)
-                                    val tcId = tc.optString("id", "")
-                                    if (tcId.isNotEmpty() && !toolIdMap.containsKey(idx)) {
-                                        toolIdMap[idx] = tcId
-                                    }
-                                    val fn = tc.optJSONObject("function") ?: continue
-                                    val nameDelta = fn.optString("name", "")
-                                    val argsDelta = fn.optString("arguments", "")
-
-                                    if (nameDelta.isNotEmpty()) {
-                                        toolCallMap.getOrPut(idx) { StringBuilder() }.append(nameDelta)
-                                    }
-                                    if (argsDelta.isNotEmpty()) {
-                                        toolArgMap.getOrPut(idx) { StringBuilder() }.append(argsDelta)
-                                    }
-
-                                    onToolCallDelta?.invoke(
-                                        ToolCallDelta(
-                                            id = toolIdMap[idx].orEmpty(),
-                                            index = idx,
-                                            nameDelta = nameDelta,
-                                            argsDelta = argsDelta,
-                                        )
-                                    )
-                                }
-                            }
-                        }.onFailure { e ->
-                            DebugLog.w("streamChatCompletions parse: ${e.message} data=${data.take(100)}")
-                        }
-                    }
-
-                    val toolCalls = toolCallMap.map { (idx, nameBuilder) ->
-                        CompletedToolCall(
-                            id = toolIdMap[idx].orEmpty(),
-                            name = nameBuilder.toString().trim(),
-                            arguments = toolArgMap[idx]?.toString().orEmpty().trim(),
-                        )
-                    }
-
-                    onDone(StreamResult(
-                        content = fullContent.toString(),
-                        reasoning = fullReasoning.toString(),
-                        toolCalls = toolCalls,
-                    ))
+                    parseSseStream(response, onDelta, onToolCallDelta, onDone, onError)
                 } catch (e: Exception) {
                     DebugLog.e("streamChatCompletions stream error: ${e.message}", e)
                     onError(e.message ?: "流读取失败")
                 } finally {
                     response.close()
+                }
+            }
+        })
+        call
+    }
+
+    private fun parseSseStream(
+        response: okhttp3.Response,
+        onDelta: (StreamDelta) -> Unit,
+        onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
+        onDone: (StreamResult) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val source = response.body?.source() ?: run {
+            onError("响应体为空")
+            return
+        }
+
+        val fullContent = StringBuilder()
+        val fullReasoning = StringBuilder()
+        val toolCallMap = mutableMapOf<Int, StringBuilder>()
+        val toolArgMap = mutableMapOf<Int, StringBuilder>()
+        val toolIdMap = mutableMapOf<Int, String>()
+        var inThinkingTag = false
+
+        while (!source.exhausted()) {
+            val line = source.readUtf8Line() ?: continue
+            if (line.isEmpty()) continue
+            if (!line.startsWith("data: ")) continue
+
+            val data = line.removePrefix("data: ").trim()
+            if (data == "[DONE]") {
+                DebugLog.i("parseSse ← DONE, text=${fullContent.length} chars, reasoning=${fullReasoning.length} chars")
+                break
+            }
+
+            runCatching {
+                val root = JSONObject(data)
+                val choices = root.optJSONArray("choices") ?: return@runCatching
+                if (choices.length() == 0) return@runCatching
+                val choice = choices.getJSONObject(0)
+                val delta = choice.optJSONObject("delta") ?: return@runCatching
+
+                val content = delta.optString("content", "")
+                    .let { if (it == "null") "" else it }
+                val reasoning = delta.optString("reasoning_content", "")
+                    .let { if (it == "null") "" else it }
+                    .ifEmpty { delta.optString("reasoning", "").let { if (it == "null") "" else it } }
+
+                var remainingContent = content
+
+                if (inThinkingTag) {
+                    val endTagIdx = remainingContent.indexOf("</thinking>")
+                    if (endTagIdx >= 0) {
+                        val thinkChunk = remainingContent.substring(0, endTagIdx)
+                        fullReasoning.append(thinkChunk)
+                        onDelta(StreamDelta.ReasoningDelta(thinkChunk))
+                        inThinkingTag = false
+                        remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
+                    } else {
+                        fullReasoning.append(remainingContent)
+                        onDelta(StreamDelta.ReasoningDelta(remainingContent))
+                        remainingContent = ""
+                    }
+                }
+
+                while (remainingContent.isNotEmpty()) {
+                    val startTagIdx = remainingContent.indexOf("<thinking>")
+                    val endTagIdx = remainingContent.indexOf("</thinking>")
+
+                    when {
+                        startTagIdx >= 0 && (endTagIdx < 0 || startTagIdx < endTagIdx) -> {
+                            val beforeThink = remainingContent.substring(0, startTagIdx)
+                            if (beforeThink.isNotEmpty()) {
+                                fullContent.append(beforeThink)
+                                onDelta(StreamDelta.TextDelta(beforeThink))
+                            }
+                            remainingContent = remainingContent.substring(startTagIdx + "<thinking>".length)
+                            inThinkingTag = true
+                        }
+                        endTagIdx >= 0 -> {
+                            val thinkChunk = remainingContent.substring(0, endTagIdx)
+                            fullReasoning.append(thinkChunk)
+                            onDelta(StreamDelta.ReasoningDelta(thinkChunk))
+                            inThinkingTag = false
+                            remainingContent = remainingContent.substring(endTagIdx + "</thinking>".length)
+                        }
+                        else -> {
+                            fullContent.append(remainingContent)
+                            onDelta(StreamDelta.TextDelta(remainingContent))
+                            remainingContent = ""
+                        }
+                    }
+                }
+
+                if (reasoning.isNotEmpty()) {
+                    fullReasoning.append(reasoning)
+                    onDelta(StreamDelta.ReasoningDelta(reasoning))
+                }
+
+                val tcArray = delta.optJSONArray("tool_calls")
+                if (tcArray != null) {
+                    for (i in 0 until tcArray.length()) {
+                        val tc = tcArray.getJSONObject(i)
+                        val idx = tc.optInt("index", 0)
+                        val tcId = tc.optString("id", "")
+                        if (tcId.isNotEmpty() && !toolIdMap.containsKey(idx)) {
+                            toolIdMap[idx] = tcId
+                        }
+                        val fn = tc.optJSONObject("function") ?: continue
+                        val nameDelta = fn.optString("name", "")
+                        val argsDelta = fn.optString("arguments", "")
+
+                        if (nameDelta.isNotEmpty()) {
+                            toolCallMap.getOrPut(idx) { StringBuilder() }.append(nameDelta)
+                        }
+                        if (argsDelta.isNotEmpty()) {
+                            toolArgMap.getOrPut(idx) { StringBuilder() }.append(argsDelta)
+                        }
+
+                        onToolCallDelta?.invoke(
+                            ToolCallDelta(
+                                id = toolIdMap[idx].orEmpty(),
+                                index = idx,
+                                nameDelta = nameDelta,
+                                argsDelta = argsDelta,
+                            )
+                        )
+                    }
+                }
+            }.onFailure { e ->
+                DebugLog.w("parseSse parse error: ${e.message}")
+            }
+        }
+
+        val toolCalls = toolCallMap.map { (idx, nameBuilder) ->
+            CompletedToolCall(
+                id = toolIdMap[idx].orEmpty(),
+                name = nameBuilder.toString().trim(),
+                arguments = toolArgMap[idx]?.toString().orEmpty().trim(),
+            )
+        }
+
+        onDone(StreamResult(
+            content = fullContent.toString(),
+            reasoning = fullReasoning.toString(),
+            toolCalls = toolCalls,
+        ))
+    }
+
+    suspend fun streamMultimodalChatCompletions(
+        config: ApiConfig,
+        system: String,
+        messages: List<ChatMessage>,
+        extraImages: List<String> = emptyList(),
+        tools: List<ToolDefinition> = emptyList(),
+        thinkingEnabled: Boolean = false,
+        onDelta: (StreamDelta) -> Unit,
+        onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
+        onDone: (StreamResult) -> Unit,
+        onError: (String) -> Unit,
+    ): Call = withContext(Dispatchers.IO) {
+        val url = buildUrl(config.baseUrl, "/chat/completions")
+        DebugLog.i("streamMultimodalChatCompletions → $url model=${config.model} msgs=${messages.size} images=${extraImages.size} tools=${tools.size}")
+
+        val json = JSONObject().apply {
+            put("model", config.model)
+            put("stream", true)
+            put(
+                "messages",
+                JSONArray().apply {
+                    put(JSONObject().put("role", "system").put("content", system))
+                    messages.forEachIndexed { idx, m ->
+                        if (m.toolCallId != null) {
+                            put(JSONObject().apply {
+                                put("role", "tool")
+                                put("tool_call_id", m.toolCallId)
+                                put("content", m.content)
+                            })
+                        } else if (m.apiToolCallsJson != null) {
+                            put(JSONObject().apply {
+                                put("role", "assistant")
+                                if (m.content.isNotEmpty()) put("content", m.content)
+                                else put("content", JSONObject.NULL)
+                                put("tool_calls", JSONArray(m.apiToolCallsJson))
+                                val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                                if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
+                            })
+                        } else {
+                            val isLastUser = (idx == messages.lastIndex && m.role == Role.USER)
+                            if (isLastUser && extraImages.isNotEmpty()) {
+                                val contentArr = JSONArray()
+                                contentArr.put(JSONObject().put("type", "text").put("text", m.content))
+                                extraImages.forEach { b64 ->
+                                    contentArr.put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", b64)))
+                                }
+                                put(JSONObject().put("role", roleToApi(m.role)).put("content", contentArr))
+                            } else {
+                                put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
+                            }
+                        }
+                    }
+                },
+            )
+            if (thinkingEnabled) {
+                put("thinking", JSONObject().apply {
+                    put("type", "enabled")
+                    put("budget_tokens", 4000)
+                })
+            }
+            if (tools.isNotEmpty()) {
+                put("tools", JSONArray().apply { tools.forEach { put(toolToJson(it)) } })
+                put("tool_choice", "auto")
+            }
+        }
+
+        val req = buildRequest(url, json.toString(), config.apiKey)
+        val call = http.newCall(req)
+        call.enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                DebugLog.e("streamMultimodal FAILED: ${e.message}", e)
+                onError(e.message ?: "连接失败")
+            }
+
+            override fun onResponse(call: Call, response: okhttp3.Response) {
+                try {
+                    if (!response.isSuccessful) {
+                        val raw = response.body?.string().orEmpty()
+                        val msg = runCatching { org.json.JSONObject(raw).optString("error", raw) }.getOrDefault(raw)
+                        onError(msg)
+                        return
+                    }
+
+                    parseSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                } catch (e: Exception) {
+                    DebugLog.e("streamMultimodal parse error: ${e.message}", e)
+                    onError(e.message ?: "解析失败")
                 }
             }
         })
@@ -365,6 +472,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                             if (m.content.isNotEmpty()) put("content", m.content)
                             else put("content", JSONObject.NULL)
                             put("tool_calls", JSONArray(m.apiToolCallsJson))
+                            val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                            if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
                         })
                     } else {
                         put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))

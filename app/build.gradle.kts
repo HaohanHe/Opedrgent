@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.play.services.tasks)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.genai.prompt)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.security.crypto)
     implementation(libs.kotlinx.serialization.json)
