@@ -40,6 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -61,7 +68,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val STREAMING_PACE_MS = 24L
+private const val STREAMING_PACE_MS = 64L
 private const val MAX_STEP = 24
 private val WORD_SNAP = Regex("""[\s.,!?;:)\]]""")
 
@@ -90,6 +97,7 @@ fun StreamingCard(
     phase: String = "",
 ) {
     var displayText by remember { mutableStateOf("") }
+    var isComplete by remember { mutableStateOf(false) }
 
     LaunchedEffect(text) {
         if (text.length > displayText.length) {
@@ -105,8 +113,11 @@ fun StreamingCard(
                 idx = snapped
                 delay(STREAMING_PACE_MS)
             }
+            isComplete = true
         } else if (text.length < displayText.length) {
             displayText = text
+        } else if (text.length == displayText.length && text.isNotEmpty()) {
+            isComplete = true
         }
     }
 
@@ -146,14 +157,23 @@ fun StreamingCard(
                 ThinkingSection(parts = listOf(ReasoningPart(text = reasoning)))
             }
 
-            if (hasTools && hasText) {
+            if (hasTools) {
                 toolParts.forEach { tp ->
                     ToolStatusRow(toolPart = tp)
                 }
             }
 
             if (hasText) {
-                StreamingMarkdownText(text = displayText, maxChars = 900)
+                if (isComplete) {
+                    StreamingMarkdownText(text = displayText, maxChars = 900)
+                } else {
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextDark,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -228,12 +248,12 @@ fun ThinkingSection(parts: List<ReasoningPart>) {
 
 @Composable
 fun ToolStatusRow(toolPart: ToolPart) {
-    val icon = when (toolPart.state.status) {
-        ToolStateType.PENDING -> "\u23F3"
-        ToolStateType.RUNNING -> "\uD83D\uDD04"
-        ToolStateType.COMPLETED -> "\u2705"
-        ToolStateType.ERROR -> "\u274C"
-        ToolStateType.SOURCE_ADDED -> "\uD83D\uDCCE"
+    val icon: ImageVector = when (toolPart.state.status) {
+        ToolStateType.PENDING -> Icons.Default.AccessTime
+        ToolStateType.RUNNING -> Icons.Default.HourglassEmpty
+        ToolStateType.COMPLETED -> Icons.Default.CheckCircle
+        ToolStateType.ERROR -> Icons.Default.Cancel
+        ToolStateType.SOURCE_ADDED -> Icons.Default.Bookmark
     }
     val statusText = when (toolPart.state.status) {
         ToolStateType.PENDING -> "等待执行..."
@@ -262,7 +282,17 @@ fun ToolStatusRow(toolPart: ToolPart) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(icon, fontSize = 14.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = when (toolPart.state.status) {
+                ToolStateType.COMPLETED -> Color(0xFF4CAF50)
+                ToolStateType.ERROR -> Color(0xFFF44336)
+                ToolStateType.SOURCE_ADDED -> AccentBlue
+                else -> TextGrey
+            },
+        )
 
         if (toolPart.state.status == ToolStateType.PENDING) {
             ShimmerText(text = toolPart.tool, color = TextDark)
@@ -324,12 +354,12 @@ private fun ShimmerText(text: String, color: Color) {
 @Composable
 fun ToolCard(toolPart: ToolPart) {
     var expanded by rememberSaveable { mutableStateOf(toolPart.state.status == ToolStateType.RUNNING) }
-    val statusIcon = when (toolPart.state.status) {
-        ToolStateType.PENDING -> "\u23F3"
-        ToolStateType.RUNNING -> "\uD83D\uDD04"
-        ToolStateType.COMPLETED -> "\u2705"
-        ToolStateType.ERROR -> "\u274C"
-        ToolStateType.SOURCE_ADDED -> "\uD83D\uDCCE"
+    val statusIcon: ImageVector = when (toolPart.state.status) {
+        ToolStateType.PENDING -> Icons.Default.AccessTime
+        ToolStateType.RUNNING -> Icons.Default.HourglassEmpty
+        ToolStateType.COMPLETED -> Icons.Default.CheckCircle
+        ToolStateType.ERROR -> Icons.Default.Cancel
+        ToolStateType.SOURCE_ADDED -> Icons.Default.Link
     }
     val statusColor = when (toolPart.state.status) {
         ToolStateType.PENDING -> TextGrey
@@ -347,7 +377,12 @@ fun ToolCard(toolPart: ToolPart) {
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = statusIcon)
+                Icon(
+                    imageVector = statusIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = statusColor,
+                )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = toolPart.tool,

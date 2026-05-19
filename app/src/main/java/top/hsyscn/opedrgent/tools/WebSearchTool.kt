@@ -96,7 +96,9 @@ class WebSearchTool(
     }
 
     @Tool("web_search")
-    @ToolDescription("搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。参数中 query 为必填，method 可选值: ddg(默认)/webview/provider_native/mcp/multimodal。")
+    @ToolDescription("""搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。参数中 query 为必填，method 可选值: ddg(默认)/webview/provider_native/mcp/multimodal。
+
+⚠️ 重要：如果用户已提供具体 URL，请使用 read_url 工具而非此工具。""")
     suspend fun executeWebSearch(
         tp: ToolPart,
         config: ApiConfig,
@@ -381,7 +383,9 @@ class WebSearchTool(
         return mapOf(
             "web_search" to ToolBinding(
                 name = "web_search",
-                description = "搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。参数中 query 为必填，method 可选值: ddg(默认)/webview/provider_native/mcp/multimodal。",
+                description = """搜索互联网获取最新信息。
+
+⚠️ 仅在用户未提供具体 URL 时使用此工具。若用户已给出 URL，请使用 read_url 直接访问。""",
                 invoker = { tp, config, sp, ups -> executeWebSearch(tp, config, sp, ups) },
             ),
         )

@@ -47,6 +47,14 @@ class HybridRankingEngine(
             "从", "到", "对", "向", "为", "以", "及", "等", "中", "上",
             "下", "不", "没", "能", "可", "要", "会", "应", "该", "已"
         )
+
+        private val ENGINE_WEIGHT_MAP: Map<String, Double> = mapOf(
+            "baidu" to 1.2, "bing" to 1.3, "ddg" to 1.0,
+            "sogou" to 0.9, "360" to 0.8, "yandex" to 0.7,
+            "jina" to 1.1, "brave" to 1.1, "tavily" to 1.0,
+            "searxng" to 1.4, "google" to 1.3,
+            "unknown" to 0.8, "jina-fallback" to 0.7
+        )
     }
 
     private val semanticScorer = SemanticScorer()
@@ -161,6 +169,7 @@ class HybridRankingEngine(
             snippet = result.snippet
         )
 
+        val engineWeight = calculateEngineWeight(result.sourceEngines)
         val positionScore = calculatePositionScore(originalPosition, totalResults)
         val diversityScore = 1.0
 
@@ -172,10 +181,12 @@ class HybridRankingEngine(
             diversityScore * config.weights.diversity +
             positionScore * config.weights.position
 
+        val engineAdjustedScore = rawHybridScore * engineWeight
+
         val finalScore = if (config.normalizeScores) {
-            sigmoid(rawHybridScore)
+            sigmoid(engineAdjustedScore)
         } else {
-            rawHybridScore.coerceIn(0.0, 1.0)
+            engineAdjustedScore.coerceIn(0.0, 1.0)
         }
 
         return RankedResult(
@@ -191,7 +202,7 @@ class HybridRankingEngine(
             DebugLog.d("[$TAG] hybridScore=${"%.4f".format(finalScore)} | " +
                     "bm25=${"%.3f".format(bm25Score)} sem=${"%.3f".format(semanticScore.combinedScore)} " +
                     "auth=${"%.3f".format(authorityScore.finalScore)} fresh=${"%.3f".format(freshnessScore.adjustedScore)} " +
-                    "pos=${"%.3f".format(positionScore)} | ${result.title.take(40)}")
+                    "pos=${"%.3f".format(positionScore)} engW=${"%.2f".format(engineWeight)} | ${result.title.take(40)}")
         }
     }
 
@@ -228,6 +239,11 @@ class HybridRankingEngine(
         }
 
         return words.distinct()
+    }
+
+    private fun calculateEngineWeight(sourceEngines: Set<String>): Double {
+        if (sourceEngines.isEmpty()) return 0.8
+        return sourceEngines.maxOfOrNull { ENGINE_WEIGHT_MAP[it] ?: 0.8 } ?: 0.8
     }
 
     private fun calculatePositionScore(position: Int, totalResults: Int): Double {

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -52,6 +53,12 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -79,6 +86,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -131,6 +139,10 @@ import top.hsyscn.opedrgent.ui.components.SourceCitations
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
+import top.hsyscn.opedrgent.llm.LocalLlmEngine
+import top.hsyscn.opedrgent.llm.ModelDownloadManager
+import top.hsyscn.opedrgent.llm.AvailableLocalModels
+import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -229,7 +241,7 @@ fun AppRoot(
 }
 
 @Composable
-private fun FloatingBottomBar(
+fun FloatingBottomBar(
     selectedTab: MainTab,
     onTabSelected: (MainTab) -> Unit,
     modifier: Modifier = Modifier,
@@ -278,7 +290,7 @@ private fun FloatingBottomBar(
 }
 
 @Composable
-private fun BottomBarItem(
+fun BottomBarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     selected: Boolean,
@@ -314,7 +326,7 @@ private fun BottomBarItem(
 }
 
 @Composable
-private fun SessionsScreen(
+fun SessionsScreen(
     vm: MainViewModel,
     onSelectSession: (String) -> Unit,
     onSearch: () -> Unit,
@@ -402,7 +414,7 @@ private fun SessionsScreen(
 }
 
 @Composable
-private fun SessionScreen(
+fun SessionScreen(
     vm: MainViewModel,
     sessionId: String?,
     onOpenSettings: () -> Unit,
@@ -810,7 +822,7 @@ private fun SessionScreen(
 
 
 @Composable
-private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf("") }
@@ -824,10 +836,16 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
+    var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
+    var showModelSelector by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val localEngine = remember { LocalLlmEngine(context) }
+    val downloadManager = remember { ModelDownloadManager(context) }
+    var isLocalMode by rememberSaveable { mutableStateOf(vm.isLocalModelEnabled()) }
+    var localModelId by rememberSaveable { mutableStateOf(vm.getLocalModelId()) }
     var providerMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var modelMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val state by vm.state.collectAsStateCompat()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val locationPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -940,6 +958,14 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 singleLine = true,
             )
 
+            OutlinedTextField(
+                value = jinaApiKey,
+                onValueChange = { jinaApiKey = it },
+                label = { Text("Jina API Key (可选)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
             HorizontalDivider()
 
             Text("记忆管理", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
@@ -947,6 +973,10 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 modifier = Modifier.fillMaxWidth(),
                 onClick = toMemory,
                 shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -963,7 +993,12 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             HorizontalDivider()
 
             Text("语音", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "语音转文字", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -994,7 +1029,12 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             HorizontalDivider()
 
             Text("后台运行", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -1084,6 +1124,63 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                 }
             }
 
+            HorizontalDivider()
+
+            Text("本地模型", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text("本地模型 (Gemma 4 离线)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = if (isLocalMode && localModelId != null) {
+                            val info = AvailableLocalModels.findById(localModelId!!)
+                            "当前使用: ${info?.displayName ?: localModelId}"
+                        } else "下载 Gemma 4 模型到设备，完全离线运行，无需网络连接",
+                        color = TextGrey,
+                        fontSize = 13.sp,
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Switch(
+                            checked = isLocalMode,
+                            onCheckedChange = { 
+                                isLocalMode = it
+                                vm.saveLocalModelEnabled(it)
+                                if (!it) vm.saveLocalModelId(null)
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = BubbleBlue),
+                        )
+
+                        OutlinedButton(
+                            onClick = { showModelSelector = true },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = BubbleBlue)
+                            Spacer(Modifier.width(6.dp))
+                            Text("选择模型 / 下载", fontSize = 12.sp, color = BubbleBlue)
+                        }
+                    }
+                }
+            }
+Spacer(Modifier.height(12.dp))
+
             Button(
                 onClick = {
                     vm.saveTts(
@@ -1100,6 +1197,7 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
                     vm.saveLocationEnabled(locationEnabled)
                     vm.saveDebugMode(debugMode)
                     vm.saveDeepThinking(deepThinkingEnabled)
+                    vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
                     val ok = vm.saveSettings(baseUrl = baseUrl, apiKey = apiKey, model = model)
                     if (!ok) return@Button
                     onBack()
@@ -1132,10 +1230,39 @@ private fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -
             }
         }
     }
+
+    // 本地模型选择对话框 (在 SettingsScreen 内部)
+    if (showModelSelector) {
+        ModelSelectorDialog(
+            onDismiss = { showModelSelector = false },
+            onSelectModel = { modelInfo ->
+                scope.launch {
+                    val path = localEngine.getModelPath(modelInfo)
+                    if (path != null) {
+                        val loaded = localEngine.loadModel(path, modelInfo)
+                        if (loaded) {
+                            vm.saveLocalModelEnabled(true)
+                            vm.saveLocalModelId(modelInfo.id)
+                            isLocalMode = true
+                            localModelId = modelInfo.id
+                            snackbar.showSnackbar("已加载 ${modelInfo.displayName}")
+                        } else {
+                            snackbar.showSnackbar("加载失败")
+                        }
+                    } else {
+                        snackbar.showSnackbar("请先下载模型")
+                    }
+                }
+            },
+            downloadManager = downloadManager,
+            localEngine = localEngine,
+            currentModelId = localModelId,
+        )
+    }
 }
 
 @Composable
-private fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateCompat()
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1278,7 +1405,7 @@ private fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateCompat()
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1390,11 +1517,11 @@ private fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
 
 
 
-private fun formatTime(ms: Long): String {
+fun formatTime(ms: Long): String {
     return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
 }
 
-private fun shareFile(context: android.content.Context, packageName: String, file: File, mime: String = "text/markdown") {
+fun shareFile(context: android.content.Context, packageName: String, file: File, mime: String = "text/markdown") {
     val uri = FileProvider.getUriForFile(context, "$packageName.fileprovider", file)
     val resolver = context.packageManager
     val intent = Intent(Intent.ACTION_SEND)
@@ -1411,7 +1538,7 @@ private fun shareFile(context: android.content.Context, packageName: String, fil
     }
 }
 
-private fun openCalendarInsert(context: android.content.Context, e: top.hsyscn.opedrgent.calendar.CalendarEventDraft) {
+fun openCalendarInsert(context: android.content.Context, e: top.hsyscn.opedrgent.calendar.CalendarEventDraft) {
     val intent = Intent(Intent.ACTION_INSERT)
         .setData(CalendarContract.Events.CONTENT_URI)
         .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.startEpochMs)

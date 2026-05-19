@@ -265,4 +265,19 @@ class ApiSettings(private val context: Context) {
         if (host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return false
         return true
     }
+
+    fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
+    fun getLocalModelId(): String? = prefs.getString("localModelId", null)?.trim()?.takeIf { it.isNotBlank() }
+
+    fun saveLocalModelEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("localModelEnabled", enabled).apply()
+    }
+
+    fun saveLocalModelId(modelId: String?) {
+        if (modelId.isNullOrBlank()) {
+            prefs.edit().remove("localModelId").apply()
+        } else {
+            prefs.edit().putString("localModelId", modelId.trim()).apply()
+        }
+    }
 }

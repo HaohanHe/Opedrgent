@@ -424,7 +424,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         listOf(
             top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "web_search",
-                description = "搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。参数中 query 为必填，method 可选值: ddg(默认)/webview/provider_native。",
+                description = """搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。
+
+【重要】：如果用户已经提供了具体的 URL（http:// 或 https:// 开头），请使用 read_url 工具直接访问，不要用此工具搜索。
+此工具仅用于：用户提出问题但未给出具体网址时，需要你主动搜索相关信息。""",
                 parameters = org.json.JSONObject().apply {
                     put("type", "object")
                     put("properties", org.json.JSONObject().apply {
@@ -443,13 +446,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ),
             top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "read_url",
-                description = "读取并提取指定URL网页的文字内容。",
+                description = """读取并提取指定URL网页的文字内容。
+
+【重要使用规则】：
+- 当用户消息中包含任何 URL（http:// 或 https:// 开头）时，必须优先使用此工具直接访问
+- 当用户说"打开这个链接"、"访问这个网址"、"看看这个页面"时，使用此工具
+- 不要对用户提供的具体 URL 使用 web_search，直接用此工具读取内容
+- 此工具用于获取已知 URL 的完整页面内容，而非搜索新信息""",
                 parameters = org.json.JSONObject().apply {
                     put("type", "object")
                     put("properties", org.json.JSONObject().apply {
                         put("url", org.json.JSONObject().apply {
                             put("type", "string")
-                            put("description", "要读取的网页URL")
+                            put("description", "要读取的网页URL（必须是完整的 http:// 或 https:// 开头的地址）")
                         })
                     })
                     put("required", org.json.JSONArray().apply { put("url") })
@@ -484,6 +493,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val config = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
                 val toolMessages = mutableListOf<ChatMessage>()
                 val allToolParts = mutableListOf<ToolPart>()
+                var accumulatedText = ""
+                var accumulatedReasoning = ""
                 var finalContent = ""
                 var finalReasoning = ""
                 val usedUrls = HashSet<String>()
@@ -537,13 +548,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                     if (result.error != null) {
                         DebugLog.e("runModel: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
+                        if (result.content.isNotBlank()) {
+                            accumulatedText += (if (accumulatedText.isNotBlank()) "\n\n" else "") + result.content
+                        }
                         state.recordNoToolCalls(result.content.ifEmpty { "执行失败: ${result.error}" })
-                        _state.value = _state.value.copy(streamingPhase = "生成回答…")
+                        _state.value = _state.value.copy(
+                            streamingText = accumulatedText,
+                            streamingPhase = "生成回答…",
+                        )
                         break
                     }
 
                     finalContent = result.content
                     finalReasoning = result.reasoning
+
+                    if (result.content.isNotBlank()) {
+                        accumulatedText += (if (accumulatedText.isNotBlank()) "\n\n" else "") + result.content
+                    }
+                    if (result.reasoning.isNotBlank()) {
+                        accumulatedReasoning += (if (accumulatedReasoning.isNotBlank()) "\n" else "") + result.reasoning
+                    }
+
+                    _state.value = _state.value.copy(
+                        streamingText = accumulatedText,
+                        streamingReasoning = accumulatedReasoning,
+                        streamingPhase = "生成回答…",
+                    )
 
                     if (result.toolCalls.isEmpty()) {
                         DebugLog.i("runModel: no tool_call in response, model is done at round ${state.roundsUsed}")
@@ -898,13 +928,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                                                    _state.value = _state.value.copy(
-                                                        streamingText = textSnapshot,
-                                                        streamingReasoning = reasonSnapshot,
-                                                        isStreaming = true,
-                                                    )
-                                                }
+                                                _state.value = _state.value.copy(
+                                                    streamingText = textSnapshot,
+                                                    streamingReasoning = reasonSnapshot,
+                                                    isStreaming = true,
+                                                )
                                             }
                                         }
                                     }
@@ -917,13 +945,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                                                    _state.value = _state.value.copy(
-                                                        streamingText = textSnapshot,
-                                                        streamingReasoning = reasonSnapshot,
-                                                        isStreaming = true,
-                                                    )
-                                                }
+                                                _state.value = _state.value.copy(
+                                                    streamingText = textSnapshot,
+                                                    streamingReasoning = reasonSnapshot,
+                                                    isStreaming = true,
+                                                )
                                             }
                                         }
                                     }
@@ -1043,13 +1069,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                                                    _state.value = _state.value.copy(
-                                                        streamingText = textSnapshot,
-                                                        streamingReasoning = reasonSnapshot,
-                                                        isStreaming = true,
-                                                    )
-                                                }
+                                                _state.value = _state.value.copy(
+                                                    streamingText = textSnapshot,
+                                                    streamingReasoning = reasonSnapshot,
+                                                    isStreaming = true,
+                                                )
                                             }
                                         }
                                     }
@@ -1062,13 +1086,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                                                    _state.value = _state.value.copy(
-                                                        streamingText = textSnapshot,
-                                                        streamingReasoning = reasonSnapshot,
-                                                        isStreaming = true,
-                                                    )
-                                                }
+                                                _state.value = _state.value.copy(
+                                                    streamingText = textSnapshot,
+                                                    streamingReasoning = reasonSnapshot,
+                                                    isStreaming = true,
+                                                )
                                             }
                                         }
                                     }
@@ -1208,6 +1230,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveDeepResearch(enabled: Boolean) {
         apiSettings.saveDeepResearch(enabled)
         _state.value = _state.value.copy(deepResearchEnabled = enabled)
+    }
+
+    fun isLocalModelEnabled(): Boolean = apiSettings.isLocalModelEnabled()
+
+    fun getLocalModelId(): String? = apiSettings.getLocalModelId()
+
+    fun saveLocalModelEnabled(enabled: Boolean) {
+        apiSettings.saveLocalModelEnabled(enabled)
+    }
+
+    fun saveLocalModelId(modelId: String?) {
+        apiSettings.saveLocalModelId(modelId)
     }
 
     fun removeSource(sourceId: String) {
