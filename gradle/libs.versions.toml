@@ -19,6 +19,7 @@ playServicesTasks = "18.0.2"
 work = "2.9.0"
 securityCrypto = "1.1.0-alpha06"
 kotlinxSerialization = "1.7.3"
+litertLm = "0.1.0-alpha01"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +50,7 @@ play-services-tasks = { group = "com.google.android.gms", name = "play-services-
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+litert-lm = { group = "com.google.ai.edge.litert", name = "litert-lm", version.ref = "litertLm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

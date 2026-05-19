@@ -35,6 +35,27 @@ data class SearchConfig(
     val tavilyApiKey: String? = null,
 )
 
+data class EngineConfig(
+    val id: String,
+    val enabled: Boolean = true,
+    val weight: Double = 1.0,
+    val timeoutSec: Long = 8L,
+    val maxResults: Int = 10
+)
+
+val DEFAULT_ENGINE_CONFIGS: Map<String, EngineConfig> = mapOf(
+    "baidu" to EngineConfig("baidu", weight = 1.2, timeoutSec = 6),
+    "bing" to EngineConfig("bing", weight = 1.3, timeoutSec = 8),
+    "ddg" to EngineConfig("ddg", weight = 1.0, timeoutSec = 5),
+    "sogou" to EngineConfig("sogou", weight = 0.9, timeoutSec = 6),
+    "360" to EngineConfig("360", weight = 0.8, timeoutSec = 5),
+    "yandex" to EngineConfig("yandex", weight = 0.7, timeoutSec = 8),
+    "jina" to EngineConfig("jina", weight = 1.1, timeoutSec = 10),
+    "brave" to EngineConfig("brave", weight = 1.1, timeoutSec = 10),
+    "tavily" to EngineConfig("tavily", weight = 1.0, timeoutSec = 10),
+    "searxng" to EngineConfig("searxng", weight = 1.4, timeoutSec = 12),
+)
+
 var SEARXNG_BASE_URL: String = ""
     set(value) {
         field = value.trimEnd('/')
@@ -78,6 +99,17 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     
     private val searchCache = LinkedHashMap<String, CacheEntry<List<SearchResult>>>(MAX_CACHE_SIZE, 0.75f, true)  // access-order
     private val vqdCache = LinkedHashMap<String, CacheEntry<String>>(MAX_VQD_CACHE_SIZE, 0.75f, true)
+
+    private val geocodingClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val geocodeCache = mutableMapOf<String, Pair<String?, Long>>()
+    private val GEOCACHE_TTL_MS = 10 * 60 * 1000L
     
     // 缓存统计
     private var cacheHits = 0
@@ -1700,29 +1732,52 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     }
 
     fun reverseGeocode(lat: Double, lon: Double): String? {
+        val cacheKey = "${lat.toFloat()},${lon.toFloat()}"
+
+        geocodeCache[cacheKey]?.let { (result, timestamp) ->
+            if (System.currentTimeMillis() - timestamp < GEOCACHE_TTL_MS) {
+                return result
+            }
+        }
+
         val url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon"
         DebugLog.i("WebSearcher Nominatim: $lat, $lon")
+
         val req = Request.Builder()
             .url(url)
             .get()
-            .header("User-Agent", UserAgentPool.generate())
+            .header("User-Agent", "Opedrgent/1.0 (AI Research Assistant)")
             .header("Accept", "application/json")
             .build()
-        return http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                DebugLog.w("WebSearcher Nominatim failed: HTTP ${resp.code}")
-                return null
+
+        return try {
+            geocodingClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    DebugLog.w("WebSearcher Nominatim failed: HTTP ${resp.code}")
+                    null
+                } else {
+                    val body = resp.body?.string().orEmpty()
+                    if (body.isBlank()) null
+                    else {
+                        try {
+                            val json = org.json.JSONObject(body)
+                            val displayName = json.optString("display_name", "").trim()
+                            val result = if (displayName.isNotEmpty()) displayName else null
+                            geocodeCache[cacheKey] = Pair(result, System.currentTimeMillis())
+                            result
+                        } catch (e: Exception) {
+                            DebugLog.w("WebSearcher Nominatim parse error: ${e.message}")
+                            null
+                        }
+                    }
+                }
             }
-            val body = resp.body?.string().orEmpty()
-            if (body.isBlank()) return null
-            try {
-                val json = org.json.JSONObject(body)
-                val displayName = json.optString("display_name", "").trim()
-                if (displayName.isNotEmpty()) displayName else null
-            } catch (e: Exception) {
-                DebugLog.w("WebSearcher Nominatim parse error: ${e.message}")
-                null
-            }
+        } catch (e: java.net.SocketTimeoutException) {
+            DebugLog.w("WebSearcher Nominatim timeout: ${e.message}")
+            null
+        } catch (e: Exception) {
+            DebugLog.e("WebSearcher Nominatim error: ${e.javaClass.simpleName} - ${e.message}")
+            null
         }
     }
 
@@ -1831,7 +1886,13 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             minBm25Score = 0.3
         )
 
-        var finalResults = container.getSortedResults(limit)
+        var finalResults = container.getSortedResults(limit.coerceAtMost(30))
+
+        if (finalResults.isNotEmpty()) {
+            val beforeDedup = finalResults.size
+            finalResults = ResultDeduplicator().deduplicate(finalResults)
+            DebugLog.i("WebSearcher dedup: $beforeDedup -> ${finalResults.size} (${beforeDedup - finalResults.size} removed)")
+        }
 
         if (finalResults.isNotEmpty()) {
             val ranked = hybridRankingEngine.rank(finalResults, limit)
@@ -1890,7 +1951,22 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     /**
      * 同步搜索方法（兼容包装，内部使用异步实现）
+     *
+     * ⚠️ **已弃用 - 性能警告**
+     * 此方法内部使用 `runBlocking` 会阻塞调用线程，可能导致：
+     * - 主线程卡顿（ANR 风险）
+     * - 线程死锁
+     * - 内存占用增加
+     *
+     * 请使用 [searchAsync] 替代，它返回协程安全的 suspend 函数。
+     *
+     * @deprecated 使用 [searchAsync] 以获得更好的性能和线程安全性
+     * @see searchAsync
      */
+    @Deprecated(
+        message = "使用 runBlocking 阻塞线程，存在性能问题。请使用 searchAsync() 替代。",
+        replaceWith = ReplaceWith("searchAsync(query, config, limit)", imports = ["kotlinx.coroutines.runBlocking"])
+    )
     fun search(query: String, config: SearchConfig, limit: Int = 5): List<SearchResult> {
         return runBlocking {
             searchAsync(query, config, limit)

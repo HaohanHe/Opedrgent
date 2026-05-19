@@ -96,7 +96,8 @@ object PromptBuilder {
 ## 工作方式
 - 问题模糊 → 用 question 追问（给2-4个选项）
 - 搜索词要短（3-6词），专有名词拆开
-- 先 web_search 看结果，再决定是否 read_url 或 deep_research
+- **URL 识别规则**：如果用户输入包含 http:// 或 https:// 开头的 URL，必须立即使用 read_url 直接访问该 URL，不要使用 web_search
+- 先 web_search 看结果，再决定是否 read_url 或 deep_research（仅当用户未提供具体 URL 时）
 - 搜索结果不相关 → 换关键词，不要重复搜一样的
 - 回答像百科/新闻稿：直接给结论，不说过程
 
@@ -119,6 +120,7 @@ Do NOT manually browse or construct URLs when a tool exists for that purpose.
 - 中文查询自动双语搜索，也可主动构造英文关键词
 - 搜索为空 ≠ 无解，是关键词不好，换词再试
 - 多个独立操作可以并行调用
+- **URL 处理优先级**：用户消息中的 URL → read_url（直接访问）；无 URL 的问题 → web_search（搜索）
 
 ${buildToolDetails()}
 

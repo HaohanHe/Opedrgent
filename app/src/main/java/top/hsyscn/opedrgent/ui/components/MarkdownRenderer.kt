@@ -24,8 +24,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -46,9 +48,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 
-private val TABLE_LINE_PATTERN = Regex("""^\s*\|""")
+private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
 
 private val SNAPSHOT_PATTERN = Regex("""[\s.,!?;:)\]]""")
 
@@ -102,11 +106,34 @@ fun healPartialMarkdown(text: String): String {
     return sb.toString()
 }
 
+data class ParsedMarkdownContent(
+    val lines: List<String>,
+    val isExpanded: Boolean,
+)
+
 @Composable
 fun MarkdownText(text: String, maxChars: Int) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     val t = text.trim()
     val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
+
+    val parsedContent by produceState<ParsedMarkdownContent?>(initialValue = null, key1 = show) {
+        value = withContext(Dispatchers.Default) {
+            ParsedMarkdownContent(
+                lines = show.split("\n"),
+                isExpanded = expanded,
+            )
+        }
+    }
+
+    if (parsedContent == null) {
+        Text(
+            text = show,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1E242A),
+        )
+        return
+    }
 
     val isCodeBlock = { line: String -> line.startsWith("```") }
     val isHeading = { line: String -> line.startsWith("#") }
@@ -116,7 +143,7 @@ fun MarkdownText(text: String, maxChars: Int) {
     val isBlockquote = { line: String -> line.trimStart().startsWith("> ") }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        val lines = show.split("\n")
+        val lines = parsedContent!!.lines
         var inCodeBlock = false
         var codeBlockLang = ""
         val codeBlockLines = mutableListOf<String>()
@@ -262,17 +289,56 @@ private fun RenderCodeBlock(code: String, lang: String) {
 
 @Composable
 fun MarkdownTable(tableLines: List<String>) {
-    if (tableLines.size < 2) return
-    val sepIdx = tableLines.indexOfFirst { line ->
-        Regex("""\|[\s\-:\|]+\|""").matches(line.trim())
-    }
-    if (sepIdx < 1) return
+    val cleanLines = tableLines.filter { it.trim().startsWith("|") }.map { it.trim() }
 
-    val headerLine = tableLines[sepIdx - 1]
+    if (cleanLines.isEmpty()) return
+
+    if (cleanLines.size == 1) {
+        val cells = parseTableRow(cleanLines[0])
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            cells.forEach { cell ->
+                Card(
+                    shape = RoundedCornerShape(4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F4FD))
+                ) {
+                    Text(
+                        text = cell.trim(),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AccentBlue,
+                    )
+                }
+                if (cell != cells.last()) Spacer(Modifier.width(6.dp))
+            }
+        }
+        return
+    }
+
+    var sepIdx = cleanLines.indexOfFirst { line ->
+        Regex("""\|[\s\-:\|]+\|""").matches(line)
+    }
+
+    if (sepIdx < 1) {
+        val colCounts = cleanLines.map { parseTableRow(it).size }.distinct()
+        if (colCounts.size == 1 && colCounts.first() >= 2) {
+            sepIdx = 0
+        } else {
+            sepIdx = 0
+        }
+    }
+
+    val headerLine = if (sepIdx > 0) cleanLines[sepIdx - 1] else cleanLines[0]
     val headers = parseTableRow(headerLine)
-    val aligns = parseAlignments(tableLines.getOrNull(sepIdx) ?: "")
-    val rows = tableLines.drop(sepIdx + 1).filter { it.trim().isNotEmpty() && it.trim().startsWith("|") }
-        .map { parseTableRow(it) }
+    val aligns = if (sepIdx > 0 && sepIdx < cleanLines.size) {
+        parseAlignments(cleanLines[sepIdx])
+    } else {
+        List(headers.size) { "left" }
+    }
+    val dataRows = if (sepIdx > 0) {
+        cleanLines.drop(sepIdx + 1).filter { it.isNotEmpty() }
+    } else {
+        cleanLines.drop(1)
+    }.map { parseTableRow(it) }
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -281,10 +347,10 @@ fun MarkdownTable(tableLines: List<String>) {
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             MarkdownTableRow(headers, aligns, isHeader = true)
-            if (sepIdx + 1 < tableLines.size && tableLines.drop(sepIdx + 1).any { it.trim().isNotEmpty() }) {
+            if (dataRows.isNotEmpty()) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color(0xFFE0E0E0))
             }
-            rows.forEach { cells ->
+            dataRows.forEach { cells ->
                 MarkdownTableRow(cells, aligns, isHeader = false)
             }
         }

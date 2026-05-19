@@ -29,7 +29,12 @@ class ReadUrlTool(
     }
 
     @Tool("read_url")
-    @ToolDescription("读取并提取指定URL网页的文字内容。参数中 url 为必填。")
+    @ToolDescription("""读取并提取指定URL网页的文字内容。参数中 url 为必填。
+
+⚠️ 使用场景：
+- 用户消息中包含 URL（http/https）时，必须使用此工具
+- 用户要求"打开链接"、"访问网址"时使用此工具
+- 不要对具体 URL 使用 web_search""")
     suspend fun executeReadUrl(
         tp: ToolPart,
         config: ApiConfig,
@@ -73,7 +78,9 @@ class ReadUrlTool(
         return mapOf(
             "read_url" to ToolBinding(
                 name = "read_url",
-                description = "读取并提取指定URL网页的文字内容。参数中 url 为必填。",
+                description = """读取并提取指定URL网页的文字内容。
+
+⚠️ 当用户提供了具体 URL 时必须使用此工具，不要使用 web_search。""",
                 invoker = { tp, config, sp, ups -> executeReadUrl(tp, config, sp, ups) },
             ),
         )
