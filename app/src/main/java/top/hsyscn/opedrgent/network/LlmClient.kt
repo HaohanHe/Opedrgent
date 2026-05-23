@@ -378,7 +378,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             DebugLog.w("LlmClient: content empty but reasoning=${finalReasoning.take(100)}... using reasoning as fallback")
         }
         if (finalContent.isBlank() && finalReasoning.isBlank() && toolCalls.isEmpty()) {
-            DebugLog.w("LlmClient: completely empty response! model=${config.model} thinking=$thinkingEnabled")
+            DebugLog.w("LlmClient: completely empty response!")
         }
 
         onDone(StreamResult(
