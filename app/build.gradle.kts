@@ -2,17 +2,17 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    kotlin("plugin.serialization") version "2.0.21"
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "top.hsyscn.opedrgent"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "top.hsyscn.opedrgent"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -29,14 +29,14 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "11"
-        freeCompilerArgs += listOf(
-            "-opt-in=kotlin.Experimental",
-        )
+    kotlin {
+        jvmToolchain(17)
+        compilerOptions {
+            freeCompilerArgs.add("-opt-in=kotlin.Experimental")
+        }
     }
     buildFeatures {
         compose = true
@@ -68,8 +68,12 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.security.crypto)
     implementation(libs.kotlinx.serialization.json)
-    // TODO: LiteRT-LM 正式发布后取消注释 (当前为 alpha 预览阶段，无公开 Maven 包)
-    // implementation(libs.`litert-lm`)
+    // LiteRT-LM: Google's on-device LLM inference framework (支持 Gemma 4, v0.12.0+)
+    implementation(libs.litert.lm)
+    // TFLite runtime (LiteRT-LM 底层依赖，缺少会导致 Engine.initialize() 失败)
+    implementation(libs.tflite)
+    implementation(libs.tflite.gpu)
+    implementation(libs.tflite.support)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

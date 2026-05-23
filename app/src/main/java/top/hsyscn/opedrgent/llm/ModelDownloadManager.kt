@@ -56,7 +56,12 @@ class ModelDownloadManager(private val context: Context) {
     private val progressFlows = ConcurrentHashMap<String, MutableSharedFlow<DownloadProgress>>()
 
     private val modelDir: File by lazy {
-        File(context.filesDir, "local_models").also { if (!it.exists()) it.mkdirs() }
+        val externalDir = context.getExternalFilesDir(null)
+        if (externalDir != null) {
+            File(externalDir, "local_models").also { if (!it.exists()) it.mkdirs() }
+        } else {
+            File(context.filesDir, "local_models").also { if (!it.exists()) it.mkdirs() }
+        }
     }
 
     fun observeProgress(modelId: String): SharedFlow<DownloadProgress> {

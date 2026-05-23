@@ -29,11 +29,19 @@ data class Source(
     val createdAt: Long,
 )
 
+enum class MessageType {
+    TEXT,
+    INFO,
+    CONFIG_UPDATE,
+    ERROR,
+}
+
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role,
     val content: String,
     val createdAt: Long,
+    val messageType: MessageType = MessageType.TEXT,
     val toolParts: List<ToolPart> = emptyList(),
     val reasoningParts: List<ReasoningPart> = emptyList(),
     val questionPart: QuestionPart? = null,

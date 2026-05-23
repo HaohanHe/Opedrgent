@@ -99,6 +99,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,6 +116,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.Role
+import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.QuestionPart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
@@ -138,8 +140,14 @@ import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.components.SourceCitations
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
+import top.hsyscn.opedrgent.ui.components.QuestionDock
 import top.hsyscn.opedrgent.ui.components.UserBubble
+
+import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
+import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
+import top.hsyscn.opedrgent.ui.components.MessageBodyError
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
+import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
@@ -187,9 +195,11 @@ fun AppRoot(
         }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     Scaffold(
         containerColor = BgGray,
-        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when (subScreen) {
@@ -522,9 +532,12 @@ fun SessionScreen(
         }
     }
 
+    val questionRequest by vm.questionRequest.collectAsState()
+
     val session = state.current
 
-    Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
+    Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
         Row(
             modifier = Modifier
@@ -606,7 +619,26 @@ fun SessionScreen(
                             isSpeaking = state.isSpeaking,
                             clipboard = clipboard,
                         )
-                        Role.SYSTEM -> {}
+                        Role.SYSTEM -> {
+                            when (msg.messageType) {
+                                MessageType.INFO -> MessageBodyInfo(message = msg.content)
+                                MessageType.CONFIG_UPDATE -> {
+                                    val parts = msg.content.split("|")
+                                    if (parts.size == 3) {
+                                        MessageBodyConfigUpdate(
+                                            configName = parts[0],
+                                            oldValue = parts[1],
+                                            newValue = parts[2],
+                                        )
+                                    }
+                                }
+                                MessageType.ERROR -> MessageBodyError(
+                                    errorText = msg.content,
+                                    snackbarHostState = snackbar,
+                                )
+                                MessageType.TEXT -> {}
+                            }
+                        }
                     }
                 }
 
@@ -773,6 +805,19 @@ fun SessionScreen(
                 }
             }
         }
+        }
+
+        questionRequest?.let { request ->
+            QuestionDock(
+                request = request,
+                onAnswer = { answers -> vm.respondToQuestion(answers) },
+                onDismiss = { vm.respondToQuestion(emptyList()) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
     }
 
     if (actionSheetOpen) {
@@ -838,8 +883,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
+    var showMemoryWarning by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
-    val localEngine = remember { LocalLlmEngine(context) }
+    val localEngine = remember { LocalLlmEngine.getInstance(context) }
     val downloadManager = remember { ModelDownloadManager(context) }
     var isLocalMode by rememberSaveable { mutableStateOf(vm.isLocalModelEnabled()) }
     var localModelId by rememberSaveable { mutableStateOf(vm.getLocalModelId()) }
@@ -1162,7 +1208,55 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             onCheckedChange = { 
                                 isLocalMode = it
                                 vm.saveLocalModelEnabled(it)
-                                if (!it) vm.saveLocalModelId(null)
+                                if (it) {
+                                    if (localModelId != null) {
+                                        val info = AvailableLocalModels.findById(localModelId!!)
+                                        if (info != null && localEngine.isModelDownloaded(info)) {
+                                            val path = localEngine.getModelPath(info)
+                                            if (path != null) {
+                                                scope.launch {
+                                                    val loaded = try {
+                                                        localEngine.loadModel(path, info, AvailableLocalModels.buildInferenceConfig(info))
+                                                    } catch (e: IllegalArgumentException) {
+                                                        if (e.message?.contains("Insufficient memory") == true) {
+                                                            showMemoryWarning = e.message
+                                                            return@launch
+                                                        } else {
+                                                            throw e
+                                                        }
+                                                    }
+
+                                                    if (loaded) {
+                                                        snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
+                                                    } else {
+                                                        isLocalMode = false
+                                                        vm.saveLocalModelEnabled(false)
+                                                        val errorState = (localEngine.state as? LocalLlmState.Error)
+                                                        val errorMsg = errorState?.message ?: "未知错误"
+                                                        snackbar.showSnackbar("模型加载失败: $errorMsg")
+                                                    }
+                                                }
+                                            } else {
+                                                isLocalMode = false
+                                                vm.saveLocalModelEnabled(false)
+                                                scope.launch { snackbar.showSnackbar("模型文件不存在") }
+                                            }
+                                        } else {
+                                            isLocalMode = false
+                                            vm.saveLocalModelEnabled(false)
+                                            scope.launch { snackbar.showSnackbar("请先下载模型") }
+                                        }
+                                    } else {
+                                        isLocalMode = false
+                                        vm.saveLocalModelEnabled(false)
+                                        scope.launch { snackbar.showSnackbar("请先选择并下载模型") }
+                                    }
+                                } else {
+                                    localEngine.unload()
+                                    vm.saveLocalModelId(null)
+                                    localModelId = null
+                                    scope.launch { snackbar.showSnackbar("已切换到 API 模式") }
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = BubbleBlue),
                         )
@@ -1239,7 +1333,7 @@ Spacer(Modifier.height(12.dp))
                 scope.launch {
                     val path = localEngine.getModelPath(modelInfo)
                     if (path != null) {
-                        val loaded = localEngine.loadModel(path, modelInfo)
+                        val loaded = localEngine.loadModel(path, modelInfo, AvailableLocalModels.buildInferenceConfig(modelInfo))
                         if (loaded) {
                             vm.saveLocalModelEnabled(true)
                             vm.saveLocalModelId(modelInfo.id)
@@ -1247,7 +1341,9 @@ Spacer(Modifier.height(12.dp))
                             localModelId = modelInfo.id
                             snackbar.showSnackbar("已加载 ${modelInfo.displayName}")
                         } else {
-                            snackbar.showSnackbar("加载失败")
+                            val errorState = (localEngine.state as? LocalLlmState.Error)
+                            val errorMsg = errorState?.message ?: "未知错误"
+                            snackbar.showSnackbar("加载失败: $errorMsg")
                         }
                     } else {
                         snackbar.showSnackbar("请先下载模型")
@@ -1257,6 +1353,44 @@ Spacer(Modifier.height(12.dp))
             downloadManager = downloadManager,
             localEngine = localEngine,
             currentModelId = localModelId,
+        )
+    }
+
+    showMemoryWarning?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { showMemoryWarning = null },
+            title = { Text("内存不足警告") },
+            text = { Text(msg ?: "可用内存不足，无法加载此模型。") },
+            confirmButton = {
+                Button(onClick = {
+                    showMemoryWarning = null
+                    scope.launch {
+                        val info = localModelId?.let { AvailableLocalModels.findById(it) }
+                        if (info != null) {
+                            val path = localEngine.getModelPath(info)
+                            if (path != null) {
+                                val forceLoaded = localEngine.loadModel(path, info, AvailableLocalModels.buildInferenceConfig(info))
+                                if (forceLoaded) {
+                                    snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
+                                } else {
+                                    isLocalMode = false
+                                    vm.saveLocalModelEnabled(false)
+                                    val errorState = (localEngine.state as? LocalLlmState.Error)
+                                    val errorMsg = errorState?.message ?: "未知错误"
+                                    snackbar.showSnackbar("模型加载失败: $errorMsg")
+                                }
+                            }
+                        }
+                    }
+                }) { Text("仍要尝试") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showMemoryWarning = null
+                    isLocalMode = false
+                    vm.saveLocalModelEnabled(false)
+                }) { Text("取消") }
+            },
         )
     }
 }

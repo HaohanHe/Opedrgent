@@ -35,6 +35,8 @@ data class StreamResult(
     val content: String,
     val reasoning: String = "",
     val toolCalls: List<CompletedToolCall> = emptyList(),
+    val finishReason: String? = null,
+    val isSafetyFiltered: Boolean = false,
 )
 
 data class CompletedToolCall(
@@ -49,7 +51,7 @@ data class ToolDefinition(
     val parameters: JSONObject,
 )
 
-class LlmClient(private val http: OkHttpClient = HttpClients.default) {
+class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
     companion object {
         private val MULTIMODAL_MODELS = setOf(
@@ -60,6 +62,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         )
         private val TTS_MODELS = setOf(
             "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone",
+        )
+        private val THINKING_MODELS = setOf(
+            "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro",
+            "mimo-v2-omni", "mimo-v2-flash", "gemini-2.5",
+            "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
         )
 
         fun isMultimodalModel(model: String): Boolean {
@@ -73,11 +80,16 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         fun isTtsModel(model: String): Boolean {
             return TTS_MODELS.any { model.contains(it) }
         }
+
+        fun isThinkingModel(model: String): Boolean {
+            return THINKING_MODELS.any { model.contains(it) }
+        }
     }
 
     private fun buildUrl(baseUrl: String, path: String): String {
         val base = baseUrl.trimEnd('/')
-        return if (base.endsWith("/v1") || base.endsWith("/v2") || base.endsWith("/v3")) {
+        return if (base.endsWith("/v1") || base.endsWith("/v2") || base.endsWith("/v3")
+            || base.endsWith("/openai")) {
             "$base$path"
         } else {
             "$base/v1$path"
@@ -89,10 +101,10 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
             .url(url)
             .post(body.toRequestBody("application/json".toMediaType()))
             .header("Content-Type", "application/json")
-        if (apiKey.startsWith("tp-")) {
-            reqBuilder.header("api-key", apiKey)
-        } else {
-            reqBuilder.header("Authorization", "Bearer $apiKey")
+        when {
+            apiKey.startsWith("tp-") -> reqBuilder.header("api-key", apiKey)
+            apiKey.startsWith("AIza") -> reqBuilder.header("x-goog-api-key", apiKey)
+            else -> reqBuilder.header("Authorization", "Bearer $apiKey")
         }
         return reqBuilder.build()
     }
@@ -148,24 +160,29 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                                 put("content", m.content)
                             })
                         } else if (m.apiToolCallsJson != null) {
-                            put(JSONObject().apply {
+                            val assistantMsg = JSONObject().apply {
                                 put("role", "assistant")
-                                if (m.content.isNotEmpty()) put("content", m.content)
-                                else put("content", JSONObject.NULL)
+                                if (m.content.isNotEmpty()) {
+                                    put("content", m.content)
+                                }
                                 put("tool_calls", JSONArray(m.apiToolCallsJson))
-                                val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
-                                if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
-                            })
+                            }
+                            val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                            if (reasoningText.isNotEmpty()) assistantMsg.put("reasoning_content", reasoningText)
+                            put(assistantMsg)
                         } else {
                             put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
                         }
                     }
                 },
             )
-            if (thinkingEnabled) {
+            if (thinkingEnabled && isThinkingModel(config.model)) {
+                val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
                 put("thinking", JSONObject().apply {
                     put("type", "enabled")
-                    put("budget_tokens", 4000)
+                    if (isDeepSeek) {
+                        put("reasoning_effort", "high")
+                    }
                 })
             }
             if (tools.isNotEmpty()) {
@@ -225,6 +242,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
         val toolArgMap = mutableMapOf<Int, StringBuilder>()
         val toolIdMap = mutableMapOf<Int, String>()
         var inThinkingTag = false
+        var lastFinishReason: String? = null
 
         while (!source.exhausted()) {
             val line = source.readUtf8Line() ?: continue
@@ -243,6 +261,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                 if (choices.length() == 0) return@runCatching
                 val choice = choices.getJSONObject(0)
                 val delta = choice.optJSONObject("delta") ?: return@runCatching
+
+                val finishReason = choice.optString("finish_reason", null)
+                if (finishReason != null && finishReason != "null") {
+                    lastFinishReason = finishReason
+                }
 
                 val content = delta.optString("content", "")
                     .let { if (it == "null") "" else it }
@@ -348,6 +371,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
             content = fullContent.toString(),
             reasoning = fullReasoning.toString(),
             toolCalls = toolCalls,
+            finishReason = lastFinishReason,
+            isSafetyFiltered = lastFinishReason?.equals("SAFETY", ignoreCase = true) == true,
         ))
     }
 
@@ -405,10 +430,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.default) {
                     }
                 },
             )
-            if (thinkingEnabled) {
+            if (thinkingEnabled && isThinkingModel(config.model)) {
+                val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
                 put("thinking", JSONObject().apply {
                     put("type", "enabled")
-                    put("budget_tokens", 4000)
+                    if (isDeepSeek) {
+                        put("reasoning_effort", "high")
+                    }
                 })
             }
             if (tools.isNotEmpty()) {
