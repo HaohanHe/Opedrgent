@@ -176,14 +176,18 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     }
                 },
             )
-            if (thinkingEnabled && isThinkingModel(config.model)) {
-                val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
-                put("thinking", JSONObject().apply {
-                    put("type", "enabled")
+            val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
+            if (isThinkingModel(config.model)) {
+                if (thinkingEnabled) {
+                    put("thinking", JSONObject().apply { put("type", "enabled") })
                     if (isDeepSeek) {
                         put("reasoning_effort", "high")
                     }
-                })
+                } else if (isDeepSeek) {
+                    put("thinking_mode", "non-thinking")
+                } else {
+                    put("thinking", JSONObject().apply { put("type", "disabled") })
+                }
             }
             if (tools.isNotEmpty()) {
                 put("tools", JSONArray().apply {
@@ -194,6 +198,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
 
         val req = buildRequest(url, json.toString(), config.apiKey)
+        DebugLog.d("LlmClient streamChatCompletions: model=${config.model} url=$url thinking=$thinkingEnabled tools=${tools.size}")
         val call = http.newCall(req)
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -367,9 +372,18 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             )
         }
 
+        val finalContent = fullContent.toString()
+        val finalReasoning = fullReasoning.toString()
+        if (finalContent.isBlank() && finalReasoning.isNotBlank()) {
+            DebugLog.w("LlmClient: content empty but reasoning=${finalReasoning.take(100)}... using reasoning as fallback")
+        }
+        if (finalContent.isBlank() && finalReasoning.isBlank() && toolCalls.isEmpty()) {
+            DebugLog.w("LlmClient: completely empty response! model=${config.model} thinking=$thinkingEnabled")
+        }
+
         onDone(StreamResult(
-            content = fullContent.toString(),
-            reasoning = fullReasoning.toString(),
+            content = if (finalContent.isNotBlank()) finalContent else finalReasoning,
+            reasoning = finalReasoning,
             toolCalls = toolCalls,
             finishReason = lastFinishReason,
             isSafetyFiltered = lastFinishReason?.equals("SAFETY", ignoreCase = true) == true,
@@ -430,14 +444,18 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     }
                 },
             )
-            if (thinkingEnabled && isThinkingModel(config.model)) {
-                val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
-                put("thinking", JSONObject().apply {
-                    put("type", "enabled")
+            val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
+            if (isThinkingModel(config.model)) {
+                if (thinkingEnabled) {
+                    put("thinking", JSONObject().apply { put("type", "enabled") })
                     if (isDeepSeek) {
                         put("reasoning_effort", "high")
                     }
-                })
+                } else if (isDeepSeek) {
+                    put("thinking_mode", "non-thinking")
+                } else {
+                    put("thinking", JSONObject().apply { put("type", "disabled") })
+                }
             }
             if (tools.isNotEmpty()) {
                 put("tools", JSONArray().apply { tools.forEach { put(toolToJson(it)) } })
@@ -446,6 +464,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
 
         val req = buildRequest(url, json.toString(), config.apiKey)
+        DebugLog.d("LlmClient streamMultimodal: model=${config.model} url=$url thinking=$thinkingEnabled images=${extraImages.size} tools=${tools.size}")
         val call = http.newCall(req)
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
