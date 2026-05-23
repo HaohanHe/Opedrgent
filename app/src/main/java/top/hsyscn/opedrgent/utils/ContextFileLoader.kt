@@ -57,7 +57,8 @@ object ContextFileLoader {
                 }
             }
             if (File(current, ".git").exists()) break
-            current = current.parentFile
+            val parent = current.parentFile ?: break
+            current = parent
             depth++
         }
         return null

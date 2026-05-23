@@ -1,0 +1,120 @@
+{
+  "version": "2.0.0",
+  "minSdk": 26,
+  "models": [
+    {
+      "name": "Gemma-4-E2B-it",
+      "modelId": "litert-community/gemma-4-E2B-it-litert-lm",
+      "modelFile": "gemma-4-E2B-it.litertlm",
+      "description": "Gemma 4 2B 轻量版，支持多模态输入，32K上下文",
+      "sizeInBytes": 2588147712,
+      "minDeviceMemoryInGb": 6,
+      "capabilities": ["function_calling", "image", "audio", "llm_thinking", "speculative_decoding"],
+      "capabilityToTaskTypes": {
+        "speculative_decoding": ["chat", "agent"]
+      },
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "accelerators": "gpu,cpu",
+        "visionAccelerator": "gpu",
+        "audioAccelerator": "cpu",
+        "maxContextLength": 32000,
+        "maxTokens": 4000
+      },
+      "taskTypes": ["chat", "agent", "ask_image", "ask_audio"]
+    },
+    {
+      "name": "Gemma-4-E4B-it",
+      "modelId": "litert-community/gemma-4-E4B-it-litert-lm",
+      "modelFile": "gemma-4-E4B-it.litertlm",
+      "description": "Gemma 4 4B 更强版，支持复杂推理和多步工具调用",
+      "sizeInBytes": 3659530240,
+      "minDeviceMemoryInGb": 8,
+      "capabilities": ["function_calling", "image", "audio", "llm_thinking", "speculative_decoding"],
+      "capabilityToTaskTypes": {
+        "speculative_decoding": ["chat", "agent"]
+      },
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "accelerators": "gpu,cpu",
+        "visionAccelerator": "gpu",
+        "audioAccelerator": "cpu",
+        "maxContextLength": 32000,
+        "maxTokens": 4000
+      },
+      "taskTypes": ["chat", "agent", "ask_image", "ask_audio"],
+      "socToModelFiles": {
+        "dimensity_9400": {
+          "modelFile": "gemma-4-E4B-it-dimensity9400.litertlm",
+          "sizeInBytes": 3800000000
+        },
+        "snapdragon_8_elite": {
+          "modelFile": "gemma-4-E4B-it-sd8elite.litertlm",
+          "sizeInBytes": 3850000000
+        }
+      }
+    },
+    {
+      "name": "Gemma3-1B-IT",
+      "modelId": "litert-community/Gemma3-1B-IT",
+      "modelFile": "gemma3-1b-it-int4.litertlm",
+      "description": "Gemma 3 1B int4 量化版，仅557MB，低配设备可用",
+      "sizeInBytes": 584417280,
+      "minDeviceMemoryInGb": 4,
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "accelerators": "gpu,cpu",
+        "maxContextLength": 4096,
+        "maxTokens": 1024
+      },
+      "taskTypes": ["chat", "prompt_lab"]
+    },
+    {
+      "name": "FunctionGemma-270m-IT",
+      "modelId": "litert-community/functiongemma-270m-it-litert",
+      "modelFile": "functiongemma-270m-it.litertlm",
+      "description": "Google 专为 Tool Calling 优化的超轻量模型，速度极快",
+      "sizeInBytes": 283115520,
+      "minDeviceMemoryInGb": 2,
+      "capabilities": ["function_calling"],
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "accelerators": "gpu,cpu",
+        "maxContextLength": 4096,
+        "maxTokens": 512
+      },
+      "taskTypes": ["agent", "mobile_actions"]
+    },
+    {
+      "name": "GemmaSprint-2B-it",
+      "modelId": "litert-community/GemmaSprint-2B-it",
+      "modelFile": "GemmaSprint-2B-it.litertlm",
+      "description": "高效推理模型，支持多模态输入，GPU加速效果显著",
+      "sizeInBytes": 2100000000,
+      "minDeviceMemoryInGb": 4,
+      "capabilities": ["image", "audio", "speculative_decoding"],
+      "capabilityToTaskTypes": {
+        "speculative_decoding": ["chat"]
+      },
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "accelerators": "gpu,cpu",
+        "visionAccelerator": "gpu",
+        "audioAccelerator": "cpu",
+        "maxContextLength": 8192,
+        "maxTokens": 1024
+      },
+      "taskTypes": ["chat", "prompt_lab", "ask_image", "ask_audio"]
+    }
+  ]
+}

@@ -80,7 +80,11 @@ fun AIMessageCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (message.reasoningParts.isNotEmpty()) {
-                ThinkingSection(parts = message.reasoningParts)
+                val reasoningText = message.reasoningParts.joinToString("\n") { it.text }
+                MessageBodyThinking(
+                    thinkingText = reasoningText,
+                    isComplete = true,
+                )
             }
 
             if (message.toolParts.isNotEmpty()) {

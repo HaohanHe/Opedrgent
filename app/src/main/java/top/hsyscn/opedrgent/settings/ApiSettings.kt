@@ -26,7 +26,7 @@ val PROVIDER_PRESETS = listOf(
     ProviderPreset("小米 MiMo (按量付费)", "https://api.xiaomimimo.com/v1", listOf("mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni")),
     ProviderPreset("OpenAI", "https://api.openai.com/v1", listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3-mini", "gpt-4.1-mini", "gpt-4.1-nano")),
     ProviderPreset("Anthropic", "https://api.anthropic.com/v1", listOf("claude-sonnet-4-20250514", "claude-3-5-haiku-20241022", "claude-opus-4-20250514")),
-    ProviderPreset("DeepSeek", "https://api.deepseek.com/v1", listOf("deepseek-chat", "deepseek-reasoner")),
+    ProviderPreset("DeepSeek", "https://api.deepseek.com/v1", listOf("deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner")),
     ProviderPreset("通义千问", "https://dashscope.aliyuncs.com/compatible-mode/v1", listOf("qwen-plus", "qwen-turbo", "qwen-max", "qwen-long")),
     ProviderPreset("月之暗面 Moonshot", "https://api.moonshot.cn/v1", listOf("moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k")),
     ProviderPreset("智谱 AI", "https://open.bigmodel.cn/api/paas/v4", listOf("glm-4-plus", "glm-4-flash", "glm-4-long")),
@@ -35,7 +35,7 @@ val PROVIDER_PRESETS = listOf(
     ProviderPreset("Groq (Gemma 4)", "https://api.groq.com/openai/v1", listOf("gemma-4-31b-it", "gemma-4-12b-it", "gemma-4-4b-it", "llama-3.3-70b-versatile", "mixtral-8x7b-32768")),
     ProviderPreset("Ollama (本地)", "http://localhost:11434/v1", listOf("llama3", "qwen2.5", "deepseek-v2.5", "gemma4")),
     ProviderPreset("LM Studio (本地)", "http://localhost:1234/v1", listOf("local-model")),
-    ProviderPreset("OpenRouter", "https://openrouter.ai/api/v1", listOf("anthropic/claude-sonnet-4", "openai/gpt-4o", "google/gemini-2.5-flash", "deepseek/deepseek-chat", "google/gemma-4-31b-it")),
+    ProviderPreset("OpenRouter", "https://openrouter.ai/api/v1", listOf("anthropic/claude-sonnet-4", "openai/gpt-4o", "google/gemini-2.5-flash", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash", "google/gemma-4-31b-it")),
     ProviderPreset("火山引擎", "https://ark.cn-beijing.volces.com/api/v3", listOf("doubao-pro-32k", "doubao-lite-32k")),
 )
 

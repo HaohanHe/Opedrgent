@@ -297,6 +297,27 @@ private fun ModelCard(
                     Spacer(modifier = Modifier.width(8.dp))
                 }
 
+                if (modelInfo.preferGpu) {
+                    CapabilityBadge("GPU", Color(0xFF4CAF50))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                if (modelInfo.supportsImage) {
+                    CapabilityBadge("IMG", Color(0xFFFF9800))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                if (modelInfo.supportsAudio) {
+                    CapabilityBadge("AUD", Color(0xFF9C27B0))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                if (modelInfo.supportsThinking) {
+                    CapabilityBadge("THK", Color(0xFFE91E63))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                if (modelInfo.supportsSpecDec) {
+                    CapabilityBadge("SD", Color(0xFF009688))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
                 Spacer(modifier = Modifier.weight(1f))
 
                 ActionButton(
@@ -307,6 +328,7 @@ private fun ModelCard(
                     downloadManager = downloadManager,
                     localEngine = localEngine,
                     onLoadAndSelect = onLoadAndSelect,
+                    onShowDownloadDialog = onShowDownloadDialog,
                 )
             }
 
@@ -373,6 +395,19 @@ private fun StatusBadge(
 }
 
 @Composable
+private fun CapabilityBadge(label: String, color: Color) {
+    Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.1f)) {
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            color = color,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+        )
+    }
+}
+
+@Composable
 private fun ActionButton(
     isDownloaded: Boolean,
     isLoaded: Boolean,
@@ -381,6 +416,7 @@ private fun ActionButton(
     downloadManager: ModelDownloadManager,
     localEngine: LocalLlmEngine,
     onLoadAndSelect: () -> Unit,
+    onShowDownloadDialog: (LocalModelInfo) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
 

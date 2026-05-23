@@ -11,8 +11,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -32,6 +34,8 @@ import top.hsyscn.opedrgent.model.SourceType
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.llm.LocalLlmEngine
+import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.StreamDelta
@@ -62,6 +66,9 @@ import top.hsyscn.opedrgent.utils.PlatformContext
 import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.ui.components.QuestionOption
+import top.hsyscn.opedrgent.ui.components.QuestionInfo
+import top.hsyscn.opedrgent.ui.components.QuestionRequest
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -120,6 +127,18 @@ data class CalendarSuggestion(
     val raw: String,
 )
 
+data class ToolPermissionRequest(
+    val toolName: String,
+    val toolDescription: String,
+    val paramsJson: String,
+    val requestId: String = java.util.UUID.randomUUID().toString(),
+)
+
+data class ToolPermissionResponse(
+    val requestId: String,
+    val allowed: Boolean,
+)
+
 private data class StreamResult(
     val content: String = "",
     val reasoning: String = "",
@@ -131,6 +150,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
     private val apiSettings = ApiSettings(app)
+    private val localEngine = LocalLlmEngine.getInstance(app)
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
     private val sourceFetcher = SourceFetcher(http)
@@ -143,6 +163,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
+
+    private val _toolPermissionRequest = MutableStateFlow<ToolPermissionRequest?>(null)
+    val toolPermissionRequest: StateFlow<ToolPermissionRequest?> = _toolPermissionRequest
+
+    private val _toolPermissionResponse = MutableSharedFlow<ToolPermissionResponse>(replay = 1)
+
+    fun respondToToolPermission(requestId: String, allowed: Boolean) {
+        _toolPermissionResponse.tryEmit(ToolPermissionResponse(requestId, allowed))
+    }
+
+    private val _questionRequest = MutableStateFlow<QuestionRequest?>(null)
+    val questionRequest: StateFlow<QuestionRequest?> = _questionRequest
+
+    private val _questionResponse = MutableSharedFlow<List<List<String>>>(replay = 0)
+
+    fun respondToQuestion(answers: List<List<String>>) {
+        _questionResponse.tryEmit(answers)
+    }
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
@@ -423,6 +461,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val agentTools: List<top.hsyscn.opedrgent.network.ToolDefinition> by lazy {
         listOf(
             top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "ask_question",
+                description = """向用户提出一个选择题或多个选择题，等待用户选择后根据选择结果继续回答。
+
+【使用场景】：
+- 当你需要了解用户偏好才能给出更好的答案时
+- 当一个问题有多种可能的解决方案时
+- 当你不确定用户想要哪个方向时
+- 当需要用户在多个选项中做决定时
+
+【重要规则】：
+- 一次可以问1个或多个相关问题
+- 每个问题提供2-5个选项
+- 选项要具体、互斥、覆盖主要可能性
+- 问题要简洁明确""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("questions", org.json.JSONObject().apply {
+                            put("type", "array")
+                            put("description", "要问用户的问题列表")
+                            put("items", org.json.JSONObject().apply {
+                                put("type", "object")
+                                put("properties", org.json.JSONObject().apply {
+                                    put("question", org.json.JSONObject().apply {
+                                        put("type", "string")
+                                        put("description", "问题的文本内容")
+                                    })
+                                    put("header", org.json.JSONObject().apply {
+                                        put("type", "string")
+                                        put("description", "问题组的标题，如'请选择'")
+                                    })
+                                    put("options", org.json.JSONObject().apply {
+                                        put("type", "array")
+                                        put("description", "可选的答案选项")
+                                        put("items", org.json.JSONObject().apply {
+                                            put("type", "object")
+                                            put("properties", org.json.JSONObject().apply {
+                                                put("label", org.json.JSONObject().apply {
+                                                    put("type", "string")
+                                                    put("description", "选项显示的文字")
+                                                })
+                                                put("description", org.json.JSONObject().apply {
+                                                    put("type", "string")
+                                                    put("description", "选项的详细描述（可选）")
+                                                })
+                                            })
+                                            put("required", org.json.JSONArray().apply { put("label") })
+                                        })
+                                    })
+                                    put("multiple", org.json.JSONObject().apply {
+                                        put("type", "boolean")
+                                        put("description", "是否允许多选，默认false")
+                                    })
+                                    put("allowCustom", org.json.JSONObject().apply {
+                                        put("type", "boolean")
+                                        put("description", "是否允许用户输入自定义答案，默认false")
+                                    })
+                                })
+                                put("required", org.json.JSONArray().apply { put("question"); put("options") })
+                            })
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("questions") })
+                }
+            ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "web_search",
                 description = """搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。
 
@@ -482,6 +586,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     put("required", org.json.JSONArray().apply { put("lat"); put("lon") })
                 }
             ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "mimo_tts",
+                description = """使用MiMo引擎生成高质量语音合成。
+
+【使用场景】：
+- 当用户需要文字转语音时
+- 当需要生成音频内容时
+- 当用户要求朗读文本时
+
+【重要说明】：
+- text参数为必填，包含要合成的文本内容
+- 可选参数：voice（音色名称）、model（模型ID）、style_instruction（风格指令）、overall_style（整体风格）、singing（是否唱歌模式）
+- 合成成功后会保存到设备下载目录并自动打开""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("text", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "要合成语音的文本内容（必填）")
+                        })
+                        put("voice", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "音色名称，如'冰糖'、'小夏'等（可选）")
+                        })
+                        put("model", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "模型ID，如'mimo-v2.5-tts'（可选）")
+                        })
+                        put("style_instruction", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "自然语言风格指令（可选）")
+                        })
+                        put("overall_style", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "整体风格描述（可选）")
+                        })
+                        put("singing", org.json.JSONObject().apply {
+                            put("type", "boolean")
+                            put("description", "是否启用唱歌模式（可选，默认false）")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("text") })
+                }
+            ),
         )
     }
 
@@ -490,7 +638,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentRunJob = viewModelScope.launch {
             setLoading(true)
             try {
-                val config = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+                val useLocalModel = apiSettings.isLocalModelEnabled() && localEngine.isReady
+
+                if (useLocalModel) {
+                    DebugLog.i("runModel: Using local model ${localEngine.currentModelId}")
+                    runLocalModel(sessionId)
+                    return@launch
+                }
+
+                if (apiSettings.isLocalModelEnabled()) {
+                    val engineState = localEngine.state
+                    val errorDetail = when (engineState) {
+                        is LocalLlmState.Error -> ": ${engineState.message}"
+                        is LocalLlmState.Uninitialized -> "，请先在设置中选择并加载模型"
+                        is LocalLlmState.Loading -> "，模型正在加载中，请稍候"
+                        else -> ""
+                    }
+                    _state.value = _state.value.copy(
+                        streamingText = "[错误] 本地模型未就绪$errorDetail",
+                        streamingPhase = "错误",
+                    )
+                    setLoading(false)
+                    return@launch
+                }
+
+                val config = apiSettings.getApiConfig()
+                    ?: throw IllegalStateException("请先在设置里填写 API Key 或加载本地模型")
                 val toolMessages = mutableListOf<ChatMessage>()
                 val allToolParts = mutableListOf<ToolPart>()
                 var accumulatedText = ""
@@ -547,11 +720,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                     if (result.error != null) {
+                        val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
+                            java.lang.Exception(result.error), null, null
+                        )
                         DebugLog.e("runModel: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
+                        DebugLog.e("runModel: error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
                         if (result.content.isNotBlank()) {
                             accumulatedText += (if (accumulatedText.isNotBlank()) "\n\n" else "") + result.content
                         }
-                        state.recordNoToolCalls(result.content.ifEmpty { "执行失败: ${result.error}" })
+                        val enhancedErrorMsg = when (classified.type) {
+                            top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "${result.error} (请求过于频繁，请稍后重试)"
+                            top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "${result.error} (请求超时，请检查网络)"
+                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "${result.error} (触发了人机验证，可能需要更换API Key或节点)"
+                            top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "${result.error} (SSL证书错误)"
+                            top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "${result.error} (访问被拒绝，请检查API Key是否有效)"
+                            else -> result.error
+                        }
+                        state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
                         _state.value = _state.value.copy(
                             streamingText = accumulatedText,
                             streamingPhase = "生成回答…",
@@ -633,7 +818,74 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 }
                                 _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
 
-                                val execResult = withContext(searchDispatcher) {
+                                val toolDef = agentTools.firstOrNull { it.name == tc.name }
+                                val toolDesc = toolDef?.description ?: tc.name
+                                val paramsJson = tc.arguments
+
+                                if (tc.name == "ask_question") {
+                                    try {
+                                        val params = org.json.JSONObject(tc.arguments ?: "{}")
+                                        val questionsArray = params.getJSONArray("questions")
+                                        val questions = (0 until questionsArray.length()).map { i ->
+                                            val q = questionsArray.getJSONObject(i)
+                                            val optionsArray = q.getJSONArray("options")
+                                            val options = (0 until optionsArray.length()).map { j ->
+                                                val opt = optionsArray.getJSONObject(j)
+                                                QuestionOption(
+                                                    label = opt.getString("label"),
+                                                    description = if (opt.has("description")) opt.getString("description") else "",
+                                                )
+                                            }
+                                            QuestionInfo(
+                                                question = q.getString("question"),
+                                                header = if (q.has("header")) q.getString("header") else "请选择",
+                                                options = options,
+                                                multiple = q.optBoolean("multiple", false),
+                                                allowCustom = q.optBoolean("allowCustom", false),
+                                            )
+                                        }
+
+                                        _questionRequest.emit(QuestionRequest(questions = questions))
+
+                                        _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
+
+                                        val answers = _questionResponse.first()
+
+                                        val resultAnswers = answers.mapIndexed { idx, ans ->
+                                            mapOf("question" to questions[idx].question, "answers" to ans)
+                                        }
+                                        val resultTp = tp.copy(state = tp.state.copy(
+                                            status = ToolStateType.COMPLETED,
+                                            output = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
+                                        ))
+                                        synchronized(allToolParts) {
+                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
+                                            if (pos >= 0) allToolParts[pos] = resultTp
+                                        }
+                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
+
+                                        toolMessages.add(ChatMessage(
+                                            role = Role.USER,
+                                            content = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
+                                            createdAt = System.currentTimeMillis(),
+                                            toolCallId = tc.id,
+                                        ))
+                                    } catch (e: Exception) {
+                                        DebugLog.e("ask_question error: ${e.message}", e)
+                                        val errorTp = tp.copy(state = tp.state.copy(
+                                            status = ToolStateType.ERROR,
+                                            error = "ask_question 处理失败: ${e.message}",
+                                        ))
+                                        synchronized(allToolParts) {
+                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
+                                            if (pos >= 0) allToolParts[pos] = errorTp
+                                        }
+                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
+                                    }
+                                    return@async
+                                }
+
+                                val execResult = withContext(Dispatchers.IO) {
                                     toolExecutor.execute(tp, config, system, useProviderSearch = isProviderWebSearchEnabled())
                                 }
 
@@ -684,14 +936,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     execResult.toolPart.state.output != null -> execResult.toolPart.state.output
                                     else -> "工具执行完成"
                                 }
-                                if (execResult.toolPart.state.status != ToolStateType.ERROR) {
-                                    toolMessages.add(ChatMessage(
+                                toolMessages.add(ChatMessage(
                                         role = Role.USER,
                                         content = "$toolOutput$sourceTags",
                                         createdAt = System.currentTimeMillis(),
                                         toolCallId = tc.id,
                                     ))
-                                }
                             }
                         }
                     }
@@ -998,7 +1248,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                             reasoning = reasoningBuilder.toString(),
                                         )))
                                     } else {
-                                        continuation.resumeWith(Result.success(StreamResult(error = err)))
+                                        val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
+                                            java.lang.Exception(err), null, null
+                                        )
+                                        DebugLog.e("streamLlm error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
+                                        val enhancedError = when (classified.type) {
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "$err (请求过于频繁，请稍后重试)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "$err (请求超时，请检查网络)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "$err (触发了人机验证，可能需要更换API Key或节点)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "$err (SSL证书错误)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "$err (访问被拒绝，请检查API Key是否有效)"
+                                            else -> err
+                                        }
+                                        continuation.resumeWith(Result.success(StreamResult(error = enhancedError)))
                                     }
                                 }
                             },
@@ -1126,7 +1388,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     if (partial.isNotEmpty()) {
                                         continuation.resumeWith(Result.success(StreamResult(content = partial, reasoning = reasoningBuilder.toString())))
                                     } else {
-                                        continuation.resumeWith(Result.success(StreamResult(error = err)))
+                                        val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
+                                            java.lang.Exception(err), null, null
+                                        )
+                                        DebugLog.e("streamMultimodalLlm error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
+                                        val enhancedError = when (classified.type) {
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "$err (请求过于频繁，请稍后重试)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "$err (请求超时，请检查网络)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "$err (触发了人机验证，可能需要更换API Key或节点)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "$err (SSL证书错误)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "$err (访问被拒绝，请检查API Key是否有效)"
+                                            else -> err
+                                        }
+                                        continuation.resumeWith(Result.success(StreamResult(error = enhancedError)))
                                     }
                                 }
                             },
@@ -1230,6 +1504,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveDeepResearch(enabled: Boolean) {
         apiSettings.saveDeepResearch(enabled)
         _state.value = _state.value.copy(deepResearchEnabled = enabled)
+    }
+
+    private suspend fun runLocalModel(sessionId: String) {
+        val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
+        val system = buildSystemPrompt(session)
+        val userMessages = session.messages.filter { it.role == Role.USER }.takeLast(5)
+
+        val prompt = buildString {
+            appendLine(system)
+            appendLine()
+            appendLine("--- 对话历史 ---")
+            userMessages.forEach { msg ->
+                appendLine("用户: ${msg.content}")
+            }
+            appendLine()
+            appendLine("--- 请回复 ---")
+        }
+
+        _state.value = _state.value.copy(streamingPhase = "本地模型推理中…")
+
+        var accumulatedText = ""
+
+        localEngine.generateStream(
+            prompt = prompt,
+            onDelta = { chunk ->
+                accumulatedText += chunk
+                _state.value = _state.value.copy(
+                    streamingText = accumulatedText,
+                    streamingPhase = "生成回答…",
+                )
+            },
+            onComplete = {
+                DebugLog.i("runLocalModel: completed, length=${accumulatedText.length}")
+                store.addMessage(sessionId, Role.ASSISTANT, accumulatedText)
+                setLoading(false)
+            },
+            onError = { error ->
+                DebugLog.e("runLocalModel: error=$error")
+                _state.value = _state.value.copy(
+                    streamingText = if (accumulatedText.isNotBlank()) accumulatedText else "[本地模型错误] $error",
+                    streamingPhase = "错误",
+                )
+                if (accumulatedText.isNotBlank()) {
+                    store.addMessage(sessionId, Role.ASSISTANT, accumulatedText)
+                }
+                setLoading(false)
+            },
+        )
     }
 
     fun isLocalModelEnabled(): Boolean = apiSettings.isLocalModelEnabled()
@@ -2044,6 +2366,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val t = s.trim()
         if (t.length <= max) return t
         return t.take(max) + "…"
+    }
+
+    private suspend fun executeWithPermission(
+        toolName: String,
+        desc: String,
+        params: String,
+        actualExecute: suspend () -> ToolResult,
+    ): ToolResult? {
+        val request = ToolPermissionRequest(
+            toolName = toolName,
+            toolDescription = desc,
+            paramsJson = params,
+        )
+        _toolPermissionRequest.emit(request)
+
+        try {
+            val response = _toolPermissionResponse.first { it.requestId == request.requestId }
+            return if (response.allowed) {
+                actualExecute()
+            } else {
+                null
+            }
+        } finally {
+            _toolPermissionRequest.emit(null)
+        }
     }
 
     private fun setLoading(v: Boolean) {

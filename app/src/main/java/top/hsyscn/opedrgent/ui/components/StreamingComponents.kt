@@ -149,12 +149,13 @@ fun StreamingCard(
                 }
             }
 
-            if (showThinkingIndicator && phase.isNotEmpty()) {
-                ThinkingIndicator(phase = phase)
-            }
-
             if (hasReasoning) {
-                ThinkingSection(parts = listOf(ReasoningPart(text = reasoning)))
+                MessageBodyThinking(
+                    thinkingText = reasoning,
+                    isComplete = hasText || isComplete,
+                )
+            } else if (showThinkingIndicator && phase.isNotEmpty()) {
+                ThinkingIndicator(phase = phase)
             }
 
             if (hasTools) {
