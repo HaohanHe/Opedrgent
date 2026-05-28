@@ -21,7 +21,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -35,7 +36,7 @@ android {
     kotlin {
         jvmToolchain(17)
         compilerOptions {
-            freeCompilerArgs.add("-opt-in=kotlin.Experimental")
+            freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
         }
     }
     buildFeatures {

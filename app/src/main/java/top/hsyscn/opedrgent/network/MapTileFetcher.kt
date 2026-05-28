@@ -26,6 +26,14 @@ object MapTileFetcher {
         "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
     )
 
+    private val tileClient: OkHttpClient by lazy {
+        HttpClients.default.newBuilder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
     data class MapResult(
         val base64Png: String,
         val widthPx: Int,
@@ -64,9 +72,12 @@ object MapTileFetcher {
                     val tileY = startY + dy
                     val bitmap = downloadTile(tileX, tileY, zoom)
                     if (bitmap != null) {
-                        canvas.drawBitmap(bitmap, (dx * TILE_SIZE).toFloat(), (dy * TILE_SIZE).toFloat(), null)
-                        if (!bitmap.isRecycled) bitmap.recycle()
-                        successCount++
+                        try {
+                            canvas.drawBitmap(bitmap, (dx * TILE_SIZE).toFloat(), (dy * TILE_SIZE).toFloat(), null)
+                            successCount++
+                        } finally {
+                            if (!bitmap.isRecycled) bitmap.recycle()
+                        }
                     }
                 }
             }
@@ -104,22 +115,18 @@ object MapTileFetcher {
         for (urlTemplate in TILE_URLS) {
             try {
                 val url = urlTemplate.replace("{z}", z.toString()).replace("{x}", x.toString()).replace("{y}", y.toString())
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(8, TimeUnit.SECONDS)
-                    .readTimeout(8, TimeUnit.SECONDS)
-                    .build()
-
                 val request = Request.Builder().url(url).get()
                     .header("User-Agent", "Opedrgent/1.0")
                     .build()
 
-                val response = client.newCall(request).execute()
+                val response = tileClient.newCall(request).execute()
                 if (!response.isSuccessful || response.body == null) continue
 
                 val bytes = response.body!!.bytes()
                 if (bytes.isEmpty()) continue
 
-                return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bitmap != null) return bitmap
             } catch (e: Exception) {
                 lastError = e
                 continue

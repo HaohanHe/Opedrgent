@@ -4,10 +4,11 @@ import top.hsyscn.opedrgent.env.EnvironmentInfo
 import top.hsyscn.opedrgent.model.ResearchSession
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.MemoryStore
+import java.util.concurrent.ConcurrentHashMap
 
 object PromptCache {
-    private val globalCache = mutableMapOf<String, String>()
-    private val sessionCache = mutableMapOf<String, CachedEntry?>()
+    private val globalCache = ConcurrentHashMap<String, String>()
+    private val sessionCache = ConcurrentHashMap<String, CachedEntry?>()
     private const val DEFAULT_TTL_MS = 5 * 60 * 1000L
     private const val STATIC_TTL_MS = 60 * 60 * 1000L
 

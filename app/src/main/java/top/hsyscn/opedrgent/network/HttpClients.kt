@@ -99,9 +99,9 @@ object HttpClients {
     val streaming: OkHttpClient by lazy {
         default.newBuilder()
             .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(0, TimeUnit.MILLISECONDS)   // 无限读取等待（用于长连接）
+            .readTimeout(5, TimeUnit.MINUTES)       // 5分钟读取超时（防止永久挂起）
             .writeTimeout(30, TimeUnit.SECONDS)
-            .callTimeout(0, TimeUnit.MILLISECONDS)   // 无总超时限制
+            .callTimeout(10, TimeUnit.MINUTES)      // 10分钟总超时
             .build()
     }
     

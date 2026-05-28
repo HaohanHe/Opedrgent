@@ -42,22 +42,12 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -108,7 +98,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,16 +107,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.MessageType
-import top.hsyscn.opedrgent.model.QuestionPart
-import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
-import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BarBg
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.BubbleBlueEnd
 import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.CitationBg
 import top.hsyscn.opedrgent.ui.theme.GreenDot
@@ -167,7 +152,7 @@ fun AppRoot(
     onShareConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(MainTab.HISTORY) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.CHAT) }
     var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -210,8 +195,15 @@ fun AppRoot(
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
                 "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
                 null -> {
-                    when (selectedTab) {
-                        MainTab.HISTORY -> SessionsScreen(
+                    when {
+                        selectedTab == MainTab.SETTINGS -> SettingsScreen(
+                            vm = vm,
+                            onBack = { selectedTab = MainTab.CHAT },
+                            toSkills = { subScreen = "skills" },
+                            toAutomations = { subScreen = "automations" },
+                            toMemory = { subScreen = "memory" },
+                        )
+                        selectedTab == MainTab.HISTORY || (selectedTab == MainTab.CHAT && selectedSessionId == null) -> SessionsScreen(
                             vm = vm,
                             onSelectSession = { id ->
                                 selectedSessionId = id
@@ -219,121 +211,16 @@ fun AppRoot(
                             },
                             onSearch = { selectedTab = MainTab.CHAT },
                         )
-                        MainTab.CHAT -> SessionScreen(
+                        else -> SessionScreen(
                             vm = vm,
                             sessionId = selectedSessionId,
                             onOpenSettings = { selectedTab = MainTab.SETTINGS },
                             onOpenSubScreen = { subScreen = it },
-                            onBack = { selectedSessionId = null; selectedTab = MainTab.HISTORY },
-                        )
-                        MainTab.SETTINGS -> SettingsScreen(
-                            vm = vm,
-                            onBack = { selectedTab = MainTab.CHAT },
-                            toSkills = { subScreen = "skills" },
-                            toAutomations = { subScreen = "automations" },
-                            toMemory = { subScreen = "memory" },
+                            onBack = { selectedSessionId = null },
                         )
                     }
                 }
             }
-
-            if (subScreen == null) {
-                FloatingBottomBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { tab ->
-                        if (tab == MainTab.CHAT && selectedSessionId == null && selectedTab != MainTab.CHAT) {
-                            return@FloatingBottomBar
-                        }
-                        selectedTab = tab
-                    },
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FloatingBottomBar(
-    selectedTab: MainTab,
-    onTabSelected: (MainTab) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp).fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Card(
-            modifier = Modifier
-                .shadow(8.dp, RoundedCornerShape(296.dp))
-                .clip(RoundedCornerShape(296.dp)),
-            shape = RoundedCornerShape(296.dp),
-            colors = CardDefaults.cardColors(containerColor = BarBg),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-            ) {
-                BottomBarItem(
-                    icon = Icons.Default.History,
-                    label = "历史",
-                    selected = selectedTab == MainTab.HISTORY,
-                    onClick = { onTabSelected(MainTab.HISTORY) },
-                    modifier = Modifier.weight(1f),
-                )
-                BottomBarItem(
-                    icon = Icons.Default.Chat,
-                    label = "聊天",
-                    selected = selectedTab == MainTab.CHAT,
-                    onClick = { onTabSelected(MainTab.CHAT) },
-                    modifier = Modifier.weight(1f),
-                )
-                BottomBarItem(
-                    icon = Icons.Default.Settings,
-                    label = "设置",
-                    selected = selectedTab == MainTab.SETTINGS,
-                    onClick = { onTabSelected(MainTab.SETTINGS) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-    }
-}
-
-@Composable
-fun BottomBarItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val bgColor = if (selected) Color(0xFFEDEDED) else Color.Transparent
-    Card(
-        modifier = modifier.clip(RoundedCornerShape(27.dp)),
-        shape = RoundedCornerShape(27.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        onClick = onClick,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) TextDark else TextGrey,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = label,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (selected) TextDark else TextGrey,
-            )
         }
     }
 }

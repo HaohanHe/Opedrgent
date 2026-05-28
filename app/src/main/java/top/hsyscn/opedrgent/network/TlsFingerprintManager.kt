@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.network
 import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import java.security.SecureRandom
@@ -68,7 +69,7 @@ object TlsFingerprintManager {
     private var requestCount = 0
     
     // 缓存已创建的客户端，避免重复创建
-    private val clientCache = mutableMapOf<String, OkHttpClient>()
+    private val clientCache = ConcurrentHashMap<String, OkHttpClient>()
     
     /**
      * 初始化TLS指纹管理器
@@ -161,9 +162,9 @@ object TlsFingerprintManager {
             clientCache[cacheKey] = client
             
             // 清理旧缓存（保留最近5个）
-            while (clientCache.size > 5) {
-                val oldestKey = clientCache.keys.first()
-                clientCache.remove(oldestKey)
+            if (clientCache.size > 5) {
+                val keysToRemove = clientCache.keys.sorted().take(clientCache.size - 5)
+                keysToRemove.forEach { clientCache.remove(it) }
             }
             
             return client
