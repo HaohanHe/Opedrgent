@@ -35,6 +35,7 @@ import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
+import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.SourceFetcher
@@ -69,6 +70,8 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
 import top.hsyscn.opedrgent.ui.components.QuestionRequest
+import top.hsyscn.opedrgent.ui.components.ConfirmationOption
+import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -180,6 +183,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun respondToQuestion(answers: List<List<String>>) {
         _questionResponse.tryEmit(answers)
+    }
+
+    private val _confirmationRequest = MutableStateFlow<ConfirmationRequest?>(null)
+    val confirmationRequest: StateFlow<ConfirmationRequest?> = _confirmationRequest
+
+    private val _confirmationResponse = MutableSharedFlow<String?>(replay = 0)
+
+    fun respondToConfirmation(selectedOption: String?) {
+        _confirmationResponse.tryEmit(selectedOption)
     }
 
     private var currentCall: Call? = null
@@ -524,6 +536,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         })
                     })
                     put("required", org.json.JSONArray().apply { put("questions") })
+                }
+            ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "ask_confirmation",
+                description = """请求用户确认或选择操作。当模型需要用户授权才能继续时使用。
+
+【使用场景】：
+- 需要用户确认才能执行的操作（如"我来帮你接管浏览器"）
+- 需要用户在多个操作中选择（如"我帮你解验证码 or 你自己来？"）
+- 耗时操作需要用户确认（如"搜索需要30秒，确定继续吗？"）
+- 用户提问但需要澄清（如"你要我搜索英文还是中文结果？"）
+
+【重要规则】：
+- message：简要说明需要确认的内容
+- detail：可选的详细说明
+- options：可选的操作选项列表
+- timeoutSeconds：超时秒数，默认30秒，超过后模型自动继续
+- 如果用户超时未响应，模型会收到 timeout=true 并自动决定下一步
+
+【调用示例】：
+{"message": "我来帮你接管浏览器完成验证码", "detail": "我将打开浏览器，请在验证码页面完成后点击确认", "options": [{"label": "我来输入", "description": "我自己输入验证码"}, {"label": "AI接管", "description": "让AI自动识别并填写"}], "timeoutSeconds": 30}
+""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("message", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "需要用户确认的简要说明")
+                        })
+                        put("detail", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选的详细说明")
+                        })
+                        put("options", org.json.JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选的操作选项")
+                            put("items", org.json.JSONObject().apply {
+                                put("type", "object")
+                                put("properties", org.json.JSONObject().apply {
+                                    put("label", org.json.JSONObject().apply {
+                                        put("type", "string")
+                                        put("description", "选项显示的文字")
+                                    })
+                                    put("description", org.json.JSONObject().apply {
+                                        put("type", "string")
+                                        put("description", "选项的详细说明")
+                                    })
+                                })
+                            })
+                        })
+                        put("timeoutSeconds", org.json.JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "超时秒数，默认30秒，超过后自动继续")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("message") })
                 }
             ),
             top.hsyscn.opedrgent.network.ToolDefinition(
@@ -875,6 +943,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         val errorTp = tp.copy(state = tp.state.copy(
                                             status = ToolStateType.ERROR,
                                             error = "ask_question 处理失败: ${e.message}",
+                                        ))
+                                        synchronized(allToolParts) {
+                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
+                                            if (pos >= 0) allToolParts[pos] = errorTp
+                                        }
+                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
+                                    }
+                                    return@async
+                                }
+
+                                if (tc.name == "ask_confirmation") {
+                                    try {
+                                        val params = org.json.JSONObject(tc.arguments ?: "{}")
+                                        val message = params.optString("message", "请确认")
+                                        val detail = params.optString("detail", "")
+                                        val timeoutSeconds = params.optInt("timeoutSeconds", 30)
+                                        val optionsArray = params.optJSONArray("options") ?: org.json.JSONArray()
+                                        val options = (0 until optionsArray.length()).map { j ->
+                                            val opt = optionsArray.getJSONObject(j)
+                                            ConfirmationOption(
+                                                label = opt.optString("label", ""),
+                                                description = opt.optString("description", ""),
+                                            )
+                                        }
+
+                                        _confirmationRequest.emit(ConfirmationRequest(
+                                            message = message,
+                                            detail = detail,
+                                            options = options,
+                                            timeoutSeconds = timeoutSeconds,
+                                        ))
+
+                                        _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
+
+                                        val selectedOption = _confirmationResponse.first()
+
+                                        val resultMap = buildString {
+                                            append("{")
+                                            append("\"confirmed\": ${selectedOption != null}")
+                                            if (selectedOption != null) {
+                                                append(", \"selectedOption\": \"${selectedOption.replace("\"", "\\\"")}\"")
+                                            }
+                                            append(", \"timeout\": false")
+                                            append("}")
+                                        }
+                                        val resultTp = tp.copy(state = tp.state.copy(
+                                            status = ToolStateType.COMPLETED,
+                                            output = resultMap,
+                                        ))
+                                        synchronized(allToolParts) {
+                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
+                                            if (pos >= 0) allToolParts[pos] = resultTp
+                                        }
+                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
+
+                                        toolMessages.add(ChatMessage(
+                                            role = Role.USER,
+                                            content = resultMap,
+                                            createdAt = System.currentTimeMillis(),
+                                            toolCallId = tc.id,
+                                        ))
+                                    } catch (e: Exception) {
+                                        DebugLog.e("ask_confirmation error: ${e.message}", e)
+                                        val errorTp = tp.copy(state = tp.state.copy(
+                                            status = ToolStateType.ERROR,
+                                            error = "ask_confirmation 处理失败: ${e.message}",
                                         ))
                                         synchronized(allToolParts) {
                                             val pos = allToolParts.indexOfFirst { it.id == tp.id }
@@ -1509,35 +1643,100 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runLocalModel(sessionId: String) {
         val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
         val system = buildSystemPrompt(session)
-        val userMessages = session.messages.filter { it.role == Role.USER }.takeLast(5)
+        val config = localEngine.currentConfig
+        val modelInfo = localEngine.currentModelId?.let { AvailableLocalModels.findById(it) }
+        val maxCtx = modelInfo?.maxContextLength ?: config?.maxContextLength ?: 4096
+
+        val allMessages = session.messages
+
+        val preCheck = top.hsyscn.opedrgent.utils.ContextCompressor.compress(allMessages, system, maxCtx)
+
+        if (preCheck.isCritical) {
+            DebugLog.w("runLocalModel: 上下文使用 ${String.format("%.0f%%", preCheck.usageRatio * 100)} ≥ 95%，强制压缩")
+            _state.value = _state.value.copy(streamingPhase = "压缩上下文中…")
+        }
+
+        val compressed = if (preCheck.isCritical || preCheck.needsCompression) {
+            top.hsyscn.opedrgent.utils.ContextCompressor.compress(allMessages, system, maxCtx, keepRecent = 3)
+        } else {
+            preCheck
+        }
+
+        val compressedSystem = if (compressed.summary != null) {
+            "$system\n\n[历史摘要]\n${compressed.summary}"
+        } else system
+        val recentMessages = compressed.recentMessages
 
         val prompt = buildString {
-            appendLine(system)
+            appendLine(compressedSystem)
             appendLine()
             appendLine("--- 对话历史 ---")
-            userMessages.forEach { msg ->
-                appendLine("用户: ${msg.content}")
+            recentMessages.forEach { msg ->
+                val roleLabel = when (msg.role) {
+                    Role.USER -> "用户"
+                    Role.ASSISTANT -> "助手"
+                    else -> msg.role.name
+                }
+                appendLine("$roleLabel: ${msg.content}")
             }
             appendLine()
             appendLine("--- 请回复 ---")
         }
 
-        _state.value = _state.value.copy(streamingPhase = "本地模型推理中…")
+        _state.value = _state.value.copy(
+            streamingPhase = "本地模型推理中…",
+            contextTokenCount = compressed.tokenCount,
+        )
+
+        val mapImages = tryFetchLocationMap(recentMessages)
+        val bitmaps = mutableListOf<android.graphics.Bitmap>()
+
+        if (mapImages.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                for (b64 in mapImages) {
+                    try {
+                        val bytes = android.util.Base64.decode(b64.substringAfter(","), android.util.Base64.DEFAULT)
+                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) bitmaps.add(bitmap)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
 
         var accumulatedText = ""
+        var accumulatedReasoning = ""
+        val enableThinking = config?.enableThinking == true
 
         localEngine.generateStream(
             prompt = prompt,
+            images = bitmaps,
+            enableThinking = enableThinking,
             onDelta = { chunk ->
                 accumulatedText += chunk
                 _state.value = _state.value.copy(
                     streamingText = accumulatedText,
+                    streamingReasoning = accumulatedReasoning,
                     streamingPhase = "生成回答…",
                 )
             },
+            onThinkingDelta = if (enableThinking) {{ thinking ->
+                accumulatedReasoning += thinking
+                _state.value = _state.value.copy(
+                    streamingText = accumulatedText,
+                    streamingReasoning = accumulatedReasoning,
+                    streamingPhase = "思考中…",
+                )
+            }} else null,
             onComplete = {
-                DebugLog.i("runLocalModel: completed, length=${accumulatedText.length}")
+                DebugLog.i("runLocalModel: completed, text=${accumulatedText.length}, reasoning=${accumulatedReasoning.length}, ctx=${String.format("%.0f%%", compressed.usageRatio * 100)}")
+
                 store.addMessage(sessionId, Role.ASSISTANT, accumulatedText)
+
+                if (compressed.needsCompression && !preCheck.isCritical) {
+                    DebugLog.i("runLocalModel: 上下文使用 ${String.format("%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
+                    _state.value = _state.value.copy(contextCompressionEnabled = true)
+                }
+
                 setLoading(false)
             },
             onError = { error ->
@@ -1564,6 +1763,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveLocalModelId(modelId: String?) {
         apiSettings.saveLocalModelId(modelId)
+    }
+
+    fun getLocalTemperature(): Float = apiSettings.getLocalTemperature()
+    fun getLocalTopK(): Int = apiSettings.getLocalTopK()
+    fun getLocalTopP(): Float = apiSettings.getLocalTopP()
+    fun getMaxOutputTokens(): Int = apiSettings.getMaxOutputTokens()
+
+    fun saveLocalParams(temperature: Float, topK: Int, topP: Float, maxTokens: Int) {
+        apiSettings.saveLocalParams(temperature, topK, topP, maxTokens)
     }
 
     fun removeSource(sourceId: String) {

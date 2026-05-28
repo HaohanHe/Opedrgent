@@ -12,15 +12,21 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.LogSeverity
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ToolProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
 import java.io.File
-import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.resume
+import kotlin.coroutines.cancellation.CancellationException as KtCancellationException
 
 sealed class LocalLlmState {
     object Uninitialized : LocalLlmState()
@@ -56,12 +62,20 @@ class LocalLlmEngine private constructor(private val context: Context) {
 
     private var engine: Engine? = null
     private var conversation: Any? = null
+    var currentConfig: LlmInferenceConfig? = null
+        private set
 
     val isReady: Boolean get() = state is LocalLlmState.Ready && conversation != null
     val currentModelId: String? get() = (state as? LocalLlmState.Ready)?.modelName
 
     @OptIn(ExperimentalApi::class)
-    suspend fun loadModel(modelPath: String, modelInfo: LocalModelInfo, config: LlmInferenceConfig = LlmInferenceConfig()): Boolean {
+    suspend fun loadModel(
+        modelPath: String,
+        modelInfo: LocalModelInfo,
+        config: LlmInferenceConfig = LlmInferenceConfig(),
+        tools: List<ToolProvider> = emptyList(),
+        systemInstruction: Contents? = null,
+    ): Boolean {
         state = LocalLlmState.Loading
 
         return try {
@@ -139,7 +153,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                     cacheDir = context.cacheDir.path,
                 )
 
-                DebugLog.i(TAG, "Creating Engine with $backendLabel backend, maxTokens=${config.maxTokens}, image=${config.supportsImage}, audio=${config.supportsAudio}...")
+                DebugLog.i(TAG, "Creating Engine with $backendLabel backend, maxTokens=${config.maxTokens}, image=${config.supportsImage}, audio=${config.supportsAudio}, tools=${tools.size}...")
 
                 if (config.enableSpeculativeDecoding && supportsSpecDec) {
                     ExperimentalFlags.enableSpeculativeDecoding = true
@@ -154,21 +168,27 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 val initMs = System.currentTimeMillis() - initStart
                 DebugLog.i(TAG, "Engine initialized in ${initMs}ms")
 
-                val systemPrompt = if (config.enableThinking) {
-                    "You are a helpful assistant running locally on an Android device. " +
-                    "You can use thinking mode for complex reasoning. Be concise and helpful."
-                } else {
-                    "You are a helpful assistant running locally on an Android device. Be concise and helpful."
+                val effectiveSystemInstruction = systemInstruction ?: run {
+                    val defaultPrompt = if (config.enableThinking) {
+                        "You are a helpful assistant running locally on an Android device. " +
+                        "You can use thinking mode for complex reasoning. Be concise and helpful."
+                    } else {
+                        "You are a helpful assistant running locally on an Android device. Be concise and helpful."
+                    }
+                    Contents.of(defaultPrompt)
                 }
 
+                ExperimentalFlags.enableConversationConstrainedDecoding = true
                 val convConfig = ConversationConfig(
                     samplerConfig = SamplerConfig(
                         topK = config.topK,
                         topP = config.topP.toDouble(),
                         temperature = config.temperature.toDouble(),
                     ),
-                    systemInstruction = Contents.of(systemPrompt),
+                    systemInstruction = effectiveSystemInstruction,
+                    tools = tools,
                 )
+                ExperimentalFlags.enableConversationConstrainedDecoding = false
 
                 DebugLog.i(TAG, "Creating conversation...")
                 conversation = engine!!.createConversation(convConfig)
@@ -177,6 +197,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                     modelName = modelInfo.id,
                     modelPath = modelPath
                 )
+                currentConfig = config
 
                 DebugLog.i(TAG, "✅ Model loaded successfully: ${modelInfo.displayName} (${String.format("%.1f", fileSizeMb)}MB)")
                 true
@@ -194,6 +215,88 @@ class LocalLlmEngine private constructor(private val context: Context) {
             }
             state = LocalLlmState.Error(errorMsg)
             false
+        }
+    }
+
+    suspend fun generateStream(
+        prompt: String,
+        images: List<Bitmap> = emptyList(),
+        audioClips: List<ByteArray> = emptyList(),
+        enableThinking: Boolean = false,
+        onDelta: (String) -> Unit,
+        onThinkingDelta: ((String) -> Unit)? = null,
+        onComplete: () -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        if (!isReady) {
+            onError("Engine not ready (state=$state)")
+            return
+        }
+
+        try {
+            val startTime = System.currentTimeMillis()
+
+            withContext(Dispatchers.IO) {
+                @Suppress("UNCHECKED_CAST")
+                val conv = conversation as com.google.ai.edge.litertlm.Conversation
+
+                val contents = buildContents(prompt, images, audioClips)
+                val extraContext = if (enableThinking) mapOf("enable_thinking" to "true") else emptyMap()
+
+                suspendCancellableCoroutine { continuation ->
+                    conv.sendMessageAsync(
+                        contents,
+                        object : MessageCallback {
+                            override fun onMessage(message: Message) {
+                                val text = message.toString()
+                                if (text.isNotEmpty() && !text.startsWith("<ctrl")) {
+                                    onDelta(text)
+                                }
+                                val thinking = message.channels["thought"]
+                                if (!thinking.isNullOrEmpty() && onThinkingDelta != null) {
+                                    onThinkingDelta(thinking)
+                                }
+                            }
+
+                            override fun onDone() {
+                                val latency = System.currentTimeMillis() - startTime
+                                DebugLog.i(TAG, "Stream completed in ${latency}ms")
+                                onComplete()
+                                continuation.resume(Unit)
+                            }
+
+                            override fun onError(throwable: Throwable) {
+                                if (throwable is KtCancellationException || throwable is java.util.concurrent.CancellationException) {
+                                    DebugLog.i(TAG, "The inference was cancelled.")
+                                    onComplete()
+                                    continuation.resume(Unit)
+                                } else {
+                                    DebugLog.e(TAG, "Stream error: ${throwable.message}", throwable)
+                                    onError(throwable.message ?: "Unknown error")
+                                    if (continuation.isActive) continuation.resume(Unit)
+                                }
+                            }
+                        },
+                        extraContext,
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            onError("Cancelled")
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "Stream error: ${e.message}", e)
+            onError(e.message ?: "Unknown error")
+        }
+    }
+
+    fun cancelProcess() {
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val conv = conversation as? com.google.ai.edge.litertlm.Conversation
+            conv?.cancelProcess()
+            DebugLog.i(TAG, "Process cancelled")
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "Error cancelling process: ${e.message}")
         }
     }
 
@@ -231,47 +334,6 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: Exception) {
             DebugLog.e(TAG, "Generate error: ${e.message}", e)
             LocalLlmResponse(text = "[Error] ${e.message}", latencyMs = 0)
-        }
-    }
-
-    suspend fun generateStream(
-        prompt: String,
-        images: List<Bitmap> = emptyList(),
-        audioClips: List<ByteArray> = emptyList(),
-        onDelta: (String) -> Unit,
-        onComplete: () -> Unit,
-        onError: (String) -> Unit,
-    ) {
-        if (!isReady) {
-            onError("Engine not ready (state=$state)")
-            return
-        }
-
-        try {
-            val startTime = System.currentTimeMillis()
-
-            withContext(Dispatchers.IO) {
-                @Suppress("UNCHECKED_CAST")
-                val conv = conversation as com.google.ai.edge.litertlm.Conversation
-
-                val contents = buildContents(prompt, images, audioClips)
-                conv.sendMessageAsync(contents).collect { message ->
-                    val text = message.toString()
-                    if (text.isNotEmpty()) {
-                        onDelta(text)
-                    }
-                }
-            }
-
-            val latency = System.currentTimeMillis() - startTime
-            DebugLog.i(TAG, "Stream completed in ${latency}ms")
-
-            onComplete()
-        } catch (e: CancellationException) {
-            onError("Cancelled")
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "Stream error: ${e.message}", e)
-            onError(e.message ?: "Unknown error")
         }
     }
 
@@ -314,7 +376,9 @@ class LocalLlmEngine private constructor(private val context: Context) {
         for (clip in audioClips) {
             contents.add(Content.AudioBytes(clip))
         }
-        contents.add(Content.Text(prompt))
+        if (prompt.trim().isNotEmpty()) {
+            contents.add(Content.Text(prompt))
+        }
         DebugLog.d(TAG, "buildContents: ${images.size} images, ${audioClips.size} audio, text=${prompt.take(80)}...")
         return Contents.of(contents)
     }
@@ -325,6 +389,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
             engine?.close()
             engine = null
             state = LocalLlmState.Uninitialized
+            currentConfig = null
             DebugLog.i(TAG, "Model unloaded, memory released")
         } catch (e: Exception) {
             DebugLog.w(TAG, "Error during unload: ${e.message}")

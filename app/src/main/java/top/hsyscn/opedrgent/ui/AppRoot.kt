@@ -91,6 +91,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -141,6 +142,8 @@ import top.hsyscn.opedrgent.ui.components.SourceCitations
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.QuestionDock
+import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
+import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.ui.components.UserBubble
 
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
@@ -533,6 +536,7 @@ fun SessionScreen(
     }
 
     val questionRequest by vm.questionRequest.collectAsState()
+    val confirmationRequest by vm.confirmationRequest.collectAsState()
 
     val session = state.current
 
@@ -818,6 +822,18 @@ fun SessionScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
+
+        confirmationRequest?.let { request ->
+            ConfirmationDialog(
+                request = request,
+                onConfirm = { selectedOption -> vm.respondToConfirmation(selectedOption) },
+                onTimeout = { vm.respondToConfirmation(null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
     }
 
     if (actionSheetOpen) {
@@ -894,6 +910,17 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     val state by vm.state.collectAsStateCompat()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+
+    fun buildUserInferenceConfig(info: top.hsyscn.opedrgent.llm.LocalModelInfo): top.hsyscn.opedrgent.llm.LlmInferenceConfig {
+        val base = AvailableLocalModels.buildInferenceConfig(info)
+        val savedMax = vm.getMaxOutputTokens()
+        return base.copy(
+            temperature = vm.getLocalTemperature(),
+            topK = vm.getLocalTopK(),
+            topP = vm.getLocalTopP(),
+            maxTokens = if (savedMax > 0) savedMax else base.maxTokens,
+        )
+    }
     val locationPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             locationEnabled = true
@@ -929,7 +956,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("模型供应商", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Box {
+            if (isLocalMode) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(11.dp),
+                    colors = CardDefaults.cardColors(containerColor = BubbleBlue.copy(alpha = 0.06f)),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text("本地模式运行中", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BubbleBlue)
+                            Text("当前使用 Gemma 4 离线模型，API 配置已暂停", color = TextGrey, fontSize = 11.sp)
+                        }
+                    }
+                }
+            } else {
+                Box {
                 OutlinedTextField(
                     value = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }?.name ?: "自定义",
                     onValueChange = {},
@@ -1011,6 +1057,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+            }
 
             HorizontalDivider()
 
@@ -1216,7 +1263,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             if (path != null) {
                                                 scope.launch {
                                                     val loaded = try {
-                                                        localEngine.loadModel(path, info, AvailableLocalModels.buildInferenceConfig(info))
+                                                        localEngine.loadModel(path, info, buildUserInferenceConfig(info))
                                                     } catch (e: IllegalArgumentException) {
                                                         if (e.message?.contains("Insufficient memory") == true) {
                                                             showMemoryWarning = e.message
@@ -1269,6 +1316,75 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = BubbleBlue)
                             Spacer(Modifier.width(6.dp))
                             Text("选择模型 / 下载", fontSize = 12.sp, color = BubbleBlue)
+                        }
+                    }
+
+                    val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
+                    if (isLocalMode && currentInfo != null) {
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(color = Color(0xFFEEEEEE))
+                        Spacer(Modifier.height(10.dp))
+
+                        var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }
+                        var localTopK by rememberSaveable { mutableStateOf(vm.getLocalTopK()) }
+                        var localTopP by rememberSaveable { mutableStateOf(vm.getLocalTopP()) }
+                        var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
+
+                        Text("推理参数", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextDark)
+                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", fontSize = 11.sp, color = TextGrey)
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Temperature", fontSize = 11.sp, color = TextGrey)
+                                Slider(
+                                    value = localTemp,
+                                    onValueChange = { localTemp = it },
+                                    valueRange = 0.01f..2.0f,
+                                    steps = 39,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text("${String.format("%.2f", localTemp)}", fontSize = 10.sp, color = TextGrey)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Top P", fontSize = 11.sp, color = TextGrey)
+                                Slider(
+                                    value = localTopP,
+                                    onValueChange = { localTopP = it },
+                                    valueRange = 0.1f..1.0f,
+                                    steps = 17,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text("${String.format("%.2f", localTopP)}", fontSize = 10.sp, color = TextGrey)
+                            }
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Top K: $localTopK", fontSize = 11.sp, color = TextGrey)
+                                Slider(
+                                    value = localTopK.toFloat(),
+                                    onValueChange = { localTopK = it.toInt() },
+                                    valueRange = 1f..128f,
+                                    steps = 126,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
+                                    scope.launch { snackbar.showSnackbar("参数已保存，下次加载模型生效") }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
+                                Spacer(Modifier.width(4.dp))
+                                Text("保存参数", fontSize = 11.sp, color = BubbleBlue)
+                            }
                         }
                     }
                 }
@@ -1333,7 +1449,7 @@ Spacer(Modifier.height(12.dp))
                 scope.launch {
                     val path = localEngine.getModelPath(modelInfo)
                     if (path != null) {
-                        val loaded = localEngine.loadModel(path, modelInfo, AvailableLocalModels.buildInferenceConfig(modelInfo))
+                        val loaded = localEngine.loadModel(path, modelInfo, buildUserInferenceConfig(modelInfo))
                         if (loaded) {
                             vm.saveLocalModelEnabled(true)
                             vm.saveLocalModelId(modelInfo.id)
@@ -1369,7 +1485,7 @@ Spacer(Modifier.height(12.dp))
                         if (info != null) {
                             val path = localEngine.getModelPath(info)
                             if (path != null) {
-                                val forceLoaded = localEngine.loadModel(path, info, AvailableLocalModels.buildInferenceConfig(info))
+                                val forceLoaded = localEngine.loadModel(path, info, buildUserInferenceConfig(info))
                                 if (forceLoaded) {
                                     snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
                                 } else {

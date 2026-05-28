@@ -8,7 +8,11 @@ data class CompressedMessages(
     val summary: String?,
     val recentMessages: List<ChatMessage>,
     val tokenCount: Int,
-)
+    val usageRatio: Float = 0f,
+) {
+    val needsCompression: Boolean get() = usageRatio >= 0.90f
+    val isCritical: Boolean get() = usageRatio >= 0.95f
+}
 
 object ContextCompressor {
 
@@ -38,7 +42,7 @@ object ContextCompressor {
         val availableForMessages = (maxTokens * 0.85).toInt() - sysTokens
 
         if (messages.isEmpty()) {
-            return CompressedMessages(systemPrompt, null, emptyList(), sysTokens)
+            return CompressedMessages(systemPrompt, null, emptyList(), sysTokens, usageRatio = sysTokens.toFloat() / maxTokens)
         }
 
         // ★ 动态调整保留消息数量（根据总消息数自适应）
@@ -52,7 +56,7 @@ object ContextCompressor {
         if (recentTokens <= availableForMessages) {
             val totalTokens = sysTokens + messages.sumOf { estimateTokens(it.content) }
             if (totalTokens <= maxTokens) {
-                return CompressedMessages(systemPrompt, null, messages, totalTokens)
+                return CompressedMessages(systemPrompt, null, messages, totalTokens, usageRatio = totalTokens.toFloat() / maxTokens)
             }
         }
 
@@ -66,13 +70,15 @@ object ContextCompressor {
         val trimmedRecent = trimToTokenBudget(recent, remainingTokens)
 
         val totalTokens = sysTokens + summaryTokens + trimmedRecent.sumOf { estimateTokens(it.content) }
+        val ratio = totalTokens.toFloat() / maxTokens
         DebugLog.d(
-            "ContextCompressor: $totalTokens/$maxTokens tokens " +
+            "ContextCompressor: $totalTokens/$maxTokens (${String.format("%.0f%%", ratio * 100)}) " +
             "(sys=$sysTokens summary=$summaryTokens recent=${trimmedRecent.size} " +
-            "adaptiveKeep=$adaptiveKeepRecent totalMsgs=${messages.size})"
+            "adaptiveKeep=$adaptiveKeepRecent totalMsgs=${messages.size})" +
+            if (ratio >= 0.90f)" ⚠️ HIGH USAGE" else ""
         )
 
-        return CompressedMessages(systemPrompt, summary, trimmedRecent, totalTokens)
+        return CompressedMessages(systemPrompt, summary, trimmedRecent, totalTokens, usageRatio = ratio)
     }
 
     /**

@@ -269,6 +269,11 @@ class ApiSettings(private val context: Context) {
     fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
     fun getLocalModelId(): String? = prefs.getString("localModelId", null)?.trim()?.takeIf { it.isNotBlank() }
 
+    fun getLocalTemperature(): Float = prefs.getFloat("localTemperature", 0.7f)
+    fun getLocalTopK(): Int = prefs.getInt("localTopK", 64)
+    fun getLocalTopP(): Float = prefs.getFloat("localTopP", 0.95f)
+    fun getMaxOutputTokens(): Int = prefs.getInt("localMaxTokens", 0)
+
     fun saveLocalModelEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("localModelEnabled", enabled).apply()
     }
@@ -279,5 +284,14 @@ class ApiSettings(private val context: Context) {
         } else {
             prefs.edit().putString("localModelId", modelId.trim()).apply()
         }
+    }
+
+    fun saveLocalParams(temperature: Float, topK: Int, topP: Float, maxTokens: Int) {
+        prefs.edit()
+            .putFloat("localTemperature", temperature)
+            .putInt("localTopK", topK)
+            .putFloat("localTopP", topP)
+            .putInt("localMaxTokens", maxTokens)
+            .apply()
     }
 }

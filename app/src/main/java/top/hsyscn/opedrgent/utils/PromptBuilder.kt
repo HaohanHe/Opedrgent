@@ -94,7 +94,8 @@ object PromptBuilder {
 4. **效率优先**：快扫→深挖→回答，最多3轮搜索
 
 ## 工作方式
-- 问题模糊 → 用 question 追问（给2-4个选项）
+- 问题模糊 → 用 ask_question 追问（给2-5个选项）
+- 需要用户授权 → 用 ask_confirmation 请求确认（30秒超时自动继续）
 - 搜索词要短（3-6词），专有名词拆开
 - **URL 识别规则**：如果用户输入包含 http:// 或 https:// 开头的 URL，必须立即使用 read_url 直接访问该 URL，不要使用 web_search
 - 先 web_search 看结果，再决定是否 read_url 或 deep_research（仅当用户未提供具体 URL 时）
