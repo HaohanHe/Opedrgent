@@ -40,7 +40,8 @@ enum class WebAgentMethod {
     SCREENSHOT_MULTIMODAL,
 }
 
-class WebViewAgent(private val context: Context) {
+class WebViewAgent(context: Context) {
+    private val appContext = context.applicationContext
 
     private var webView: WebView? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -72,7 +73,7 @@ class WebViewAgent(private val context: Context) {
     suspend fun ensureInitialized() = withContext(Dispatchers.Main) {
         if (isInitialized && webView != null) return@withContext
         webView?.destroy()
-        webView = WebView(context).apply {
+        webView = WebView(appContext).apply {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -93,8 +94,8 @@ class WebViewAgent(private val context: Context) {
                     if (s != null) s.pageLoaded = true
                 }
                 override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler, error: SslError) {
-                    DebugLog.w("WebViewAgent SSL error: ${error.primaryError} for ${error.url}, proceeding anyway")
-                    handler.proceed()
+                    DebugLog.w("WebViewAgent SSL error: ${error.primaryError} for ${error.url}, cancelling")
+                    handler.cancel()
                 }
             }
             webChromeClient = object : WebChromeClient() {
@@ -322,13 +323,17 @@ class WebViewAgent(private val context: Context) {
             try {
                 val wv = webView ?: return@withContext null
                 val bmp = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(bmp)
-                wv.draw(canvas)
-                val stream = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.PNG, 80, stream)
-                val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
-                DebugLog.i("WebViewAgent.takeScreenshot: ${base64.length} chars base64 (drawCache)")
-                deferred.complete(base64)
+                try {
+                    val canvas = android.graphics.Canvas(bmp)
+                    wv.draw(canvas)
+                    val stream = ByteArrayOutputStream()
+                    bmp.compress(Bitmap.CompressFormat.PNG, 80, stream)
+                    val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
+                    DebugLog.i("WebViewAgent.takeScreenshot: ${base64.length} chars base64 (drawCache)")
+                    deferred.complete(base64)
+                } finally {
+                    if (!bmp.isRecycled) bmp.recycle()
+                }
             } catch (e: Exception) {
                 DebugLog.e("WebViewAgent.takeScreenshot failed: ${e.message}", e)
                 deferred.complete(null)

@@ -1703,6 +1703,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+        try {
+
         var accumulatedText = ""
         var accumulatedReasoning = ""
         val enableThinking = config?.enableThinking == true
@@ -1751,6 +1753,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 setLoading(false)
             },
         )
+        } finally {
+            bitmaps.forEach { if (!it.isRecycled) it.recycle() }
+        }
     }
 
     fun isLocalModelEnabled(): Boolean = apiSettings.isLocalModelEnabled()
