@@ -67,27 +67,73 @@ object ToolPrompts {
 - 内容为空 → 尝试用web_search找替代来源
 """.trimIndent()
 
-            "question" -> """
-## question - 追问澄清
+            "reverse_geocode" -> """
+## reverse_geocode - 经纬度转地址
 
-当用户问题模糊或不完整时，向用户追问以明确需求。
+将GPS经纬度坐标转换为人类可读的地名地址。
 
 **使用场景：**
-- 用户输入过于简短（如单字"查"）
-- 问题存在多种可能的理解方向
-- 缺少必要的上下文信息
+- 用户提供经纬度需要转换成具体地址时
+- 知道位置坐标但不知道地名时
+
+**参数说明：**
+- `lat` (必填): 纬度，范围 -90 到 90
+- `lng` (必填): 经度，范围 -180 到 180
+
+**返回：**
+该坐标对应的城市、街道、地标等详细信息
+""".trimIndent()
+
+            "ask_question" -> """
+## ask_question - 向用户提问选择题
+
+当需要了解用户偏好、让用户做选择、或用户问题模糊不完整时，向用户追问选择题。
+
+**使用场景：**
+- 需要了解用户具体需求或偏好时
+- 问题存在多种可能的理解方向时
+- 用户需要从多个选项中做决定时
+- 缺少必要的上下文信息时
 
 **使用规范：**
-- 提供2-4个具体选项供用户选择
-- 每个选项简短明确，便于理解
+- 提供2-5个具体选项供用户选择
+- 每个选项包含 label（显示文字）和 description（详细说明）
+- 单选题：multiple=false，用户选一个
+- 多选题：multiple=true，用户可选多个
+- 允许自定义：allowCustom=true，用户可输入自己的答案
 - 不要一次性问太多问题（最多3个）
 
-**示例格式：**
-"您想了解哪个方面？
-1. 技术原理和实现方式
-2. 应用场景和使用案例
-3. 性能对比和优缺点
-4. 学习资源和入门指南"
+**调用示例：**
+{"questions": [{"question": "您想了解哪个方面？", "header": "请选择", "options": [{"label": "技术原理", "description": "了解实现方式和原理"}, {"label": "应用场景", "description": "看看有哪些实际用途"}, {"label": "对比分析", "description": "和其他方案的优缺点对比"}], "multiple": false, "allowCustom": true}]}
+""".trimIndent()
+
+            "ask_confirmation" -> """
+## ask_confirmation - 请求用户确认或授权
+
+当模型需要用户明确授权或确认才能继续操作时，使用此工具。
+
+**【重要】这不是追问问题，而是请求操作授权。**
+
+**使用场景：**
+- 自动化操作需要用户确认时（如"我来帮你接管浏览器"）
+- 需要用户在多个操作中选择时（如"你想让我搜索英文还是中文？"）
+- 耗时/不可逆操作需要用户确认时
+- 用户提问但需要明确授权才能执行时
+
+**核心规则：**
+- 如果用户在30秒内没有响应，模型会收到 timeout=true，并**自动决定下一步**（不是等待，是继续！）
+- 如果用户点击确认 → confirmed=true, selectedOption=用户选择的选项
+- 如果用户点击取消 → confirmed=false
+- 如果超时 → confirmed=false, timeout=true
+
+**参数说明：**
+- `message` (必填): 简要说明需要确认的内容
+- `detail` (可选): 详细说明
+- `options` (可选): 操作选项列表，每个选项有 label 和 description
+- `timeoutSeconds` (可选): 超时秒数，默认30秒
+
+**调用示例：**
+{"message": "我来帮你接管浏览器完成验证码", "detail": "我将打开浏览器，请在验证码页面完成后点击确认", "options": [{"label": "我来输入", "description": "我自己输入验证码"}, {"label": "AI接管", "description": "让AI自动识别并填写"}], "timeoutSeconds": 30}
 """.trimIndent()
 
             "mimo_tts" -> """
@@ -121,15 +167,17 @@ object ToolPrompts {
 - `singing` (可选): 是否为唱歌模式，设为true启用
 
 **最佳实践：**
+- **【重要】当需要生成语音时，必须调用此工具**，不要只是在回复中描述"我为你朗读"
 - 简单朗读 → 不用此工具，用系统TTS即可
 - 有情感/表演需求 → 用此工具，通过style_instruction或overall_style控制
 - 唱歌 → 设置singing=true，文本以(唱歌)开头
 - 角色扮演 → 使用导演模式（style_instruction详细描述角色+场景+指导）
 - 方言 → 在overall_style中指定，如"(东北话)"
+- 调用此工具后，音频文件会自动保存到下载目录并打开
 
 **示例调用：**
 ```
-// 简单情感朗读
+// 情感朗读（必须调用工具！）
 {"text": "今天天气真好", "overall_style": "(开心)", "voice": "冰糖"}
 
 // 唱歌
@@ -156,7 +204,9 @@ object ToolPrompts {
             "web_search" to getToolPrompt("web_search"),
             "deep_research" to getToolPrompt("deep_research"),
             "read_url" to getToolPrompt("read_url"),
-            "question" to getToolPrompt("question"),
+            "reverse_geocode" to getToolPrompt("reverse_geocode"),
+            "ask_question" to getToolPrompt("ask_question"),
+            "ask_confirmation" to getToolPrompt("ask_confirmation"),
             "mimo_tts" to getToolPrompt("mimo_tts"),
         ).filter { it.value.isNotBlank() }
     }
