@@ -100,6 +100,7 @@ data class UiState(
     val streamingReasoning: String = "",
     val streamingToolParts: List<ToolPart> = emptyList(),
     val streamingPhase: String = "",
+    val streamingSessionId: String? = null,
     val activeQuestion: QuestionPart? = null,
     val isStreaming: Boolean = false,
     val deepThinkingEnabled: Boolean = false,
@@ -705,6 +706,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cancelled.set(false)
         currentRunJob = viewModelScope.launch {
             setLoading(true)
+            _state.value = _state.value.copy(streamingSessionId = sessionId)
             try {
                 val useLocalModel = apiSettings.isLocalModelEnabled() && localEngine.isReady
 
@@ -740,7 +742,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 var finalReasoning = ""
                 val usedUrls = HashSet<String>()
                 var sourceTagIdx = 0
-                val maxContextTokens = 16000
+                val maxContextTokens = if (top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(config.model)) {
+                    top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
+                } else 16000
 
                 val state = ResearchState(maxRounds = 10)
 
@@ -1153,6 +1157,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     streamingReasoning = "",
                     streamingToolParts = emptyList(),
                     streamingPhase = "",
+                    streamingSessionId = null,
                 )
                 refreshSessions()
 
@@ -1185,6 +1190,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         streamingReasoning = "",
                         streamingToolParts = emptyList(),
                         streamingPhase = "",
+                        streamingSessionId = null,
                     )
                 }
             } finally {
@@ -1607,6 +1613,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun getBaseUrl(): String = apiSettings.getBaseUrl()
     fun getModel(): String = apiSettings.getModel()
+    fun getApiKey(): String? = apiSettings.getApiKey()
     fun hasApiKey(): Boolean = apiSettings.hasApiKey()
     fun getMemory(): String = apiSettings.getMemory()
     fun saveMemory(memory: String) {
@@ -1710,6 +1717,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val enableThinking = config?.enableThinking == true
 
         localEngine.generateStream(
+            sessionId = sessionId,
             prompt = prompt,
             images = bitmaps,
             enableThinking = enableThinking,
@@ -1943,6 +1951,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             streamingToolParts = emptyList(),
             activeQuestion = null,
             loading = false,
+            streamingSessionId = null,
         )
     }
 

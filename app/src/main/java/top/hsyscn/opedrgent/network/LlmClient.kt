@@ -55,7 +55,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
     companion object {
         private val MULTIMODAL_MODELS = setOf(
-            "mimo-v2.5", "mimo-v2-omni", "mimo-v2.5-pro",
+            "mimo-v2.5", "mimo-v2-omni",
         )
         private val WEB_SEARCH_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash",
@@ -67,6 +67,14 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro",
             "mimo-v2-omni", "mimo-v2-flash", "gemini-2.5",
             "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
+        )
+        private val DEEPSEEK_MODELS = setOf(
+            "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4",
+            "deepseek-chat", "deepseek-reasoner",
+        )
+        private const val DEEPSEEK_MAX_CONTEXT = 1_000_000
+        private val MIMO_THINKING_MODELS = setOf(
+            "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash",
         )
 
         fun isMultimodalModel(model: String): Boolean {
@@ -83,6 +91,24 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
         fun isThinkingModel(model: String): Boolean {
             return THINKING_MODELS.any { model.contains(it) }
+        }
+
+        fun isDeepSeek(model: String): Boolean {
+            return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
+        }
+
+        fun isDeepSeekV4(model: String): Boolean {
+            return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
+        }
+
+        fun getDeepSeekMaxContext(): Int = DEEPSEEK_MAX_CONTEXT
+
+        fun isMiMoThinking(model: String): Boolean {
+            return MIMO_THINKING_MODELS.any { model.contains(it, ignoreCase = true) }
+        }
+
+        fun requiresDefaultReasoning(model: String): Boolean {
+            return isDeepSeek(model) || isMiMoThinking(model)
         }
     }
 
@@ -162,9 +188,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         } else if (m.apiToolCallsJson != null) {
                             val assistantMsg = JSONObject().apply {
                                 put("role", "assistant")
-                                if (m.content.isNotEmpty()) {
-                                    put("content", m.content)
-                                }
+                                put("content", m.content.ifEmpty { "" })
                                 put("tool_calls", JSONArray(m.apiToolCallsJson))
                             }
                             val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
@@ -176,15 +200,16 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     }
                 },
             )
-            val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
+            val isDS = isDeepSeek(config.model)
+            val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
-                if (thinkingEnabled) {
+                if (defaultReasoning) {
                     put("thinking", JSONObject().apply { put("type", "enabled") })
-                    if (isDeepSeek) {
-                        put("reasoning_effort", "high")
+                    if (isDS) {
+                        put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
                     }
-                } else if (isDeepSeek) {
-                    put("thinking_mode", "non-thinking")
+                } else if (thinkingEnabled) {
+                    put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
                     put("thinking", JSONObject().apply { put("type", "disabled") })
                 }
@@ -193,7 +218,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 put("tools", JSONArray().apply {
                     tools.forEach { put(toolToJson(it)) }
                 })
-                put("tool_choice", "auto")
+                if (!isDS) {
+                    put("tool_choice", "auto")
+                }
             }
         }
 
@@ -422,8 +449,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         } else if (m.apiToolCallsJson != null) {
                             put(JSONObject().apply {
                                 put("role", "assistant")
-                                if (m.content.isNotEmpty()) put("content", m.content)
-                                else put("content", JSONObject.NULL)
+                                put("content", m.content.ifEmpty { "" })
                                 put("tool_calls", JSONArray(m.apiToolCallsJson))
                                 val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
                                 if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
@@ -444,22 +470,25 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     }
                 },
             )
-            val isDeepSeek = config.model.contains("deepseek", ignoreCase = true)
+            val isDS = isDeepSeek(config.model)
+            val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
-                if (thinkingEnabled) {
+                if (defaultReasoning) {
                     put("thinking", JSONObject().apply { put("type", "enabled") })
-                    if (isDeepSeek) {
-                        put("reasoning_effort", "high")
+                    if (isDS) {
+                        put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
                     }
-                } else if (isDeepSeek) {
-                    put("thinking_mode", "non-thinking")
+                } else if (thinkingEnabled) {
+                    put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
                     put("thinking", JSONObject().apply { put("type", "disabled") })
                 }
             }
             if (tools.isNotEmpty()) {
                 put("tools", JSONArray().apply { tools.forEach { put(toolToJson(it)) } })
-                put("tool_choice", "auto")
+                if (!isDS) {
+                    put("tool_choice", "auto")
+                }
             }
         }
 
@@ -516,8 +545,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     } else if (m.apiToolCallsJson != null) {
                         put(JSONObject().apply {
                             put("role", "assistant")
-                            if (m.content.isNotEmpty()) put("content", m.content)
-                            else put("content", JSONObject.NULL)
+                            put("content", m.content.ifEmpty { "" })
                             put("tool_calls", JSONArray(m.apiToolCallsJson))
                             val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
                             if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
@@ -532,7 +560,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             json.put("tools", JSONArray().apply {
                 tools.forEach { put(toolToJson(it)) }
             })
-            json.put("tool_choice", "auto")
+            if (!isDeepSeek(config.model)) {
+                json.put("tool_choice", "auto")
+            }
         }
 
         val req = buildRequest(url, json.toString(), config.apiKey)

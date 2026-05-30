@@ -22,7 +22,7 @@ class MimoTtsTool(
         return mapOf(
             "mimo_tts" to ToolBinding(
                 name = "mimo_tts",
-                description = "使用MiMo引擎生成高质量语音。参数中 text 为必填，可选参数: voice(音色)、model(模型)、style_instruction(风格指令)、overall_style(整体风格)、singing(是否唱歌)。",
+                description = "使用MiMo引擎生成高质量语音。支持预置音色(8种)、音色设计(文本描述)、音色克隆(音频样本)三种模式。参数: text(必填), voice(可选,默认冰糖), model(可选: mimo-v2.5-tts/mimo-v2.5-tts-voicedesign/mimo-v2.5-tts-voiceclone), style_instruction(自然语言风格), overall_style(整体标签), singing(唱歌模式), voice_file_base64(仅voiceclone模式，音频样本base64)。",
                 invoker = { tp, config, sp, ups -> executeMimoTts(tp, config, sp, ups) },
             ),
         )
@@ -33,7 +33,7 @@ class MimoTtsTool(
     }
 
     @Tool("mimo_tts")
-    @ToolDescription("使用MiMo引擎生成高质量语音。参数中 text 为必填，可选参数: voice(音色)、model(模型)、style_instruction(风格指令)、overall_style(整体风格)、singing(是否唱歌)。")
+    @ToolDescription("使用MiMo引擎生成高质量语音。支持预置音色、音色设计、音色克隆三种模式。")
     suspend fun executeMimoTts(
         tp: ToolPart,
         config: ApiConfig,
@@ -51,17 +51,27 @@ class MimoTtsTool(
         }
 
         val voiceId = tp.state.input["voice"]?.trim() ?: apiSettings.getTtsMimoVoice() ?: "冰糖"
-        val modelId = tp.state.input["model"]?.trim() ?: "mimo-v2.5-tts"
+        val rawModelId = tp.state.input["model"]?.trim() ?: "mimo-v2.5-tts"
+        val modelId = when {
+            rawModelId.contains("voiceclone") -> "mimo-v2.5-tts-voiceclone"
+            rawModelId.contains("voicedesign") -> "mimo-v2.5-tts-voicedesign"
+            else -> "mimo-v2.5-tts"
+        }
+        val isVoiceClone = modelId == "mimo-v2.5-tts-voiceclone"
 
         var styleInstruction: String? = null
         var overallStyle: String? = null
         var isSinging = false
+        var voiceFileBase64: String? = null
 
         tp.state.input["style_instruction"]?.trim()?.takeIf { it.isNotBlank() }?.let { styleInstruction = it }
         tp.state.input["overall_style"]?.trim()?.takeIf { it.isNotBlank() }?.let { overallStyle = it }
         tp.state.input["singing"]?.toBooleanStrictOrNull()?.let { isSinging = it }
+        if (isVoiceClone) {
+            tp.state.input["voice_file_base64"]?.trim()?.takeIf { it.isNotBlank() && it.length > 100 }?.let { voiceFileBase64 = it }
+        }
 
-        DebugLog.i("mimo_tts: text=${text.take(50)}..., voice=$voiceId, model=$modelId")
+        DebugLog.i("mimo_tts: text=${text.take(50)}..., voice=$voiceId, model=$modelId, clone=${voiceFileBase64 != null}")
 
         try {
             val request = top.hsyscn.opedrgent.tts.MimoTtsClient.SynthesizeRequest(
@@ -75,6 +85,7 @@ class MimoTtsTool(
                         isSinging = isSinging,
                     )
                 } else null,
+                voiceFileBase64 = voiceFileBase64,
             )
 
             val result = withContext(Dispatchers.IO) {
@@ -87,7 +98,12 @@ class MimoTtsTool(
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val outputFile = File(downloadsDir, "mimo_tts_$timestamp.wav")
+            val suffix = when (modelId) {
+                "mimo-v2.5-tts-voiceclone" -> "voiceclone"
+                "mimo-v2.5-tts-voicedesign" -> "voicedesign"
+                else -> "tts"
+            }
+            val outputFile = File(downloadsDir, "mimo_${suffix}_$timestamp.wav")
             outputFile.parentFile?.mkdirs()
             outputFile.writeBytes(result.audioData)
 
@@ -97,8 +113,10 @@ class MimoTtsTool(
 
             val outputText = buildString {
                 appendLine("✅ MiMo TTS语音合成成功")
+                appendLine("- 模式：${when(modelId) {"mimo-v2.5-tts" -> "预置音色" "mimo-v2.5-tts-voicedesign" -> "音色设计" else -> "音色克隆"}}")
                 appendLine("- 文件：${outputFile.name} (${String.format("%.1f", result.audioData.size / 1024.0 / 1024.0)} MB)")
                 appendLine("- 时长：约${durationSec}秒 | 模型：${result.modelUsed} | 音色：${result.voiceUsed}")
+                if (isVoiceClone && voiceFileBase64 != null) appendLine("- 使用了音频样本进行声音复刻")
                 if (overallStyle != null) appendLine("- 风格：$overallStyle")
                 if (isSinging) appendLine("- 模式：唱歌")
             }

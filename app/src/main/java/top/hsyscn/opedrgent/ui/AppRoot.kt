@@ -533,7 +533,7 @@ fun SessionScreen(
                     }
                 }
 
-                if (state.isStreaming) {
+                if (state.isStreaming && state.streamingSessionId == session.id) {
                     item(key = "_streaming") {
                         StreamingCard(
                             text = state.streamingText,
@@ -773,7 +773,7 @@ fun SessionScreen(
 fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
-    var apiKey by rememberSaveable { mutableStateOf("") }
+    var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
     var ttsEnabled by rememberSaveable { mutableStateOf(vm.isTtsEnabled()) }
     var ttsAuto by rememberSaveable { mutableStateOf(vm.isTtsAutoSpeak()) }
     var ttsRate by rememberSaveable { mutableStateOf(vm.getTtsRate()) }
@@ -1260,18 +1260,28 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
-                            OutlinedButton(
-                                onClick = {
-                                    vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
-                                    scope.launch { snackbar.showSnackbar("参数已保存，下次加载模型生效") }
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            ) {
-                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
-                                Spacer(Modifier.width(4.dp))
-                                Text("保存参数", fontSize = 11.sp, color = BubbleBlue)
-                            }
+                            OutlinedTextField(
+                                value = if (localMaxTok > 0) localMaxTok.toString() else "",
+                                onValueChange = { localMaxTok = it.toIntOrNull() ?: 0 },
+                                label = { Text("最大输出", fontSize = 10.sp) },
+                                modifier = Modifier.width(100.dp),
+                                singleLine = true,
+                            )
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
+                                scope.launch { snackbar.showSnackbar("参数已保存，下次加载模型生效") }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
+                            Spacer(Modifier.width(4.dp))
+                            Text("保存参数", fontSize = 11.sp, color = BubbleBlue)
                         }
                     }
                 }
@@ -1295,14 +1305,16 @@ Spacer(Modifier.height(12.dp))
                     vm.saveDebugMode(debugMode)
                     vm.saveDeepThinking(deepThinkingEnabled)
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
-                    val ok = vm.saveSettings(baseUrl = baseUrl, apiKey = apiKey, model = model)
-                    if (!ok) return@Button
+                    if (!isLocalMode) {
+                        val ok = vm.saveSettings(baseUrl = baseUrl, apiKey = apiKey, model = model)
+                        if (!ok) return@Button
+                    }
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(11.dp),
             ) {
-                Text("保存")
+                Text(if (isLocalMode) "保存设置" else "保存")
             }
             Text(text = "API Key 留空表示不修改。", modifier = Modifier.padding(top = 4.dp))
             HorizontalDivider()
