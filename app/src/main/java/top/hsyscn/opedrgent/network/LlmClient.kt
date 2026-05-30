@@ -203,15 +203,17 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             val isDS = isDeepSeek(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
-                if (defaultReasoning) {
-                    put("thinking", JSONObject().apply { put("type", "enabled") })
+                if (thinkingEnabled || defaultReasoning) {
                     if (isDS) {
                         put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
                     }
-                } else if (thinkingEnabled) {
                     put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
-                    put("thinking", JSONObject().apply { put("type", "disabled") })
+                    if (isDS) {
+                        put("thinking_mode", "non-thinking")
+                    } else {
+                        put("thinking", JSONObject().apply { put("type", "disabled") })
+                    }
                 }
             }
             if (tools.isNotEmpty()) {
@@ -225,7 +227,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
 
         val req = buildRequest(url, json.toString(), config.apiKey)
-        DebugLog.d("LlmClient streamChatCompletions: model=${config.model} url=$url thinking=$thinkingEnabled tools=${tools.size}")
+        val maskedBody = json.toString().replace(config.apiKey, "***")
+        DebugLog.d("LlmClient REQUEST: model=${config.model} thinking=$thinkingEnabled body=$maskedBody")
         val call = http.newCall(req)
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -275,6 +278,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         val toolIdMap = mutableMapOf<Int, String>()
         var inThinkingTag = false
         var lastFinishReason: String? = null
+        var totalChunks = 0
 
         while (!source.exhausted()) {
             val line = source.readUtf8Line() ?: continue
@@ -283,7 +287,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
             val data = line.removePrefix("data: ").trim()
             if (data == "[DONE]") {
-                DebugLog.i("parseSse ← DONE, text=${fullContent.length} chars, reasoning=${fullReasoning.length} chars")
+                DebugLog.i("parseSse ← DONE, text=${fullContent.length} chars, reasoning=${fullReasoning.length} chars, tools=${toolCallMap.size}")
                 break
             }
 
@@ -304,6 +308,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 val reasoning = delta.optString("reasoning_content", "")
                     .let { if (it == "null") "" else it }
                     .ifEmpty { delta.optString("reasoning", "").let { if (it == "null") "" else it } }
+
+                if (content.isNotEmpty() || reasoning.isNotEmpty()) {
+                    DebugLog.v("SSE chunk: content=${content.take(40)}... reasoning=${reasoning.take(40)}... finish=$finishReason")
+                }
+                totalChunks++
 
                 var remainingContent = content
 
@@ -391,6 +400,10 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        if (totalChunks == 0) {
+            DebugLog.w("parseSse: ZERO chunks received! Stream was empty or all parse failures")
+        }
+
         val toolCalls = toolCallMap.map { (idx, nameBuilder) ->
             CompletedToolCall(
                 id = toolIdMap[idx].orEmpty(),
@@ -473,15 +486,17 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             val isDS = isDeepSeek(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
-                if (defaultReasoning) {
-                    put("thinking", JSONObject().apply { put("type", "enabled") })
+                if (thinkingEnabled || defaultReasoning) {
                     if (isDS) {
                         put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
                     }
-                } else if (thinkingEnabled) {
                     put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
-                    put("thinking", JSONObject().apply { put("type", "disabled") })
+                    if (isDS) {
+                        put("thinking_mode", "non-thinking")
+                    } else {
+                        put("thinking", JSONObject().apply { put("type", "disabled") })
+                    }
                 }
             }
             if (tools.isNotEmpty()) {
