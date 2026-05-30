@@ -26,7 +26,7 @@ val PROVIDER_PRESETS = listOf(
     ProviderPreset("小米 MiMo (按量付费)", "https://api.xiaomimimo.com/v1", listOf("mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni")),
     ProviderPreset("OpenAI", "https://api.openai.com/v1", listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3-mini", "gpt-4.1-mini", "gpt-4.1-nano")),
     ProviderPreset("Anthropic", "https://api.anthropic.com/v1", listOf("claude-sonnet-4-20250514", "claude-3-5-haiku-20241022", "claude-opus-4-20250514")),
-    ProviderPreset("DeepSeek", "https://api.deepseek.com/v1", listOf("deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner")),
+    ProviderPreset("DeepSeek", "https://api.deepseek.com", listOf("deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner")),
     ProviderPreset("通义千问", "https://dashscope.aliyuncs.com/compatible-mode/v1", listOf("qwen-plus", "qwen-turbo", "qwen-max", "qwen-long")),
     ProviderPreset("月之暗面 Moonshot", "https://api.moonshot.cn/v1", listOf("moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k")),
     ProviderPreset("智谱 AI", "https://open.bigmodel.cn/api/paas/v4", listOf("glm-4-plus", "glm-4-flash", "glm-4-long")),

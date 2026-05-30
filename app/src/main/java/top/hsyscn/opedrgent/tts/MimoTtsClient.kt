@@ -60,6 +60,7 @@ object MimoTtsClient {
         val model: Model = Model.PRESET,
         val style: StyleControl? = null,
         val format: String = "wav",
+        val voiceFileBase64: String? = null,
     )
 
     data class SynthesizeResult(
@@ -284,8 +285,16 @@ object MimoTtsClient {
         val audioConfig = JSONObject()
         audioConfig.put("format", request.format)
 
-        if (request.model == Model.PRESET) {
-            audioConfig.put("voice", request.voiceId)
+        when (request.model) {
+            Model.PRESET -> audioConfig.put("voice", request.voiceId)
+            Model.VOICE_CLONE -> {
+                if (request.voiceFileBase64 != null) {
+                    audioConfig.put("voice", request.voiceFileBase64)
+                } else {
+                    audioConfig.put("voice", request.voiceId)
+                }
+            }
+            Model.VOICE_DESIGN -> { }
         }
 
         return audioConfig

@@ -62,6 +62,8 @@ class LocalLlmEngine private constructor(private val context: Context) {
 
     private var engine: Engine? = null
     private var conversation: Any? = null
+    private var lastSessionId: String? = null
+    private var cachedConfig: ConversationConfig? = null
     var currentConfig: LlmInferenceConfig? = null
         private set
 
@@ -192,6 +194,8 @@ class LocalLlmEngine private constructor(private val context: Context) {
 
                 DebugLog.i(TAG, "Creating conversation...")
                 conversation = engine!!.createConversation(convConfig)
+                cachedConfig = convConfig
+                lastSessionId = null
 
                 state = LocalLlmState.Ready(
                     modelName = modelInfo.id,
@@ -219,6 +223,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
     }
 
     suspend fun generateStream(
+        sessionId: String,
         prompt: String,
         images: List<Bitmap> = emptyList(),
         audioClips: List<ByteArray> = emptyList(),
@@ -232,6 +237,12 @@ class LocalLlmEngine private constructor(private val context: Context) {
             onError("Engine not ready (state=$state)")
             return
         }
+
+        if (lastSessionId != null && lastSessionId != sessionId) {
+            DebugLog.i(TAG, "Session changed ($lastSessionId → $sessionId), resetting conversation")
+            resetConversation()
+        }
+        lastSessionId = sessionId
 
         try {
             val startTime = System.currentTimeMillis()
@@ -383,6 +394,17 @@ class LocalLlmEngine private constructor(private val context: Context) {
         return Contents.of(contents)
     }
 
+    fun resetConversation() {
+        try {
+            val config = cachedConfig ?: return
+            @Suppress("UNCHECKED_CAST")
+            conversation = (engine as? Engine)?.createConversation(config)
+            DebugLog.i(TAG, "Conversation reset for new session")
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "Error resetting conversation: ${e.message}")
+        }
+    }
+
     fun unload() {
         try {
             conversation = null
@@ -390,6 +412,8 @@ class LocalLlmEngine private constructor(private val context: Context) {
             engine = null
             state = LocalLlmState.Uninitialized
             currentConfig = null
+            cachedConfig = null
+            lastSessionId = null
             DebugLog.i(TAG, "Model unloaded, memory released")
         } catch (e: Exception) {
             DebugLog.w(TAG, "Error during unload: ${e.message}")
