@@ -135,6 +135,17 @@ ${buildToolDetails()}
 - If you can say it in one sentence, don't use three.
 - 直接给答案，不要铺垫和过渡语
 - 出错先诊断原因再换策略，不要盲目重试
+"""
+
+## 知识发芽能力
+
+当用户提及「发芽」「生发」「insight」「sprout」「深化」「联想」等词汇时，
+或当你认为用户的观点值得深度挖掘时，使用 insight_sprout 工具执行知识发芽。
+
+发芽是将碎片化想法转化为结构化知识的四阶段过程：
+1. 种子提取 → 2. 跨领域关联 → 3. Aha 洞察 → 4. 金句回响
+
+你也可以在回答中自然地融入跨领域思考和金句，提升回答的深度。
 """.trimIndent()
 
     private fun buildToolsTable(): String {
@@ -264,6 +275,7 @@ ${buildToolDetails()}
     private fun buildCapabilityDeclarations(ctx: PlatformContext): String {
         val caps = mutableListOf<String>()
         if (ctx.hasTTS) caps.add("- **MiMo V2.5 TTS语音合成引擎**：支持影视级语音生成")
+        if (ctx.hasStt) caps.add("- **Sherpa-ONNX 离线语音识别(STT)**：支持离线语音转文字输入")
         if (ctx.hasVoiceInput) caps.add("- 语音输入(STT)：支持语音识别提问")
         if (ctx.hasLocation) caps.add("- 位置感知：可获取用户地理位置")
         if (ctx.hasBrowser) caps.add("- 浏览器集成：可打开和浏览网页")
