@@ -14,5 +14,6 @@ data class PlatformContext(
     val hasLocation: Boolean = false,
     val hasBrowser: Boolean = false,
     val hasCalendar: Boolean = false,
+    val hasStt: Boolean = false,
     val screenInfo: String? = null,
 )
