@@ -81,6 +81,20 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import top.hsyscn.opedrgent.stt.SttResult
+import top.hsyscn.opedrgent.stt.ModelType
+import top.hsyscn.opedrgent.stt.ModelManager
+import top.hsyscn.opedrgent.stt.SherpaOnnxEngine
+import top.hsyscn.opedrgent.stt.AndroidSpeechRecognizer
+import top.hsyscn.opedrgent.stt.AudioProcessor
+import top.hsyscn.opedrgent.stt.SttConfig
+import top.hsyscn.opedrgent.insight.InsightSproutEngine
+import top.hsyscn.opedrgent.insight.SproutConfig
 
 data class UiState(
     val sessions: List<SessionSummary> = emptyList(),
@@ -150,6 +164,25 @@ private data class StreamResult(
     val error: String? = null,
 )
 
+enum class SttProgressState {
+    IDLE,
+    DOWNLOADING_MODEL,
+    EXTRACTING_AUDIO,
+    RECOGNIZING,
+    DONE,
+    ERROR,
+}
+
+enum class SproutingState {
+    IDLE,
+    PHASE1,
+    PHASE2,
+    PHASE3,
+    PHASE4,
+    DONE,
+    ERROR,
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
@@ -194,6 +227,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun respondToConfirmation(selectedOption: String?) {
         _confirmationResponse.tryEmit(selectedOption)
     }
+
+    val _sttProgress = MutableStateFlow<SttProgressState>(SttProgressState.IDLE)
+    val sttProgress: StateFlow<SttProgressState> = _sttProgress.asStateFlow()
+
+    val _sttResult = MutableStateFlow<SttResult?>(null)
+    val sttResult: StateFlow<SttResult?> = _sttResult.asStateFlow()
+
+    val _sttError = MutableStateFlow<String?>(null)
+    val sttError: StateFlow<String?> = _sttError.asStateFlow()
+
+    val _sproutingState = MutableStateFlow<SproutingState>(SproutingState.IDLE)
+    val sproutingState: StateFlow<SproutingState> = _sproutingState.asStateFlow()
+
+    val _sproutResult = MutableStateFlow<String?>(null)
+    val sproutResult: StateFlow<String?> = _sproutResult.asStateFlow()
+
+    private var sttEngine: SpeechEngine? = null
+    private var sttJob: Job? = null
+    private var sproutJob: Job? = null
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
@@ -2902,4 +2954,274 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun getPackageNameForShare(context: Context): String = context.packageName
+
+    fun startSpeechToText(uri: Uri) {
+        sttJob?.cancel()
+        _sttProgress.value = SttProgressState.IDLE
+        _sttResult.value = null
+        _sttError.value = null
+
+        sttJob = viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+
+                val (isValid, errorMsg) = AudioProcessor.validateAudioFile(context, uri)
+                if (!isValid) {
+                    _sttProgress.value = SttProgressState.ERROR
+                    _sttError.value = errorMsg ?: "音频文件验证失败"
+                    return@launch
+                }
+
+                val recommendedModel = ModelManager.getRecommendedModel(context)
+                if (!ModelManager.isModelDownloaded(context, recommendedModel)) {
+                    _sttProgress.value = SttProgressState.DOWNLOADING_MODEL
+                    ModelManager.downloadModel(context, recommendedModel).collect { progress ->
+                        if (progress < 0f) {
+                            _sttProgress.value = SttProgressState.ERROR
+                            _sttError.value = "模型下载失败"
+                            return@collect
+                        }
+                    }
+                    if (_sttProgress.value == SttProgressState.ERROR) return@launch
+                }
+
+                _sttProgress.value = SttProgressState.EXTRACTING_AUDIO
+                val audioMeta = AudioProcessor.getAudioMetadata(context, uri)
+                DebugLog.i("STT: 音频元数据 duration=${audioMeta?.durationMs}ms")
+
+                _sttProgress.value = SttProgressState.RECOGNIZING
+                val modelDir = ModelManager.getModelPath(context, recommendedModel)
+                val engine = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
+                sttEngine = engine
+
+                if (modelDir != null) {
+                    engine.initialize(modelDir)
+                }
+
+                val result = withContext(Dispatchers.IO) { engine.recognizeFile(uri) }
+                _sttResult.value = result.copy(modelUsed = recommendedModel.name)
+                _sttProgress.value = SttProgressState.DONE
+                DebugLog.i("STT: 转录完成 text=${result.text.take(50)}... confidence=${result.confidence}")
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    DebugLog.e("STT: 转录异常 ${e.message}", e)
+                    _sttProgress.value = SttProgressState.ERROR
+                    _sttError.value = e.message ?: "转录过程发生未知错误"
+                }
+            } finally {
+                sttEngine?.close()
+                sttEngine = null
+            }
+        }
+    }
+
+    fun startRealtimeSpeechRecognition() {
+        sttJob?.cancel()
+        _sttProgress.value = SttProgressState.IDLE
+        _sttResult.value = null
+        _sttError.value = null
+
+        sttJob = viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+                _sttProgress.value = SttProgressState.RECOGNIZING
+
+                val recognizer = AndroidSpeechRecognizer(context, SttConfig(mode = RecognitionMode.STREAMING))
+                sttEngine = recognizer
+
+                recognizer.startStreamingRecognition().collect { state ->
+                    when (state) {
+                        is StreamingRecognitionState.Recognizing -> {
+                            _sttResult.value = SttResult(
+                                text = state.partialText,
+                                engineType = EngineType.ANDROID_SPEECH_RECOGNIZER,
+                            )
+                        }
+                        is StreamingRecognitionState.FinalResult -> {
+                            _sttResult.value = SttResult(
+                                text = state.text,
+                                engineType = EngineType.ANDROID_SPEECH_RECOGNIZER,
+                            )
+                            _sttProgress.value = SttProgressState.DONE
+                        }
+                        is StreamingRecognitionState.Error -> {
+                            _sttProgress.value = SttProgressState.ERROR
+                            _sttError.value = state.message
+                        }
+                        is StreamingRecognitionState.Listening -> {
+                            _sttProgress.value = SttProgressState.RECOGNIZING
+                        }
+                        is StreamingRecognitionState.Stopped -> {
+                            _sttProgress.value = SttProgressState.DONE
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    DebugLog.e("STT: 实时录音异常 ${e.message}", e)
+                    _sttProgress.value = SttProgressState.ERROR
+                    _sttError.value = e.message ?: "实时语音识别发生未知错误"
+                }
+            } finally {
+                sttEngine?.close()
+                sttEngine = null
+            }
+        }
+    }
+
+    fun stopSttRecognition() {
+        try {
+            sttEngine?.stopStreamingRecognition()
+        } catch (_: Exception) {}
+        sttJob?.cancel()
+        sttJob = null
+        if (_sttProgress.value != SttProgressState.DONE && _sttProgress.value != SttProgressState.ERROR) {
+            _sttProgress.value = SttProgressState.IDLE
+        }
+    }
+
+    fun copyToClipboard(text: String) {
+        try {
+            val context = getApplication<Application>()
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("stt_result", text))
+            DebugLog.i("STT: 已复制到剪贴板 length=${text.length}")
+        } catch (e: Exception) {
+            DebugLog.e("STT: 复制到剪贴板失败 ${e.message}", e)
+            _sttError.value = "复制失败: ${e.message}"
+        }
+    }
+
+    fun sendSttResultToLlm() {
+        val result = _sttResult.value ?: run {
+            _sttError.value = "没有可发送的转录结果"
+            return
+        }
+        if (result.text.isBlank()) {
+            _sttError.value = "转录结果为空，无法发送"
+            return
+        }
+
+        val sessionId = _state.value.current?.id
+        if (sessionId == null) {
+            createSessionAndNavigate("语音转文字 - ${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}")
+        }
+
+        val currentSessionId = _state.value.current?.id ?: return
+        val prompt = buildString {
+            appendLine("以下是语音转录的结果，请帮我整理并回复：")
+            appendLine()
+            appendLine("--- 语音转录 ---")
+            appendLine(result.text)
+            appendLine("--- 结束 ---")
+            if (result.durationMs > 0) {
+                appendLine()
+                appendLine("(音频时长: ${AudioProcessor.formatDuration(result.durationMs)}, 置信度: ${"%.1f".format(result.confidence * 100)}%)")
+            }
+        }
+
+        store.addMessage(currentSessionId, Role.USER, prompt.trim())
+        _state.value = _state.value.copy(current = store.getSession(currentSessionId))
+        refreshSessions()
+        runModel(currentSessionId)
+
+        DebugLog.i("STT: 已将转录结果发送给 LLM sessionId=$currentSessionId length=${result.text.length}")
+    }
+
+    fun checkModelDownloaded(): Boolean {
+        val context = getApplication<Application>()
+        val model = ModelManager.getRecommendedModel(context)
+        return ModelManager.isModelDownloaded(context, model)
+    }
+
+    fun downloadModel(modelType: ModelType): Flow<Float> {
+        val context = getApplication<Application>()
+        return ModelManager.downloadModel(context, modelType)
+    }
+
+    fun getRecommendedModel(): ModelType {
+        val context = getApplication<Application>()
+        return ModelManager.getRecommendedModel(context)
+    }
+
+    fun triggerInsightSprout(text: String, config: SproutConfig?) {
+        sproutJob?.cancel()
+        _sproutingState.value = SproutingState.IDLE
+        _sproutResult.value = null
+
+        sproutJob = viewModelScope.launch {
+            try {
+                val effectiveConfig = config ?: SproutConfig()
+                val sessionId = _state.value.current?.id
+
+                _sproutingState.value = SproutingState.PHASE1
+
+                val engine = InsightSproutEngine { prompt ->
+                    val targetSessionId = sessionId ?: run {
+                        val newSession = store.createSession("知识发芽 - ${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}")
+                        refreshSessions()
+                        _state.value = _state.value.copy(current = newSession)
+                        newSession.id
+                    }
+
+                    val tempId = java.util.UUID.randomUUID().toString().take(8)
+                    store.addMessage(targetSessionId, Role.USER, "[发芽-$tempId] $prompt")
+
+                    val chatRequest = LlmClient.ChatRequest(
+                        messages = listOf(LlmClient.ChatMessage(Role.USER.name.lowercase(), prompt)),
+                        temperature = 0.7,
+                        maxTokens = when (effectiveConfig.outputLength) {
+                            top.hsyscn.opedrgent.insight.SproutOutputLength.SHORT -> 1024
+                            top.hsyscn.opedrgent.insight.SproutOutputLength.LONG -> 4096
+                            else -> 2048
+                        },
+                    )
+
+                    var fullResponse = ""
+                    llm.chatStream(chatRequest).collect { delta ->
+                        when (delta) {
+                            is StreamDelta.Content -> fullResponse += delta.text
+                            is StreamDelta.Error -> throw RuntimeException(delta.error)
+                            else -> {}
+                        }
+                    }
+
+                    store.addMessage(targetSessionId, Role.ASSISTANT, fullResponse)
+                    _state.value = _state.value.copy(current = store.getSession(targetSessionId))
+                    refreshSessions()
+
+                    fullResponse
+                }
+
+                val result = engine.sprout(text, effectiveConfig)
+
+                for (phase in result.completedPhases) {
+                    when (phase) {
+                        top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
+                        top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
+                        top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
+                        top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
+                    }
+                }
+
+                _sproutResult.value = result.markdownReport
+                _sproutingState.value = SproutingState.DONE
+                DebugLog.i("Sprout: 发芽完成 phases=${result.completedPhases.size}/4 time=${result.processingTimeMs}ms")
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    DebugLog.e("Sprout: 发芽异常 ${e.message}", e)
+                    _sproutingState.value = SproutingState.ERROR
+                    _sproutResult.value = "发芽处理失败: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun cancelSprouting() {
+        sproutJob?.cancel()
+        sproutJob = null
+        if (_sproutingState.value != SproutingState.DONE && _sproutingState.value != SproutingState.ERROR) {
+            _sproutingState.value = SproutingState.IDLE
+        }
+    }
 }

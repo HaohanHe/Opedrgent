@@ -17,6 +17,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -75,6 +79,8 @@ dependencies {
     implementation(libs.tflite)
     implementation(libs.tflite.gpu)
     implementation(libs.tflite.support)
+    // Sherpa-ONNX: 高性能离线语音识别框架 (Apache 2.0)
+    implementation("com.k2fsa.sherpa:sherpa-onnx:1.10.16")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
