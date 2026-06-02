@@ -385,7 +385,52 @@ Structure your analysis with:
                 ),
             ))
 
-            DebugLog.i("BuiltinSkillLoader: loaded 6 builtin skills")
+            registry.registerSkill(SkillDefinition(
+                id = "insight_sprout",
+                name = "知识发芽",
+                description = "对输入文本进行深度多维度分析，通过四阶段过程发芽衍生出结构化的洞察报告：种子提取、跨领域关联、Aha洞察生成、金句回响",
+                category = SkillCategory.ANALYSIS,
+                tags = listOf("发芽", "生发", "深化", "联想", "insight", "sprout", "分析", "洞察"),
+                promptTemplate = """你是一位深度思考助手。对用户分享的文本进行知识发芽分析，通过以下四阶段过程生成结构化洞察：
+
+## 任务
+
+{{task}}
+
+## 四阶段分析过程
+
+### 1. 种子提取
+从文本中提取：
+- 核心概念或主张
+- 情感倾向
+- 潜在主题
+
+### 2. 跨领域关联
+将种子映射到：
+- 历史事件或人物
+- 哲学思想
+- 科学发现
+- 艺术作品
+- 其他意想不到的领域
+
+### 3. Aha洞察
+生成反直觉的、有启发性的洞察：
+- 从新角度看待原观点
+- 发现隐藏的联系
+- 提出有趣的假设
+
+### 4. 金句回响
+将洞察与经典名言或著作建立桥梁：
+- 引用相关的经典语句
+- 连接到著名的思想
+- 升华洞察的深度
+
+## 输出格式
+
+用结构化的 Markdown 呈现发芽结果，确保语言自然、有深度且易于理解。""",
+            ))
+
+            DebugLog.i("BuiltinSkillLoader: loaded 7 builtin skills")
         }
 
         /**
