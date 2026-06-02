@@ -792,6 +792,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     put("required", org.json.JSONArray().apply { put("text") })
                 }
             ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "insight_sprout",
+                description = """知识发芽引擎：对输入文本进行深度多维度分析，通过四阶段过程发芽衍生出结构化的洞察报告。
+
+【使用场景】：
+- 用户分享了有深度的观点或想法
+- 对话中出现了值得挖掘的核心概念
+- 用户提到「发芽」「生发」「深化」「联想」「insight」「sprout」等关键词
+- 你认为内容足够丰富，值得进行深度思考时
+- 用户想要获得跨领域的启发时
+
+【工作流程】：
+1. 种子提取：从文本中提取核心概念、情感倾向、潜在主题
+2. 跨领域关联：将种子映射到多个领域，建立出人意料的联系
+3. Aha 洞察：生成反直觉的、有启发性的金句洞察
+4. 金句回响：将洞察与经典名言或著作建立桥梁""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("text", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "需要进行知识发芽的核心文本内容（必填，建议至少10个字）")
+                        })
+                        put("length", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("enum", org.json.JSONArray().apply { put("short"); put("medium"); put("long") })
+                            put("description", "报告长度，可选 short/medium/long，默认 medium")
+                        })
+                        put("domains", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "偏好的领域列表，逗号分隔，如 '哲学,历史,心理学'（可选）")
+                        })
+                        put("use_context", org.json.JSONObject().apply {
+                            put("type", "boolean")
+                            put("description", "是否使用当前会话上下文，默认 true")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("text") })
+                }
+            ),
         )
     }
 

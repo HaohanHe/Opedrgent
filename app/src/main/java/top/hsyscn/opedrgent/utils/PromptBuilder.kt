@@ -122,6 +122,7 @@ Do NOT manually browse or construct URLs when a tool exists for that purpose.
 - 搜索为空 ≠ 无解，是关键词不好，换词再试
 - 多个独立操作可以并行调用
 - **URL 处理优先级**：用户消息中的 URL → read_url（直接访问）；无 URL 的问题 → web_search（搜索）
+- **知识发芽触发规则**：当用户分享有深度的观点、概念、问题时；或用户提及「发芽」「生发」「深化」「联想」「insight」「sprout」时；或你认为值得深入分析时，使用 insight_sprout 工具进行深度分析。
 
 ${buildToolDetails()}
 
@@ -135,17 +136,7 @@ ${buildToolDetails()}
 - If you can say it in one sentence, don't use three.
 - 直接给答案，不要铺垫和过渡语
 - 出错先诊断原因再换策略，不要盲目重试
-"""
-
-## 知识发芽能力
-
-当用户提及「发芽」「生发」「insight」「sprout」「深化」「联想」等词汇时，
-或当你认为用户的观点值得深度挖掘时，使用 insight_sprout 工具执行知识发芽。
-
-发芽是将碎片化想法转化为结构化知识的四阶段过程：
-1. 种子提取 → 2. 跨领域关联 → 3. Aha 洞察 → 4. 金句回响
-
-你也可以在回答中自然地融入跨领域思考和金句，提升回答的深度。
+- 收到发芽工具结果后，将洞察自然融入回答，不要生硬地丢报告。
 """.trimIndent()
 
     private fun buildToolsTable(): String {

@@ -230,6 +230,43 @@ object ToolPrompts {
 - 音色克隆: mime_voiceclone_时间戳.wav
 """.trimIndent()
 
+            "insight_sprout" -> """
+## insight_sprout - 知识发芽引擎
+
+对输入文本进行深度多维度分析，通过四阶段过程发芽衍生出结构化的洞察报告。这是一个能让普通对话内容产生质变的深度思考工具。
+
+### 工作流程
+1. **种子提取**：从文本中提取核心概念、情感倾向、潜在主题
+2. **跨领域关联**：将种子映射到历史、哲学、科学、艺术等多个领域，建立出人意料的联系
+3. **Aha 洞察**：生成反直觉的、有启发性的金句洞察
+4. **金句回响**：将洞察与经典名言或著作建立桥梁
+
+### 使用场景
+- 用户分享了有深度的观点或想法
+- 对话中出现了值得挖掘的核心概念
+- 用户提到「发芽」「生发」「深化」「联想」「insight」「sprout」等关键词
+- 你认为内容足够丰富，值得进行深度思考时
+- 用户想要获得跨领域的启发时
+
+### 参数说明
+- `text` (必填): 需要进行知识发芽的核心文本内容（建议至少10个字，有完整观点更佳）
+- `length` (可选): 报告长度，可选 "short"（简洁）、"medium"（适中）、"long"（详细），默认 "medium"
+- `domains` (可选): 偏好的领域列表，逗号分隔，如 "哲学,历史,心理学"，若不指定则自动选择
+- `use_context` (可选): 是否使用当前会话上下文，默认 true
+
+### 调用示例
+{"text": "今天学到了一个新观点：免费往往是最昂贵的", "length": "medium", "domains": "经济学,心理学"}
+
+### 最佳实践
+- **触发要自然**：不是每个消息都需要发芽，只有内容有深度或用户暗示时才使用
+- **优先思考**：调用前先在 reasoning 中说明「我认为这个观点值得深度分析，让我进行知识发芽」
+- **结果整合**：拿到发芽报告后，在回答中自然地融入洞察，而不是直接甩给用户
+- **可继续追问**：发芽完成后，可以根据结果继续与用户深入讨论某个洞察
+
+### 输出
+返回一份结构化的 Markdown 报告，包含种子概念、跨领域关联、Aha 洞察和金句回响
+""".trimIndent()
+
             else -> ""
         }
 
@@ -246,6 +283,7 @@ object ToolPrompts {
             "ask_question" to getToolPrompt("ask_question"),
             "ask_confirmation" to getToolPrompt("ask_confirmation"),
             "mimo_tts" to getToolPrompt("mimo_tts"),
+            "insight_sprout" to getToolPrompt("insight_sprout"),
         ).filter { it.value.isNotBlank() }
     }
 
