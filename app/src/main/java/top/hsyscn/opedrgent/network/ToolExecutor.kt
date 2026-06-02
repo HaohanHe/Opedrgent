@@ -17,14 +17,12 @@ import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.tools.DeepResearchTool
 import top.hsyscn.opedrgent.tools.GenerateReportTool
-import top.hsyscn.opedrgent.tools.InsightSproutTool
 import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
 import top.hsyscn.opedrgent.tools.ReadUrlTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
-import top.hsyscn.opedrgent.insight.InsightSproutEngine
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
 import java.util.concurrent.ConcurrentHashMap
@@ -55,17 +53,6 @@ class ToolExecutor(
         register(GenerateReportTool(llm))
         register(MimoTtsTool(apiSettings))
         register(ReverseGeocodeTool(searcher))
-        register(InsightSproutTool(InsightSproutEngine { prompt ->
-            llm.chatCompletions(
-                config = apiSettings.getApiConfig() ?: throw IllegalStateException("API config not available"),
-                system = "",
-                messages = listOf(top.hsyscn.opedrgent.model.ChatMessage(
-                    role = top.hsyscn.opedrgent.model.Role.USER,
-                    content = prompt,
-                    createdAt = System.currentTimeMillis(),
-                )),
-            )
-        }))
     }
 
     private fun buildSearchConfig(): SearchConfig = SearchConfig(
