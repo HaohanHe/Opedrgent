@@ -85,7 +85,7 @@ fun SttProgressDialog(
             ) {
                 AnimatedContent(
                     targetState = progressState,
-                    transitionSpec = { fadeIn(togetherWith(fadeOut())) },
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "progressState",
                 ) { state ->
                     when (state) {
@@ -325,6 +325,8 @@ private fun ErrorPhase(onRetry: () -> Unit) {
 
 @Composable
 private fun AudioWaveformIndicator(waveOffset: Float) {
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+
     Canvas(modifier = Modifier.fillMaxWidth().height(24.dp)) {
         val barCount = 24
         val barWidth = size.width / (barCount * 2f)
@@ -332,7 +334,7 @@ private fun AudioWaveformIndicator(waveOffset: Float) {
             val phase = ((i.toFloat() / barCount + waveOffset) % 1f)
             val height = (size.height * (0.25f + 0.75f * kotlin.math.sin(phase * Math.PI.toFloat())).coerceAtLeast(size.height * 0.15f))
             drawRoundRect(
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f + phase * 0.5f),
+                color = secondaryColor.copy(alpha = 0.5f + phase * 0.5f),
                 topLeft = Offset(x = i * barWidth * 2f, y = (size.height - height) / 2),
                 size = Size(width = barWidth * 1.4f, height = height),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2),

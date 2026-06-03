@@ -75,10 +75,10 @@ import kotlinx.coroutines.isActive
 import top.hsyscn.opedrgent.ui.SproutingState
 
 private val PHASE_LABELS = mapOf(
-    SproutingState.PHASE1 to "提取种子" to "正在提取关键信息...",
-    SproutingState.PHASE2 to "跨领域关联" to "正在建立知识连接...",
-    SproutingState.PHASE3 to "生成洞察" to "正在生成洞察...",
-    SproutingState.PHASE4 to "金句回响" to "正在提炼金句...",
+    SproutingState.PHASE1 to ("提取种子" to "正在提取关键信息..."),
+    SproutingState.PHASE2 to ("跨领域关联" to "正在建立知识连接..."),
+    SproutingState.PHASE3 to ("生成洞察" to "正在生成洞察..."),
+    SproutingState.PHASE4 to ("金句回响" to "正在提炼金句..."),
 )
 
 @Composable
@@ -104,13 +104,13 @@ fun SproutResultView(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            SproutTitleBar(sproutingState = sproutingState, onDismiss = onDismiss)
+            SproutTitleBar(sproutingState = sproutingState, qualityScore = qualityScore, onDismiss = onDismiss)
 
             Spacer(Modifier.height(12.dp))
 
             AnimatedContent(
                 targetState = sproutingState,
-                transitionSpec = { fadeIn(togetherWith(fadeOut())) },
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "sproutingState",
             ) { state ->
                 when (state) {
@@ -142,7 +142,7 @@ fun SproutResultView(
 }
 
 @Composable
-private fun SproutTitleBar(sproutingState: SproutingState, onDismiss: () -> Unit) {
+private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, onDismiss: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = when (sproutingState) {
@@ -279,18 +279,22 @@ private fun ProcessingPhase(currentPhase: SproutingState) {
 
 @Composable
 private fun SproutGrowingAnimation(progress: Float) {
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+
     Canvas(modifier = Modifier.size(80.dp)) {
         val stemHeight = size.height * 0.5f * progress
         val leafSize = size.width * 0.25f
 
         drawCircle(
-            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f + 0.3f * progress),
+            color = tertiaryColor.copy(alpha = 0.2f + 0.3f * progress),
             radius = size.width * 0.18f,
             center = Offset(size.width / 2, size.height * 0.78f),
         )
 
         drawRoundRect(
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f + 0.3f * progress),
+            color = primaryColor.copy(alpha = 0.7f + 0.3f * progress),
             topLeft = Offset(x = size.width / 2 - 2.dp.toPx(), y = size.height * 0.78f - stemHeight),
             size = Size(width = 4.dp.toPx(), height = stemHeight),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
@@ -299,7 +303,7 @@ private fun SproutGrowingAnimation(progress: Float) {
         if (progress > 0.3f) {
             val leftLeafScale = ((progress - 0.3f) / 0.7f).coerceIn(0f, 1f)
             drawOval(
-                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f * leftLeafScale),
+                color = tertiaryColor.copy(alpha = 0.6f * leftLeafScale),
                 topLeft = Offset(
                     x = size.width / 2 - leafSize - 4.dp.toPx(),
                     y = size.height * 0.78f - stemHeight - leafSize * 0.3f,
@@ -311,7 +315,7 @@ private fun SproutGrowingAnimation(progress: Float) {
         if (progress > 0.5f) {
             val rightLeafScale = ((progress - 0.5f) / 0.5f).coerceIn(0f, 1f)
             drawOval(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f * rightLeafScale),
+                color = primaryColor.copy(alpha = 0.5f * rightLeafScale),
                 topLeft = Offset(
                     x = size.width / 2 + 4.dp.toPx(),
                     y = size.height * 0.78f - stemHeight * 0.85f - leafSize * 0.2f,
@@ -323,7 +327,7 @@ private fun SproutGrowingAnimation(progress: Float) {
         if (progress > 0.75f) {
             val topLeafScale = ((progress - 0.75f) / 0.25f).coerceIn(0f, 1f)
             drawOval(
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f * topLeafScale),
+                color = secondaryColor.copy(alpha = 0.7f * topLeafScale),
                 topLeft = Offset(
                     x = size.width / 2 - leafSize * 0.35f,
                     y = size.height * 0.78f - stemHeight - leafSize * 0.6f,

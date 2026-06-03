@@ -112,7 +112,7 @@ data class ParsedMarkdownContent(
 )
 
 @Composable
-fun MarkdownText(text: String, maxChars: Int) {
+fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     val t = text.trim()
     val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
@@ -142,7 +142,7 @@ fun MarkdownText(text: String, maxChars: Int) {
     val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
     val isBlockquote = { line: String -> line.trimStart().startsWith("> ") }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier) {
         val lines = parsedContent!!.lines
         var inCodeBlock = false
         var codeBlockLang = ""

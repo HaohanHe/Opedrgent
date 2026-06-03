@@ -4,7 +4,10 @@ package top.hsyscn.opedrgent.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import android.speech.RecognizerIntent
@@ -492,6 +495,10 @@ fun SessionScreen(
                 }
             }
 
+            // 发芽结果视图 - 自然显示在聊天中
+            val sproutResult by vm.sproutResult.collectAsStateCompat()
+            val sproutingState by vm.sproutingState.collectAsStateCompat()
+
             // Messages
             LazyColumn(
                 state = listState,
@@ -555,8 +562,6 @@ fun SessionScreen(
                 }
                 
                 // 发芽结果视图 - 自然显示在聊天中
-                val sproutResult by vm.sproutResult.collectAsStateCompat()
-                val sproutingState by vm.sproutingState.collectAsStateCompat()
                 if (sproutResult != null || sproutingState != SproutingState.IDLE) {
                     item(key = "_sprout") {
                         top.hsyscn.opedrgent.ui.components.SproutResultView(
@@ -738,6 +743,7 @@ fun SessionScreen(
             ConfirmationDialog(
                 request = request,
                 onConfirm = { selectedOption -> vm.respondToConfirmation(selectedOption) },
+                onDismiss = { vm.respondToConfirmation(null) },
                 onTimeout = { vm.respondToConfirmation(null) },
                 modifier = Modifier
                     .fillMaxWidth()

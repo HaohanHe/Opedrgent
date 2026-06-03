@@ -154,7 +154,7 @@ class InsightSproutEngine(
         block: suspend () -> String,
     ): Result<String> {
         return try {
-            val result = withTimeoutOrNull(java.time.Duration.ofMillis(timeoutMs)) { block() }
+            val result = withTimeoutOrNull(timeoutMs) { block() }
             if (result != null) Result.success(result) else {
                 DebugLog.w("InsightSproutEngine: $phaseName 超时 (${timeoutMs}ms)")
                 Result.failure(TimeoutException("$phaseName 超时"))
@@ -403,7 +403,7 @@ class InsightSproutEngine(
             lines.take(5).forEach { line ->
                 val clean = line.trim().removePrefix("- ").removePrefix("* ").removePrefix("#").trim()
                 if (clean.contains(Regex("[：:]"))) {
-                    val parts = clean.split(Regex("[：:]", 2), limit = 2)
+                    val parts = clean.split(Regex("[：:]"), limit = 2)
                     if (parts[0].length in 2..30) {
                         results.add(SproutSeed(concept = parts[0].trim(), description = parts.getOrNull(1)?.trim().orEmpty()))
                     }

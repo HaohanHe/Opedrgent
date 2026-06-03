@@ -352,7 +352,7 @@ class SherpaOnnxEngine(
                 throw IOException("不支持的 WAV 音频格式: format=$audioFormat (仅支持 PCM=1 或 IEEE_FLOAT=3)")
             }
 
-            DebugLog.d(TAG, "WAV 信息: rate=$sampleRateHz, ch=$channels, bits=$bitsPerSample, fmt=$audioFormat")
+            DebugLog.d(TAG, "WAV 信息: rate=$sampleRate, ch=$channels, bits=$bitsPerSample, fmt=$audioFormat")
 
             val dataSize = file.length().toInt() - WAV_HEADER_SIZE
             if (dataSize <= 0) {
@@ -421,7 +421,7 @@ class SherpaOnnxEngine(
         var outIdx = 0
 
         for (i in 0 until totalSamples step channels) {
-            val sample = bb.short(i * 2).toInt().toFloat() / 32768f
+            val sample = bb.getShort(i * 2).toInt().toFloat() / 32768f
             result[outIdx++] = sample.coerceIn(-1f, 1f)
         }
 
@@ -506,7 +506,7 @@ class SherpaOnnxEngine(
             result[i] = input[srcIdx]
         }
 
-        DebugLog.d(TAG, "重采样: ${fromRate}Hz → ${toRate}Hz (${input.size} → ${result.length} samples)")
+        DebugLog.d(TAG, "重采样: ${fromRate}Hz → ${toRate}Hz (${input.size} → ${result.size} samples)")
         return result
     }
 

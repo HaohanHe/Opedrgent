@@ -310,7 +310,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     .ifEmpty { delta.optString("reasoning", "").let { if (it == "null") "" else it } }
 
                 if (content.isNotEmpty() || reasoning.isNotEmpty()) {
-                    DebugLog.v("SSE chunk: content=${content.take(40)}... reasoning=${reasoning.take(40)}... finish=$finishReason")
+                    DebugLog.d("SSE chunk: content=${content.take(40)}... reasoning=${reasoning.take(40)}... finish=$finishReason")
                 }
                 totalChunks++
 

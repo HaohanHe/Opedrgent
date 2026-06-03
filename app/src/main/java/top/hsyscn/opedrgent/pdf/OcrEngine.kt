@@ -3,11 +3,12 @@ package top.hsyscn.opedrgent.pdf
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import androidx.annotation.OptIn
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
@@ -36,7 +37,7 @@ class OcrEngine(private val context: Context) {
 
     // 默认文本识别器（英文/拉丁文）
     private val defaultRecognizer by lazy {
-        TextRecognition.getClient()
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
     /**
@@ -68,7 +69,7 @@ class OcrEngine(private val context: Context) {
                         lines.add(
                             OcrLine(
                                 text = line.text,
-                                confidence = line.confidence?.toFloat() ?: 1f,
+                                confidence = 1f,
                                 boundingBox = line.boundingBox?.let { rect ->
                                     BoundingBox(
                                         left = rect.left.toFloat(),
