@@ -16,10 +16,10 @@ data class SproutQualityScore(
     val overallScore: Float,
 ) {
     fun grade(): String = when {
-        overallScore >= 85 -> "🏆 优秀"
-        overallScore >= 70 -> "✅ 良好"
-        overallScore >= 50 -> "⚠️ 一般"
-        else -> "❌ 较差"
+        overallScore >= 85 -> "优秀"
+        overallScore >= 70 -> "良好"
+        overallScore >= 50 -> "一般"
+        else -> "较差"
     }
 }
 
@@ -635,7 +635,7 @@ class InsightSproutEngine(
         val inputSummary = inputText.take(60).let { if (inputText.length > 60) it + "..." else it }
         val qualityScore = (phaseCache["qualityScore"] as? SproutQualityScore)
 
-        sb.appendLine("# 🌱 知识发芽报告")
+        sb.appendLine("# 知识发芽报告")
         sb.appendLine()
         sb.appendLine("> 基于「${escapeMarkdown(inputSummary)}」的深度分析")
         sb.appendLine()
@@ -643,7 +643,7 @@ class InsightSproutEngine(
         sb.appendLine()
 
         // 种子区域
-        sb.appendLine("## 🌱 种子")
+        sb.appendLine("## 种子")
         sb.appendLine()
         if (seeds.isNotEmpty()) {
             sb.appendLine("| # | 核心概念 | 描述 | 关键词 |")
@@ -660,7 +660,7 @@ class InsightSproutEngine(
         sb.appendLine()
 
         // Aha 瞬间
-        sb.appendLine("## ✨ Aha 瞬间")
+        sb.appendLine("## Aha 瞬间")
         sb.appendLine()
         if (insights.isNotEmpty()) {
             insights.forEach { insight ->
@@ -679,15 +679,15 @@ class InsightSproutEngine(
         sb.appendLine()
 
         // 跨领域联结
-        sb.appendLine("## 🔗 跨领域联结")
+        sb.appendLine("## 跨领域联结")
         sb.appendLine()
         if (connections.isNotEmpty()) {
             connections.forEach { conn ->
-                sb.appendLine("### ${domainEmoji(conn.domain)} ${escapeMarkdown(conn.domain)}")
+                sb.appendLine("### ${escapeMarkdown(conn.domain)}")
                 sb.appendLine()
                 sb.appendLine("- **类比/案例**: ${escapeMarkdown(conn.analogyOrCase)}")
                 sb.appendLine("- **分析**: ${escapeMarkdown(conn.analysis)}")
-                sb.appendLine("- 🎯 反直觉度: ${starRating(conn.unexpectedness)} (${String.format("%.1f", conn.unexpectedness)})")
+                sb.appendLine("- 反直觉度: ${starRating(conn.unexpectedness)} (${String.format("%.1f", conn.unexpectedness)})")
                 sb.appendLine()
             }
         } else {
@@ -698,7 +698,7 @@ class InsightSproutEngine(
         sb.appendLine()
 
         // 金句回响
-        sb.appendLine("## 💡 金句回响")
+        sb.appendLine("## 金句回响")
         sb.appendLine()
         if (quotes.isNotEmpty()) {
             quotes.forEach { quote ->
@@ -738,24 +738,6 @@ class InsightSproutEngine(
         val fullStars = (score * 5).toInt().coerceIn(0, 5)
         val emptyStars = 5 - fullStars
         return "★".repeat(fullStars) + "☆".repeat(emptyStars)
-    }
-
-    private fun domainEmoji(domain: String): String {
-        val lower = domain.lowercase(Locale.CHINA)
-        return when {
-            lower.contains("历史") || lower.contains("history") -> "📜"
-            lower.contains("科学") || lower.contains("scienc") -> "🔬"
-            lower.contains("哲学") || lower.contains("philosoph") -> "🧘"
-            lower.contains("心理") || lower.contains("psychol") -> "🧠"
-            lower.contains("经济") || lower.contains("econom") -> "💰"
-            lower.contains("文学") || lower.contains("literatur") -> "📖"
-            lower.contains("生物") || lower.contains("biolog") -> "🧬"
-            lower.contains("社会") || lower.contains("sociol") -> "👥"
-            lower.contains("艺术") || lower.contains("art") -> "🎨"
-            lower.contains("技术") || lower.contains("tech") -> "💻"
-            lower.contains("商业") || lower.contains("busines") -> "📊"
-            else -> "🔗"
-        }
     }
 
     private fun releaseLargeStrings(vararg strings: String?) {

@@ -75,10 +75,10 @@ import kotlinx.coroutines.isActive
 import top.hsyscn.opedrgent.ui.SproutingState
 
 private val PHASE_LABELS = mapOf(
-    SproutingState.PHASE1 to "\uD83C\uDF31 提取种子" to "正在提取关键信息...",
-    SproutingState.PHASE2 to "\uD83D\uDD17 跨领域关联" to "正在建立知识连接...",
-    SproutingState.PHASE3 to "\u2728 生成洞察" to "正在生成 Aha 洞察...",
-    SproutingState.PHASE4 to "\uD83D\uDCA1 金句回响" to "正在提炼金句...",
+    SproutingState.PHASE1 to "提取种子" to "正在提取关键信息...",
+    SproutingState.PHASE2 to "跨领域关联" to "正在建立知识连接...",
+    SproutingState.PHASE3 to "生成洞察" to "正在生成洞察...",
+    SproutingState.PHASE4 to "金句回响" to "正在提炼金句...",
 )
 
 @Composable
@@ -146,10 +146,10 @@ private fun SproutTitleBar(sproutingState: SproutingState, onDismiss: () -> Unit
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = when (sproutingState) {
-                SproutingState.IDLE, SproutingState.DONE -> "\uD83C\uDF31"
-                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> PHASE_LABELS[sproutingState]?.first ?: "\uD83C\uDF31"
-                SproutingState.ERROR -> "\u274C"
-                SproutingState.CANCELLED -> "\u239B"
+                SproutingState.IDLE, SproutingState.DONE -> "知识发芽"
+                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> PHASE_LABELS[sproutingState]?.first ?: "知识发芽"
+                SproutingState.ERROR -> "错误"
+                SproutingState.CANCELLED -> "已取消"
             },
             style = MaterialTheme.typography.headlineSmall,
         )
@@ -191,11 +191,11 @@ private fun SproutTitleBar(sproutingState: SproutingState, onDismiss: () -> Unit
 
 @Composable
 private fun QualityScoreBadge(score: Int) {
-    val (badgeColor, label, emoji) = when {
-        score >= 85 -> Triple(MaterialTheme.colorScheme.primary, "优秀", "\uD83C\uDFC6")
-        score >= 70 -> Triple(MaterialTheme.colorScheme.tertiary, "良好", "\u2705")
-        score >= 50 -> Triple(MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f), "一般", "\u26A0\uFE0F")
-        else -> Triple(MaterialTheme.colorScheme.error, "需改进", "\u274C")
+    val (badgeColor, label) = when {
+        score >= 85 -> Pair(MaterialTheme.colorScheme.primary, "优秀")
+        score >= 70 -> Pair(MaterialTheme.colorScheme.tertiary, "良好")
+        score >= 50 -> Pair(MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f), "一般")
+        else -> Pair(MaterialTheme.colorScheme.error, "需改进")
     }
 
     Surface(
@@ -207,12 +207,16 @@ private fun QualityScoreBadge(score: Int) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            Text(text = emoji, fontSize = 14.sp)
-            Spacer(Modifier.width(4.dp))
             Text(
                 text = "$score",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
+                color = badgeColor,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
                 color = badgeColor,
             )
         }
@@ -370,7 +374,7 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
                     modifier = Modifier.size((12 * pulseScale).dp),
                 ) {
                     if (isCompleted) {
-                        Text("\u2713", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("✓", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                     } else {
                         Canvas(modifier = Modifier.size((10 * pulseScale).dp)) {
                             drawCircle(color = dotColor)
@@ -379,7 +383,7 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = listOf("\uD83C\uDF31", "\uD83D\uDD17", "\u2728", "\uD83D\uDCA1")[index],
+                    text = listOf("1", "2", "3", "4")[index],
                     fontSize = 11.sp,
                 )
             }
@@ -444,7 +448,7 @@ private fun ErrorPhase() {
             .padding(vertical = 24.dp)
             .semantics { contentDescription = "发芽处理出错" },
     ) {
-        Text(text = "\u274C", style = MaterialTheme.typography.displaySmall)
+        Text(text = "错误", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(12.dp))
         Text(
             text = "发芽过程中出现错误",
@@ -480,7 +484,7 @@ private fun CancelledPhase(onRestart: () -> Unit) {
             .padding(vertical = 24.dp)
             .semantics { contentDescription = "发芽已取消" },
     ) {
-        Text(text = "\u239B", style = MaterialTheme.typography.displaySmall)
+        Text(text = "已取消", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(12.dp))
         Text(
             text = "已取消",
