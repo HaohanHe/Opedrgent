@@ -109,7 +109,7 @@ class InsightSproutTool(
         val result = try {
             engine.sprout(effectiveText, sproutConfig)
         } catch (e: Exception) {
-            DebugLog.w("insight_sprout: engine execution failed - ${e.message}", e)
+            DebugLog.e("insight_sprout: engine execution failed - ${e.message}", e)
             return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n💡 提示：发芽过程涉及 4 阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
         }
 
@@ -174,7 +174,7 @@ class InsightSproutTool(
         }
 
         val questionMarks = para.count { it == '？' || it == '?' } +
-            Regex("[?？]").findAll(para).count
+            Regex("[?？]").findAll(para).count()
         score += questionMarks * 5.0
 
         val positionBonus = when {

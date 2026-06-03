@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.play.services.tasks)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.chinese)
     // TODO: ML Kit GenAI Prompt API 正式发布后取消注释 (当前 0.3.0 版本无公开 Maven 包)
     // implementation(libs.mlkit.genai.prompt)
     implementation(libs.androidx.work.runtime.ktx)
@@ -80,7 +81,8 @@ dependencies {
     implementation(libs.tflite.gpu)
     implementation(libs.tflite.support)
     // Sherpa-ONNX: 高性能离线语音识别框架 (Apache 2.0)
-    implementation("com.k2fsa.sherpa:sherpa-onnx:1.10.16")
+    // TODO: 下载 sherpa-onnx-1.13.2.aar 放到 app/libs/ 后取消注释并删除 stubs
+    // implementation(files("libs/sherpa-onnx-1.13.2.aar"))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

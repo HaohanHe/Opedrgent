@@ -390,7 +390,7 @@ object AudioProcessor {
         val result = ShortArray(floatArray.size)
         for (i in floatArray.indices) {
             val sample = (floatArray[i] * 32767.0f).coerceIn(Short.MIN_VALUE.toFloat(), Short.MAX_VALUE.toFloat())
-            result[i] = sample.toShort()
+            result[i] = sample.toInt().toShort()
         }
         return result
     }
@@ -491,7 +491,7 @@ object AudioProcessor {
             return listOf(AudioSegment("", 0, durationMs, 0))
         }
 
-        if (!samples.isNullOrEmpty() && sampleRate > 0) {
+        if (samples != null && samples.isNotEmpty() && sampleRate > 0) {
             val smartSegments = segmentBySilenceDetection(durationMs, segmentLengthMs, samples, sampleRate)
             if (smartSegments.isNotEmpty()) {
                 DebugLog.i(TAG, "智能分段完成 共${smartSegments.size}段 (基于静音检测)")
@@ -499,7 +499,7 @@ object AudioProcessor {
             }
         }
 
-        segmentWithOverlap(durationMs, segmentLengthMs).also {
+        return segmentWithOverlap(durationMs, segmentLengthMs).also {
             DebugLog.i(TAG, "重叠分段完成 共${it.size}段 (固定时长)")
         }
     }
@@ -620,7 +620,7 @@ object AudioProcessor {
             durationMs = durationMs,
             sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE),
             channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS),
-            bitDepth = format.getInteger(MediaFormat.KEY_BIT_DEPTH, TARGET_BIT_DEPTH),
+            bitDepth = TARGET_BIT_DEPTH,
             format = format.getString(MediaFormat.KEY_MIME) ?: "audio/unknown",
         )
     }
@@ -632,7 +632,7 @@ object AudioProcessor {
             lowerPath.endsWith(".pcm") || lowerPath.endsWith(".raw") -> decodeRawPcmFile(filePath)
             else -> {
                 DebugLog.w(TAG, "decodeFromFile: 未识别的扩展名，尝试通过 MediaCodec 解码: $filePath")
-                decodeViaMediaCodec(Uri.fromFile(File(filePath)))
+                decodeViaMediaCodec(null, Uri.fromFile(File(filePath)))
             }
         }
     }
@@ -821,10 +821,10 @@ object AudioProcessor {
         sampleRate: Int,
     ): List<AudioSegment> {
         val windowMs = 20L
-        val windowSize = (sampleRate * windowMs / 1000).coerceAtLeast(16)
+        val windowSize = (sampleRate * windowMs / 1000).coerceAtLeast(16).toInt()
         val hopSize = windowSize / 2
         val silenceThresholdDb = SILENCE_THRESHOLD_DB
-        val minSilenceFrames = (SILENCE_MIN_DURATION_MS * sampleRate / 1000 / hopSize).coerceAtLeast(2)
+        val minSilenceFrames = (SILENCE_MIN_DURATION_MS * sampleRate / 1000 / hopSize).coerceAtLeast(2).toInt()
 
         val energyDb = computeEnergyDb(samples, windowSize, hopSize)
         val isSilent = energyDb.map { it < silenceThresholdDb }.toBooleanArray()
@@ -850,7 +850,7 @@ object AudioProcessor {
             segments.add(AudioSegment("", currentStart, durationMs, segIdx))
         }
 
-        mergeAndConstrainSegments(segments, durationMs, maxSegmentMs)
+        return mergeAndConstrainSegments(segments, durationMs, maxSegmentMs)
     }
 
     private fun computeEnergyDb(samples: FloatArray, windowSize: Int, hopSize: Int): DoubleArray {
