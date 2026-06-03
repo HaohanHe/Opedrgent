@@ -53,6 +53,7 @@ import top.hsyscn.opedrgent.ui.theme.TextDark
 fun ConfirmationDialog(
     request: ConfirmationRequest,
     onConfirm: (selectedOption: String?) -> Unit,
+    onDismiss: () -> Unit,
     onTimeout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,7 +150,7 @@ fun ConfirmationDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedButton(
-                    onClick = { onConfirm(null) },
+                    onClick = onDismiss,
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Icon(
@@ -177,7 +178,7 @@ fun ConfirmationDialog(
                 }
 
                 Button(
-                    onClick = { onConfirm(null) },
+                    onClick = { onConfirm("__confirmed__") },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BubbleBlue),
                 ) {

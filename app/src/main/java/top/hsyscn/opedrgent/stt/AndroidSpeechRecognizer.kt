@@ -113,7 +113,7 @@ class AndroidSpeechRecognizer(
             override fun onEvent(eventType: Int, params: Bundle?) {}
         }
 
-        speechRecognizer?.setListener(listener)
+        speechRecognizer?.setRecognitionListener(listener)
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)

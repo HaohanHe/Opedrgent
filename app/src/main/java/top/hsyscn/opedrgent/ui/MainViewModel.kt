@@ -83,16 +83,20 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.asStateFlow
 import top.hsyscn.opedrgent.stt.SttResult
+import top.hsyscn.opedrgent.stt.EngineType
 import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.stt.ModelManager
+import top.hsyscn.opedrgent.stt.SpeechEngine
 import top.hsyscn.opedrgent.stt.SherpaOnnxEngine
 import top.hsyscn.opedrgent.stt.AndroidSpeechRecognizer
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
+import top.hsyscn.opedrgent.stt.RecognitionMode
+import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.insight.InsightSproutEngine
 import top.hsyscn.opedrgent.insight.SproutConfig
 
@@ -202,6 +206,7 @@ enum class SproutingState {
     PHASE4,
     DONE,
     ERROR,
+    CANCELLED,
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -242,6 +247,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _questionResponse = MutableSharedFlow<List<List<String>>>(replay = 0)
 
     fun respondToQuestion(answers: List<List<String>>) {
+        _questionRequest.value = null
         _questionResponse.tryEmit(answers)
     }
 
@@ -251,6 +257,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _confirmationResponse = MutableSharedFlow<String?>(replay = 0)
 
     fun respondToConfirmation(selectedOption: String?) {
+        _confirmationRequest.value = null
         _confirmationResponse.tryEmit(selectedOption)
     }
 
@@ -1026,6 +1033,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
 
                                         val answers = _questionResponse.first()
+                                        _questionRequest.value = null
 
                                         val resultAnswers = answers.mapIndexed { idx, ans ->
                                             mapOf("question" to questions[idx].question, "answers" to ans)
@@ -1048,6 +1056,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         ))
                                     } catch (e: Exception) {
                                         DebugLog.e("ask_question error: ${e.message}", e)
+                                        _questionRequest.value = null
                                         val errorTp = tp.copy(state = tp.state.copy(
                                             status = ToolStateType.ERROR,
                                             error = "ask_question 处理失败: ${e.message}",
@@ -1086,12 +1095,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
 
                                         val selectedOption = _confirmationResponse.first()
+                                        _confirmationRequest.value = null
+                                        val confirmed = selectedOption != null
+                                        val actualOption = if (selectedOption == "__confirmed__") null else selectedOption
 
                                         val resultMap = buildString {
                                             append("{")
-                                            append("\"confirmed\": ${selectedOption != null}")
-                                            if (selectedOption != null) {
-                                                append(", \"selectedOption\": \"${selectedOption.replace("\"", "\\\"")}\"")
+                                            append("\"confirmed\": $confirmed")
+                                            if (actualOption != null) {
+                                                append(", \"selectedOption\": \"${actualOption.replace("\"", "\\\"")}\"")
                                             }
                                             append(", \"timeout\": false")
                                             append("}")
@@ -1114,6 +1126,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         ))
                                     } catch (e: Exception) {
                                         DebugLog.e("ask_confirmation error: ${e.message}", e)
+                                        _confirmationRequest.value = null
                                         val errorTp = tp.copy(state = tp.state.copy(
                                             status = ToolStateType.ERROR,
                                             error = "ask_confirmation 处理失败: ${e.message}",
@@ -3461,52 +3474,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val startTime = System.currentTimeMillis()
 
                 val engine = InsightSproutEngine { prompt ->
-                    val targetSessionId = sessionId ?: run {
-                        val newSession = store.createSession("知识发芽 - ${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}")
-                        refreshSessions()
-                        _state.value = _state.value.copy(current = newSession)
-                        newSession.id
-                    }
-
-                    val tempId = java.util.UUID.randomUUID().toString().take(8)
-                    store.addMessage(targetSessionId, Role.USER, "[发芽-$tempId] $prompt")
-
-                    val chatRequest = LlmClient.ChatRequest(
-                        messages = listOf(LlmClient.ChatMessage(Role.USER.name.lowercase(), prompt)),
-                        temperature = 0.7,
-                        maxTokens = when (effectiveConfig.outputLength) {
-                            top.hsyscn.opedrgent.insight.SproutOutputLength.SHORT -> 1024
-                            top.hsyscn.opedrgent.insight.SproutOutputLength.LONG -> 4096
-                            else -> 2048
-                        },
+                    val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+                    LlmClient().chatCompletions(
+                        config = apiConfig,
+                        system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
+                        messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
                     )
-
-                    var fullResponse = ""
-                    llm.chatStream(chatRequest).collect { delta ->
-                        when (delta) {
-                            is StreamDelta.Content -> fullResponse += delta.text
-                            is StreamDelta.Error -> throw RuntimeException(delta.error)
-                            else -> {}
-                        }
-                    }
-
-                    store.addMessage(targetSessionId, Role.ASSISTANT, fullResponse)
-                    _state.value = _state.value.copy(current = store.getSession(targetSessionId))
-                    refreshSessions()
-
-                    if (currentPhaseIndex < phaseOrder.size) {
-                        val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
-                        _sproutUiState.value = SproutUiState.PhaseInProgress(phaseOrder[currentPhaseIndex], elapsedSec)
-                        _sproutingState.value = when (phaseOrder[currentPhaseIndex]) {
-                            top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> SproutingState.PHASE1
-                            top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> SproutingState.PHASE2
-                            top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT -> SproutingState.PHASE3
-                            top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> SproutingState.PHASE4
-                        }
-                        currentPhaseIndex++
-                    }
-
-                    fullResponse
                 }
 
                 _sproutUiState.value = SproutUiState.GeneratingReport(0, 4)

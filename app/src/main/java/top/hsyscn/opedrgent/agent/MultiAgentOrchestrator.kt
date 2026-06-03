@@ -111,12 +111,12 @@ class MultiAgentOrchestrator(
             appendLine()
             appendLine("请用JSON格式回复：")
             appendLine("{")
-            appendLine('  "needTeam": true/false,')
-            appendLine('  "reason": "为什么需要/不需要团队",')
-            appendLine('  "agents": [')
-            appendLine('    { "role": "角色名", "name": "显示名称", "goal": "具体目标", "dependsOn": ["依赖的其他角色"] }')
-            appendLine('  ],')
-            appendLine('  "fallbackResponse": "如果不需要团队的直接回答"')
+            appendLine("  \"needTeam\": true/false,")
+            appendLine("  \"reason\": \"为什么需要/不需要团队\",")
+            appendLine("  \"agents\": [")
+            appendLine("    { \"role\": \"角色名\", \"name\": \"显示名称\", \"goal\": \"具体目标\", \"dependsOn\": [\"依赖的其他角色\"] }")
+            appendLine("  ],")
+            appendLine("  \"fallbackResponse\": \"如果不需要团队的直接回答\"")
             appendLine("}")
         }
 
@@ -421,11 +421,12 @@ class MultiAgentOrchestrator(
 
         private fun extractArray(json: String, key: String): List<String> {
             val results = mutableListOf<String>()
-            val arrayStart = json.indexOf("\"$key\"\\s*:\\s*[".toRegex())
-            if (arrayStart < 0) return emptyList
+            val pattern = Regex("\"$key\"\\s*:\\s*\\[")
+            val match = pattern.find(json) ?: return emptyList()
+            val arrayStart = match.range.first
             
             val start = json.indexOf('[', arrayStart)
-            if (start < 0) return emptyList
+            if (start < 0) return emptyList()
             
             var depth = 0
             var current = StringBuilder()
@@ -454,7 +455,7 @@ class MultiAgentOrchestrator(
         }
     }
 
-    private data class ParsedPlan(
+    internal data class ParsedPlan(
         val needTeam: Boolean,
         val agents: List<AgentDefinition>,
         val fallbackResponse: String,

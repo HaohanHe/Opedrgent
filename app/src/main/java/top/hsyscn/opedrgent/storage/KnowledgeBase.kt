@@ -5,7 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.docx.DocxProcessor
 import top.hsyscn.opedrgent.pdf.OcrEngine
-import top.hsyscn.opedrgent.pdf.PdfProcessor
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.UUID
@@ -180,15 +179,11 @@ class KnowledgeBase(private val context: Context) {
 
     private suspend fun parsePdf(file: File): String {
         return try {
-            val processor = PdfProcessor(context)
-            // 先渲染PDF页面为图片
-            val bitmaps = processor.renderPages(context, file.absolutePath)
-            if (bitmaps.isEmpty()) {
-                DebugLog.w(TAG, "PDF渲染结果为空")
+            val ocrEngine = OcrEngine(context)
+            val result = ocrEngine.recognizeFromFile(file.absolutePath)
+            if (result.isSuccess) result.text else {
+                DebugLog.w(TAG, "PDF OCR识别失败: ${result.error}")
                 ""
-            } else {
-                // 再对图片进行OCR识别
-                processor.ocr(bitmaps)
             }
         } catch (e: Exception) {
             DebugLog.w(TAG, "PDF解析失败: ${e.message}")
@@ -280,7 +275,7 @@ class KnowledgeBase(private val context: Context) {
             tempFile.outputStream().use { output ->
                 inputStream.use { input -> input.copyTo(output) }
             }
-            tempFile
+            return tempFile
         } catch (e: Exception) {
             if (tempFile.exists()) tempFile.delete()
             throw e
