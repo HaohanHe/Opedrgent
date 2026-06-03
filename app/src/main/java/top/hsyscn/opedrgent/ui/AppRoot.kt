@@ -553,6 +553,30 @@ fun SessionScreen(
                         )
                     }
                 }
+                
+                // 发芽结果视图 - 自然显示在聊天中
+                val sproutResult by vm.sproutResult.collectAsStateCompat()
+                val sproutingState by vm.sproutingState.collectAsStateCompat()
+                if (sproutResult != null || sproutingState != SproutingState.IDLE) {
+                    item(key = "_sprout") {
+                        top.hsyscn.opedrgent.ui.components.SproutResultView(
+                            markdownReport = sproutResult ?: "",
+                            sproutingState = sproutingState,
+                            onCopy = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("发芽结果", sproutResult ?: ""))
+                                scope.launch { snackbar.showSnackbar("已复制到剪贴板") }
+                            },
+                            onContinueChat = {
+                                // 可以添加继续对话的逻辑，比如询问关于发芽结果的问题
+                            },
+                            onDismiss = {
+                                vm._sproutResult.value = null
+                                vm._sproutingState.value = SproutingState.IDLE
+                            },
+                        )
+                    }
+                }
             }
 
             // Stop responding button
