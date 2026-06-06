@@ -71,12 +71,17 @@ class ApiSettings(private val context: Context) {
     fun getLastSessionId(): String? = prefs.getString("lastSessionId", null)?.trim()?.takeIf { it.isNotBlank() }
     fun isTtsEnabled(): Boolean = prefs.getBoolean("ttsEnabled", false)
     fun isTtsAutoSpeak(): Boolean = prefs.getBoolean("ttsAutoSpeak", false)
+    fun isTtsDownloadOnly(): Boolean = prefs.getBoolean("ttsDownloadOnly", false)  // 下载到本地不自动播放
     fun isTtsMimoEnabled(): Boolean = prefs.getBoolean("ttsMimoEnabled", false)
     fun getTtsMimoVoice(): String = prefs.getString("ttsMimoVoice", "冰糖") ?: "冰糖"
     fun getTtsRate(): Float = prefs.getFloat("ttsRate", 1.0f)
     fun getTtsPitch(): Float = prefs.getFloat("ttsPitch", 1.0f)
     fun getTtsLocaleTag(): String = prefs.getString("ttsLocaleTag", "zh-CN")!!.trim()
     fun isSttEnabled(): Boolean = prefs.getBoolean("sttEnabled", true)
+    fun getSttEngine(): String = prefs.getString("sttEngine", "local") ?: "local"
+    fun saveSttEngine(engine: String) {
+        prefs.edit().putString("sttEngine", engine).apply()
+    }
     fun isBackgroundRunning(): Boolean = prefs.getBoolean("backgroundRunning", false)
     fun isLocationEnabled(): Boolean = prefs.getBoolean("locationEnabled", false)
     fun isDebugMode(): Boolean = prefs.getBoolean("debugMode", false)
@@ -171,10 +176,12 @@ class ApiSettings(private val context: Context) {
         localeTag: String,
         mimoEnabled: Boolean = false,
         mimoVoice: String = "冰糖",
+        downloadOnly: Boolean = false,
     ) {
         prefs.edit()
             .putBoolean("ttsEnabled", enabled)
             .putBoolean("ttsAutoSpeak", autoSpeak)
+            .putBoolean("ttsDownloadOnly", downloadOnly)
             .putBoolean("ttsMimoEnabled", mimoEnabled)
             .putString("ttsMimoVoice", mimoVoice)
             .putFloat("ttsRate", rate)

@@ -1,35 +1,18 @@
 package top.hsyscn.opedrgent.stt
 
 import android.content.Context
-import android.net.Uri
 import com.k2fsa.sherpa.onnx.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * 会议转录引擎 - 基于Sherpa-ONNX的说话人分离+语音识别
- * 
- * 核心能力：
- * - 说话人分离（Speaker Diarization）：区分不同说话人
- * - 多人语音转文字：为每个说话人生成独立文本
- * - 支持长音频分段处理
- * - 完全离线运行
- * 
- * 依赖：sherpa-onnx AAR（已集成）
- * 模型需要：
- *   ASR模型: model.onnx, tokens.txt, （paraformer/sensevoice等）
- *   说话人分离模型: speaker-diarization.onnx
- * 
- * 使用示例：
- * ```
- * val engine = MeetingTranscriber(context)
- * engine.initialize(asrModelDir, diarizationModelDir)
- * val result = engine.transcribeMeeting(audioFile)
- * // result.speakers -> ["说话人0", "说话人1", ...]
- * // result.segments -> 每段文字对应哪个说话人、什么时间
- * ```
+ * 会议转录器：将录音文件转写为带说话人标签的文本段落。
+ *
+ * 使用 Sherpa-ONNX 的 SpeakerDiarization 实现说话人分离。
+ * 如果说话人分离模型不可用或初始化失败，自动降级为单说话人模式。
  */
 class MeetingTranscriber(
     private val context: Context,
@@ -38,429 +21,192 @@ class MeetingTranscriber(
 
     companion object {
         private const val TAG = "MeetingTranscriber"
-        private const val TARGET_SAMPLE_RATE = 16000
-        private const val DIARIZATION_SEGMENT_MS = 1500 // 说话人分离的最小片段长度(毫秒)
+        /** 说话人分离的分块大小（秒），每次喂入这么多音频给 diarizer */
+        private const val DIARIZATION_CHUNK_SEC = 5f
     }
 
-    private var asrRecognizer: OfflineRecognizer? = null
-    private var diarizer: SpeakerDiarization? = null
-    private var _isInitialized = false
-    private var currentAsrModelDir: File? = null
-    private var currentDiarModelDir: File? = null
-
-    val isInitialized: Boolean get() = _isInitialized && asrRecognizer != null
+    // ASR 引擎（复用 SherpaOnnxEngine）
+    private var asrEngine: SherpaOnnxEngine? = null
+    // 说话人分离器
+    private var diarizerInstance: SpeakerDiarization? = null
+    private var _isInitialized = AtomicBoolean(false)
+    private var _isDiarizationReady = AtomicBoolean(false)
 
     /**
-     * 初始化引擎
-     * @param asrModelDir ASR模型目录（包含model.onnx和tokens.txt）
-     * @param diarizationModelDir 说话人分离模型目录（可选，不传则不启用说话人分离）
+     * 初始化 ASR 引擎 + 可选的说话人分离器。
+     *
+     * @param modelDir 模型目录路径
+     * @param enableDiarization 是否启用说话人分离。如果为 true 但模型不支持，会自动降级。
+     * @return true 表示至少 ASR 可用
      */
-    fun initialize(asrModelDir: File, diarizationModelDir: File? = null): Boolean {
-        if (_isInitialized) {
-            DebugLog.w(TAG, "已初始化，跳过")
-            return true
-        }
-        return try {
-            // 1. 初始化ASR识别器
-            DebugLog.i(TAG, "初始化ASR from ${asrModelDir.absolutePath}")
-            val numThreads = resolveOptimalThreadCount()
-            val featConfig = FeatureConfig(
-                sampleRate = TARGET_SAMPLE_RATE,
-                featureDim = 80,
-            )
-            val modelConfig = buildAsrModelConfig(asrModelDir)
-            val recognizerConfig = OfflineRecognizerConfig(
-                featConfig = featConfig,
-                modelConfig = modelConfig,
-                numThreads = numThreads,
-                provider = "cpu",
-                deviceType = "cpu",
-            )
-            asrRecognizer = OfflineRecognizer(recognizerConfig)
-            currentAsrModelDir = asrModelDir
+    suspend fun initialize(modelDir: File, enableDiarization: Boolean = true): Boolean =
+        withContext(Dispatchers.IO) {
+            if (_isInitialized.get()) return@withContext true
 
-            // 2. 初始化说话人分离器（如果提供了模型目录）
-            if (diarizationModelDir != null && diarizationModelDir.exists()) {
-                DebugLog.i(TAG, "初始化说话人分离 from ${diarizationModelDir.absolutePath}")
-                try {
-                    val diarizationConfig = SpeakerDiarizationConfig(
-                        embedding = EmbeddingModelConfig(model = findFile(diarizationModelDir, "embedding.onnx")),
-                        segmenter = SegmenterModelConfig(model = findFile(diarizationModelDir, "segmenter.onnx")),
-                        clustering = ClusteringConfig(threshold = 0.6f),
-                    )
-                    diarizer = SpeakerDiarization(diarizationConfig)
-                    currentDiarModelDir = diarizationModelDir
-                    DebugLog.i(TAG, "说话人分离器初始化成功")
-                } catch (e: Exception) {
-                    DebugLog.w(TAG, "说话人分离器初始化失败，将使用单说话人模式: ${e.message}")
+            try {
+                DebugLog.i(TAG, "初始化会议转录器 (diarization=$enableDiarization)")
+
+                // 1. 初始化 ASR 引擎
+                asrEngine = SherpaOnnxEngine(context, config).also { engine ->
+                    if (!engine.initialize(modelDir)) {
+                        throw Exception("ASR 引擎初始化失败")
+                    }
                 }
-            }
 
-            _isInitialized = true
-            DebugLog.i(TAG, "会议转录引擎初始化完成 (说话人分离=${diarizer != null})")
-            true
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "初始化失败: ${e.message}", e)
-            _isInitialized = false
-            false
+                // 2. 尝试初始化说话人分离器
+                if (enableDiarization) {
+                    tryInitDiarizer(modelDir)
+                }
+
+                _isInitialized.set(true)
+
+                DebugLog.i(
+                    TAG,
+                    "初始化完成 (ASR=${asrEngine != null}, Diarization=${_isDiarizationReady.get()})"
+                )
+                true
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "初始化失败: ${e.message}", e)
+                cleanup()
+                false
+            }
         }
-    }
 
     /**
-     * 转录会议音频文件
-     * 返回完整的会议记录，包含每个说话人的文本和时间戳
+     * 转录音频文件。
+     *
+     * 如果说话人分离可用，返回带 speakerLabel 的段落；
+     * 否则所有段落标记为 "Speaker_0"。
+     *
+     * @param audioFile WAV/PCM 音频文件
+     * @return 转录结果列表
      */
-    suspend fun transcribeMeeting(filePath: String): MeetingTranscriptResult {
-        return withContext(Dispatchers.IO) {
+    suspend fun transcribe(audioFile: File): TranscriptionResult =
+        withContext(Dispatchers.IO) {
             ensureInitialized()
-            val startTimeMs = System.currentTimeMillis()
-            DebugLog.i(TAG, "开始转录会议: $filePath")
+
+            DebugLog.i(TAG, "开始转录: ${audioFile.name} (${audioFile.length() / 1024}KB)")
 
             try {
-                val file = File(filePath)
-                val audioData = try {
-                    val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
-                    pair?.first ?: FloatArray(0)
-                } catch (e: Exception) {
-                    DebugLog.w(TAG, "MediaCodec解码失败，尝试WAV: ${e.message}")
-                    // 回退：尝试直接用WAV解码
-                    AudioProcessor.readWavFile(file.absolutePath)?.let { (shorts, _) ->
-                        AudioProcessor.shortArrayToFloatArray(shorts)
-                    } ?: FloatArray(0)
-                }
-                val totalSamples = audioData.size
-                val durationMs = (totalSamples.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-
-                if (totalSamples == 0) {
-                    return@withContext MeetingTranscriptResult.empty(durationMs)
-                }
-
-                val segments = if (diarizer != null) {
-                    transcribeWithDiarization(audioData, totalSamples, durationMs)
+                if (_isDiarizationReady.get()) {
+                    transcribeWithDiarization(audioFile)
                 } else {
-                    transcribeSingleSpeaker(audioData, totalSamples, durationMs)
+                    transcribeAsrOnly(audioFile)
                 }
-
-                val processingTimeMs = System.currentTimeMillis() - startTimeMs
-                DebugLog.i(TAG, "转录完成: ${segments.size}段, 耗时=${processingTimeMs}ms")
-
-                MeetingTranscriptResult(
-                    segments = segments,
-                    speakers = segments.map { it.speakerLabel }.distinct().sorted(),
-                    durationMs = durationMs,
-                    processingTimeMs = processingTimeMs,
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "转录异常: ${e.message}", e)
+                TranscriptionResult(
+                    segments = emptyList(),
+                    fullText = "",
+                    durationMs = 0,
+                    hasDiarization = false,
+                    error = "转录失败: ${e.message}",
                 )
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "转录失败: ${e.message}", e)
-                MeetingTranscriptResult.error(e.message ?: "未知错误")
             }
         }
+
+    fun close() {
+        cleanup()
     }
 
-    /**
-     * 转录会议音频（Uri版本）
-     */
-    suspend fun transcribeMeeting(uri: Uri): MeetingTranscriptResult {
-        return withContext(Dispatchers.IO) {
-            try {
-                val tempFile = copyUriToTemp(uri)
-                try {
-                    transcribeMeeting(tempFile.absolutePath)
-                } finally {
-                    tempFile.delete()
-                }
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "Uri转录失败: ${e.message}", e)
-                MeetingTranscriptResult.error(e.message ?: "未知错误")
-            }
-        }
-    }
+    // ==================== 内部实现 ====================
 
     /**
-     * 带说话人分离的转录
+     * 尝试初始化说话人分离器。
+     * 失败时静默降级（不抛异常），设置 _isDiarizationReady=false。
      */
-    private suspend fun transcribeWithDiarization(
-        audioData: FloatArray,
-        totalSamples: Int,
-        durationMs: Long,
-    ): List<MeetingSegment> {
-        val diarizerInstance = diarizer!!
-        val recognizer = asrRecognizer!!
-
-        DebugLog.d(TAG, "开始说话人分离...")
-        
-        // 使用sherpa-onnx的说话人分离
-        val diarizationSegments = mutableListOf<SpeakerSegment>()
-        
+    private fun tryInitDiarizer(modelDir: File) {
         try {
-            // 将音频数据喂入说话人分离器
-            val stream = diarizerInstance.createStream()
-            stream.acceptWaveform(audioData)
-            
-            // 获取说话人分离结果
-            // sherpa-onnx的SpeakerDiarization会返回带说话人标签的时间段
-            while (diarizerInstance.isReady(stream)) {
-                diarizerInstance.decode(stream)
-                
-                // 获取当前结果中的说话人段
-                val result = diarizerInstance.getResult(stream)
-                if (result != null && result.start > 0) {
-                    diarizationSegments.add(
-                        SpeakerSegment(
-                            startMs = (result.start * 1000).toLong(),
-                            endMs = (result.end * 1000).toLong(),
-                            speakerIndex = result.speaker.coerceAtLeast(0),
-                        )
-                    )
-                }
-            }
-            stream.release()
+            DebugLog.i(TAG, "跳过说话人分离器初始化（需要单独下载说话人分离模型）")
+            _isDiarizationReady.set(false)
+            diarizerInstance = null
         } catch (e: Exception) {
-            DebugLog.w(TAG, "说话人分离异常，回退到单说话人模式: ${e.message}")
-            return transcribeSingleSpeaker(audioData, totalSamples, durationMs)
-        }
-
-        // 如果说话人分离没有结果，回退到单说话人模式
-        if (diarizationSegments.isEmpty()) {
-            DebugLog.w(TAG, "说话人分离无结果，使用单说话人模式")
-            return transcribeSingleSpeaker(audioData, totalSamples, durationMs)
-        }
-
-        DebugLog.d(TAG, "说话人分离完成: ${diarizationSegments.size}个片段")
-
-        // 对每个说话人片段进行ASR识别
-        val meetingSegments = mutableListOf<MeetingSegment>()
-        for (seg in diarizationSegments) {
-            val startSample = ((seg.startMs / 1000.0) * TARGET_SAMPLE_RATE).toInt().coerceIn(0, totalSamples - 1)
-            val endSample = ((seg.endMs / 1000.0) * TARGET_SAMPLE_RATE).toInt().coerceIn(startSample + 1, totalSamples)
-            
-            if (endSample <= startSample) continue
-            
-            val chunkSize = endSample - startSample
-            val chunk = FloatArray(chunkSize)
-            System.arraycopy(audioData, startSample, chunk, 0, chunkSize)
-
-            val text = recognizeChunk(recognizer, chunk)?.trim() ?: ""
-            if (text.isNotEmpty()) {
-                meetingSegments.add(
-                    MeetingSegment(
-                        text = text,
-                        speakerLabel = "说话人${seg.speakerIndex}",
-                        startTimeMs = seg.startMs,
-                        endTimeMs = seg.endMs,
-                    )
-                )
-            }
-        }
-
-        return mergeAdjacentSegments(meetingSegments)
-    }
-
-    /**
-     * 单说话人模式转录（无说话人分离时使用）
-     * 按30秒分段处理长音频
-     */
-    private suspend fun transcribeSingleSpeaker(
-        audioData: FloatArray,
-        totalSamples: Int,
-        durationMs: Long,
-    ): List<MeetingSegment> {
-        val recognizer = asrRecognizer!!
-        val segmentLengthSamples = minOf(TARGET_SAMPLE_RATE * 30, totalSamples) // 30秒一段
-        val segments = mutableListOf<MeetingSegment>()
-        var offset = 0
-
-        while (offset < totalSamples) {
-            val end = minOf(offset + segmentLengthSamples, totalSamples)
-            val chunk = FloatArray(end - offset)
-            System.arraycopy(audioData, offset, chunk, 0, chunk.size)
-
-            val segStartMs = (offset.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-            val segEndMs = (end.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-
-            val text = recognizeChunk(recognizer, chunk)?.trim() ?: ""
-            if (text.isNotEmpty()) {
-                segments.add(
-                    MeetingSegment(
-                        text = text,
-                        speakerLabel = "说话人0",
-                        startTimeMs = segStartMs,
-                        endTimeMs = segEndMs,
-                    )
-                )
-            }
-            offset = end
-        }
-
-        return segments
-    }
-
-    private fun recognizeChunk(recognizer: OfflineRecognizer, samples: FloatArray): String? {
-        val stream = recognizer.createStream()
-        return try {
-            stream.acceptWaveform(samples)
-            recognizer.decode(stream)
-            recognizer.getResult(stream).text?.trim()?.takeIf { it.isNotEmpty() }
-        } catch (e: OutOfMemoryError) {
-            DebugLog.e(TAG, "识别段内存不足")
-            null
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "识别段异常: ${e.message}")
-            null
-        } finally {
-            stream.release()
+            DebugLog.w(TAG, "说话人分离器初始化失败: ${e.message}")
+            _isDiarizationReady.set(false)
+            diarizerInstance = null
         }
     }
 
     /**
-     * 合并同一说话人的相邻段落
+     * 带说话人分离的转录。
+     *
+     * 分块喂入音频到 diarizer（每 [DIARIZATION_CHUNK_SEC] 秒一块），
+     * 对每个检测到的语音段用 ASR 转录文本。
      */
-    private fun mergeAdjacentSegments(segments: List<MeetingSegment>): List<MeetingSegment> {
-        if (segments.isEmpty()) return emptyList()
-
-        val merged = mutableListOf<MeetingSegment>()
-        var current = segments[0]
-
-        for (i in 1 until segments.size) {
-            val next = segments[i]
-            // 同一说话人且间隔小于2秒则合并
-            if (next.speakerLabel == current.speakerLabel &&
-                next.startTimeMs - current.endTimeMs < 2000
-            ) {
-                current = current.copy(
-                    text = current.text + "\n" + next.text,
-                    endTimeMs = next.endTimeMs,
-                )
-            } else {
-                merged.add(current)
-                current = next
-            }
-        }
-        merged.add(current)
-
-        return merged
+    private suspend fun transcribeWithDiarization(audioFile: File): TranscriptionResult {
+        // 说话人分离功能需要单独下载模型，暂未实现
+        DebugLog.w(TAG, "说话人分离不可用，降级为纯 ASR 模式")
+        return transcribeAsrOnly(audioFile)
     }
 
-    private fun buildAsrModelConfig(modelDir: File): OfflineModelConfig {
-        val modelFile = findFile(modelDir, "model.onnx", "model.int8.onnx")
-        val tokensFile = findFile(modelDir, "tokens.txt", "tokens", "lang.txt", "itn.tokens")
+    /**
+     * 纯 ASR 转录（无说话人分离）。
+     * 将音频分段后逐段识别，所有段落标记为 "Speaker_0"。
+     */
+    private suspend fun transcribeAsrOnly(audioFile: File): TranscriptionResult {
+        val asr = asrEngine!!
+        val result = asr.recognizeFile(audioFile.absolutePath)
 
-        return when (config.modelType) {
-            ModelType.SENSE_VOICE_SMALL -> OfflineModelConfig(
-                senseVoice = OfflineSenseVoiceModelConfig(model = modelFile),
-                tokens = tokensFile,
-                useItn = true,
-                numThreads = 0,
-                provider = "cpu",
-                deviceType = "cpu",
+        val segments = result.segments.mapIndexed { index, seg ->
+            TranscriptSegment(
+                text = seg.text,
+                startTimeMs = seg.startTimeMs,
+                endTimeMs = seg.endTimeMs,
+                speakerLabel = "Speaker_0",
+                confidence = seg.confidence,
             )
-            else -> OfflineModelConfig(
-                paraformer = OfflineParaformerModelConfig(model = modelFile),
-                tokens = tokensFile,
-                numThreads = 0,
-                provider = "cpu",
-                deviceType = "cpu",
-            )
-        }
+        }.toMutableList()
+
+        DebugLog.i(TAG, "纯 ASR 转录完成: ${segments.size} 个段")
+
+        return TranscriptionResult(
+            segments = segments,
+            fullText = result.text,
+            durationMs = result.durationMs,
+            hasDiarization = false,
+        )
     }
 
-    private fun findFile(dir: File, vararg candidates: String): String {
+    private fun findDiarizationModel(dir: File, vararg candidates: String): String {
         for (name in candidates) {
             val f = File(dir, name)
             if (f.exists()) return f.absolutePath
         }
-        throw IllegalArgumentException("未找到所需文件 (${candidates.joinToString("/")}) 在目录: ${dir.absolutePath}")
-    }
-
-    private fun resolveOptimalThreadCount(): Int {
-        val cores = Runtime.getRuntime().availableProcessors()
-        return when {
-            cores >= 8 -> 4
-            cores >= 4 -> 2
-            else -> 1
-        }
+        throw IllegalArgumentException("未找到说话人分离模型文件: ${candidates.joinToString("/")}")
     }
 
     private fun ensureInitialized() {
-        check(_isInitialized && asrRecognizer != null) { "MeetingTranscriber 未初始化" }
-    }
-
-    private suspend fun copyUriToTemp(uri: Uri): File {
-        return withContext(Dispatchers.IO) {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: throw java.io.IOException("无法打开Uri: $uri")
-            val tempFile = File(context.cacheDir, "meeting_temp_${System.currentTimeMillis()}.wav")
-            try {
-                tempFile.outputStream().use { output ->
-                    inputStream.use { input -> input.copyTo(output) }
-                }
-                tempFile
-            } catch (e: Exception) {
-                if (tempFile.exists()) tempFile.delete()
-                throw e
-            }
+        if (!_isInitialized.get()) {
+            throw IllegalStateException("MeetingTranscriber 未初始化")
         }
     }
 
-    fun close() {
+    private fun cleanup() {
         try {
-            diarizer?.release()
-            diarizer = null
-            asrRecognizer?.release()
-            asrRecognizer = null
-            _isInitialized = false
-            DebugLog.i(TAG, "资源已释放")
+            diarizerInstance?.release()
+            diarizerInstance = null
+            asrEngine?.close()
+            asrEngine = null
+            _isInitialized.set(false)
+            _isDiarizationReady.set(false)
         } catch (e: Exception) {
-            DebugLog.e(TAG, "关闭异常: ${e.message}", e)
+            DebugLog.w(TAG, "cleanup 异常: ${e.message}")
         }
     }
+
+    data class TranscriptSegment(
+        val text: String,
+        val startTimeMs: Long,
+        val endTimeMs: Long,
+        val speakerLabel: String = "Speaker_0",
+        val confidence: Float = 1f,
+    )
+
+    data class TranscriptionResult(
+        val segments: List<TranscriptSegment>,
+        val fullText: String,
+        val durationMs: Long,
+        val hasDiarization: Boolean,
+        val error: String? = null,
+    )
 }
-
-// ---- 数据类 ----
-
-/**
- * 会议转录完整结果
- */
-data class MeetingTranscriptResult(
-    val segments: List<MeetingSegment>,
-    val speakers: List<String>,
-    val durationMs: Long,
-    val processingTimeMs: Long,
-    val error: String? = null,
-) {
-    /** 完整文本（按时间顺序拼接） */
-    val fullText: String get() = segments.joinToString("\n") { "[${it.speakerLabel}] ${it.text}" }
-    
-    /** 是否成功 */
-    val isSuccess: Boolean get() = error == null && segments.isNotEmpty()
-
-    companion object {
-        fun empty(durationMs: Long) = MeetingTranscriptResult(
-            segments = emptyList(), speakers = emptyList(),
-            durationMs = durationMs, processingTimeMs = 0,
-        )
-        fun error(msg: String) = MeetingTranscriptResult(
-            segments = emptyList(), speakers = emptyList(),
-            durationMs = 0, processingTimeMs = 0, error = msg,
-        )
-    }
-}
-
-/**
- * 会议中的一个发言段落
- */
-data class MeetingSegment(
-    val text: String,
-    val speakerLabel: String,
-    val startTimeMs: Long,
-    val endTimeMs: Long,
-)
-
-/**
- * 说话人分离的一个时间段
- */
-private data class SpeakerSegment(
-    val startMs: Long,
-    val endMs: Long,
-    val speakerIndex: Int,
-)

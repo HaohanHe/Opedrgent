@@ -54,6 +54,7 @@ class TtsPlayer(
         rate: Float,
         pitch: Float,
         mimoVoice: String = "冰糖",
+        downloadOnly: Boolean = false,
     ) {
         val t = text.trim()
         if (t.isEmpty() || t == "null") return
@@ -68,8 +69,14 @@ class TtsPlayer(
 
         val useMimo = apiSettings.isTtsMimoEnabled()
         if (useMimo && apiSettings.hasApiKey()) {
-            speakWithMimo(t, mimoVoice)
+            speakWithMimo(t, mimoVoice, downloadOnly)
         } else {
+            // 下载模式只对 MiMO 有效，Android TTS 不支持下载
+            if (downloadOnly) {
+                DebugLog.w("TtsPlayer: downloadOnly 模式仅支持 MiMO TTS，已忽略")
+                isSpeaking = false
+                return
+            }
             speakWithAndroid(t, localeTag, rate, pitch)
         }
     }
@@ -106,7 +113,7 @@ class TtsPlayer(
         isPaused = false
     }
 
-    private fun speakWithMimo(text: String, voiceId: String) {
+    private fun speakWithMimo(text: String, voiceId: String, downloadOnly: Boolean = false) {
         currentPlayerJob = CoroutineScope(Dispatchers.Main).launch {
             playerCancelled.set(false)
             isSpeaking = true
@@ -115,10 +122,10 @@ class TtsPlayer(
             try {
                 val apiKey = apiSettings.getApiKey()
                     ?: throw IllegalStateException("API密钥未设置，请在设置中填写API密钥")
-                
+
                 if (apiKey.isBlank()) {
                     DebugLog.w("MimoTts: API key is blank, falling back to Android TTS")
-                    speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
+                    if (!downloadOnly) speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
                     return@launch
                 }
 
@@ -127,17 +134,46 @@ class TtsPlayer(
 
                 if (pcmBytes == null || pcmBytes.isEmpty()) {
                     DebugLog.w("MimoTts: synthesize returned null/empty, falling back to Android TTS")
-                    speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
+                    if (!downloadOnly) speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
                     return@launch
                 }
 
-                playPcmAudio(pcmBytes)
+                if (downloadOnly) {
+                    // 下载到本地不播放
+                    saveAudioToLocal(pcmBytes, text)
+                    isSpeaking = false
+                    isPaused = false
+                } else {
+                    playPcmAudio(pcmBytes)
+                }
             } catch (e: Exception) {
                 DebugLog.e("MimoTts speak error: ${e.message}", e)
-                if (!playerCancelled.get()) {
+                if (!playerCancelled.get() && !downloadOnly) {
                     speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
                 }
             }
+        }
+    }
+
+    /**
+     * 将 MiMO TTS 合成的音频保存到本地文件系统。
+     * 存储路径：/data/data/<pkg>/files/tts_audio/YYYYMMDD_HHmmss.wav
+     */
+    private fun saveAudioToLocal(wavBytes: ByteArray, text: String) {
+        try {
+            val ttsDir = java.io.File(appContext.filesDir, "tts_audio")
+            if (!ttsDir.exists()) ttsDir.mkdirs()
+
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.CHINA).format(java.util.Date())
+            // 用文本前 20 字符作为文件名的一部分（避免文件名过长）
+            val safeName = text.take(20).replace(Regex("[^\\w\\u4e00-\\u9fff]"), "_")
+            val fileName = "${timestamp}_${safeName}.wav"
+            val outFile = java.io.File(ttsDir, fileName)
+
+            outFile.writeBytes(wavBytes)
+            DebugLog.i("TtsPlayer: 音频已保存到 ${outFile.absolutePath} (${wavBytes.size / 1024}KB)")
+        } catch (e: Exception) {
+            DebugLog.e("TtsPlayer: 保存音频失败: ${e.message}", e)
         }
     }
 
