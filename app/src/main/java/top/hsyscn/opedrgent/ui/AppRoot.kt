@@ -1121,7 +1121,7 @@ fun SessionScreen(
                 Button(
                     onClick = {
                         actionSheetOpen = false
-                        subScreen = "export"
+                        onOpenSubScreen("export")
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(11.dp),

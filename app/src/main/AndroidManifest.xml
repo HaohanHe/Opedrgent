@@ -88,16 +88,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
         </receiver>
-
-        <!-- Widget shortcut intents -->
-        <intent-filter>
-            <action android:name="top.hsyscn.opedrgent.ACTION_MEETING_RECORD" />
-            <category android:name="android.intent.category.DEFAULT" />
-        </intent-filter>
-        <intent-filter>
-            <action android:name="top.hsyscn.opedrgent.ACTION_NEW_CHAT" />
-            <category android:name="android.intent.category.DEFAULT" />
-        </intent-filter>
     </application>
 
 </manifest>
