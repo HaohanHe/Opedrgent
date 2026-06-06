@@ -248,16 +248,34 @@ fun MeetingRecordScreen(
                             val wavFile = File(context.cacheDir, "meeting_${System.currentTimeMillis()}.wav")
                             pcmToWav(File(pcmPath), wavFile, 16000, 1, 16)
 
-                            // Initialize transcriber
+                            // Initialize transcriber (复用已初始化的引擎，避免重复加载模型)
                             val transcriber = MeetingTranscriber(context, SttConfig())
                             val modelDir = ModelManager.getModelPath(context, ModelManager.getRecommendedModel(context))
                             if (modelDir != null && modelDir.exists()) {
-                                transcriber.initialize(modelDir)
-                                val result = transcriber.transcribeMeeting(wavFile.absolutePath)
-                                transcriptResult = result
+                                val ok = transcriber.initialize(modelDir)
+                                if (!ok) {
+                                    snackbar.showSnackbar("模型初始化失败")
+                                } else {
+                                    val result = transcriber.transcribe(wavFile)
+                                    transcriptResult = MeetingTranscriptResult(
+                                        segments = result.segments.map { seg ->
+                                            MeetingSegment(
+                                                text = seg.text,
+                                                startTimeMs = seg.startTimeMs,
+                                                endTimeMs = seg.endTimeMs,
+                                                speakerLabel = seg.speakerLabel,
+                                            )
+                                        },
+                                        fullText = result.fullText,
+                                        durationMs = result.durationMs,
+                                        hasDiarization = result.hasDiarization,
+                                        speakers = result.segments.map { it.speakerLabel }.toSet(),
+                                        error = result.error,
+                                    )
+                                }
                                 transcriber.close()
                             } else {
-                                snackbar.showSnackbar("请先下载语音模型（导入音视频功能）")
+                                snackbar.showSnackbar("请先下载语音模型（设置页 → 导入音视频）")
                             }
 
                             wavFile.delete()
