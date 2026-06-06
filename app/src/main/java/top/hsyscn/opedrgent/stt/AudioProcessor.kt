@@ -74,6 +74,25 @@ object AudioProcessor {
 
     private const val CODEC_TIMEOUT_US = 10_000L
 
+    /**
+     * 将 WAV 文件快速解码为归一化 FloatArray (16kHz mono)。
+     *
+     * 专为 ASR 引擎设计，跳过元数据提取，直接返回可用的浮点数组。
+     * 内部使用线性插值重采样和声道混合。
+     *
+     * @param wavFile WAV 格式音频文件
+     * @return 归一化 [-1.0, 1.0] 浮点数组，采样率 16000Hz；失败返回空数组
+     */
+    fun decodeWavToFloat(wavFile: File): FloatArray {
+        return try {
+            val pair = decodeFromFile(wavFile.absolutePath) ?: return FloatArray(0)
+            pair.first
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "decodeWavToFloat 失败: ${e.message}", e)
+            FloatArray(0)
+        }
+    }
+
     // ==================== 元数据提取（保留原有签名，向后兼容）====================
 
     fun extractAudioFromVideo(context: Context, videoUri: Uri): ProcessedAudio? {

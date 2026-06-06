@@ -1286,14 +1286,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 if (apiSettings.isTtsEnabled() && apiSettings.isTtsAutoSpeak()) {
+                    val downloadOnly = apiSettings.isTtsDownloadOnly()
                     tts.speak(
                         text = displayContent,
                         localeTag = apiSettings.getTtsLocaleTag(),
                         rate = apiSettings.getTtsRate(),
                         pitch = apiSettings.getTtsPitch(),
                         mimoVoice = apiSettings.getTtsMimoVoice(),
+                        downloadOnly = downloadOnly,
                     )
-                    _state.value = _state.value.copy(isSpeaking = true)
+                    if (!downloadOnly) {
+                        _state.value = _state.value.copy(isSpeaking = true)
+                    }
                 }
 
                 DebugLog.i("runModel: complete, final=${displayContent.length} chars, tools=${allToolParts.size}")
@@ -1757,6 +1761,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun getTtsPitch(): Float = apiSettings.getTtsPitch()
     fun getTtsLocaleTag(): String = apiSettings.getTtsLocaleTag()
     fun isSttEnabled(): Boolean = apiSettings.isSttEnabled()
+    fun getSttEngine(): String = apiSettings.getSttEngine()
+    fun isTtsDownloadOnly(): Boolean = apiSettings.isTtsDownloadOnly()
     fun isBackgroundRunning(): Boolean = apiSettings.isBackgroundRunning()
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
     fun isDebugMode(): Boolean = apiSettings.isDebugMode()
@@ -2102,12 +2108,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(activeQuestion = null)
     }
 
-    fun saveTts(enabled: Boolean, autoSpeak: Boolean, rate: Float, pitch: Float, localeTag: String, mimoEnabled: Boolean, mimoVoice: String) {
-        apiSettings.saveTts(enabled = enabled, autoSpeak = autoSpeak, rate = rate, pitch = pitch, localeTag = localeTag, mimoEnabled = mimoEnabled, mimoVoice = mimoVoice)
+    fun saveTts(enabled: Boolean, autoSpeak: Boolean, rate: Float, pitch: Float, localeTag: String, mimoEnabled: Boolean, mimoVoice: String, downloadOnly: Boolean = false) {
+        apiSettings.saveTts(enabled = enabled, autoSpeak = autoSpeak, rate = rate, pitch = pitch, localeTag = localeTag, mimoEnabled = mimoEnabled, mimoVoice = mimoVoice, downloadOnly = downloadOnly)
     }
 
     fun saveSttEnabled(enabled: Boolean) {
         apiSettings.saveSttEnabled(enabled)
+    }
+
+    fun saveSttEngine(engine: String) {
+        apiSettings.saveSttEngine(engine)
     }
 
     fun saveBackgroundRunning(enabled: Boolean) {
@@ -3078,19 +3088,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _sttProgress.value = SttProgressState.DOWNLOADING_MODEL
 
                     ModelManager.downloadModel(context, recommendedModel).collect { progress ->
-                        if (progress < 0f) {
-                            _sttUiState.value = SttUiState.Error(
-                                "模型下载失败，请检查网络连接",
-                                "DOWNLOAD_FAILED",
-                                "请确保网络畅通后点击重试",
-                            )
-                            _sttProgress.value = SttProgressState.ERROR
-                            _sttError.value = "模型下载失败"
-                            lastFailedUri = uri
-                            return@collect
+                        when (progress) {
+                            is ModelManager.DownloadProgress.Downloading -> {
+                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                                DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
+                            }
+                            is ModelManager.DownloadProgress.Extracting -> {
+                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                            }
+                            is ModelManager.DownloadProgress.Complete -> { /* done */ }
+                            is ModelManager.DownloadProgress.Error -> {
+                                _sttUiState.value = SttUiState.Error(
+                                    "模型下载失败，请检查网络连接",
+                                    "DOWNLOAD_FAILED",
+                                    "请确保网络畅通后点击重试",
+                                )
+                                _sttProgress.value = SttProgressState.ERROR
+                                _sttError.value = "模型下载失败"
+                                lastFailedUri = uri
+                                return@collect
+                            }
                         }
-                        _sttUiState.value = SttUiState.DownloadingModel(progress, modelSizeMb)
-                        DebugLog.d("MainViewModel: 模型下载进度 ${(progress * 100).toInt()}%")
                     }
                     if (_sttProgress.value == SttProgressState.ERROR) return@launch
                 }
@@ -3359,22 +3377,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val context = getApplication<Application>()
                 ModelManager.downloadModel(context, modelType).collect { progress ->
-                    if (progress >= 0f) {
-                        withContext(Dispatchers.Main) {
-                            _sttUiState.value = SttUiState.DownloadingModel(progress, modelSizeMb)
-                            DebugLog.d("MainViewModel: 模型下载进度 ${(progress * 100).toInt()}%")
+                    when (progress) {
+                        is ModelManager.DownloadProgress.Downloading -> {
+                            withContext(Dispatchers.Main) {
+                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                                DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
+                            }
                         }
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            _sttUiState.value = SttUiState.Error(
-                                "模型下载失败，请检查网络连接",
-                                "DOWNLOAD_FAILED",
-                                "请确保网络畅通后重试",
-                            )
-                            _sttProgress.value = SttProgressState.ERROR
-                            _sttError.value = "模型下载失败"
+                        is ModelManager.DownloadProgress.Extracting -> {
+                            withContext(Dispatchers.Main) {
+                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                            }
                         }
-                        return@collect
+                        is ModelManager.DownloadProgress.Complete -> { /* done */ }
+                        is ModelManager.DownloadProgress.Error -> {
+                            withContext(Dispatchers.Main) {
+                                _sttUiState.value = SttUiState.Error(
+                                    "模型下载失败，请检查网络连接",
+                                    "DOWNLOAD_FAILED",
+                                    "请确保网络畅通后重试",
+                                )
+                                _sttProgress.value = SttProgressState.ERROR
+                                _sttError.value = "模型下载失败"
+                            }
+                            return@collect
+                        }
                     }
                 }
                 withContext(Dispatchers.Main) {

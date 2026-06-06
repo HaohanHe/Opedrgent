@@ -34,11 +34,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     kotlin {
-        jvmToolchain(17)
+        jvmToolchain(21)
         compilerOptions {
             freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
         }
@@ -80,8 +80,9 @@ dependencies {
     implementation(libs.tflite)
     implementation(libs.tflite.gpu)
     implementation(libs.tflite.support)
+    implementation(libs.commons.compress)
     // Sherpa-ONNX: 高性能离线语音识别框架 (Apache 2.0)
-    // TODO: 下载 sherpa-onnx-1.13.2.aar 放到 app/libs/ 后取消注释并删除 stubs
+    // TODO: 下载有效的 sherpa-onnx-1.13.2.aar 放到 app/libs/ 后取消注释
     // implementation(files("libs/sherpa-onnx-1.13.2.aar"))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
