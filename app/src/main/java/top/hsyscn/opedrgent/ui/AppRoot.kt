@@ -19,6 +19,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,8 +45,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Save
@@ -133,6 +136,11 @@ import top.hsyscn.opedrgent.ui.components.QuestionDock
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.ui.components.UserBubble
+import top.hsyscn.opedrgent.ui.components.SttProgressDialog
+import top.hsyscn.opedrgent.ui.components.SttResultCard
+import top.hsyscn.opedrgent.ui.components.InputMode
+import top.hsyscn.opedrgent.ui.components.InputModeBar
+import top.hsyscn.opedrgent.ui.components.RecordingState
 
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
 import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
@@ -152,7 +160,9 @@ enum class MainTab { HISTORY, CHAT, SETTINGS }
 @Composable
 fun AppRoot(
     initialShareText: String? = null,
+    initialAction: String? = null,
     onShareConsumed: () -> Unit = {},
+    onActionConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.CHAT) }
@@ -166,6 +176,20 @@ fun AppRoot(
         if (t.isNotEmpty()) {
             vm.handleIncomingShare(t)
             onShareConsumed()
+        }
+    }
+
+    LaunchedEffect(initialAction) {
+        val action = initialAction
+        if (action != null) {
+            when (action) {
+                "meeting" -> subScreen = "meeting"
+                "new_chat" -> {
+                    vm.createSessionAndNavigate("新对话")
+                    selectedTab = MainTab.CHAT
+                }
+            }
+            onActionConsumed()
         }
     }
 
@@ -197,6 +221,16 @@ fun AppRoot(
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
                 "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
+                "meeting" -> MeetingRecordScreen(
+                    vm = vm,
+                    onBack = { subScreen = null },
+                    onSendToChat = { text ->
+                        vm.sendUserMessage("请帮我总结以下会议内容：\n\n$text")
+                        subScreen = null
+                    },
+                )
+                "knowledge" -> KnowledgeBaseScreen(vm = vm, onBack = { subScreen = null })
+                "export" -> ExportScreen(vm = vm, onBack = { subScreen = null })
                 null -> {
                     when {
                         selectedTab == MainTab.SETTINGS -> SettingsScreen(
@@ -413,6 +447,19 @@ fun SessionScreen(
         }
     }
 
+    // Audio file picker for STT
+    val audioFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: Exception) {}
+            vm.startSpeechToText(uri)
+        }
+    }
+
     LaunchedEffect(sessionId) {
         if (sessionId != null) vm.openSession(sessionId)
     }
@@ -431,6 +478,8 @@ fun SessionScreen(
     val session = state.current
 
     Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
+        var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
+
         Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
         Row(
@@ -605,6 +654,14 @@ fun SessionScreen(
                 }
             }
 
+            // Input mode bar
+            var inputMode by rememberSaveable { mutableStateOf(InputMode.CHAT) }
+            InputModeBar(
+                currentMode = inputMode,
+                onModeChange = { inputMode = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+
             // Input bar
             Row(
                 modifier = Modifier
@@ -613,18 +670,19 @@ fun SessionScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // "+" button for more options
                 Card(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(containerColor = AccentBlue),
                     modifier = Modifier
                         .size(37.dp)
                         .clip(CircleShape),
-                    onClick = { filePicker.launch(arrayOf("*/*")) },
+                    onClick = { showMoreOptionsSheet = true },
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
-                            Icons.Default.AttachFile,
-                            contentDescription = "upload",
+                            Icons.Default.Add,
+                            contentDescription = "more",
                             tint = Color.White,
                             modifier = Modifier.size(18.dp),
                         )
@@ -662,9 +720,11 @@ fun SessionScreen(
                                 }
                             }),
                         )
+                        // Camera button
                         IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
                             Icon(Icons.Default.CameraAlt, contentDescription = "camera", tint = TextGrey, modifier = Modifier.size(18.dp))
                         }
+                        // Microphone button
                         if (vm.isSttEnabled()) {
                             IconButton(onClick = {
                                 val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -725,6 +785,220 @@ fun SessionScreen(
                 }
             }
         }
+
+        // More options bottom sheet (at Box level, as overlay)
+        if (showMoreOptionsSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showMoreOptionsSheet = false },
+                    sheetState = rememberModalBottomSheetState(),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                    ) {
+                        Text(
+                            text = "更多方式",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 16.dp),
+                        )
+
+                        // Import audio/video
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    audioFilePicker.launch(arrayOf("audio/*", "video/*"))
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.AudioFile,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "导入音视频",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "支持 MP3、WAV、M4A、AMR、AAC、AVI、MOV 等格式",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Paste link
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    // TODO: Implement paste link functionality
+                                    scope.launch { snackbar.showSnackbar("粘贴链接功能开发中") }
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.Link,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "粘贴链接",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "公众号/抖音/B站/小红书等，一键总结",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Photo/Image
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    filePicker.launch(arrayOf("image/*"))
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "拍照/图片",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "白板记录/课堂笔记/日常饮食，秒变笔记",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Meeting recording
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    onOpenSubScreen("meeting")
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.Mic,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "会议录音",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "实时录音 + 说话人分离 + AI 总结",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Knowledge base
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    onOpenSubScreen("knowledge")
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.Save,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "知识库",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "导入文档/PDF/图片，AI 可检索引用",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
         }
 
         questionRequest?.let { request ->
@@ -751,6 +1025,58 @@ fun SessionScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
+
+        // STT Progress Dialog
+        val sttProgress by vm.sttProgress.collectAsState()
+        val sttUiState by vm.sttUiState.collectAsState()
+        val sttResult by vm.sttResult.collectAsState()
+        val sttError by vm.sttError.collectAsState()
+
+        LaunchedEffect(sttError) {
+            val e = sttError
+            if (!e.isNullOrBlank()) {
+                snackbar.showSnackbar(e)
+            }
+        }
+
+        if (sttProgress != SttProgressState.IDLE && sttProgress != SttProgressState.DONE) {
+            val downloadProg = (sttUiState as? SttUiState.DownloadingModel)?.progress
+            val phaseText = when (sttUiState) {
+                is SttUiState.DecodingAudio -> "正在解码音频..."
+                is SttUiState.Recognizing -> {
+                    val r = sttUiState as SttUiState.Recognizing
+                    if (r.totalSegments > 0) "正在识别语音... ${r.currentSegment}/${r.totalSegments}"
+                    else "正在识别语音..."
+                }
+                else -> null
+            }
+            SttProgressDialog(
+                progressState = sttProgress,
+                downloadProgress = downloadProg,
+                currentPhase = phaseText,
+                onCancel = { vm.cancelStt() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center),
+            )
+        }
+
+        // STT Result Card — floating above input bar
+        sttResult?.let { result ->
+            SttResultCard(
+                result = result,
+                error = null,
+                onCopy = {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(result.text))
+                },
+                onSendToLlm = { vm.sendSttResultToLlm() },
+                onDismiss = { vm.clearSttResult() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 12.dp, vertical = 110.dp),
+            )
+        }
     }
 
     if (actionSheetOpen) {
@@ -761,6 +1087,12 @@ fun SessionScreen(
             containerColor = Color.White,
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "会话操作",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                )
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(
                         onClick = {
@@ -785,6 +1117,17 @@ fun SessionScreen(
                         shape = RoundedCornerShape(11.dp),
                     ) { Text("导出上下文") }
                 }
+
+                Button(
+                    onClick = {
+                        actionSheetOpen = false
+                        subScreen = "export"
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(11.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5F5), contentColor = TextDark),
+                ) { Text("完整导出中心") }
+
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }

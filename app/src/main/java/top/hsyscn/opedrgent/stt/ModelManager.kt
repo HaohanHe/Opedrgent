@@ -2,8 +2,10 @@ package top.hsyscn.opedrgent.stt
 
 import android.app.ActivityManager
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -142,7 +144,7 @@ object ModelManager {
             DebugLog.e("ModelManager: 下载异常: ${e.message}", e)
             emit(-1f)
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     fun getModelPath(context: Context, modelType: ModelType): File? {
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: return null

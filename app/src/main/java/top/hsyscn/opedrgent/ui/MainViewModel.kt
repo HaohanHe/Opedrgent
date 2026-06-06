@@ -3048,7 +3048,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _sttUiState.value = SttUiState.Validating(uri.toString())
                 _sttProgress.value = SttProgressState.IDLE
 
-                val (isValid, errorMsg) = AudioProcessor.validateAudioFile(context, uri)
+                val (isValid, errorMsg) = withContext(Dispatchers.IO) { AudioProcessor.validateAudioFile(context, uri) }
                 if (!isValid) {
                     val errorCode = when {
                         errorMsg?.contains("不支持", ignoreCase = true) == true -> "UNSUPPORTED_FORMAT"
@@ -3097,19 +3097,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 _sttUiState.value = SttUiState.DecodingAudio(0f, fileName)
                 _sttProgress.value = SttProgressState.EXTRACTING_AUDIO
-                val audioMeta = AudioProcessor.getAudioMetadata(context, uri)
+                val audioMeta = withContext(Dispatchers.IO) { AudioProcessor.getAudioMetadata(context, uri) }
                 DebugLog.i("STT: 音频元数据 duration=${audioMeta?.durationMs}ms file=$fileName")
 
                 _sttUiState.value = SttUiState.Recognizing(0f, 0, audioMeta?.let { Math.ceil(it.durationMs / 30000.0).toInt() } ?: 1)
                 _sttProgress.value = SttProgressState.RECOGNIZING
 
                 val modelDir = ModelManager.getModelPath(context, recommendedModel)
-                val engine = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
-                sttEngine = engine
-                sherpaOnnxEngine = engine
-
-                if (modelDir != null) {
-                    engine.initialize(modelDir)
+                val engine = withContext(Dispatchers.IO) {
+                    val e = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
+                    sttEngine = e
+                    sherpaOnnxEngine = e
+                    if (modelDir != null) e.initialize(modelDir)
+                    e
                 }
 
                 val result = withContext(Dispatchers.IO) { engine.recognizeFile(uri) }
@@ -3167,6 +3167,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _sttError.value = null
         _sttProgress.value = SttProgressState.IDLE
         _sttUiState.value = SttUiState.Idle
+    }
+
+    fun cancelStt() {
+        sttJob?.cancel()
+        sttJob = null
+        _sttProgress.value = SttProgressState.IDLE
+        _sttUiState.value = SttUiState.Idle
+        sttEngine?.close()
+        sttEngine = null
     }
 
     fun retryLastStt() {
