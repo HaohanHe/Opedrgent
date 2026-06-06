@@ -142,7 +142,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
     val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
     val isBlockquote = { line: String -> line.trimStart().startsWith("> ") }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
         val lines = parsedContent!!.lines
         var inCodeBlock = false
         var codeBlockLang = ""
@@ -185,7 +185,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
 
             val trimmed = line.trim()
             if (trimmed.isEmpty()) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(10.dp))
                 i++
                 continue
             }
@@ -199,6 +199,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                         2 -> MaterialTheme.typography.titleMedium
                         else -> MaterialTheme.typography.titleSmall
                     }
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(text = headingText, fontWeight = FontWeight.Bold, style = style, color = Color(0xFF1E242A))
                 }
                 isOrderedBullet(trimmed) -> {
