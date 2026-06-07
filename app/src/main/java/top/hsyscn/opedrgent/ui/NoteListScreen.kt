@@ -62,6 +62,7 @@ fun NoteListScreen(
     onNoteClick: (Long) -> Unit,
     onNewNote: () -> Unit,
     onBack: () -> Unit,
+    onShareNote: (Long) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
@@ -208,6 +209,7 @@ fun NoteListScreen(
                             onClick = { onNoteClick(note.id) },
                             onTogglePin = { scope.launch { repository.togglePin(note.id) } },
                             onDelete = { scope.launch { repository.deleteNote(note.id) } },
+                            onShare = { onShareNote(note.id) },
                         )
                     }
                 }
@@ -497,6 +499,7 @@ private fun NoteCard(
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
     onDelete: () -> Unit,
+    onShare: () -> Unit = {},
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -547,6 +550,11 @@ private fun NoteCard(
                             text = { Text(if (note.isPinned) "取消置顶" else "置顶") },
                             onClick = { showMenu = false; onTogglePin() },
                             leadingIcon = { Icon(Icons.Default.PushPin, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("分享") },
+                            onClick = { showMenu = false; onShare() },
+                            leadingIcon = { Icon(Icons.Default.Share, null) },
                         )
                         DropdownMenuItem(
                             text = { Text("删除", color = MaterialTheme.colorScheme.error) },

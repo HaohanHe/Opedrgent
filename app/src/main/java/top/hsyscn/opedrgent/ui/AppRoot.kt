@@ -238,6 +238,7 @@ fun AppRoot(
                     onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
                     onNewNote = { subScreen = "noteEditor_new" },
                     onBack = { subScreen = null },
+                    onShareNote = { noteId -> subScreen = "noteShare_$noteId" },
                 )
                 "noteEditor_new" -> NoteEditorScreen(
                     repository = vm.noteRepository,
@@ -301,15 +302,30 @@ fun AppRoot(
                         )
                     }
                 }
-                else -> if (subScreen?.startsWith("noteEditor_") == true) {
-                    val noteIdStr = subScreen!!.removePrefix("noteEditor_")
-                    val noteId = noteIdStr.toLongOrNull()
-                    NoteEditorScreen(
-                        repository = vm.noteRepository,
-                        noteId = noteId,
-                        onSaved = { /* 保持在编辑器 */ },
-                        onBack = { subScreen = "notes" },
-                    )
+                else -> {
+                    when {
+                        subScreen?.startsWith("noteEditor_") == true -> {
+                            val noteIdStr = subScreen!!.removePrefix("noteEditor_")
+                            val noteId = noteIdStr.toLongOrNull()
+                            NoteEditorScreen(
+                                repository = vm.noteRepository,
+                                noteId = noteId,
+                                onSaved = { /* 保持在编辑器 */ },
+                                onBack = { subScreen = "notes" },
+                            )
+                        }
+                        subScreen?.startsWith("noteShare_") == true -> {
+                            val noteIdStr = subScreen!!.removePrefix("noteShare_")
+                            val noteId = noteIdStr.toLongOrNull()
+                            if (noteId != null) {
+                                NoteShareScreen(
+                                    repository = vm.noteRepository,
+                                    noteId = noteId,
+                                    onBack = { subScreen = "notes" },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
