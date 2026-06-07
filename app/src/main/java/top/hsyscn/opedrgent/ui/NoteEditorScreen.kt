@@ -58,6 +58,8 @@ fun NoteEditorScreen(
     var noteType by remember { mutableStateOf(initialType) }
     var isSaving by remember { mutableStateOf(false) }
     var lastSavedAt by remember { mutableStateOf<Long?>(null) }
+    var tags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var tagInput by remember { mutableStateOf("") }
 
     suspend fun save() {
         if (isSaving) return
@@ -70,12 +72,25 @@ fun NoteEditorScreen(
                 type = noteType,
                 wordCount = content.text.length,
             )
+            note.setTags(tags)
             val id = repository.saveNote(note)
             lastSavedAt = System.currentTimeMillis()
             onSaved(id)
         } finally {
             isSaving = false
         }
+    }
+
+    fun addTag() {
+        val tag = tagInput.trim()
+        if (tag.isNotEmpty() && !tags.contains(tag) && tags.size < 200 && tag.length <= 40) {
+            tags = tags + tag
+            tagInput = ""
+        }
+    }
+
+    fun removeTag(tagToRemove: String) {
+        tags = tags.filter { it != tagToRemove }
     }
 
     LaunchedEffect(noteId) {
@@ -85,6 +100,7 @@ fun NoteEditorScreen(
                 title = existing.title
                 content = TextFieldValue(existing.content, TextRange(existing.content.length))
                 noteType = existing.type
+                tags = existing.getTags()
                 lastSavedAt = existing.updatedAt
             }
         }
@@ -151,7 +167,69 @@ fun NoteEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            // 标签输入区域
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                // 已添加的标签
+                if (tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        tags.forEach { tag ->
+                            Surface(
+                                color = Color(0xFFE67E22).copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                ) {
+                                    Text(tag, fontSize = 12.sp, color = Color(0xFFE67E22))
+                                    Spacer(Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = { removeTag(tag) },
+                                        modifier = Modifier.size(14.dp),
+                                    ) {
+                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = Color(0xFFE67E22))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // 标签输入框
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Label, "标签", tint = Color(0xFFE67E22), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    BasicTextField(
+                        value = tagInput,
+                        onValueChange = { tagInput = it },
+                        textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+                        singleLine = true,
+                        cursorBrush = SolidColor(Color(0xFFE67E22)),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (tagInput.isEmpty()) {
+                                    Text("添加标签（最多200个，每个40字符）", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                }
+                                innerTextField()
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { addTag() }),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (tagInput.isNotEmpty()) {
+                        IconButton(onClick = { addTag() }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = Color(0xFFE67E22))
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
 
             BasicTextField(
                 value = content,
