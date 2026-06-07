@@ -148,6 +148,7 @@ import top.hsyscn.opedrgent.ui.components.MessageBodyError
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
+import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import java.io.File
@@ -231,6 +232,48 @@ fun AppRoot(
                 )
                 "knowledge" -> KnowledgeBaseScreen(vm = vm, onBack = { subScreen = null })
                 "export" -> ExportScreen(vm = vm, onBack = { subScreen = null })
+                "notes" -> NoteListScreen(
+                    repository = vm.noteRepository,
+                    folderRepository = vm.folderRepository,
+                    onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onNewNote = { subScreen = "noteEditor_new" },
+                    onBack = { subScreen = null },
+                )
+                "noteEditor_new" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
+                "noteEditor_new_text" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    initialType = NoteType.TEXT,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
+                "noteEditor_new_quick" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    initialType = NoteType.QUICK,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
+                "noteEditor_new_link" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    initialType = NoteType.LINK,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
+                "noteEditor_new_image" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    initialType = NoteType.IMAGE,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
+                "noteEditor_new_pdf" -> NoteEditorScreen(
+                    repository = vm.noteRepository,
+                    initialType = NoteType.PDF,
+                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
+                )
                 null -> {
                     when {
                         selectedTab == MainTab.SETTINGS -> SettingsScreen(
@@ -239,6 +282,7 @@ fun AppRoot(
                             toSkills = { subScreen = "skills" },
                             toAutomations = { subScreen = "automations" },
                             toMemory = { subScreen = "memory" },
+                            toNotes = { subScreen = "notes" },
                         )
                         selectedTab == MainTab.HISTORY || (selectedTab == MainTab.CHAT && selectedSessionId == null) -> SessionsScreen(
                             vm = vm,
@@ -256,6 +300,16 @@ fun AppRoot(
                             onBack = { selectedSessionId = null },
                         )
                     }
+                }
+                else -> if (subScreen?.startsWith("noteEditor_") == true) {
+                    val noteIdStr = subScreen!!.removePrefix("noteEditor_")
+                    val noteId = noteIdStr.toLongOrNull()
+                    NoteEditorScreen(
+                        repository = vm.noteRepository,
+                        noteId = noteId,
+                        onSaved = { /* 保持在编辑器 */ },
+                        onBack = { subScreen = "notes" },
+                    )
                 }
             }
         }
@@ -1143,7 +1197,7 @@ fun SessionScreen(
 
 
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -1341,6 +1395,30 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     Column(modifier = Modifier.weight(1f)) {
                         Text("记忆条目", fontWeight = FontWeight.SemiBold)
                         Text("共 ${state.memories.size} 条记忆", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Icon(Icons.Default.ArrowForward, contentDescription = "进入")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text("笔记管理", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = toNotes,
+                shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("我的笔记", fontWeight = FontWeight.SemiBold)
+                        Text("支持文本/语音/图片/链接/PDF笔记，带标签分类", style = MaterialTheme.typography.bodySmall)
                     }
                     Icon(Icons.Default.ArrowForward, contentDescription = "进入")
                 }

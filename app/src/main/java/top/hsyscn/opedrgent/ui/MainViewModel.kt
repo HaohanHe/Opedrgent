@@ -20,6 +20,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
+import top.hsyscn.opedrgent.note.NoteRepository
+import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MemoryEntry
@@ -224,6 +226,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
+    val noteRepository = NoteRepository(app)
+    val folderRepository = FolderRepository(app)
     
     // Skills registry and prompt cache
     private val skillRegistry = top.hsyscn.opedrgent.mcp.skills.SkillRegistry.getInstance().apply {
