@@ -1153,6 +1153,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var ttsPitch by rememberSaveable { mutableStateOf(vm.getTtsPitch()) }
     var ttsLocaleTag by rememberSaveable { mutableStateOf(vm.getTtsLocaleTag()) }
     var sttEnabled by rememberSaveable { mutableStateOf(vm.isSttEnabled()) }
+    var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
+    var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
+    var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
@@ -1357,13 +1360,87 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Text(text = "语音转文字", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = sttEnabled, onCheckedChange = { sttEnabled = it })
                     }
+                    if (sttEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "识别引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = sttEngine == "local",
+                                    onClick = { sttEngine = "local" },
+                                    label = { Text("本地 Sherpa", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
+                                    selected = sttEngine == "mimo",
+                                    onClick = { sttEngine = "mimo" },
+                                    label = { Text("MiMo ASR", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                            }
+                        }
+                        if (sttEngine == "mimo") {
+                            Text(
+                                text = "MiMo ASR 通过网络调用小米语音识别 API，需联网，支持中/英/日/韩等多语种",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFE67E22),
+                            )
+                        }
+                        if (sttEngine == "local") {
+                            Text(
+                                text = "本地识别使用 Sherpa-ONNX 离线模型，无需联网，首次使用需下载模型",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                            )
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "TTS 朗读", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = ttsEnabled, onCheckedChange = { ttsEnabled = it })
                     }
+                    if (ttsEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "TTS 引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = !ttsMimoEnabled,
+                                    onClick = { ttsMimoEnabled = false },
+                                    label = { Text("系统 TTS", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
+                                    selected = ttsMimoEnabled,
+                                    onClick = { ttsMimoEnabled = true },
+                                    label = { Text("MiMo TTS", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                            }
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "自动朗读回答", modifier = Modifier.weight(1f))
                         Switch(checked = ttsAuto, onCheckedChange = { ttsAuto = it }, enabled = ttsEnabled)
+                    }
+                    if (ttsEnabled && ttsAuto && ttsMimoEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "仅下载音频到本地", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Switch(
+                                checked = ttsDownloadOnly,
+                                onCheckedChange = { ttsDownloadOnly = it },
+                            )
+                        }
+                        if (ttsDownloadOnly) {
+                            Text(
+                                text = "开启后自动朗读时仅保存音频文件，不自动播放",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                            )
+                        } else {
+                            Text(
+                                text = "关闭后自动朗读时直接播放音频",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF4CAF50),
+                            )
+                        }
                     }
                     Text(text = "语速")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1669,10 +1746,12 @@ Spacer(Modifier.height(12.dp))
                         rate = ttsRate,
                         pitch = ttsPitch,
                         localeTag = ttsLocaleTag,
-                        mimoEnabled = vm.isTtsMimoEnabled(),
+                        mimoEnabled = ttsMimoEnabled,
                         mimoVoice = vm.getTtsMimoVoice(),
+                        downloadOnly = ttsDownloadOnly,
                     )
                     vm.saveSttEnabled(sttEnabled)
+                    vm.saveSttEngine(sttEngine)
                     vm.saveBackgroundRunning(bgRunning)
                     vm.saveLocationEnabled(locationEnabled)
                     vm.saveDebugMode(debugMode)
