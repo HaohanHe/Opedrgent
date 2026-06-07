@@ -92,6 +92,7 @@ import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.stt.ModelManager
 import top.hsyscn.opedrgent.stt.SpeechEngine
 import top.hsyscn.opedrgent.stt.SherpaOnnxEngine
+import top.hsyscn.opedrgent.stt.MimoAsrEngine
 import top.hsyscn.opedrgent.stt.AndroidSpeechRecognizer
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
@@ -3081,7 +3082,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 val recommendedModel = ModelManager.getRecommendedModel(context)
-                if (!ModelManager.isModelDownloaded(context, recommendedModel)) {
+                val useMiMoAsr = apiSettings.getSttEngine() == "mimo" && apiSettings.hasApiKey()
+
+                if (!useMiMoAsr && !ModelManager.isModelDownloaded(context, recommendedModel)) {
                     val modelInfo = ModelManager.AVAILABLE_MODELS.find { it.type == recommendedModel }
                     val modelSizeMb = ((modelInfo?.sizeBytes ?: 0L) / (1024 * 1024)).toInt()
                     _sttUiState.value = SttUiState.DownloadingModel(0f, modelSizeMb)
@@ -3121,17 +3124,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _sttUiState.value = SttUiState.Recognizing(0f, 0, audioMeta?.let { Math.ceil(it.durationMs / 30000.0).toInt() } ?: 1)
                 _sttProgress.value = SttProgressState.RECOGNIZING
 
-                val modelDir = ModelManager.getModelPath(context, recommendedModel)
-                val engine = withContext(Dispatchers.IO) {
-                    val e = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
-                    sttEngine = e
-                    sherpaOnnxEngine = e
-                    if (modelDir != null) e.initialize(modelDir)
-                    e
+                val result = withContext(Dispatchers.IO) {
+                    if (useMiMoAsr) {
+                        DebugLog.i("STT: 使用 MiMo ASR 在线引擎")
+                        val mimoEngine = MimoAsrEngine(context, apiSettings)
+                        mimoEngine.initialize()
+                        sttEngine = mimoEngine
+                        mimoEngine.recognizeFile(uri)
+                    } else {
+                        val modelDir = ModelManager.getModelPath(context, recommendedModel)
+                        val e = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
+                        sttEngine = e
+                        sherpaOnnxEngine = e
+                        if (modelDir != null) e.initialize(modelDir)
+                        e.recognizeFile(uri)
+                    }
                 }
-
-                val result = withContext(Dispatchers.IO) { engine.recognizeFile(uri) }
-                val enrichedResult = result.copy(modelUsed = recommendedModel.name)
+                val enrichedResult = result.copy(modelUsed = if (useMiMoAsr) "MiMo-ASR" else recommendedModel.name)
 
                 _sttResult.value = enrichedResult
                 _sttUiState.value = SttUiState.Done(enrichedResult)
