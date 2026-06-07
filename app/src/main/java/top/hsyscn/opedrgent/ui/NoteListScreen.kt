@@ -60,11 +60,14 @@ fun NoteListScreen(
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<NoteType?>(null) }
+    var selectedTag by remember { mutableStateOf<String?>(null) }
 
     // 数据源
-    val notesFlow = remember(searchQuery, selectedType) {
+    val notesFlow = remember(searchQuery, selectedType, selectedTag) {
         if (searchQuery.isNotBlank()) {
             repository.searchNotes(searchQuery.trim())
+        } else if (selectedTag != null) {
+            repository.getByTag(selectedTag!!)
         } else if (selectedType != null) {
             repository.getByType(selectedType!!)
         } else {
@@ -73,6 +76,7 @@ fun NoteListScreen(
     }
     val notes by notesFlow.collectAsState(initial = emptyList())
     val noteCount by repository.countAll().collectAsState(initial = 0L)
+    val allTags by repository.getAllTags().collectAsState(initial = emptyList())
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
@@ -122,6 +126,15 @@ fun NoteListScreen(
                 onTypeSelected = { selectedType = it },
                 noteCount = noteCount.toInt(),
             )
+
+            // 标签筛选 Chip 行
+            if (allTags.isNotEmpty()) {
+                TagFilterChips(
+                    tags = allTags,
+                    selectedTag = selectedTag,
+                    onTagSelected = { selectedTag = it },
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
 
@@ -188,6 +201,56 @@ private fun TypeFilterChips(
                 colors = chipColors,
                 shape = RoundedCornerShape(20.dp),
                 border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TagFilterChips(
+    tags: List<String>,
+    selectedTag: String?,
+    onTagSelected: (String?) -> Unit,
+) {
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = Color(0xFFE67E22),
+        selectedLabelColor = Color.White,
+    )
+
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // 全部标签按钮
+        FilterChip(
+            selected = selectedTag == null,
+            onClick = { onTagSelected(null) },
+            label = { Text("全部标签", fontSize = 12.sp) },
+            colors = chipColors,
+            shape = RoundedCornerShape(16.dp),
+            border = if (selectedTag == null) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+        )
+        
+        // 各个标签按钮
+        tags.take(10).forEach { tag ->
+            val isSelected = tag == selectedTag
+            FilterChip(
+                selected = isSelected,
+                onClick = { onTagSelected(if (isSelected) null else tag) },
+                label = { Text(tag, fontSize = 12.sp) },
+                colors = chipColors,
+                shape = RoundedCornerShape(16.dp),
+                border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+            )
+        }
+        
+        // 如果标签超过10个，显示"+N"按钮
+        if (tags.size > 10) {
+            Text(
+                "+${tags.size - 10}",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp, top = 8.dp),
             )
         }
     }
