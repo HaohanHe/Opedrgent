@@ -74,6 +74,41 @@ class NoteDao(private val db: NoteDatabase) {
         return cursor.use { c -> c.mapToList(db) }
     }
 
+    /** 按标签筛选 */
+    fun getByTag(tag: String): List<Note> {
+        val cursor = db.readableDatabase.query(
+            NoteDatabase.TABLE_NOTES, null,
+            "${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_TAGS_JSON} LIKE ?",
+            arrayOf("%\"$tag\"%"),
+            null, null,
+            "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
+        )
+        return cursor.use { c -> c.mapToList(db) }
+    }
+
+    /** 获取所有唯一标签 */
+    fun getAllTags(): List<String> {
+        val tags = mutableSetOf<String>()
+        val cursor = db.readableDatabase.query(
+            NoteDatabase.TABLE_NOTES,
+            arrayOf(NoteDatabase.COL_TAGS_JSON),
+            "${NoteDatabase.COL_IS_DELETED} = 0",
+            null, null, null, null,
+        )
+        cursor.use { c ->
+            while (c.moveToNext()) {
+                val tagsJson = c.getString(0) ?: "[]"
+                try {
+                    val arr = org.json.JSONArray(tagsJson)
+                    for (i in 0 until arr.length()) {
+                        tags.add(arr.getString(i))
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        return tags.sorted()
+    }
+
     /** 获取单条笔记 */
     fun getById(id: Long): Note? {
         val cursor = db.readableDatabase.query(

@@ -31,6 +31,12 @@ class NoteRepository(context: Context) {
     /** 搜索笔记（标题/内容/摘要模糊匹配） */
     fun searchNotes(query: String): Flow<List<Note>> = _changeTrigger.map { dao.searchNotes(query) }
 
+    /** 按标签筛选 */
+    fun getByTag(tag: String): Flow<List<Note>> = _changeTrigger.map { dao.getByTag(tag) }
+
+    /** 获取所有唯一标签 */
+    fun getAllTags(): Flow<List<String>> = _changeTrigger.map { dao.getAllTags() }
+
     /** 笔记总数 */
     fun countAll(): Flow<Long> = _changeTrigger.map { dao.countAll() }
 

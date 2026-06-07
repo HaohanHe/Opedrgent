@@ -78,6 +78,10 @@ enum class NoteType {
     LINK,       // 链接收藏
     QUICK,      // 快速闪念
     AI_CHAT,    // AI 对话保存
+    IMAGE,      // 图片笔记
+    PDF,        // PDF文档笔记
+    AUDIO,      // 音频笔记
+    BOOK,       // 电子书笔记
 }
 
 fun NoteType.icon(): ImageVector = when (this) {
@@ -87,6 +91,10 @@ fun NoteType.icon(): ImageVector = when (this) {
     NoteType.LINK -> Icons.Default.Link
     NoteType.QUICK -> Icons.Default.Bolt
     NoteType.AI_CHAT -> Icons.Default.AutoAwesome
+    NoteType.IMAGE -> Icons.Default.Image
+    NoteType.PDF -> Icons.Default.PictureAsPdf
+    NoteType.AUDIO -> Icons.Default.Headphones
+    NoteType.BOOK -> Icons.Default.MenuBook
 }
 
 fun NoteType.color(): Color = when (this) {
@@ -96,6 +104,10 @@ fun NoteType.color(): Color = when (this) {
     NoteType.LINK -> Color(0xFF3498DB)
     NoteType.QUICK -> Color(0xFFF39C12)
     NoteType.AI_CHAT -> Color(0xFF1ABC9C)
+    NoteType.IMAGE -> Color(0xFF2ECC71)
+    NoteType.PDF -> Color(0xFFE74C3C)
+    NoteType.AUDIO -> Color(0xFF9B59B6)
+    NoteType.BOOK -> Color(0xFF34495E)
 }
 
 fun NoteType.displayName(): String = when (this) {
@@ -105,4 +117,8 @@ fun NoteType.displayName(): String = when (this) {
     NoteType.LINK -> "链接"
     NoteType.QUICK -> "闪念"
     NoteType.AI_CHAT -> "AI"
+    NoteType.IMAGE -> "图片"
+    NoteType.PDF -> "PDF"
+    NoteType.AUDIO -> "音频"
+    NoteType.BOOK -> "电子书"
 }
