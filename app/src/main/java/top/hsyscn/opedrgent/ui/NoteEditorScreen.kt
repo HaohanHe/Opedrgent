@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -21,6 +22,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -60,6 +62,8 @@ fun NoteEditorScreen(
     var lastSavedAt by remember { mutableStateOf<Long?>(null) }
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var tagInput by remember { mutableStateOf("") }
+    var isPreviewMode by remember { mutableStateOf(false) }
+    var showFormatToolbar by remember { mutableStateOf(true) }
 
     suspend fun save() {
         if (isSaving) return
@@ -91,6 +95,14 @@ fun NoteEditorScreen(
 
     fun removeTag(tagToRemove: String) {
         tags = tags.filter { it != tagToRemove }
+    }
+
+    fun insertFormatting(prefix: String, suffix: String = "") {
+        val selection = content.selection
+        val text = content.text
+        val selectedText = text.substring(selection.start, selection.end)
+        val newText = text.substring(0, selection.start) + prefix + selectedText + suffix + text.substring(selection.end)
+        content = TextFieldValue(newText, TextRange(selection.start + prefix.length + selectedText.length + suffix.length))
     }
 
     LaunchedEffect(noteId) {
@@ -127,6 +139,20 @@ fun NoteEditorScreen(
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
                 actions = {
+                    // 预览/编辑模式切换
+                    IconButton(onClick = { isPreviewMode = !isPreviewMode }) {
+                        Icon(
+                            if (isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
+                            if (isPreviewMode) "编辑" else "预览",
+                            tint = AccentBlue,
+                        )
+                    }
+                    
+                    // 格式化工具栏切换
+                    IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
+                        Icon(Icons.Default.FormatBold, "格式化", tint = AccentBlue)
+                    }
+                    
                     TextButton(
                         onClick = { scope.launch { save() } },
                         enabled = !isSaving && content.text.isNotBlank(),
@@ -145,6 +171,7 @@ fun NoteEditorScreen(
                 .padding(padding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            // 标题输入
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -231,44 +258,77 @@ fun NoteEditorScreen(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
 
-            BasicTextField(
-                value = content,
-                onValueChange = { content = it },
-                textStyle = TextStyle(
-                    fontSize = 16.sp,
-                    lineHeight = 26.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                cursorBrush = SolidColor(AccentBlue),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (content.text.isEmpty()) {
-                            Text(
-                                buildAnnotatedString {
-                                    append("开始书写...\n\n")
-                                    append("支持 Markdown 格式：\n")
-                                    append("# 标题\n")
-                                    append("**加粗** *斜体* `代码`\n")
-                                    append("- 无序列表\n")
-                                    append("1. 有序列表\n")
-                                    append("> 引用")
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
+            // 格式化工具栏
+            if (showFormatToolbar && !isPreviewMode) {
+                MarkdownFormatToolbar(
+                    onBold = { insertFormatting("**", "**") },
+                    onItalic = { insertFormatting("*", "*") },
+                    onCode = { insertFormatting("`", "`") },
+                    onHeading1 = { insertFormatting("# ") },
+                    onHeading2 = { insertFormatting("## ") },
+                    onHeading3 = { insertFormatting("### ") },
+                    onBulletList = { insertFormatting("- ") },
+                    onNumberedList = { insertFormatting("1. ") },
+                    onQuote = { insertFormatting("> ") },
+                    onLink = { insertFormatting("[", "](url)") },
+                    onImage = { insertFormatting("![alt](", ")") },
+                )
+            }
 
+            // 内容输入/预览
+            if (isPreviewMode) {
+                // Markdown 预览模式
+                MarkdownPreview(
+                    content = content.text,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            } else {
+                // 编辑模式
+                BasicTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    textStyle = TextStyle(
+                        fontSize = 16.sp,
+                        lineHeight = 26.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(AccentBlue),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (content.text.isEmpty()) {
+                                Text(
+                                    buildAnnotatedString {
+                                        append("开始书写...\n\n")
+                                        append("支持 Markdown 格式：\n")
+                                        append("# 标题\n")
+                                        append("**加粗** *斜体* `代码`\n")
+                                        append("- 无序列表\n")
+                                        append("1. 有序列表\n")
+                                        append("> 引用\n")
+                                        append("![图片](url)\n")
+                                        append("[链接](url)")
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
+                )
+            }
+
+            // 底部状态栏
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 tonalElevation = 2.dp,
@@ -296,6 +356,131 @@ fun NoteEditorScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownFormatToolbar(
+    onBold: () -> Unit,
+    onItalic: () -> Unit,
+    onCode: () -> Unit,
+    onHeading1: () -> Unit,
+    onHeading2: () -> Unit,
+    onHeading3: () -> Unit,
+    onBulletList: () -> Unit,
+    onNumberedList: () -> Unit,
+    onQuote: () -> Unit,
+    onLink: () -> Unit,
+    onImage: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        tonalElevation = 2.dp,
+    ) {
+        Column {
+            // 第一行：基础格式
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                FormatButton(icon = Icons.Default.FormatBold, onClick = onBold, description = "加粗")
+                FormatButton(icon = Icons.Default.FormatItalic, onClick = onItalic, description = "斜体")
+                FormatButton(icon = Icons.Default.Code, onClick = onCode, description = "代码")
+                FormatButton(icon = Icons.Default.FormatListBulleted, onClick = onBulletList, description = "无序列表")
+                FormatButton(icon = Icons.Default.FormatListNumbered, onClick = onNumberedList, description = "有序列表")
+                FormatButton(icon = Icons.Default.FormatQuote, onClick = onQuote, description = "引用")
+                FormatButton(icon = Icons.Default.Link, onClick = onLink, description = "链接")
+                FormatButton(icon = Icons.Default.Image, onClick = onImage, description = "图片")
+            }
+            
+            // 第二行：标题
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                FormatButton(icon = Icons.Default.Title, onClick = onHeading1, description = "标题1", text = "H1")
+                FormatButton(icon = Icons.Default.Title, onClick = onHeading2, description = "标题2", text = "H2")
+                FormatButton(icon = Icons.Default.Title, onClick = onHeading3, description = "标题3", text = "H3")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormatButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    description: String,
+    text: String? = null,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(36.dp),
+    ) {
+        if (text != null) {
+            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        } else {
+            Icon(icon, description, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+private fun MarkdownPreview(
+    content: String,
+    modifier: Modifier = Modifier,
+) {
+    // 简单的 Markdown 预览（实际项目中可以使用专业的 Markdown 渲染库）
+    Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+        content.split("\n").forEach { line ->
+            when {
+                line.startsWith("# ") -> Text(
+                    text = line.removePrefix("# "),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+                line.startsWith("## ") -> Text(
+                    text = line.removePrefix("## "),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+                line.startsWith("### ") -> Text(
+                    text = line.removePrefix("### "),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+                line.startsWith("- ") -> Text(
+                    text = "• ${line.removePrefix("- ")}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+                line.startsWith("> ") -> Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.padding(vertical = 2.dp),
+                ) {
+                    Text(
+                        text = line.removePrefix("> "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                }
+                else -> Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
             }
         }
     }
