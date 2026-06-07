@@ -86,6 +86,14 @@ class NoteRepository(context: Context) {
         return newPinned
     }
 
+    /** 移动笔记到文件夹 */
+    suspend fun moveToFolder(noteId: Long, folderId: Long?) {
+        val note = dao.getById(noteId) ?: return
+        note.folderId = folderId
+        dao.insertOrUpdate(note)
+        _changeTrigger.value = System.currentTimeMillis()
+    }
+
     /** 获取最近 N 条（用于 AI 上下文注入） */
     suspend fun getRecentNotes(limit: Int = 10): List<Note> = dao.getRecentNotes(limit)
 

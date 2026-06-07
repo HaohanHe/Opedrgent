@@ -4,6 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +31,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.note.Folder
+import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.NoteType
@@ -53,6 +58,7 @@ import java.util.*
 @Composable
 fun NoteListScreen(
     repository: NoteRepository,
+    folderRepository: FolderRepository,
     onNoteClick: (Long) -> Unit,
     onNewNote: () -> Unit,
     onBack: () -> Unit,
@@ -61,9 +67,16 @@ fun NoteListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<NoteType?>(null) }
     var selectedTag by remember { mutableStateOf<String?>(null) }
+    var currentFolderId by remember { mutableStateOf<Long?>(null) }
+    var showFolderDialog by remember { mutableStateOf(false) }
+    var editingFolder by remember { mutableStateOf<Folder?>(null) }
 
-    // 数据源
-    val notesFlow = remember(searchQuery, selectedType, selectedTag) {
+    // 文件夹数据
+    val folders by folderRepository.getByParent(currentFolderId).collectAsState(initial = emptyList())
+    val allFolders by folderRepository.getAllFolders().collectAsState(initial = emptyList())
+
+    // 笔记数据
+    val notesFlow = remember(searchQuery, selectedType, selectedTag, currentFolderId) {
         if (searchQuery.isNotBlank()) {
             repository.searchNotes(searchQuery.trim())
         } else if (selectedTag != null) {
@@ -71,12 +84,34 @@ fun NoteListScreen(
         } else if (selectedType != null) {
             repository.getByType(selectedType!!)
         } else {
-            repository.getAllNotes()
+            repository.getByFolder(currentFolderId)
         }
     }
     val notes by notesFlow.collectAsState(initial = emptyList())
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
+
+    // 文件夹对话框
+    if (showFolderDialog) {
+        FolderDialog(
+            folder = editingFolder,
+            onDismiss = { showFolderDialog = false },
+            onConfirm = { name ->
+                scope.launch {
+                    try {
+                        if (editingFolder != null) {
+                            folderRepository.renameFolder(editingFolder!!.id, name)
+                        } else {
+                            folderRepository.quickCreate(name, currentFolderId)
+                        }
+                        showFolderDialog = false
+                    } catch (e: Exception) {
+                        // 处理错误
+                    }
+                }
+            },
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
@@ -133,6 +168,27 @@ fun NoteListScreen(
                     tags = allTags,
                     selectedTag = selectedTag,
                     onTagSelected = { selectedTag = it },
+                )
+            }
+
+            // 文件夹导航
+            if (currentFolderId != null || folders.isNotEmpty()) {
+                FolderNavigation(
+                    currentFolderId = currentFolderId,
+                    folders = folders,
+                    allFolders = allFolders,
+                    onFolderClick = { folderId -> currentFolderId = folderId },
+                    onBackToRoot = { currentFolderId = null },
+                    onCreateFolder = { showFolderDialog = true; editingFolder = null },
+                    onRenameFolder = { folder -> showFolderDialog = true; editingFolder = folder },
+                    onDeleteFolder = { folder ->
+                        scope.launch {
+                            folderRepository.deleteFolder(folder.id)
+                            if (currentFolderId == folder.id) {
+                                currentFolderId = null
+                            }
+                        }
+                    },
                 )
             }
 
@@ -254,6 +310,185 @@ private fun TagFilterChips(
             )
         }
     }
+}
+
+@Composable
+private fun FolderNavigation(
+    currentFolderId: Long?,
+    folders: List<Folder>,
+    allFolders: List<Folder>,
+    onFolderClick: (Long) -> Unit,
+    onBackToRoot: () -> Unit,
+    onCreateFolder: () -> Unit,
+    onRenameFolder: (Folder) -> Unit,
+    onDeleteFolder: (Folder) -> Unit,
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        // 文件夹导航面包屑
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 返回根目录按钮
+            if (currentFolderId != null) {
+                IconButton(onClick = onBackToRoot, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.ArrowBack, "返回根目录", modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(4.dp))
+                
+                // 显示当前路径
+                val currentPath = buildList {
+                    var folderId: Long? = currentFolderId
+                    while (folderId != null) {
+                        val folder = allFolders.find { it.id == folderId }
+                        if (folder != null) {
+                            add(0, folder)
+                            folderId = folder.parentId
+                        } else break
+                    }
+                }
+                
+                currentPath.forEachIndexed { index, folder ->
+                    if (index > 0) {
+                        Text(" > ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        folder.name,
+                        fontSize = 12.sp,
+                        color = if (index == currentPath.lastIndex) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { onFolderClick(folder.id) },
+                    )
+                }
+            } else {
+                Icon(Icons.Default.Folder, "文件夹", tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("文件夹", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // 新建文件夹按钮
+            IconButton(onClick = onCreateFolder, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(16.dp), tint = AccentBlue)
+            }
+        }
+
+        // 文件夹网格
+        if (folders.isNotEmpty()) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.heightIn(max = 120.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                gridItems(folders) { folder ->
+                    FolderItem(
+                        folder = folder,
+                        onClick = { onFolderClick(folder.id) },
+                        onRename = { onRenameFolder(folder) },
+                        onDelete = { onDeleteFolder(folder) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderItem(
+    folder: Folder,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.height(60.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                folder.name,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Box {
+                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(20.dp)) {
+                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(14.dp))
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("重命名") },
+                        onClick = { showMenu = false; onRename() },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                        onClick = { showMenu = false; onDelete() },
+                        leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderDialog(
+    folder: Folder?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf(folder?.name ?: "") }
+    var isError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (folder != null) "重命名文件夹" else "新建文件夹") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        isError = it.isBlank() || it.length > 50
+                    },
+                    label = { Text("文件夹名称") },
+                    isError = isError,
+                    supportingText = {
+                        if (isError) {
+                            Text("名称不能为空且不能超过50个字符", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank() && name.length <= 50,
+            ) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 @Composable
