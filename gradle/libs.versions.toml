@@ -21,6 +21,7 @@ securityCrypto = "1.1.0-alpha06"
 kotlinxSerialization = "1.7.3"
 litertLm = "0.12.0"
 playServicesTflite = "16.4.0"
+commonsCompress = "1.27.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -56,6 +57,7 @@ litert-lm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", 
 tflite = { group = "com.google.android.gms", name = "play-services-tflite-java", version.ref = "playServicesTflite" }
 tflite-gpu = { group = "com.google.android.gms", name = "play-services-tflite-gpu", version.ref = "playServicesTflite" }
 tflite-support = { group = "com.google.android.gms", name = "play-services-tflite-support", version.ref = "playServicesTflite" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
