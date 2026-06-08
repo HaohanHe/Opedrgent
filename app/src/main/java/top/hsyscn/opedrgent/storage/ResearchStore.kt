@@ -6,6 +6,7 @@ import org.json.JSONObject
 import top.hsyscn.opedrgent.model.Artifact
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
+import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.QuestionOption
 import top.hsyscn.opedrgent.model.QuestionPart
 import top.hsyscn.opedrgent.model.ReasoningPart
@@ -82,6 +83,8 @@ class ResearchStore(context: Context) {
         toolParts: List<top.hsyscn.opedrgent.model.ToolPart> = emptyList(),
         reasoningParts: List<top.hsyscn.opedrgent.model.ReasoningPart> = emptyList(),
         questionPart: top.hsyscn.opedrgent.model.QuestionPart? = null,
+        parts: List<MessagePart> = emptyList(),
+        isUserAction: Boolean = false,
     ): ResearchSession? {
         synchronized(lock) {
             val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
@@ -95,6 +98,8 @@ class ResearchStore(context: Context) {
                     toolParts = toolParts,
                     reasoningParts = reasoningParts,
                     questionPart = questionPart,
+                    parts = parts,
+                    isUserAction = isUserAction,
                 ),
             )
             updateSessionInternal(next)
@@ -323,6 +328,8 @@ class ResearchStore(context: Context) {
                 questionPart = questionPart,
                 toolCallId = o.optString("toolCallId").ifBlank { null },
                 apiToolCallsJson = o.optString("apiToolCallsJson").ifBlank { null },
+                parts = parseParts(o.optJSONArray("parts")),
+                isUserAction = o.optBoolean("isUserAction", false),
             )
         }
     }
@@ -438,6 +445,12 @@ class ResearchStore(context: Context) {
                 put("answer", qp.answer ?: JSONObject.NULL)
             })
         }
+        if (msg.parts.isNotEmpty()) {
+            obj.put("parts", serializeParts(msg.parts))
+        }
+        if (msg.isUserAction) {
+            obj.put("isUserAction", true)
+        }
         return obj
     }
 
@@ -448,5 +461,132 @@ class ResearchStore(context: Context) {
         obj.put("content", artifact.content)
         obj.put("createdAt", artifact.createdAt)
         return obj
+    }
+
+    // ==================== MessagePart 序列化 ====================
+
+    private fun serializeParts(parts: List<MessagePart>): JSONArray {
+        return JSONArray().apply {
+            parts.forEach { part ->
+                val obj = JSONObject()
+                when (part) {
+                    is MessagePart.Text -> {
+                        obj.put("type", "Text")
+                        obj.put("content", part.content)
+                        obj.put("ignored", part.ignored)
+                    }
+                    is MessagePart.ToolCall -> {
+                        obj.put("type", "ToolCall")
+                        obj.put("toolName", part.toolName)
+                        obj.put("callId", part.callId)
+                        obj.put("state", JSONObject().apply {
+                            put("status", part.state.status.name)
+                            put("input", JSONObject(part.state.input))
+                            put("output", part.state.output ?: JSONObject.NULL)
+                            put("error", part.state.error ?: JSONObject.NULL)
+                            put("startTime", part.state.startTime)
+                            put("endTime", part.state.endTime)
+                        })
+                        if (part.input.isNotEmpty()) {
+                            obj.put("input", JSONObject(part.input))
+                        }
+                        obj.put("output", part.output ?: JSONObject.NULL)
+                    }
+                    is MessagePart.Reasoning -> {
+                        obj.put("type", "Reasoning")
+                        obj.put("content", part.content)
+                    }
+                    is MessagePart.StepStart -> {
+                        obj.put("type", "StepStart")
+                        obj.put("round", part.round)
+                    }
+                    is MessagePart.StepFinish -> {
+                        obj.put("type", "StepFinish")
+                        obj.put("tokensUsed", part.tokensUsed)
+                        obj.put("cost", part.cost)
+                    }
+                    is MessagePart.Compaction -> {
+                        obj.put("type", "Compaction")
+                        obj.put("summary", part.summary)
+                        obj.put("auto", part.auto)
+                    }
+                    is MessagePart.Error -> {
+                        obj.put("type", "Error")
+                        obj.put("message", part.message)
+                        obj.put("recoverable", part.recoverable)
+                    }
+                    is MessagePart.StreamingState -> {
+                        obj.put("type", "StreamingState")
+                        obj.put("text", part.text)
+                        obj.put("reasoning", part.reasoning)
+                        obj.put("phase", part.phase)
+                    }
+                }
+                put(obj)
+            }
+        }
+    }
+
+    private fun parseParts(arr: JSONArray?): List<MessagePart> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val type = o.optString("type")
+            when (type) {
+                "Text" -> MessagePart.Text(
+                    content = o.optString("content"),
+                    ignored = o.optBoolean("ignored", false),
+                )
+                "ToolCall" -> {
+                    val stateObj = o.optJSONObject("state")
+                    val toolState = if (stateObj != null) {
+                        val status = runCatching { ToolStateType.valueOf(stateObj.optString("status")) }
+                            .getOrDefault(ToolStateType.PENDING)
+                        val inputMap = mutableMapOf<String, String>()
+                        stateObj.optJSONObject("input")?.let { inp ->
+                            inp.keys().forEach { key -> inputMap[key] = inp.optString(key) }
+                        }
+                        ToolState(
+                            status = status,
+                            input = inputMap,
+                            output = stateObj.optString("output").ifBlank { null },
+                            error = stateObj.optString("error").ifBlank { null },
+                            startTime = stateObj.optLong("startTime", 0L),
+                            endTime = stateObj.optLong("endTime", 0L),
+                        )
+                    } else ToolState(status = ToolStateType.PENDING)
+                    MessagePart.ToolCall(
+                        toolName = o.optString("toolName"),
+                        callId = o.optString("callId"),
+                        state = toolState,
+                        output = o.optString("output").ifBlank { null },
+                    )
+                }
+                "Reasoning" -> MessagePart.Reasoning(
+                    content = o.optString("content"),
+                )
+                "StepStart" -> MessagePart.StepStart(
+                    round = o.optInt("round", 0),
+                )
+                "StepFinish" -> MessagePart.StepFinish(
+                    tokensUsed = o.optInt("tokensUsed", 0),
+                    cost = o.optDouble("cost", 0.0),
+                )
+                "Compaction" -> MessagePart.Compaction(
+                    summary = o.optString("summary"),
+                    auto = o.optBoolean("auto", true),
+                )
+                "Error" -> MessagePart.Error(
+                    message = o.optString("message"),
+                    recoverable = o.optBoolean("recoverable", true),
+                )
+                "StreamingState" -> MessagePart.StreamingState(
+                    text = o.optString("text"),
+                    reasoning = o.optString("reasoning"),
+                    phase = o.optString("phase"),
+                )
+                else -> null
+            }
+        }
     }
 }

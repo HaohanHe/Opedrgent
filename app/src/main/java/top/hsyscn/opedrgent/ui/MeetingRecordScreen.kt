@@ -78,11 +78,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.hsyscn.opedrgent.stt.MeetingTranscriber
 import top.hsyscn.opedrgent.stt.MeetingSegment
 import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
-import top.hsyscn.opedrgent.stt.ModelManager
-import top.hsyscn.opedrgent.stt.SttConfig
 import top.hsyscn.opedrgent.ui.components.RecordingCard
 import top.hsyscn.opedrgent.ui.components.RecordingState
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
@@ -168,6 +165,8 @@ fun MeetingRecordScreen(
                         }
                         val rms = kotlin.math.sqrt(sum.toDouble() / read).toFloat()
                         amplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
+                    } else if (read < 0) {
+                        DebugLog.w("MeetingRecord", "AudioRecord.read() 错误码: $read")
                     }
                 }
             }
@@ -245,38 +244,15 @@ fun MeetingRecordScreen(
                             }
 
                             // Convert PCM to WAV first
+                            val pcmFile = File(pcmPath)
+                            DebugLog.i("MeetingRecord", "PCM 文件: ${pcmFile.length() / 1024}KB, 存在=${pcmFile.exists()}")
                             val wavFile = File(context.cacheDir, "meeting_${System.currentTimeMillis()}.wav")
-                            pcmToWav(File(pcmPath), wavFile, 16000, 1, 16)
+                            pcmToWav(pcmFile, wavFile, 16000, 1, 16)
+                            DebugLog.i("MeetingRecord", "WAV 文件: ${wavFile.length() / 1024}KB, 存在=${wavFile.exists()}")
 
-                            // Initialize transcriber (复用已初始化的引擎，避免重复加载模型)
-                            val transcriber = MeetingTranscriber(context, SttConfig())
-                            val modelDir = ModelManager.getModelPath(context, ModelManager.getRecommendedModel(context))
-                            if (modelDir != null && modelDir.exists()) {
-                                val ok = transcriber.initialize(modelDir)
-                                if (!ok) {
-                                    snackbar.showSnackbar("模型初始化失败")
-                                } else {
-                                    val result = transcriber.transcribe(wavFile)
-                                    transcriptResult = MeetingTranscriptResult(
-                                        segments = result.segments.map { seg ->
-                                            MeetingSegment(
-                                                text = seg.text,
-                                                startTimeMs = seg.startTimeMs,
-                                                endTimeMs = seg.endTimeMs,
-                                                speakerLabel = seg.speakerLabel,
-                                            )
-                                        },
-                                        fullText = result.fullText,
-                                        durationMs = result.durationMs,
-                                        hasDiarization = result.hasDiarization,
-                                        speakers = result.segments.map { it.speakerLabel }.toSet(),
-                                        error = result.error,
-                                    )
-                                }
-                                transcriber.close()
-                            } else {
-                                snackbar.showSnackbar("请先下载语音模型（设置页 → 导入音视频）")
-                            }
+                            // 使用 AsrManager 统一引擎转录
+                            DebugLog.i("MeetingRecord", "使用 AsrManager 统一引擎转录")
+                            transcriptResult = transcribeWithAsrManager(wavFile, vm.asrManager)
 
                             wavFile.delete()
                             File(pcmPath).delete()
@@ -482,6 +458,39 @@ private fun intToLittleEndian(value: Int): ByteArray {
 private fun shortToLittleEndian(value: Short): ByteArray {
     return byteArrayOf(
         (value.toInt() and 0xFF).toByte(),
-        (value.toInt() shr 8 and 0xFF).toByte(),
+        (value.toInt() shr 8 and 0xFF).toByte()
     )
+}
+
+// ==================== 统一转录辅助函数 ====================
+
+/**
+ * 使用 AsrManager 统一引擎转录音频文件。
+ * 引擎选择由 AsrManager 根据用户设置自动决定。
+ */
+private suspend fun transcribeWithAsrManager(
+    wavFile: File,
+    asrManager: top.hsyscn.opedrgent.stt.AsrManager,
+): MeetingTranscriptResult {
+    return try {
+        val result = asrManager.transcribeFile(wavFile.absolutePath)
+
+        MeetingTranscriptResult(
+            segments = result.segments.map { seg ->
+                MeetingSegment(
+                    text = seg.text,
+                    startTimeMs = seg.startTimeMs,
+                    endTimeMs = seg.endTimeMs,
+                    speakerLabel = "Speaker_0",
+                )
+            },
+            fullText = result.text,
+            durationMs = result.durationMs,
+            hasDiarization = false,
+            speakers = setOf("Speaker_0"),
+        )
+    } catch (e: Exception) {
+        DebugLog.e("MeetingRecord", "转录失败: ${e.message}", e)
+        MeetingTranscriptResult(error = "转录失败: ${e.message}")
+    }
 }

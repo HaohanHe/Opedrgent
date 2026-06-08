@@ -16,7 +16,6 @@ import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
 import top.hsyscn.opedrgent.stt.SttLanguage
 import top.hsyscn.opedrgent.stt.SttResult
-import top.hsyscn.opedrgent.stt.SpeechEngine
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.Locale
 
@@ -37,7 +36,7 @@ data class ProcessingProgress(
 
 class SpeechToTextTool(
     private val context: Context,
-    private val speechEngine: SpeechEngine,
+    private val asrManager: top.hsyscn.opedrgent.stt.AsrManager,
 ) : ToolSet {
 
     companion object {
@@ -186,14 +185,21 @@ class SpeechToTextTool(
 
                 updateProgress(ProcessingPhase.DECODING, 28, "预处理完成")
 
-                if (!speechEngine.isAvailable) {
-                    return@withContext emptyResult(tp, buildEngineUnavailableError())
+                val engine = asrManager.getCachedEngine()
+                if (engine == null || !engine.isAvailable) {
+                    // 尝试初始化引擎
+                    try {
+                        asrManager.getEngine()
+                    } catch (e: Exception) {
+                        DebugLog.e(TAG, "引擎初始化失败: ${e.message}")
+                        return@withContext emptyResult(tp, buildEngineUnavailableError())
+                    }
                 }
 
                 updateProgress(ProcessingPhase.RECOGNIZING, 50, "开始识别...")
 
                 DebugLog.i(TAG, "开始识别...")
-                val result: SttResult = speechEngine.recognizeFile(uri)
+                val result: SttResult = asrManager.transcribeFile(uri)
 
                 updateProgress(ProcessingPhase.RECOGNIZING, 95, "格式化结果...")
 
@@ -321,6 +327,7 @@ class SpeechToTextTool(
         return when (engineType) {
             top.hsyscn.opedrgent.stt.EngineType.SHERPA_ONNX -> "Sherpa-ONNX (Paraformer)"
             top.hsyscn.opedrgent.stt.EngineType.ANDROID_SPEECH_RECOGNIZER -> "Android SpeechRecognizer"
+            top.hsyscn.opedrgent.stt.EngineType.MIMO_ASR -> "MiMO ASR (在线)"
         }
     }
 

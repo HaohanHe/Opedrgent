@@ -59,7 +59,7 @@ class MemoryStore(context: Context) {
     }
 
     fun getMemoryBlock(): String {
-        val entries = list()
+        val entries = list().filter { it.type != MemoryType.NOTE_SUMMARY }
         if (entries.isEmpty()) return ""
         return entries.joinToString(separator = "\n\n") { e ->
             val typeLabel = e.type.label
@@ -73,6 +73,38 @@ class MemoryStore(context: Context) {
 
     fun getByType(type: MemoryType): List<MemoryEntry> {
         return list().filter { it.type == type }
+    }
+
+    // ==================== 笔记记忆方法 ====================
+
+    /** 添加笔记记忆（id 格式为 "note_$noteId" 便于精确查找/删除） */
+    fun addNoteMemory(noteId: Long, title: String, summary: String): MemoryEntry {
+        val noteIdStr = "note_$noteId"
+        val entry = MemoryEntry(
+            id = noteIdStr,
+            title = title.trim(),
+            content = summary.trim(),
+            type = MemoryType.NOTE_SUMMARY,
+        )
+        val entries = list().toMutableList()
+        // 如果已存在同一条笔记记忆则替换
+        entries.removeAll { it.id == noteIdStr }
+        entries.add(entry)
+        saveAll(entries)
+        return entry
+    }
+
+    /** 删除指定笔记的记忆 */
+    fun removeNoteMemory(noteId: Long) {
+        val noteIdStr = "note_$noteId"
+        val entries = list().toMutableList()
+        entries.removeAll { it.id == noteIdStr }
+        saveAll(entries)
+    }
+
+    /** 获取所有笔记记忆 */
+    fun getNoteMemories(): List<MemoryEntry> {
+        return list().filter { it.type == MemoryType.NOTE_SUMMARY }
     }
 
     private fun saveAll(list: List<MemoryEntry>) {

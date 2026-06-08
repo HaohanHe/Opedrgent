@@ -22,6 +22,7 @@ kotlinxSerialization = "1.7.3"
 litertLm = "0.12.0"
 playServicesTflite = "16.4.0"
 commonsCompress = "1.27.0"
+sherpaOnnx = "1.13.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -58,6 +59,8 @@ tflite = { group = "com.google.android.gms", name = "play-services-tflite-java",
 tflite-gpu = { group = "com.google.android.gms", name = "play-services-tflite-gpu", version.ref = "playServicesTflite" }
 tflite-support = { group = "com.google.android.gms", name = "play-services-tflite-support", version.ref = "playServicesTflite" }
 commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+sherpa-onnx = { group = "com.github.k2-fsa", name = "sherpa-onnx", version.ref = "sherpaOnnx" }
+kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

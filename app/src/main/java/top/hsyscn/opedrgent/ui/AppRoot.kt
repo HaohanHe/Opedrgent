@@ -10,8 +10,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,6 +54,8 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DeveloperBoard
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Note
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -75,6 +76,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -89,6 +92,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -156,7 +160,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-enum class MainTab { HISTORY, CHAT, SETTINGS }
+enum class MainTab { NOTES, RECORDING, AI, SETTINGS }
 
 @Composable
 fun AppRoot(
@@ -166,7 +170,7 @@ fun AppRoot(
     onActionConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(MainTab.CHAT) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.NOTES) }
     var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -184,10 +188,12 @@ fun AppRoot(
         val action = initialAction
         if (action != null) {
             when (action) {
-                "meeting" -> subScreen = "meeting"
+                "meeting" -> {
+                    selectedTab = MainTab.RECORDING
+                }
                 "new_chat" -> {
                     vm.createSessionAndNavigate("新对话")
-                    selectedTab = MainTab.CHAT
+                    selectedTab = MainTab.AI
                 }
             }
             onActionConsumed()
@@ -198,16 +204,9 @@ fun AppRoot(
         val id = state.navigateToSessionId
         if (!id.isNullOrBlank()) {
             selectedSessionId = id
-            selectedTab = MainTab.CHAT
+            selectedTab = MainTab.AI
             vm.openSession(id)
             vm.consumeNavigation()
-        }
-    }
-
-    LaunchedEffect(selectedSessionId) {
-        val id = selectedSessionId
-        if (id != null) {
-            vm.openSession(id)
         }
     }
 
@@ -216,6 +215,36 @@ fun AppRoot(
     Scaffold(
         containerColor = BgGray,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                    label = { Text("笔记") },
+                    selected = selectedTab == MainTab.NOTES,
+                    onClick = { selectedTab = MainTab.NOTES },
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                    label = { Text("录音") },
+                    selected = selectedTab == MainTab.RECORDING,
+                    onClick = { selectedTab = MainTab.RECORDING },
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                    label = { Text("AI") },
+                    selected = selectedTab == MainTab.AI,
+                    onClick = { selectedTab = MainTab.AI },
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("设置") },
+                    selected = selectedTab == MainTab.SETTINGS,
+                    onClick = { selectedTab = MainTab.SETTINGS },
+                )
+            }
+        },
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when (subScreen) {
@@ -227,6 +256,7 @@ fun AppRoot(
                     onBack = { subScreen = null },
                     onSendToChat = { text ->
                         vm.sendUserMessage("请帮我总结以下会议内容：\n\n$text")
+                        selectedTab = MainTab.AI
                         subScreen = null
                     },
                 )
@@ -239,66 +269,164 @@ fun AppRoot(
                     onNewNote = { subScreen = "noteEditor_new" },
                     onBack = { subScreen = null },
                     onShareNote = { noteId -> subScreen = "noteShare_$noteId" },
+                    onSproutNote = { noteId -> subScreen = "noteSprout_$noteId" },
+                    onGraphClick = { subScreen = "noteGraph" },
+                    onSendToChat = { noteId ->
+                        // sendNoteToChat 内部会创建 session 并触发 navigateToSessionId
+                        // 先切到 AI Tab，LaunchedEffect 会自动打开会话
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                )
+                "noteGraph" -> NoteGraphScreen(
+                    repository = vm.noteRepository,
+                    onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_text" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     initialType = NoteType.TEXT,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_quick" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     initialType = NoteType.QUICK,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_link" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     initialType = NoteType.LINK,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_image" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     initialType = NoteType.IMAGE,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_pdf" -> NoteEditorScreen(
                     repository = vm.noteRepository,
                     initialType = NoteType.PDF,
                     onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onSendToChat = { noteId ->
+                        vm.sendNoteToChat(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onSendWithSkill = { noteId, skillId ->
+                        vm.sendNoteWithSkill(noteId, skillId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 null -> {
-                    when {
-                        selectedTab == MainTab.SETTINGS -> SettingsScreen(
+                    when (selectedTab) {
+                        MainTab.NOTES -> NoteListScreen(
+                            repository = vm.noteRepository,
+                            folderRepository = vm.folderRepository,
+                            onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onNewNote = { subScreen = "noteEditor_new" },
+                            onBack = {},
+                            onShareNote = { noteId -> subScreen = "noteShare_$noteId" },
+                            onSproutNote = { noteId -> subScreen = "noteSprout_$noteId" },
+                            onGraphClick = { subScreen = "noteGraph" },
+                            onSendToChat = { noteId ->
+                                vm.sendNoteToChat(noteId)
+                                selectedTab = MainTab.AI
+                            },
+                            onSendWithSkill = { noteId, skillId ->
+                                vm.sendNoteWithSkill(noteId, skillId)
+                                selectedTab = MainTab.AI
+                            },
+                            showBackButton = false,
+                        )
+                        MainTab.RECORDING -> RecordingTab(
                             vm = vm,
-                            onBack = { selectedTab = MainTab.CHAT },
+                            onOpenSubScreen = { subScreen = it },
+                            onNavigateToNotes = { selectedTab = MainTab.AI },
+                        )
+                        MainTab.AI -> ChatTab(
+                            vm = vm,
+                            selectedSessionId = selectedSessionId,
+                            onSessionSelected = { id ->
+                                selectedSessionId = id
+                            },
+                            onSessionDeselected = { selectedSessionId = null },
+                            onOpenSubScreen = { subScreen = it },
+                        )
+                        MainTab.SETTINGS -> SettingsScreen(
+                            vm = vm,
+                            onBack = {},
                             toSkills = { subScreen = "skills" },
                             toAutomations = { subScreen = "automations" },
                             toMemory = { subScreen = "memory" },
                             toNotes = { subScreen = "notes" },
-                        )
-                        selectedTab == MainTab.HISTORY || (selectedTab == MainTab.CHAT && selectedSessionId == null) -> SessionsScreen(
-                            vm = vm,
-                            onSelectSession = { id ->
-                                selectedSessionId = id
-                                selectedTab = MainTab.CHAT
-                            },
-                            onSearch = { selectedTab = MainTab.CHAT },
-                        )
-                        else -> SessionScreen(
-                            vm = vm,
-                            sessionId = selectedSessionId,
-                            onOpenSettings = { selectedTab = MainTab.SETTINGS },
-                            onOpenSubScreen = { subScreen = it },
-                            onBack = { selectedSessionId = null },
+                            showBackButton = false,
                         )
                     }
                 }
@@ -311,6 +439,16 @@ fun AppRoot(
                                 repository = vm.noteRepository,
                                 noteId = noteId,
                                 onSaved = { /* 保持在编辑器 */ },
+                                onSendToChat = { nid ->
+                                    vm.sendNoteToChat(nid)
+                                    selectedTab = MainTab.AI
+                                    subScreen = null
+                                },
+                                onSendWithSkill = { nid, skillId ->
+                                    vm.sendNoteWithSkill(nid, skillId)
+                                    selectedTab = MainTab.AI
+                                    subScreen = null
+                                },
                                 onBack = { subScreen = "notes" },
                             )
                         }
@@ -318,11 +456,39 @@ fun AppRoot(
                             val noteIdStr = subScreen!!.removePrefix("noteShare_")
                             val noteId = noteIdStr.toLongOrNull()
                             if (noteId != null) {
+                                val aiConvertedContent by vm.aiConvertedContent.collectAsState()
+                                val isConverting by vm.isConverting.collectAsState()
                                 NoteShareScreen(
                                     repository = vm.noteRepository,
                                     noteId = noteId,
-                                    onBack = { subScreen = "notes" },
+                                    onBack = {
+                                        vm.clearConvertedContent()
+                                        subScreen = "notes"
+                                    },
+                                    aiConvertedContent = aiConvertedContent,
+                                    isConverting = isConverting,
+                                    onConvert = { style -> vm.convertNoteStyle(noteId, style) },
+                                    onClearConversion = { vm.clearConvertedContent() },
                                 )
+                            }
+                        }
+                        subScreen?.startsWith("noteSprout_") == true -> {
+                            val noteIdStr = subScreen!!.removePrefix("noteSprout_")
+                            val noteId = noteIdStr.toLongOrNull()
+                            if (noteId != null) {
+                                var loadedNote by remember { mutableStateOf<top.hsyscn.opedrgent.note.Note?>(null) }
+                                LaunchedEffect(noteId) {
+                                    loadedNote = vm.noteRepository.getNoteById(noteId)
+                                }
+                                loadedNote?.let { note ->
+                                    NoteSproutScreen(
+                                        note = note,
+                                        repository = vm.noteRepository,
+                                        sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings),
+                                        onBack = { subScreen = "notes" },
+                                        onEditNote = { subScreen = "noteEditor_$noteId" },
+                                    )
+                                }
                             }
                         }
                     }
@@ -445,62 +611,13 @@ fun SessionScreen(
         }
     }
 
-    val recognizer = remember { mutableStateOf<SpeechRecognizer?>(null) }
-    val listener = remember {
-        object : android.speech.RecognitionListener {
-            override fun onReadyForSpeech(params: android.os.Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onError(error: Int) {
-                listening = false
-                val msg = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO -> "录音错误"
-                    SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                    SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
-                    SpeechRecognizer.ERROR_NO_MATCH -> "未识别到语音"
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别引擎繁忙"
-                    SpeechRecognizer.ERROR_SERVER -> "服务端错误"
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
-                    else -> "语音识别失败($error)"
-                }
-                scope.launch { snackbar.showSnackbar(msg) }
-            }
-            override fun onResults(results: android.os.Bundle?) {
-                val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = list?.firstOrNull().orEmpty()
-                if (text.isNotBlank()) {
-                    prompt = if (prompt.isBlank()) text else (prompt.trimEnd() + "\n" + text)
-                } else {
-                    scope.launch { snackbar.showSnackbar("未识别到语音") }
-                }
-                listening = false
-            }
-            override fun onPartialResults(partialResults: android.os.Bundle?) {}
-            override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
-        }
-    }
+    // 统一 ASR 流式识别：使用 AsrManager 根据用户设置选择引擎
+    var streamingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        if (!vm.isSttEnabled()) {
-            recognizer.value = null
-            onDispose { }
-        } else {
-            val sr = runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull()
-            if (sr == null) {
-                recognizer.value = null
-                onDispose { }
-            } else {
-                sr.setRecognitionListener(listener)
-                recognizer.value = sr
-                onDispose {
-                    recognizer.value?.destroy()
-                    recognizer.value = null
-                }
-            }
+    DisposableEffect(Unit) {
+        onDispose {
+            streamingJob?.cancel()
+            vm.stopUnifiedStreamingAsr()
         }
     }
 
@@ -509,6 +626,19 @@ fun SessionScreen(
             val mimeType = context.contentResolver.getType(uri)
             scope.launch {
                 when {
+                    mimeType?.startsWith("image/") == true -> {
+                        // 图片发送到聊天让 AI 分析
+                        val session = vm.state.value.current
+                        if (session != null) {
+                            vm.sendUserMessage("请分析这张图片的内容：\n[图片已选择，URI: $uri]")
+                        } else {
+                            snackbar.showSnackbar("请先创建一个对话")
+                        }
+                    }
+                    mimeType?.startsWith("audio/") == true || mimeType?.startsWith("video/") == true -> {
+                        // 音频/视频走 ASR 识别
+                        vm.startSpeechToText(uri)
+                    }
                     mimeType == "application/pdf" -> vm.importPdfOcr(uri)
                     mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> vm.importDocx(uri)
                     else -> vm.importFile(uri)
@@ -629,28 +759,33 @@ fun SessionScreen(
             ) {
                 items(session.messages, key = { it.id }) { msg ->
                     when (msg.role) {
-                        Role.USER -> UserBubble(text = msg.content)
+                        Role.USER -> UserBubble(
+                            text = msg.textContent,
+                            clipboard = clipboard,
+                            onUndo = { vm.deleteMessage(msg.id) },
+                        )
                         Role.ASSISTANT -> AIMessageCard(
                             message = msg,
-                            onSpeak = { vm.toggleSpeak(msg.content) },
+                            onSpeak = { vm.toggleSpeak(msg.textContent) },
                             isSpeaking = state.isSpeaking,
                             clipboard = clipboard,
+                            onUndo = { vm.deleteMessage(msg.id) },
                         )
                         Role.SYSTEM -> {
                             when (msg.messageType) {
-                                MessageType.INFO -> MessageBodyInfo(message = msg.content)
+                                MessageType.INFO -> MessageBodyInfo(message = msg.textContent)
                                 MessageType.CONFIG_UPDATE -> {
-                                    val parts = msg.content.split("|")
-                                    if (parts.size == 3) {
+                                    val cfgParts = msg.textContent.split("|")
+                                    if (cfgParts.size == 3) {
                                         MessageBodyConfigUpdate(
-                                            configName = parts[0],
-                                            oldValue = parts[1],
-                                            newValue = parts[2],
+                                            configName = cfgParts[0],
+                                            oldValue = cfgParts[1],
+                                            newValue = cfgParts[2],
                                         )
                                     }
                                 }
                                 MessageType.ERROR -> MessageBodyError(
-                                    errorText = msg.content,
+                                    errorText = msg.textContent,
                                     snackbarHostState = snackbar,
                                 )
                                 MessageType.TEXT -> {}
@@ -790,9 +925,9 @@ fun SessionScreen(
                                 }
                             }),
                         )
-                        // Camera button
-                        IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = "camera", tint = TextGrey, modifier = Modifier.size(18.dp))
+                        // Camera/Files button
+                        IconButton(onClick = { filePicker.launch(arrayOf("image/*", "audio/*", "video/*", "application/pdf")) }) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = "attach file", tint = TextGrey, modifier = Modifier.size(18.dp))
                         }
                         // Microphone button
                         if (vm.isSttEnabled()) {
@@ -802,21 +937,37 @@ fun SessionScreen(
                                     audioPerm.launch(Manifest.permission.RECORD_AUDIO)
                                     return@IconButton
                                 }
-                                val sr = recognizer.value
-                                if (sr == null) {
-                                    scope.launch { snackbar.showSnackbar("设备不支持语音识别") }
-                                    return@IconButton
-                                }
                                 if (!listening) {
                                     listening = true
-                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                                    sr.startListening(intent)
+                                    streamingJob = scope.launch {
+                                        try {
+                                            val flow = vm.startUnifiedStreamingAsr()
+                                            flow.collect { state ->
+                                                when (state) {
+                                                    is top.hsyscn.opedrgent.stt.StreamingRecognitionState.FinalResult -> {
+                                                        if (state.text.isNotBlank()) {
+                                                            prompt = if (prompt.isBlank()) state.text else (prompt.trimEnd() + "\n" + state.text)
+                                                        } else {
+                                                            snackbar.showSnackbar("未识别到语音")
+                                                        }
+                                                        listening = false
+                                                    }
+                                                    is top.hsyscn.opedrgent.stt.StreamingRecognitionState.Error -> {
+                                                        snackbar.showSnackbar(state.message)
+                                                        listening = false
+                                                    }
+                                                    else -> {}
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            snackbar.showSnackbar("语音识别失败: ${e.message}")
+                                            listening = false
+                                        }
+                                    }
                                 } else {
                                     listening = false
-                                    sr.stopListening()
+                                    streamingJob?.cancel()
+                                    vm.stopUnifiedStreamingAsr()
                                 }
                             }) {
                                 Icon(
@@ -881,7 +1032,11 @@ fun SessionScreen(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     showMoreOptionsSheet = false
-                                    audioFilePicker.launch(arrayOf("audio/*", "video/*"))
+                                    if (vm.isSttEnabled()) {
+                                        audioFilePicker.launch(arrayOf("audio/*", "video/*"))
+                                    } else {
+                                        scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") }
+                                    }
                                 },
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                         ) {
@@ -1213,7 +1368,7 @@ fun SessionScreen(
 
 
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, showBackButton: Boolean = true) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -1270,8 +1425,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             TopAppBar(
                 title = { Text("设置", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                    if (showBackButton) {
+                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "back") }
                     }
                 },
             )

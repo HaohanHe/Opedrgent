@@ -57,6 +57,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -178,6 +179,20 @@ fun StreamingCard(
             }
         }
     }
+}
+
+/**
+ * 基于 MessagePart.StreamingState 的流式卡片（新模型）。
+ * 从 StreamingState 中提取 text / reasoning / phase，委托给原 StreamingCard。
+ */
+@Composable
+fun StreamingCard(state: MessagePart.StreamingState, toolParts: List<ToolPart> = emptyList()) {
+    StreamingCard(
+        text = state.text,
+        reasoning = state.reasoning,
+        toolParts = toolParts,
+        phase = state.phase,
+    )
 }
 
 @Composable
