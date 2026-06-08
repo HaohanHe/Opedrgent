@@ -21,6 +21,7 @@ import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
 import top.hsyscn.opedrgent.tools.ReadUrlTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
+import top.hsyscn.opedrgent.tools.SpeechToTextTool
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -40,6 +41,7 @@ class ToolExecutor(
     private val fetcher: SourceFetcher,
     private val llm: LlmClient,
     private val apiSettings: ApiSettings,
+    private val asrManager: top.hsyscn.opedrgent.stt.AsrManager? = null,
 ) {
 
     private var webViewAgent: WebViewAgent? = null
@@ -53,6 +55,10 @@ class ToolExecutor(
         register(GenerateReportTool(llm))
         register(MimoTtsTool(apiSettings))
         register(ReverseGeocodeTool(searcher))
+        // 注册 SpeechToTextTool（通过 AsrManager 使用统一 ASR 引擎）
+        if (asrManager != null) {
+            register(SpeechToTextTool(context, asrManager))
+        }
     }
 
     private fun buildSearchConfig(): SearchConfig = SearchConfig(

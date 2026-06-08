@@ -36,6 +36,9 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_CREATED_AT = "created_at"
         const val COL_UPDATED_AT = "updated_at"
         const val COL_WORD_COUNT = "word_count"
+        const val COL_SPROUT_REPORT_JSON = "sprout_report_json"
+        const val COL_ORIGINAL_CONTENT = "original_content"
+        const val COL_SOURCE_TYPE = "source_type"
 
         // 单例
         @Volatile
@@ -62,7 +65,10 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_SOURCE_URI TEXT,
                 $COL_CREATED_AT INTEGER NOT NULL,
                 $COL_UPDATED_AT INTEGER NOT NULL,
-                $COL_WORD_COUNT INTEGER NOT NULL DEFAULT 0
+                $COL_WORD_COUNT INTEGER NOT NULL DEFAULT 0,
+                $COL_SPROUT_REPORT_JSON TEXT,
+                $COL_ORIGINAL_CONTENT TEXT,
+                $COL_SOURCE_TYPE TEXT DEFAULT 'MANUAL'
             )
         """.trimIndent())
 
@@ -93,6 +99,9 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow(COL_CREATED_AT)),
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow(COL_UPDATED_AT)),
             wordCount = cursor.getInt(cursor.getColumnIndexOrThrow(COL_WORD_COUNT)),
+            sproutReportJson = cursor.getString(cursor.getColumnIndexOrThrow(COL_SPROUT_REPORT_JSON)),
+            originalContent = cursor.getString(cursor.getColumnIndexOrThrow(COL_ORIGINAL_CONTENT)),
+            sourceType = try { SourceType.valueOf(cursor.getString(cursor.getColumnIndexOrThrow(COL_SOURCE_TYPE))) } catch (_: Exception) { SourceType.MANUAL },
         )
     }
 }

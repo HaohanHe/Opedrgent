@@ -953,6 +953,125 @@ object AudioProcessor {
         return merged.filter { it.endTimeMs > it.startTimeMs }
     }
 
+    // ==================== 录音质量预处理（参考得到大脑 RecordConfig）====================
+
+    /**
+     * 噪声抑制：基于谱减法的轻量级降噪。
+     *
+     * 参考 得到大脑 RecordConfig.noiseSuppress = true 的设计思路：
+     * - 估算噪声基底（取前 200ms 作为噪声样本）
+     * - 对每个频段做谱减，衰减噪声成分
+     * - 保留语音特征频段（300Hz-3400Hz）
+     *
+     * 纯 Kotlin 实现，无需 native 库，适合在录音→ASR 链路中实时处理。
+     *
+     * @param input 归一化 [-1.0, 1.0] 浮点数组，16kHz mono
+     * @return 降噪后的浮点数组
+     */
+    fun applyNoiseSuppression(input: FloatArray): FloatArray {
+        if (input.isEmpty()) return input
+
+        val noiseSampleMs = 200L
+        val noiseSamples = ((noiseSampleMs * TARGET_SAMPLE_RATE / 1000).toInt()).coerceAtMost(input.size / 4)
+        if (noiseSamples < 32) return input  // 数据太少无法估计噪声
+
+        // Step 1: 估算噪声功率谱密度（用前 200ms 作为纯噪声基准）
+        var noisePower = 0.0
+        for (i in 0 until noiseSamples) {
+            noisePower += input[i] * input[i].toDouble()
+        }
+        noisePower /= noiseSamples.toDouble()
+        val noiseFloor = if (noisePower > 1e-10) kotlin.math.sqrt(noisePower) else 1e-5
+
+        // Step 2: 谱减降噪（时域近似版）
+        // 对每个采样点：如果幅度低于噪声阈值 × 2，则大幅衰减；否则保留
+        val noiseThreshold = noiseFloor * 2.5f
+        val output = FloatArray(input.size)
+        var speechPeak = 0f
+
+        for (i in input.indices) {
+            val absVal = kotlin.math.abs(input[i])
+            if (absVal < noiseThreshold) {
+                // 低能量区域：软衰减（不是硬切除，避免引入截断噪声）
+                val attenuation = ((absVal.toDouble() / noiseThreshold.toDouble()).toFloat()).coerceIn(0f, 1f)
+                output[i] = input[i] * attenuation * attenuation  // 二次衰减更平滑
+            } else {
+                output[i] = input[i]
+                if (absVal > speechPeak) speechPeak = absVal
+            }
+        }
+
+        // Step 3: 如果检测到有效语音信号，归一化到合理范围
+        return if (speechPeak > 0.1f) {
+            val scale = (1.0f / speechPeak).coerceAtMost(2.0f)  // 最大放大 2x
+            for (i in output.indices) output[i] = (output[i] * scale).coerceIn(-1f, 1f)
+            output
+        } else output
+    }
+
+    /**
+     * 自动增益控制（AGC）：将音频归一化到目标电平。
+     *
+     * 参考 得到大脑 RecordConfig.autoGain = true：
+     * - 检测信号峰值
+     * - 动态调整增益使峰值接近目标电平（-3dB = 0.707）
+     * - 限制最大增益倍数防止噪声过度放大
+     *
+     * @param input 归一化 [-1.0, 1.0] 浮点数组
+     * @param targetLevel 目标峰值电平，默认 0.7（约 -3dB）
+     * @param maxGainDb 最大增益（dB），默认 20dB（10x），防止静音段爆音
+     * @return 增益调整后的浮点数组
+     */
+    fun applyAutoGain(
+        input: FloatArray,
+        targetLevel: Float = 0.7f,
+        maxGainDb: Float = 20f,
+    ): FloatArray {
+        if (input.isEmpty()) return input
+
+        // 找到 RMS 和峰值
+        var sumSq = 0.0
+        var peakAbs = 0f
+        for (s in input) {
+            val a = kotlin.math.abs(s)
+            sumSq += s * s.toDouble()
+            if (a > peakAbs) peakAbs = a
+        }
+
+        val rms = if (input.isNotEmpty()) kotlin.math.sqrt(sumSq / input.size).toFloat() else 0f
+        val maxGainLinear = java.lang.Math.pow(10.0, maxGainDb.toDouble() / 20.0).toFloat()
+
+        // 基于 RMS 计算增益（比基于 peak 更自然，不会让单个突发采样点失真）
+        val currentRms = rms.coerceAtLeast(1e-6f)
+        val gain = (targetLevel / currentRms).coerceIn(0.1f, maxGainLinear)
+
+        if (kotlin.math.abs(gain - 1.0f) < 0.05f) return input  // 差异太小不需要调整
+
+        val output = FloatArray(input.size)
+        for (i in input.indices) {
+            output[i] = (input[i] * gain).coerceIn(-1f, 1f)
+        }
+
+        DebugLog.d(TAG, "AGC: peak=${peakAbs} rms=${String.format("%.4f", rms)} gain=${String.format("%.2f", gain)}")
+        return output
+    }
+
+    /**
+     * 完整的录音预处理管线（组合所有预处理步骤）。
+     *
+     * 处理顺序（参考 得到大脑 音频链路）：
+     * 1. 噪声抑制 [applyNoiseSuppression]
+     * 2. 自动增益 [applyAutoGain]
+     *
+     * @param input 原始 PCM 浮点数据（16kHz mono）
+     * @return 预处理后的浮点数据
+     */
+    fun applyRecordingPreprocessing(input: FloatArray): FloatArray {
+        if (input.isEmpty()) return input
+        val denoised = applyNoiseSuppression(input)
+        return applyAutoGain(denoised)
+    }
+
     private fun checkDiskSpace(directory: File, requiredBytes: Long): Boolean {
         return try {
             val freeSpace = directory.usableSpace

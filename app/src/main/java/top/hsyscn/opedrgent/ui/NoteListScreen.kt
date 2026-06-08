@@ -63,6 +63,11 @@ fun NoteListScreen(
     onNewNote: () -> Unit,
     onBack: () -> Unit,
     onShareNote: (Long) -> Unit = {},
+    onSproutNote: (Long) -> Unit = {},
+    onGraphClick: () -> Unit = {},
+    onSendToChat: (Long) -> Unit = {},
+    onSendWithSkill: (Long, String) -> Unit = { _, _ -> },
+    showBackButton: Boolean = true,
 ) {
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
@@ -71,6 +76,10 @@ fun NoteListScreen(
     var currentFolderId by remember { mutableStateOf<Long?>(null) }
     var showFolderDialog by remember { mutableStateOf(false) }
     var editingFolder by remember { mutableStateOf<Folder?>(null) }
+
+    // 关联推荐
+    var recommendedNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
+    var latestNoteTitle by remember { mutableStateOf("") }
 
     // 文件夹数据
     val folders by folderRepository.getByParent(currentFolderId).collectAsState(initial = emptyList())
@@ -91,6 +100,18 @@ fun NoteListScreen(
     val notes by notesFlow.collectAsState(initial = emptyList())
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
+
+    // 加载关联推荐（基于最新笔记）
+    LaunchedEffect(notes) {
+        if (notes.isNotEmpty()) {
+            val latest = notes.first()
+            latestNoteTitle = latest.title.ifBlank { "无标题" }
+            recommendedNotes = repository.getLinkedNotesWithTitles(latest.id)
+        } else {
+            recommendedNotes = emptyList()
+            latestNoteTitle = ""
+        }
+    }
 
     // 文件夹对话框
     if (showFolderDialog) {
@@ -122,9 +143,20 @@ fun NoteListScreen(
             TopAppBar(
                 title = { Text("笔记", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "返回") }
+                    if (showBackButton) {
+                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "返回") }
+                    }
                 },
                 actions = {
+                    // 知识图谱入口
+                    IconButton(onClick = onGraphClick) {
+                        Icon(
+                            Icons.Default.AccountTree,
+                            "知识图谱",
+                            tint = AccentBlue,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                     Text(
                         text = "${noteCount.toInt()} 条",
                         style = MaterialTheme.typography.bodySmall,
@@ -203,6 +235,17 @@ fun NoteListScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // 关联推荐区域
+                    if (recommendedNotes.isNotEmpty()) {
+                        item(key = "recommendation") {
+                            RecommendationCard(
+                                sourceTitle = latestNoteTitle,
+                                recommendedNotes = recommendedNotes.take(3),
+                                onNoteClick = onNoteClick,
+                            )
+                        }
+                    }
+
                     items(notes, key = { it.id }) { note ->
                         NoteCard(
                             note = note,
@@ -210,6 +253,10 @@ fun NoteListScreen(
                             onTogglePin = { scope.launch { repository.togglePin(note.id) } },
                             onDelete = { scope.launch { repository.deleteNote(note.id) } },
                             onShare = { onShareNote(note.id) },
+                            onSprout = { onSproutNote(note.id) },
+                            onSendToChat = { onSendToChat(note.id) },
+                            onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
+                            linkCount = repository.getLinkCount(note.id),
                         )
                     }
                 }
@@ -500,6 +547,10 @@ private fun NoteCard(
     onTogglePin: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit = {},
+    onSprout: () -> Unit = {},
+    onSendToChat: () -> Unit = {},
+    onSendWithSkill: (String) -> Unit = { _ -> },
+    linkCount: Int = 0,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -540,6 +591,34 @@ private fun NoteCard(
                     Icon(Icons.Default.PushPin, "置顶", tint = AccentBlue, modifier = Modifier.size(16.dp))
                 }
 
+                // 关联数标记
+                if (linkCount > 0) {
+                    Spacer(Modifier.width(4.dp))
+                    Surface(
+                        color = AccentBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.Hub,
+                                "关联",
+                                tint = AccentBlue,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                "$linkCount",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AccentBlue,
+                            )
+                        }
+                    }
+                }
+
                 // 更多菜单
                 Box {
                     IconButton({ showMenu = true }, modifier = Modifier.size(32.dp)) {
@@ -550,6 +629,40 @@ private fun NoteCard(
                             text = { Text(if (note.isPinned) "取消置顶" else "置顶") },
                             onClick = { showMenu = false; onTogglePin() },
                             leadingIcon = { Icon(Icons.Default.PushPin, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("🌱 发芽") },
+                            onClick = { showMenu = false; onSprout() },
+                            leadingIcon = { Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF4CAF50)) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("发送到 AI 分析") },
+                            onClick = { showMenu = false; onSendToChat() },
+                            leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, null, tint = AccentBlue) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("💡 点评亮点") },
+                            leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
+                            onClick = {
+                                showMenu = false
+                                onSendWithSkill("insight_review")
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("🔍 深度拷问") },
+                            leadingIcon = { Icon(Icons.Default.Search, null) },
+                            onClick = {
+                                showMenu = false
+                                onSendWithSkill("critical_inquiry")
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("✨ 润色优化") },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) },
+                            onClick = {
+                                showMenu = false
+                                onSendWithSkill("text_refine")
+                            },
                         )
                         DropdownMenuItem(
                             text = { Text("分享") },
@@ -598,6 +711,93 @@ private fun NoteCard(
                     if (tags.size > 3) {
                         Text("+${tags.size - 3}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationCard(
+    sourceTitle: String,
+    recommendedNotes: List<Note>,
+    onNoteClick: (Long) -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // 标题行
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "🔗 发现关联",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "与「$sourceTitle」相关",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // 关联笔记列表
+            recommendedNotes.forEachIndexed { index, note ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNoteClick(note.id) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 类型图标
+                    Surface(
+                        color = note.type.color().copy(alpha = 0.1f),
+                        shape = CircleShape,
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(14.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = note.title.ifBlank { "无标题" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                        )
+                        if (note.summary.isNotEmpty()) {
+                            Text(
+                                text = note.summary,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }

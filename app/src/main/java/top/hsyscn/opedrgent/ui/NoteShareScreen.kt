@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -41,6 +43,7 @@ import java.io.FileOutputStream
  * 笔记分享屏幕（参考得到大脑分享系统设计）。
  *
  * 支持：
+ * - AI 风格转换（小红书/公众号/朋友圈）
  * - 分享到微信/朋友圈
  * - 分享到小红书
  * - 复制链接/文本
@@ -53,13 +56,25 @@ fun NoteShareScreen(
     repository: NoteRepository,
     noteId: Long,
     onBack: () -> Unit,
+    aiConvertedContent: String? = null,
+    isConverting: Boolean = false,
+    onConvert: (String) -> Unit = {},
+    onClearConversion: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var note by remember { mutableStateOf<Note?>(null) }
     var showImagePreview by remember { mutableStateOf(false) }
+    var aiStyle by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(noteId) {
         note = repository.getNoteById(noteId)
+    }
+
+    // 当 AI 转换完成后，自动选中对应风格标签
+    LaunchedEffect(aiConvertedContent) {
+        if (aiConvertedContent != null && aiStyle == null) {
+            // 如果有转换结果但未选风格，保持当前状态
+        }
     }
 
     Scaffold(
@@ -82,31 +97,57 @@ fun NoteShareScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .background(MaterialTheme.colorScheme.background)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             // 笔记预览卡片
             note?.let { noteItem ->
+                val displayContent = aiConvertedContent ?: noteItem.content
+                val isAiActive = aiConvertedContent != null
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isAiActive)
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        else
+                            MaterialTheme.colorScheme.surface,
+                    ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = noteItem.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = noteItem.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (isAiActive) {
+                                Spacer(Modifier.width(8.dp))
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text("AI 已转换", fontSize = 10.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                    },
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = noteItem.content.take(200),
+                            text = displayContent.take(500),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 5,
+                            maxLines = 10,
                         )
-                        if (noteItem.content.length > 200) {
+                        if (displayContent.length > 500) {
                             Text(
                                 text = "...",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -115,9 +156,104 @@ fun NoteShareScreen(
                         }
                     }
                 }
+
+                // AI 转换后的操作按钮
+                if (isAiActive) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("note", aiConvertedContent)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "已复制转换内容", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("复制", fontSize = 13.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { onClearConversion() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("恢复原文", fontSize = 13.sp)
+                        }
+                    }
+                }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
+
+            // AI 风格转换区域
+            Text(
+                text = "AI 风格转换",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FilterChip(
+                    selected = aiStyle == "xiaohongshu",
+                    onClick = { aiStyle = if (aiStyle == "xiaohongshu") null else "xiaohongshu" },
+                    label = { Text("小红书") },
+                    leadingIcon = if (aiStyle == "xiaohongshu") {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                )
+                FilterChip(
+                    selected = aiStyle == "wechat",
+                    onClick = { aiStyle = if (aiStyle == "wechat") null else "wechat" },
+                    label = { Text("公众号") },
+                    leadingIcon = if (aiStyle == "wechat") {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                )
+                FilterChip(
+                    selected = aiStyle == "moments",
+                    onClick = { aiStyle = if (aiStyle == "moments") null else "moments" },
+                    label = { Text("朋友圈") },
+                    leadingIcon = if (aiStyle == "moments") {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    aiStyle?.let { style -> onConvert(style) }
+                },
+                enabled = aiStyle != null && !isConverting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (isConverting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("AI 转换中...")
+                } else {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("AI 转换")
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
 
             // 分享平台网格
             Text(
@@ -126,26 +262,42 @@ fun NoteShareScreen(
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(12.dp))
-            
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                modifier = Modifier.height(160.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                items(sharePlatforms) { platform ->
+                sharePlatforms.take(4).forEach { platform ->
                     SharePlatformItem(
                         platform = platform,
                         onClick = {
                             note?.let { noteItem ->
-                                shareToPlatform(context, noteItem, platform)
+                                val contentToShare = aiConvertedContent ?: noteItem.content
+                                shareToPlatform(context, noteItem, platform, contentToShare)
+                            }
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                sharePlatforms.drop(4).forEach { platform ->
+                    SharePlatformItem(
+                        platform = platform,
+                        onClick = {
+                            note?.let { noteItem ->
+                                val contentToShare = aiConvertedContent ?: noteItem.content
+                                shareToPlatform(context, noteItem, platform, contentToShare)
                             }
                         },
                     )
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             // 分享格式选项
             Text(
@@ -154,7 +306,7 @@ fun NoteShareScreen(
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(12.dp))
-            
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.height(120.dp),
@@ -166,7 +318,8 @@ fun NoteShareScreen(
                         format = format,
                         onClick = {
                             note?.let { noteItem ->
-                                shareAsFormat(context, noteItem, format)
+                                val contentToShare = aiConvertedContent ?: noteItem.content
+                                shareAsFormat(context, noteItem, format, contentToShare)
                             }
                         },
                     )
@@ -269,28 +422,29 @@ private fun ShareFormatItem(
     }
 }
 
-private fun shareToPlatform(context: Context, note: Note, platform: SharePlatform) {
+private fun shareToPlatform(context: Context, note: Note, platform: SharePlatform, overrideContent: String? = null) {
+    val content = overrideContent ?: note.content
     val shareText = buildString {
         appendLine(note.title)
         appendLine()
-        appendLine(note.content.take(1000))
-        if (note.content.length > 1000) {
+        appendLine(content.take(1000))
+        if (content.length > 1000) {
             appendLine("...")
         }
     }
 
     when (platform.action) {
         "copy_link" -> {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            android.widget.Toast.makeText(context, "已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
         }
         "copy_text" -> {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            android.widget.Toast.makeText(context, "已复制文本", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "已复制文本", Toast.LENGTH_SHORT).show()
         }
         "email" -> {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -310,13 +464,14 @@ private fun shareToPlatform(context: Context, note: Note, platform: SharePlatfor
     }
 }
 
-private fun shareAsFormat(context: Context, note: Note, format: ShareFormat) {
+private fun shareAsFormat(context: Context, note: Note, format: ShareFormat, overrideContent: String? = null) {
+    val content = overrideContent ?: note.content
     val shareText = when (format.format) {
-        "text" -> note.content
+        "text" -> content
         "markdown" -> buildString {
             appendLine("# ${note.title}")
             appendLine()
-            appendLine(note.content)
+            appendLine(content)
         }
         "html" -> buildString {
             appendLine("<!DOCTYPE html>")
@@ -324,19 +479,19 @@ private fun shareAsFormat(context: Context, note: Note, format: ShareFormat) {
             appendLine("<head><title>${note.title}</title></head>")
             appendLine("<body>")
             appendLine("<h1>${note.title}</h1>")
-            appendLine("<p>${note.content.replace("\n", "<br>")}</p>")
+            appendLine("<p>${content.replace("\n", "<br>")}</p>")
             appendLine("</body>")
             appendLine("</html>")
         }
-        else -> note.content
+        else -> content
     }
 
     when (format.format) {
         "text", "markdown" -> {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            android.widget.Toast.makeText(context, "已复制${format.name}", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "已复制${format.name}", Toast.LENGTH_SHORT).show()
         }
         "html" -> {
             val intent = Intent(Intent.ACTION_SEND).apply {

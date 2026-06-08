@@ -153,17 +153,20 @@ object EngineWeights {
 }
 
 /**
- * 搜索结果合并容器（BM25增强版）
+ * 搜索结果合并容器（★ SearXNG 累乘权重增强版）
  *
- * 实现企业级智能评分系统：
+ * 实现企业级智能评分系统（SearXNG 风格升级）：
  * 1. **BM25相关性评分** - 经典IR算法，精确计算文档-查询相关度
- * 2. **时间衰减函数** - 指数衰减模型，优先展示新鲜内容
- * 3. **域名权威性** - 基于预定义的域名信誉数据库
- * 4. **引擎多样性** - 多引擎交叉验证加分
- * 5. **位置加权** - 原始排名位置的指数衰减
+ * 2. **SearXNG 累乘权重引擎评分** - weight *= engine_weight（非相加），多引擎交叉验证自然加权
+ * 3. **线性位置衰减** - score = weight / position（非指数衰减），平缓可预测
+ * 4. **分组打散算法** - 每组最多8个，组内间距≤20，避免同类结果扎堆
+ * 5. **域名权威性** - 基于预定义的域名信誉数据库
+ * 6. **时间衰减函数** - 指数衰减模型，优先展示新鲜内容
  *
- * 综合评分公式：
- * Score = α*BM25 + β*Authority + γ*Diversity + δ*Position + ε*Freshness
+ * ★ SearXNG 核心公式：
+ *   productWeight = ∏ engine_weight(i) × √(engine_count)
+ *   searxScore = Σ (productWeight / position(i))
+ *   finalScore = α×searxScore + β×BM25 + γ×Diversity + δ×Position + ε×Freshness + ζ×Authority
  */
 class SearchResultContainer {
 
@@ -357,12 +360,14 @@ class SearchResultContainer {
     }
 
     /**
-     * 计算综合初始分数（SearXNG风格优化版）
+     * 计算综合初始分数（★ SearXNG 线性衰减模式）
      *
-     * SearXNG公式：score = Σ (engine_weight / position)
+     * SearXNG 公式（单引擎初始分）：
+     *   position_score = engine_weight × 10 / (position + 1)  ← 线性衰减
+     *
      * 改进点：
-     * 1. 使用线性衰减 weight/position 替代指数衰减（更符合IR理论）
-     * 2. 引擎权重直接乘以位置倒数（位置越靠前权重越大）
+     * 1. 使用线性衰减 weight/position 替代指数 decay^position（更符合IR理论，避免过度惩罚后排）
+     * 2. 引擎权重直接乘以位置倒数（位置越靠前权重越大，曲线平滑）
      * 3. BM25作为相关性基础分
      */
     private fun calculateInitialScore(position: Int, engineName: String, result: SearchResult): Double {
@@ -400,11 +405,14 @@ class SearchResultContainer {
     }
 
     /**
-     * 更新合并结果的分数（SearXNG风格：引擎累积加权）
+     * 更新合并结果的分数（★ SearXNG 累乘权重模式）
      *
-     * SearXNG逻辑：
-     * - weight *= len(positions) （出现次数越多权重越高）
-     * - 多引擎验证 = 高可信度
+     * SearXNG 核心算法：
+     * - **引擎权重累乘法**：weight *= engine_weight（而非相加）
+     *   例如：同一结果出现在百度(0.9) × Google(0.98) × 必应(0.95) = 0.839
+     *   多引擎交叉验证的结果获得更高的乘积权重，天然惩罚单引擎结果
+     * - **线性位置衰减**：score = productWeight / position（而非指数衰减）
+     *   位置越靠前得分越高，衰减曲线平缓且可预测
      */
     private fun updateScore(merged: MergedResult) {
         val engineCount = merged.sourceEngines.size
@@ -413,34 +421,36 @@ class SearchResultContainer {
             return
         }
 
-        // ★ SearXNG风格：引擎权重累乘 + 位置衰减
-        // weight累乘: 如果同一结果出现在百度(0.9)×Google(0.98)×必应(0.95), productWeight=0.839
-        // len(positions)放大: 同时出现在多个引擎位置
+        // ★ SearXNG 累乘权重模式：所有引擎权重连乘
+        // 单引擎结果保持原始权重；多引擎结果权重累乘（自然降权低质量引擎）
         var productWeight = 1.0
-        for ((eng, pos) in merged.positionsPerEngine) {
+        for ((eng, _) in merged.positionsPerEngine) {
             productWeight *= EngineWeights.getWeight(eng)
         }
-        productWeight *= merged.positionsPerEngine.size.toDouble()
+        // 引擎数量放大因子：出现次数越多基础分越高（但通过累乘已体现质量差异）
+        productWeight *= Math.sqrt(merged.positionsPerEngine.size.toDouble())
 
-        // SearXNG公式: score = weight × len(positions) / position
-        // 对每个引擎位置计算分数后求和
+        // ★ SearXNG 线性位置衰减：对每个引擎位置计算 weight / position 后求和
+        // position 从 0 开始（即实际排名+1），避免除零
         var searxScore = 0.0
-        for ((eng, pos) in merged.positionsPerEngine) {
-            val engWeight = EngineWeights.getWeight(eng)
-            searxScore += productWeight / (pos + 1)
+        for ((_, pos) in merged.positionsPerEngine) {
+            val effectivePosition = (pos + 1).coerceAtLeast(1)
+            searxScore += productWeight / effectivePosition
         }
 
-        // ★ SearXNG风格：引擎多样性指数加分（非线性增长）
+        // ★ SearXNG 引擎多样性指数（非线性增长）：多引擎验证 = 高可信度
         merged.engineDiversityScore = when {
-            engineCount >= 4 -> 8.0
-            engineCount == 3 -> 5.5
-            engineCount == 2 -> 3.0
+            engineCount >= 4 -> 10.0
+            engineCount == 3 -> 7.0
+            engineCount == 2 -> 4.0
             else -> 0.0
         }
 
-        // 平均位置优势（使用线性衰减）
-        val avgPosition = merged.positionSum.toDouble() / engineCount
-        merged.positionAdvantageScore = if (avgPosition == 0.0) 10.0 else 10.0 / (avgPosition + 1)
+        // 平均位置优势（使用线性衰减：10 / avgPosition）
+        val avgPosition = if (merged.positionSum > 0) {
+            merged.positionSum.toDouble() / engineCount
+        } else 1.0
+        merged.positionAdvantageScore = 10.0 / avgPosition.coerceAtLeast(1.0)
 
         // 重新计算BM25（合并后的内容可能更丰富）
         val updatedTitleBm25 = calculateBm25(merged.title)
@@ -453,16 +463,18 @@ class SearchResultContainer {
         merged.contentQualityScore = calculateContentQuality(merged.title, merged.snippet)
         merged.authorityScore = DomainAuthority.getAuthorityScore(merged.url)
 
-        // ★ 综合评分 = SearXNG引擎分 + 多维度内容分
+        // ★ SearXNG 综合评分公式（累乘权重核心）：
+        // 主分量 = SearXNG引擎分（累乘×线性衰减）作为骨架
+        // 辅助分量 = BM25相关性 + 内容质量 + 权威性 + 新鲜度 + 多样性
         merged.score = (
-            searxScore * 2.5 +
-            merged.bm25Score * 2.5 +
-            merged.contentQualityScore * 1.5 +
-            merged.authorityScore * 1.0 +
-            merged.freshnessScore * 1.5 +
-            merged.engineDiversityScore * 3.0 +
-            merged.positionAdvantageScore * 2.5 +
-            engineCount * 3.0
+            searxScore * 3.0 +               // ★ SearXNG 累乘权重主分（最高权重）
+            merged.bm25Score * 2.0 +          // BM25 相关性
+            merged.contentQualityScore * 1.2 + // 内容质量
+            merged.authorityScore * 0.8 +     // 域名权威
+            merged.freshnessScore * 1.2 +     // 新鲜度
+            merged.engineDiversityScore * 2.5 + // ★ 引擎多样性奖励（多引擎加分更显著）
+            merged.positionAdvantageScore * 2.0 + // 位置优势
+            engineCount * 2.5                 // 引擎数量基础奖励
         )
     }
 
@@ -724,8 +736,8 @@ class SearchResultContainer {
         val gresults = mutableListOf<MergedResult>()
         val categoryPositions = mutableMapOf<String, MutableMap<String, Any>>()
 
-        val maxCount = 6       // 每组最多6个（SearXNG默认8，我们更严格）
-        val maxDistance = 15   // 组内最大间距（SearXNG默认20）
+        val maxCount = 8       // ★ 每组最多8个（SearXNG标准值）
+        val maxDistance = 20   // ★ 组内最大间距≤20（SearXNG标准值，允许更宽松的打散）
 
         for (res in sortedByScore) {
             // 提取分类键：域名后缀 + 引擎集合
