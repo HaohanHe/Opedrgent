@@ -71,6 +71,10 @@ class SherpaOnnxEngine(
 
             validateModelFiles(modelDir)
 
+            // 列出模型目录内容帮助诊断
+            val files = modelDir.listFiles()
+            DebugLog.i(TAG, "模型目录文件列表: ${files?.map { "${it.name}(${it.length() / 1024}KB)" }?.joinToString(", ") ?: "(无法列出)"}")
+
             val numThreads = resolveOptimalThreadCount()
             DebugLog.i(TAG, "使用线程数=$numThreads")
 
@@ -79,7 +83,7 @@ class SherpaOnnxEngine(
 
             // 创建离线识别器（文件转录用）
             val offlineConfig = buildOfflineRecognizerConfig(modelDir, numThreads, provider, deviceType)
-            offlineRecognizer = OfflineRecognizer(offlineConfig)
+            offlineRecognizer = OfflineRecognizer(context.assets, offlineConfig)
 
             currentModelDir = modelDir
             _isInitialized.set(true)
@@ -121,11 +125,11 @@ class SherpaOnnxEngine(
 
     override suspend fun recognizeFile(filePath: String): SttResult {
         val startTimeMs = System.currentTimeMillis()
-        DebugLog.i(TAG, "开始识别文件(Path): $filePath")
+        val file = File(filePath)
+        DebugLog.i(TAG, "开始识别文件(Path): $filePath (${file.length() / 1024}KB, ext=${file.extension})")
 
         return withContext(Dispatchers.IO) {
             try {
-                val file = File(filePath)
                 val audioData = if (file.extension.lowercase() == "wav") {
                     // WAV 文件用内置解码器（更快）
                     decodeAudioFile(file)
@@ -134,6 +138,7 @@ class SherpaOnnxEngine(
                     val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
                     pair?.first ?: FloatArray(0)
                 }
+                DebugLog.i(TAG, "音频解码: ${audioData.size} samples (${audioData.size / TARGET_SAMPLE_RATE}s)")
                 recognizeFromFloatArray(audioData, startTimeMs)
             } catch (e: Exception) {
                 DebugLog.e(TAG, "文件路径识别失败: ${e.message}", e)
@@ -310,7 +315,7 @@ class SherpaOnnxEngine(
     private fun decodeSegment(recognizer: OfflineRecognizer, samples: FloatArray): String {
         val stream = recognizer.createStream()
         return try {
-            stream.acceptWaveform(samples)
+            stream.acceptWaveform(samples, TARGET_SAMPLE_RATE)
             recognizer.decode(stream)
             val result = recognizer.getResult(stream)
             result.text ?: ""
@@ -558,10 +563,6 @@ class SherpaOnnxEngine(
         return OfflineRecognizerConfig(
             featConfig = featConfig,
             modelConfig = modelConfig,
-            numThreads = numThreads,
-            debug = DebugLog.isEnabled(),
-            provider = provider,
-            deviceType = deviceType,
         )
     }
 
@@ -574,10 +575,6 @@ class SherpaOnnxEngine(
         return OfflineModelConfig(
             paraformer = OfflineParaformerModelConfig(model = modelFile),
             tokens = tokensFile,
-            numThreads = 0,
-            debug = DebugLog.isEnabled(),
-            provider = "cpu",
-            deviceType = "cpu",
         )
     }
 
@@ -590,11 +587,6 @@ class SherpaOnnxEngine(
         return OfflineModelConfig(
             senseVoice = OfflineSenseVoiceModelConfig(model = modelFile),
             tokens = tokensFile,
-            useItn = true,
-            numThreads = 0,
-            debug = DebugLog.isEnabled(),
-            provider = "cpu",
-            deviceType = "cpu",
         )
     }
 
@@ -607,10 +599,6 @@ class SherpaOnnxEngine(
         return OfflineModelConfig(
             paraformer = OfflineParaformerModelConfig(model = modelFile),
             tokens = tokensFile,
-            numThreads = 0,
-            debug = DebugLog.isEnabled(),
-            provider = "cpu",
-            deviceType = "cpu",
         )
     }
 

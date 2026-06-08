@@ -194,6 +194,9 @@ class NoteDao(private val db: NoteDatabase) {
         put(NoteDatabase.COL_CREATED_AT, note.createdAt)
         put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
         put(NoteDatabase.COL_WORD_COUNT, note.content.length)
+        put(NoteDatabase.COL_SPROUT_REPORT_JSON, note.sproutReportJson)
+        put(NoteDatabase.COL_ORIGINAL_CONTENT, note.originalContent)
+        put(NoteDatabase.COL_SOURCE_TYPE, note.sourceType.name)
     }
 
     private fun extractTitle(content: String): String {

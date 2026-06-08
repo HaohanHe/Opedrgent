@@ -20,6 +20,7 @@ data class SttSegment(
 enum class EngineType {
     SHERPA_ONNX,
     ANDROID_SPEECH_RECOGNIZER,
+    MIMO_ASR,
 }
 
 // ==================== 会议转录结果（UI 层使用）====================

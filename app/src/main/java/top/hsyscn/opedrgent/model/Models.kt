@@ -39,15 +39,24 @@ enum class MessageType {
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role,
-    val content: String,
-    val createdAt: Long,
+    val content: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
     val messageType: MessageType = MessageType.TEXT,
     val toolParts: List<ToolPart> = emptyList(),
     val reasoningParts: List<ReasoningPart> = emptyList(),
     val questionPart: QuestionPart? = null,
     val toolCallId: String? = null,
     val apiToolCallsJson: String? = null,
-)
+    val parts: List<MessagePart> = emptyList(),
+    val isUserAction: Boolean = false,
+) {
+    /** 从 parts 自动提取文本内容（向后兼容） */
+    val textContent: String
+        get() = if (parts.isNotEmpty()) {
+            parts.filterIsInstance<MessagePart.Text>()
+                .joinToString("") { it.content }
+        } else content
+}
 
 data class Artifact(
     val id: String = UUID.randomUUID().toString(),
@@ -86,6 +95,7 @@ enum class MemoryType(val label: String) {
     FEEDBACK("反馈"),
     PROJECT("项目"),
     REFERENCE("参考"),
+    NOTE_SUMMARY("笔记"),
 }
 
 data class MemoryEntry(
@@ -96,6 +106,62 @@ data class MemoryEntry(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
+
+/**
+ * 消息的组成部分。每条消息由一个或多个 Part 组成。
+ * 参考 KiloCode 的消息 Part 模型。
+ */
+sealed class MessagePart {
+    /** 文本内容 */
+    data class Text(
+        val content: String,
+        val ignored: Boolean = false,
+    ) : MessagePart()
+
+    /** 工具调用 */
+    data class ToolCall(
+        val toolName: String,
+        val callId: String,
+        val state: ToolState = ToolState(status = ToolStateType.PENDING),
+        val input: Map<String, String> = emptyMap(),
+        val output: String? = null,
+    ) : MessagePart()
+
+    /** 推理过程（思考链） */
+    data class Reasoning(
+        val content: String,
+    ) : MessagePart()
+
+    /** 步骤开始标记 */
+    data class StepStart(
+        val round: Int,
+    ) : MessagePart()
+
+    /** 步骤结束标记 */
+    data class StepFinish(
+        val tokensUsed: Int = 0,
+        val cost: Double = 0.0,
+    ) : MessagePart()
+
+    /** 压缩标记 */
+    data class Compaction(
+        val summary: String,
+        val auto: Boolean = true,
+    ) : MessagePart()
+
+    /** 错误信息 */
+    data class Error(
+        val message: String,
+        val recoverable: Boolean = true,
+    ) : MessagePart()
+
+    /** 附加工具状态（流式输出中的临时状态） */
+    data class StreamingState(
+        val text: String = "",
+        val reasoning: String = "",
+        val phase: String = "",
+    ) : MessagePart()
+}
 
 enum class ToolStateType { PENDING, RUNNING, COMPLETED, ERROR, SOURCE_ADDED }
 

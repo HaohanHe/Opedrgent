@@ -27,8 +27,7 @@ class MeetingTranscriber(
 
     // ASR 引擎（复用 SherpaOnnxEngine）
     private var asrEngine: SherpaOnnxEngine? = null
-    // 说话人分离器
-    private var diarizerInstance: SpeakerDiarization? = null
+    // 说话人分离器（暂不可用，真实 AAR 未包含此类）
     private var _isInitialized = AtomicBoolean(false)
     private var _isDiarizationReady = AtomicBoolean(false)
 
@@ -116,15 +115,8 @@ class MeetingTranscriber(
      * 失败时静默降级（不抛异常），设置 _isDiarizationReady=false。
      */
     private fun tryInitDiarizer(modelDir: File) {
-        try {
-            DebugLog.i(TAG, "跳过说话人分离器初始化（需要单独下载说话人分离模型）")
-            _isDiarizationReady.set(false)
-            diarizerInstance = null
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "说话人分离器初始化失败: ${e.message}")
-            _isDiarizationReady.set(false)
-            diarizerInstance = null
-        }
+        // 说话人分离功能需要单独下载模型，当前版本暂不支持
+        _isDiarizationReady.set(false)
     }
 
     /**
@@ -183,8 +175,6 @@ class MeetingTranscriber(
 
     private fun cleanup() {
         try {
-            diarizerInstance?.release()
-            diarizerInstance = null
             asrEngine?.close()
             asrEngine = null
             _isInitialized.set(false)

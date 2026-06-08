@@ -1,0 +1,266 @@
+package top.hsyscn.opedrgent.note
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.concurrent.TimeUnit
+
+/**
+ * AI 发芽服务 — Opedrgent 核心特色功能（v2 叙事式）
+ *
+ * ## 设计理念（从得到大脑发芽报告学习）
+ *
+ * 得到大脑的发芽报告不是结构化数据卡片，而是**叙事式文章**：
+ * ```
+ * 01. 一座王宫换来的大学          ← 编号标题（吸引眼球）
+ * 🌱 种子                         ← 原文触发点（灰色，展示来源）
+ * 因为你提到了洪堡兄弟...
+ *
+ * 1807年，普鲁士在耶拿战役中...     ← AI 展开叙述（加粗关键词、引用）
+ * 💡 Aha 瞬间                     ← 高光金句
+ * "最勇敢的投资，不是在顺顺..."
+ * ```
+ *
+ * ## v1 → v2 升级
+ *
+ * - v1: 结构化 JSON（SproutReport）— 机器友好，人类读起来枯燥
+ * - v2: 叙事式文章（SproutArticle）— 人类友好，像在读杂志专栏
+ */
+class SproutService(private val apiSettings: ApiSettings) {
+
+    companion object {
+        private const val TAG = "SproutService"
+        private const val DEFAULT_MODEL = "mimo-v2-flash"
+
+        /**
+         * 叙事式发芽提示词 — 产出 SproutArticle 格式
+         *
+         * 核心设计：让 AI 像《经济学人》专栏作家一样写分析文章，
+         * 每篇文章有独立的编号标题、种子引用、正文展开和金句收尾。
+         */
+        private val SPROUT_PROMPT_NARRATIVE = """
+你是一位顶级知识管理顾问兼深度内容分析师。请对以下笔记进行"发芽"处理——将其转化为一系列引人入胜的洞察文章。
+
+【用户笔记】
+%s
+
+## 输出格式要求（严格 JSON）
+
+{
+  "summary": "整份报告的一句话灵魂概括",
+  "articles": [
+    {
+      "title": "01. 吸引眼球的编号标题（概括这个洞察的核心）",
+      "seed": "🌱 种子：从用户笔记中摘取触发这段分析的原文片段（50-100字）",
+      "body": "正文：用**加粗**强调关键概念，用> 引用重要数据。写一篇300-500字的深度分析，像专栏文章一样流畅。要有论点、论据、案例。不要用列表形式，要写成连贯的叙述。",
+      "ahaMoment": "💡 Aha 瞬间：这段分析中最有力的一句金句（20-40字），让人读了会'啊！原来如此'的感觉",
+      "importance": 5
+    }
+  ],
+  "actionItems": ["具体可执行的行动建议"],
+  "relatedConcepts": ["相关概念/领域标签"],
+  "sentiment": "POSITIVE|NEUTRAL|NEGATIVE|MIXED",
+  "readingTimeMinutes": 3
+}
+
+## 写作风格指南
+
+1. **标题要抓人**：像公众号爆款标题一样，但不要标题党。如"01. 为什么'富'只能排第二？"
+2. **种子要精准**：明确指出是笔记的哪段内容触发了这个洞察，让用户看到 AI 的推理路径
+3. **正文要有深度**：
+   - 不要泛泛而谈，要深入到具体案例和数据
+   - 用类比帮助理解抽象概念
+   - 适当使用反问引发思考
+   - 加粗关键术语（**关键概念**）
+   - 重要数据用引用块（> 数据说明）
+4. **Aha 要震撼**：每篇只有一个 Aha，必须是全文最精华的那句话
+5. **生成 2-4 篇文章**，覆盖笔记的不同维度
+6. **总字数控制在 1500-2500 字**
+
+只输出 JSON，不要任何其他文字。
+""".trimIndent()
+    }
+
+    private val httpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    // ==================== 公开 API ====================
+
+    /**
+     * 为笔记生成叙事式发芽报告。
+     *
+     * @param noteContent 笔记内容
+     * @param modelId 使用的模型 ID
+     * @return [SproutArticle] 叙事式发芽报告
+     */
+    suspend fun sprout(
+        noteContent: String,
+        modelId: String = apiSettings.getModel() ?: DEFAULT_MODEL,
+    ): Result<SproutArticle> = withContext(Dispatchers.IO) {
+        try {
+            val prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
+
+            val apiKey = apiSettings.getApiKey()
+                ?: return@withContext Result.failure(IllegalStateException("API Key 未设置"))
+
+            val baseUrl = apiSettings.getBaseUrl()?.removeSuffix("/")
+                ?: "https://api.xiaomimimo.com"
+
+            val jsonBody = JSONObject().apply {
+                put("model", modelId)
+                put("max_tokens", 4096)  // 叙事式需要更多 token
+                put("temperature", 0.4f)   // 稍高一点增加创造性
+                put("messages", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "system")
+                        put("content", "你是顶级知识管理顾问+深度内容分析师。你的写作风格类似《经济学人》中文版专栏——专业但不晦涩，深刻但不做作。必须严格输出 JSON 格式。")
+                    })
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", prompt)
+                    })
+                })
+            }
+
+            val request = Request.Builder()
+                .url("$baseUrl/v1/chat/completions")
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "application/json")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val error = "HTTP ${response.code}: ${response.body?.string()}"
+                    DebugLog.e(TAG, "发芽请求失败: $error")
+                    return@withContext Result.failure(RuntimeException(error))
+                }
+
+                val body = response.body?.string() ?: return@withContext Result.failure(
+                    RuntimeException("空响应")
+                )
+
+                parseNarrativeResponse(body, modelId)
+            }
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "发芽失败: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 流式生成（包装为 Flow 接口）。
+     */
+    fun sproutStreaming(
+        noteContent: String,
+        modelId: String = apiSettings.getModel() ?: DEFAULT_MODEL,
+    ): Flow<SproutProgress> = flow {
+        emit(SproutProgress.Loading)
+        try {
+            val result = sprout(noteContent, modelId)
+            result.fold(
+                onSuccess = { emit(SproutProgress.ArticleSuccess(it)) },
+                onFailure = { emit(SproutProgress.Error(it.message ?: "未知错误")) },
+            )
+        } catch (e: Exception) {
+            emit(SproutProgress.Error(e.message ?: "未知错误"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /** 重新生成（覆盖旧报告） */
+    suspend fun resprout(note: Note): Result<SproutArticle> = sprout(note.content)
+
+    /** 批量发芽 */
+    suspend fun batchSprout(notes: List<Note>): Map<Long, Result<SproutArticle>> {
+        val results = mutableMapOf<Long, Result<SproutArticle>>()
+        for (note in notes) {
+            results[note.id] = sprout(note.content)
+            kotlinx.coroutines.delay(500)
+        }
+        return results
+    }
+
+    // ==================== 解析器 ====================
+
+    private fun parseNarrativeResponse(responseBody: String, modelUsed: String): Result<SproutArticle> {
+        return try {
+            val json = JSONObject(responseBody)
+            val choices = json.optJSONArray("choices")
+                ?: return Result.failure(RuntimeException("响应格式错误：无 choices"))
+
+            if (choices.length() == 0) return Result.failure(RuntimeException("响应为空"))
+
+            val content = choices.getJSONObject(0)
+                .getJSONObject("message")
+                .optString("content", "")
+
+            val jsonStr = extractJsonFromMarkdown(content) ?: content.trim()
+            val reportJson = JSONObject(jsonStr)
+
+            val article = SproutArticle(
+                generatedAt = System.currentTimeMillis(),
+                modelUsed = modelUsed,
+                summary = reportJson.optString("summary", ""),
+                articles = reportJson.optJSONArray("articles")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i ->
+                        try {
+                            val obj = arr.getJSONObject(i)
+                            ArticleSection(
+                                title = obj.optString("title", ""),
+                                seed = obj.optString("seed", ""),
+                                body = obj.optString("body", ""),
+                                ahaMoment = obj.optString("ahaMoment", ""),
+                                importance = obj.optInt("importance", 3).coerceIn(1, 5),
+                            )
+                        } catch (_: Exception) { null }
+                    }.filter { it.title.isNotEmpty() && it.body.isNotEmpty() }
+                } ?: emptyList(),
+                actionItems = reportJson.optJSONArray("actionItems")?.let { arr ->
+                    (0 until arr.length()).map { arr.getString(it) }
+                } ?: emptyList(),
+                relatedConcepts = reportJson.optJSONArray("relatedConcepts")?.let { arr ->
+                    (0 until arr.length()).map { arr.getString(it) }
+                } ?: emptyList(),
+                sentiment = try {
+                    Sentiment.valueOf(reportJson.optString("sentiment", "NEUTRAL"))
+                } catch (_: Exception) { Sentiment.NEUTRAL },
+                readingTimeMinutes = reportJson.optInt("readingTimeMinutes", 0),
+            )
+
+            DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
+            Result.success(article)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "解析发芽响应失败: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    private fun extractJsonFromMarkdown(content: String): String? {
+        val regex = Regex("```(?:json)?\\s*([\\s\\S]*?)```")
+        return regex.find(content)?.groupValues?.get(1)?.trim()
+    }
+}
+
+/**
+ * 发芽进度状态（v2 支持叙事式文章）
+ */
+sealed class SproutProgress {
+    object Loading : SproutProgress()
+    data class ArticleSuccess(val article: SproutArticle) : SproutProgress()
+    data class Error(val message: String) : SproutProgress()
+}

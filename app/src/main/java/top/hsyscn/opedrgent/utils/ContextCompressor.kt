@@ -1,24 +1,42 @@
 package top.hsyscn.opedrgent.utils
 
 import top.hsyscn.opedrgent.model.ChatMessage
+import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.Role
 
-data class CompressedMessages(
-    val systemPrompt: String,
+/**
+ * 压缩结果。包含预处理后的消息列表（已注入摘要、已剪枝）和摘要文本。
+ *
+ * @param messages 预处理后的消息列表，可直接传给 LLM
+ * @param summary 生成的摘要文本（null 表示无需压缩）
+ * @param tokenCount 估算的总 token 数
+ * @param usageRatio token 使用率
+ */
+data class CompressResult(
+    val messages: List<ChatMessage>,
     val summary: String?,
-    val recentMessages: List<ChatMessage>,
-    val tokenCount: Int,
+    val tokenCount: Int = 0,
     val usageRatio: Float = 0f,
 ) {
     val needsCompression: Boolean get() = usageRatio >= 0.90f
     val isCritical: Boolean get() = usageRatio >= 0.95f
 }
 
+/** @deprecated 使用 [CompressResult] */
+typealias CompressedMessages = CompressResult
+
 object ContextCompressor {
 
     private const val CHARS_PER_TOKEN_ZH = 1.5
     private const val CHARS_PER_TOKEN_EN = 4.0
     private const val CHARS_PER_TOKEN_MIXED = 3.5
+
+    // 工具输出剪枝阈值
+    private const val TOOL_OUTPUT_HARD_LIMIT = 40_000  // 最多保留约 40K tokens 的工具输出
+    private const val TOOL_OUTPUT_PRUNE_THRESHOLD = 500   // 单个工具输出超过此字符数时剪枝
+    private const val TEXT_HARD_LIMIT = 1000               // 单段文本超过此字符数时剪枝
+    private const val TOOL_OUTPUT_KEEP_CHARS = 200         // 工具输出剪枝后保留的前缀字符数
+    private const val TEXT_KEEP_CHARS = 500                // 文本剪枝后保留的前缀字符数
 
     fun estimateTokens(text: String): Int {
         if (text.isEmpty()) return 0
@@ -32,151 +50,152 @@ object ContextCompressor {
         return (text.length / ratio).toInt().coerceAtLeast(1)
     }
 
+    /**
+     * 智能压缩对话历史。
+     * 策略：
+     * 1. 按 user message 切分为 turn（一轮对话 = user + assistant）
+     * 2. 保留最近 keepTurns 轮完整对话
+     * 3. 旧 turn 生成结构化摘要
+     * 4. 工具输出剪枝：从旧到新，移除工具输出文本
+     * 5. 返回压缩后的消息列表 + 摘要
+     */
     fun compress(
         messages: List<ChatMessage>,
         systemPrompt: String,
         maxTokens: Int,
         keepRecent: Int = 4,
-    ): CompressedMessages {
+        keepTurns: Int = 3,  // 保留最近 3 轮（用于 turn 级别压缩）
+    ): CompressResult {
         val sysTokens = estimateTokens(systemPrompt)
-        val availableForMessages = (maxTokens * 0.85).toInt() - sysTokens
 
         if (messages.isEmpty()) {
-            return CompressedMessages(systemPrompt, null, emptyList(), sysTokens, usageRatio = sysTokens.toFloat() / maxTokens)
+            return CompressResult(
+                messages = emptyList(),
+                summary = null,
+                tokenCount = sysTokens,
+                usageRatio = sysTokens.toFloat() / maxTokens.coerceAtLeast(1),
+            )
         }
 
-        // ★ 动态调整保留消息数量（根据总消息数自适应）
-        val adaptiveKeepRecent = calculateAdaptiveKeepRecent(messages.size, keepRecent)
-        val recentCount = adaptiveKeepRecent.coerceAtMost(messages.size)
-        val recent = messages.takeLast(recentCount)
-        val older = messages.dropLast(recentCount)
+        val totalTokens = sysTokens + messages.sumOf { estimateTokens(it.textContent) }
+        val ratio = totalTokens.toFloat() / maxTokens.coerceAtLeast(1)
 
-        val recentTokens = recent.sumOf { estimateTokens(it.content) }
-
-        if (recentTokens <= availableForMessages) {
-            val totalTokens = sysTokens + messages.sumOf { estimateTokens(it.content) }
-            if (totalTokens <= maxTokens) {
-                return CompressedMessages(systemPrompt, null, messages, totalTokens, usageRatio = totalTokens.toFloat() / maxTokens)
-            }
+        // 未超过阈值，不压缩
+        if (totalTokens <= maxTokens * 0.85) {
+            return CompressResult(
+                messages = messages,
+                summary = null,
+                tokenCount = totalTokens,
+                usageRatio = ratio,
+            )
         }
 
-        // ★ 增强摘要生成（提取关键实体和决策，而非简单截断）
-        val summary = if (older.isNotEmpty()) {
-            generateEnhancedSummary(older)
+        // 1. 分 turn
+        val turns = splitIntoTurns(messages)
+
+        // 2. 分离保留轮和压缩轮
+        val keepCount = keepTurns.coerceAtMost(turns.size)
+        val keepTurnsList = turns.takeLast(keepCount)
+        val compactTurns = turns.dropLast(keepCount)
+
+        // 3. 为压缩轮生成摘要
+        val summary = if (compactTurns.isNotEmpty()) {
+            generateSummary(compactTurns)
         } else null
 
-        val summaryTokens = summary?.let { estimateTokens(it) + 20 } ?: 0
-        val remainingTokens = availableForMessages - summaryTokens
-        val trimmedRecent = trimToTokenBudget(recent, remainingTokens)
+        // 4. 工具输出剪枝（对保留轮中的消息进行剪枝）
+        val prunedKeep = keepTurnsList.flatMap { turn ->
+            turn.map { msg -> pruneToolOutput(msg) }
+        }
 
-        val totalTokens = sysTokens + summaryTokens + trimmedRecent.sumOf { estimateTokens(it.content) }
-        val ratio = totalTokens.toFloat() / maxTokens
-        DebugLog.d(
-            "ContextCompressor: $totalTokens/$maxTokens (${String.format("%.0f%%", ratio * 100)}) " +
-            "(sys=$sysTokens summary=$summaryTokens recent=${trimmedRecent.size} " +
-            "adaptiveKeep=$adaptiveKeepRecent totalMsgs=${messages.size})" +
-            if (ratio >= 0.90f)" ⚠️ HIGH USAGE" else ""
+        // 5. 构建结果
+        val compactedMessage = ChatMessage(
+            role = Role.SYSTEM,
+            parts = listOf(MessagePart.Compaction(summary ?: "", auto = true)),
+            content = summary ?: "",
         )
 
-        return CompressedMessages(systemPrompt, summary, trimmedRecent, totalTokens, usageRatio = ratio)
+        val resultMessages = listOf(compactedMessage) + prunedKeep
+        val resultTokens = sysTokens + resultMessages.sumOf { estimateTokens(it.textContent) }
+
+        DebugLog.d(
+            "ContextCompressor: $resultTokens/$maxTokens (${String.format("%.0f%%", resultTokens.toFloat() / maxTokens.coerceAtLeast(1) * 100)}) " +
+            "(turns=${turns.size}, kept=$keepCount, compacted=${compactTurns.size}, msgs=${resultMessages.size})"
+        )
+
+        return CompressResult(
+            messages = resultMessages,
+            summary = summary,
+            tokenCount = resultTokens,
+            usageRatio = resultTokens.toFloat() / maxTokens.coerceAtLeast(1),
+        )
     }
 
-    /**
-     * 动态计算保留消息数量
-     *
-     * 策略：
-     * - 短对话（≤10条）：保持默认值（4条）
-     * - 中等长度（11-30条）：适当增加（5-6条）
-     * - 长对话（>30条）：保留更多近期消息（6-8条）
-     *
-     * 目的：平衡上下文完整性和Token预算
-     */
-    private fun calculateAdaptiveKeepRecent(totalMessages: Int, defaultKeep: Int): Int {
-        return when {
-            totalMessages <= 10 -> defaultKeep                    // 短对话：保持原样
-            totalMessages <= 20 -> maxOf(defaultKeep, 5)         // 中等：+1
-            totalMessages <= 30 -> maxOf(defaultKeep, 6)          // 较长：+2
-            totalMessages <= 50 -> maxOf(defaultKeep, 7)         // 长：+3
-            else -> maxOf(defaultKeep, 8)                        // 超长：+4
+    /** 按 user message 切分为 turn */
+    private fun splitIntoTurns(messages: List<ChatMessage>): List<List<ChatMessage>> {
+        val turns = mutableListOf<List<ChatMessage>>()
+        var currentTurn = mutableListOf<ChatMessage>()
+
+        for (msg in messages) {
+            if (msg.role == Role.USER && currentTurn.isNotEmpty()) {
+                turns.add(currentTurn.toList())
+                currentTurn = mutableListOf()
+            }
+            currentTurn.add(msg)
         }
+        if (currentTurn.isNotEmpty()) {
+            turns.add(currentTurn.toList())
+        }
+
+        return turns
     }
 
-    /**
-     * 增强版摘要生成（提取关键信息而非简单截断）
-     *
-     * 改进点：
-     * 1. 识别用户意图（提问/指令/闲聊）
-     * 2. 提取关键实体（人名/地名/技术名词）
-     * 3. 记录重要决策和结论
-     * 4. 控制摘要长度在合理范围
-     *
-     * 输出格式：
-     * [对话摘要] 用户问了X→助手回答了Y | 用户要求Z→助手执行了W | ...
-     */
-    private fun generateEnhancedSummary(olderMessages: List<ChatMessage>): String {
-        return buildString {
-            append("[对话摘要]\n")
+    /** 为一组 turn 生成结构化摘要 */
+    private fun generateSummary(turns: List<List<ChatMessage>>): String {
+        val summaries = turns.map { turn ->
+            val userMsg = turn.firstOrNull { it.role == Role.USER }
+            val assistantMsg = turn.firstOrNull { it.role == Role.ASSISTANT }
 
-            olderMessages.forEachIndexed { index, msg ->
-                val role = when (msg.role) {
-                    Role.USER -> "👤"
-                    Role.ASSISTANT -> "🤖"
-                    else -> "⚙️"
+            buildString {
+                appendLine("用户: ${userMsg?.textContent?.take(100) ?: "无"}")
+                appendLine("AI: ${assistantMsg?.textContent?.take(100) ?: "无"}")
+                // 列出工具调用
+                val toolCalls = turn.flatMap { msg ->
+                    msg.parts.filterIsInstance<MessagePart.ToolCall>()
                 }
-
-                // 智能截取：优先保留关键信息
-                val content = msg.content.trim()
-                val summarizedContent = when {
-                    content.length <= 150 -> content
-
-                    // 检测是否包含列表/步骤（保留结构）
-                    content.contains("\n") && content.lines().count { it.isNotBlank() } > 3 -> {
-                        val lines = content.lines().filter { it.isNotBlank() }
-                        "${lines.take(3).joinToString(" | ")}\n...(${lines.size - 3}项省略)"
-                    }
-
-                    // 检测是否包含代码块（保留首行注释）
-                    content.contains("```") -> {
-                        val codePart = content.substringAfter("```").substringBefore("```")
-                        "[代码: ${codePart.take(80)}...]"
-                    }
-
-                    // 默认：智能分段截取
-                    else -> {
-                        // 尝试按句子分割，保留前2句
-                        val sentences = content.split(Regex("[。！？.!?\n]"))
-                            .filter { it.trim().length > 5 }
-                        if (sentences.size >= 2) {
-                            "${sentences[0].trim()}${sentences[1].trim()}"
-                        } else {
-                            content.take(150)
-                        }
-                    }
-                }
-
-                append("$role ${summarizedContent}")
-
-                // 最后一条不添加分隔符
-                if (index < olderMessages.lastIndex) {
-                    append("\n↓ ")
+                if (toolCalls.isNotEmpty()) {
+                    appendLine("工具: ${toolCalls.joinToString { it.toolName }}")
                 }
             }
-        }.take(1200)  // 允许更长的摘要（从800提升到1200）
+        }
+
+        return "[对话摘要]\n${summaries.joinToString("\n")}"
     }
 
-    private fun trimToTokenBudget(messages: List<ChatMessage>, maxTokens: Int): List<ChatMessage> {
-        if (messages.isEmpty()) return emptyList()
-        val result = messages.toMutableList()
-        var currentTokens = result.sumOf { estimateTokens(it.content) }
-        while (currentTokens > maxTokens && result.size > 1) {
-            val removed = result.removeAt(0)
-            currentTokens -= estimateTokens(removed.content)
+    /** 工具输出剪枝：移除旧消息中的工具输出文本 */
+    private fun pruneToolOutput(message: ChatMessage): ChatMessage {
+        if (message.parts.isEmpty()) return message
+
+        val prunedParts = message.parts.map { part ->
+            when (part) {
+                is MessagePart.ToolCall -> {
+                    if (part.output != null && part.output.length > TOOL_OUTPUT_PRUNE_THRESHOLD) {
+                        part.copy(output = part.output.take(TOOL_OUTPUT_KEEP_CHARS) + "...[已剪枝]")
+                    } else part
+                }
+                is MessagePart.Text -> {
+                    if (part.content.length > TEXT_HARD_LIMIT) {
+                        part.copy(content = part.content.take(TEXT_KEEP_CHARS) + "...[已剪枝]")
+                    } else part
+                }
+                else -> part
+            }
         }
-        if (result.size == 1 && currentTokens > maxTokens) {
-            val msg = result[0]
-            val truncated = msg.content.take((maxTokens * CHARS_PER_TOKEN_ZH).toInt())
-            result[0] = msg.copy(content = "$truncated...")
-        }
-        return result
+
+        return message.copy(
+            parts = prunedParts,
+            content = prunedParts.filterIsInstance<MessagePart.Text>()
+                .joinToString("") { it.content },
+        )
     }
 }

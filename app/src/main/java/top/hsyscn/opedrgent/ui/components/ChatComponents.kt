@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.ui.components
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,17 +16,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,24 +49,64 @@ private val BubbleBlueEnd = Color(0xFF194CF0)
 private val CitationBg = Color(0xFFD1D7FE)
 
 @Composable
-fun UserBubble(text: String) {
+fun UserBubble(
+    text: String,
+    clipboard: ClipboardManager? = null,
+    onUndo: (() -> Unit)? = null,
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
         Box(
             modifier = Modifier
-                .width(220.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(Brush.horizontalGradient(listOf(BubbleBlue, BubbleBlueEnd)))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .width(220.dp),
         ) {
-            Text(
-                text = text,
-                color = Color.White,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Brush.horizontalGradient(listOf(BubbleBlue, BubbleBlueEnd)))
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { showMenu = true },
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = text,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                if (clipboard != null) {
+                    DropdownMenuItem(
+                        text = { Text("复制") },
+                        onClick = {
+                            clipboard.setText(AnnotatedString(text))
+                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                            showMenu = false
+                        },
+                    )
+                }
+                if (onUndo != null) {
+                    DropdownMenuItem(
+                        text = { Text("撤回") },
+                        onClick = {
+                            onUndo()
+                            showMenu = false
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -68,75 +117,113 @@ fun AIMessageCard(
     onSpeak: (() -> Unit)?,
     isSpeaking: Boolean,
     clipboard: ClipboardManager,
+    onUndo: (() -> Unit)? = null,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
-        colors = CardDefaults.cardColors(containerColor = CardWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showMenu = true },
+                ),
+            shape = RoundedCornerShape(11.dp),
+            colors = CardDefaults.cardColors(containerColor = CardWhite),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
-            if (message.reasoningParts.isNotEmpty()) {
-                val reasoningText = message.reasoningParts.joinToString("\n") { it.text }
-                MessageBodyThinking(
-                    thinkingText = reasoningText,
-                    isComplete = true,
-                )
-            }
-
-            if (message.toolParts.isNotEmpty()) {
-                message.toolParts.forEach { tp ->
-                    ToolStatusRow(toolPart = tp)
-                }
-            }
-
-            if (message.questionPart != null) {
-                QuestionCard(
-                    question = message.questionPart!!,
-                    onAnswer = {},
-                    onDismiss = {},
-                    readonly = true,
-                )
-            }
-
-            if (message.content.isNotBlank()) {
-                MarkdownText(text = message.content, maxChars = 900)
-            }
-
-            val sources = extractSources(message.content)
-            if (sources.isNotEmpty()) {
-                SourceCitations(sources = sources)
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Card(
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                if (message.reasoningParts.isNotEmpty()) {
+                    val reasoningText = message.reasoningParts.joinToString("\n") { it.text }
+                    MessageBodyThinking(
+                        thinkingText = reasoningText,
+                        isComplete = true,
+                    )
+                }
+
+                if (message.toolParts.isNotEmpty()) {
+                    message.toolParts.forEach { tp ->
+                        ToolStatusRow(toolPart = tp)
+                    }
+                }
+
+                if (message.questionPart != null) {
+                    QuestionCard(
+                        question = message.questionPart!!,
+                        onAnswer = {},
+                        onDismiss = {},
+                        readonly = true,
+                    )
+                }
+
+                if (message.textContent.isNotBlank()) {
+                    MarkdownText(text = message.textContent, maxChars = 900)
+                }
+
+                val sources = extractSources(message.textContent)
+                if (sources.isNotEmpty()) {
+                    SourceCitations(sources = sources)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                     ) {
-                        IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
-                            Text("\uD83D\uDC4D", fontSize = 14.sp)
-                        }
-                        IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
-                            Text("\uD83D\uDC4E", fontSize = 14.sp)
-                        }
-                        IconButton(
-                            onClick = { clipboard.setText(AnnotatedString(message.content)) },
-                            modifier = Modifier.size(28.dp),
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text("\uD83D\uDCCB", fontSize = 14.sp)
+                            IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
+                                Text("\uD83D\uDC4D", fontSize = 14.sp)
+                            }
+                            IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
+                                Text("\uD83D\uDC4E", fontSize = 14.sp)
+                            }
+                            IconButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(message.textContent))
+                                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Text("\uD83D\uDCCB", fontSize = 14.sp)
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        // 长按菜单：复制 / 撤回
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("复制") },
+                onClick = {
+                    clipboard.setText(AnnotatedString(message.textContent))
+                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    showMenu = false
+                },
+            )
+            if (onUndo != null) {
+                DropdownMenuItem(
+                    text = { Text("撤回") },
+                    onClick = {
+                        onUndo()
+                        showMenu = false
+                    },
+                )
             }
         }
     }

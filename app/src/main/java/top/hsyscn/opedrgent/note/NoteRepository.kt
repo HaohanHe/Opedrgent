@@ -4,17 +4,26 @@ import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import top.hsyscn.opedrgent.storage.MemoryStore
 
 /**
  * 笔记仓库：统一数据访问层。
  *
  * 对外提供简洁的 CRUD API + Flow 响应式更新通知。
  * 内部通过 [NoteDao] 操作原生 SQLite。
+ * 集成 [KnowledgeGraph] 实现笔记自动关联。
+ * 集成 [MemoryStore] 实现笔记记忆自动同步。
  */
-class NoteRepository(context: Context) {
+class NoteRepository(
+    private val context: Context,
+    private val memoryStore: MemoryStore? = null,
+) {
 
     private val database = NoteDatabase.getInstance(context)
     private val dao = NoteDao(database)
+
+    /** 知识图谱引擎（懒加载，首次访问时初始化） */
+    val knowledgeGraph: KnowledgeGraph by lazy { KnowledgeGraph(context) }
 
     // 响应式变更通知
     private val _changeTrigger = MutableStateFlow(0L)
@@ -43,10 +52,19 @@ class NoteRepository(context: Context) {
     /** 获取单条笔记 */
     suspend fun getNoteById(id: Long): Note? = dao.getById(id)
 
-    /** 创建或更新笔记（自动计算字数和摘要） */
+    /** 创建或更新笔记（自动计算字数和摘要，触发知识图谱关联，同步笔记记忆） */
     suspend fun saveNote(note: Note): Long {
         val id = dao.insertOrUpdate(note)
         _changeTrigger.value = System.currentTimeMillis()
+        // 保存后自动触发知识图谱更新
+        val content = buildString {
+            if (note.title.isNotBlank()) append(note.title).append(" ")
+            append(note.content)
+        }
+        val noteIdStr = id.toString()
+        knowledgeGraph.linkNote(noteIdStr, content)
+        // 自动同步笔记记忆
+        syncNoteMemory(id, note)
         return id
     }
 
@@ -75,7 +93,13 @@ class NoteRepository(context: Context) {
     }
 
     /** 软删除 */
-    suspend fun deleteNote(id: Long) { dao.softDelete(id); _changeTrigger.value = System.currentTimeMillis() }
+    suspend fun deleteNote(id: Long) {
+        dao.softDelete(id)
+        knowledgeGraph.removeNote(id.toString())
+        // 同步清理笔记记忆
+        memoryStore?.removeNoteMemory(id)
+        _changeTrigger.value = System.currentTimeMillis()
+    }
 
     /** 置顶切换 */
     suspend fun togglePin(id: Long): Boolean {
@@ -109,5 +133,62 @@ class NoteRepository(context: Context) {
                 appendLine()
             }
         }
+    }
+
+    // ==================== 知识图谱代理方法 ====================
+
+    /** 获取笔记的所有关联笔记ID（按相关性排序） */
+    fun getLinkedNotes(noteId: Long): List<String> {
+        return knowledgeGraph.getLinkedNotes(noteId.toString())
+    }
+
+    /** 获取笔记的关联笔记列表（带标题）。 */
+    suspend fun getLinkedNotesWithTitles(noteId: Long): List<Note> {
+        val linkedIds = knowledgeGraph.getLinkedNotes(noteId.toString())
+        return linkedIds.mapNotNull { id -> getNoteById(id.toLongOrNull() ?: 0) }
+    }
+
+    /** 获取笔记的关联数 */
+    fun getLinkCount(noteId: Long): Int {
+        return knowledgeGraph.getLinkCount(noteId.toString())
+    }
+
+    /** 获取知识图谱全局统计 */
+    fun getKnowledgeStats(): KnowledgeGraph.GraphStats {
+        return knowledgeGraph.getStats()
+    }
+
+    /** 获取所有关联关系（用于可视化） */
+    fun getAllGraphEdges(): List<KnowledgeGraph.GraphEdge> {
+        return knowledgeGraph.getAllLinks()
+    }
+
+    /** 语义搜索笔记 */
+    fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
+        return knowledgeGraph.searchByRelevance(query, maxResults)
+    }
+
+    /** 重建知识图谱（从所有笔记重新计算） */
+    suspend fun rebuildKnowledgeGraph() {
+        val allNotes = dao.getAllNotes()
+        for (note in allNotes) {
+            val content = buildString {
+                if (note.title.isNotBlank()) append(note.title).append(" ")
+                append(note.content)
+            }
+            knowledgeGraph.linkNote(note.id.toString(), content)
+        }
+    }
+
+    // ==================== 笔记记忆同步 ====================
+
+    /** 将笔记摘要同步到 MemoryStore */
+    private fun syncNoteMemory(noteId: Long, note: Note) {
+        val store = memoryStore ?: return
+        val summary = note.summary.ifBlank {
+            note.content.take(200).replace("\n", " ")
+        }
+        val title = note.title.ifBlank { "笔记 #${noteId}" }
+        store.addNoteMemory(noteId, title, summary)
     }
 }

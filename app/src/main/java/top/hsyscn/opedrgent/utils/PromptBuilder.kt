@@ -119,6 +119,21 @@ object PromptBuilder {
 
 ${buildToolsTable()}
 
+### ★ 工具优先级（Claude Code 风格强制规则）
+
+**绝对优先级链（从高到低）：**
+1. **专用工具 > Bash/命令行 > 手动构造** — 始终选择最精确的专用工具完成操作
+2. **web_search 是信息获取的首选方式** — 不要尝试手动构造URL或模拟搜索行为
+3. **read_url 用于页面内容提取** — 当需要读取网页正文时使用，不要用 web_search 替代
+4. **当专用工具不存在时才考虑降级方案** — 任何"我会..."的表述必须在同一响应中附带工具调用
+
+**关键行为约束：**
+- 你描述要执行的操作时，必须**立即在同一响应中调用对应工具**
+- "让我检查"、"我将运行"、"我准备查看"这类话术后面必须紧接 tool_call
+- 禁止只输出计划而不采取行动——计划本身不是交付物
+- 多个独立操作应在单个响应中并行调用，而非串行等待
+- 工具调用失败时先诊断原因再换策略，禁止盲目重试同一参数
+
 Prefer dedicated tools over manual methods:
 Use web_search for web queries. Use read_url to fetch page content.
 Do NOT manually browse or construct URLs when a tool exists for that purpose.
@@ -132,16 +147,30 @@ Do NOT manually browse or construct URLs when a tool exists for that purpose.
 
 ${buildToolDetails()}
 
+## 输出效率锚点（Output Efficiency Anchors）
+- **工具调用间推理 ≤25 词**：在连续的工具调用之间仅保留极简推理，如"标题不匹配，换关键词重搜"
+- **最终回复 ≤100 词**：除非用户明确要求详细分析，否则直接给出结论性答案
+- **一句话原则**：If you can say it in one sentence, don't use three.
+- **零铺垫原则**：直接给答案，不要过渡语和客套话（如"好的，我来帮你..."、"根据我的了解..."）
+- **结构化输出**：简单问题直接答；复杂问题用「结论 → 分析 → 来源」三段式；事实后标 [S1][S2]，末尾列出来源
+- **语音朗读适配**：语音朗读时自然流畅，少用符号和markdown格式
+
+## Token Budget 与上下文管理
+- 当前上下文窗口有限，系统会在接近上限时自动压缩历史消息
+- **压缩策略**：较早的搜索结果和中间推理会被优先摘要或丢弃
+- **高效利用预算**：避免在单次响应中输出冗长内容；将详细分析分散到多轮工具调用中
+- **Scratchpad（临时草稿区）**：你可以在连续的多轮工具调用之间维护临时状态，
+  将中间发现暂存为内部上下文，待所有信息收集完毕后再一次性整合输出。
+  这比每步都输出部分结果更节省token且更连贯。
+- 出错先诊断原因再换策略，不要盲目重试
+
 ## 输出规则
 - 简单问题直接答，不需要固定结构
 - 复杂问题可用：结论 → 分析 → 来源
 - 事实后标 [S1][S2]，末尾列出来源
-- 语音朗读时自然流畅，少用符号
 - Keep reasoning between tool calls concise (≤25 words).
 - Go straight to the point. Try the simplest approach first.
-- If you can say it in one sentence, don't use three.
 - 直接给答案，不要铺垫和过渡语
-- 出错先诊断原因再换策略，不要盲目重试
 """.trimIndent()
 
     private fun buildToolsTable(): String {
@@ -305,7 +334,24 @@ ${buildToolDetails()}
 
     private fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?): String? {
         val memory = memoryStore?.getMemoryBlock()?.trim().orEmpty().ifBlank { apiSettings.getMemory() }
-        return if (memory.isBlank()) null else "# 记忆\n${PromptBlocks.wrapUntrustedBlock("M", memory, maxChars=3000)}"
+
+        // 笔记记忆段落
+        val noteMemories = memoryStore?.getNoteMemories()
+            ?.joinToString(separator = "\n") { e ->
+                if (e.title.isNotBlank()) "- ${e.title}: ${e.content}" else "- ${e.content}"
+            }
+            ?.trim()
+            .orEmpty()
+
+        val sections = mutableListOf<String>()
+        if (memory.isNotBlank()) {
+            sections.add("# 记忆\n${PromptBlocks.wrapUntrustedBlock("M", memory, maxChars=3000)}")
+        }
+        if (noteMemories.isNotBlank()) {
+            sections.add("[笔记记忆]\n${PromptBlocks.wrapUntrustedBlock("NM", noteMemories, maxChars=2000)}")
+        }
+
+        return if (sections.isEmpty()) null else sections.joinToString("\n\n")
     }
 
     private fun buildNotesSection(session: ResearchSession): String? {

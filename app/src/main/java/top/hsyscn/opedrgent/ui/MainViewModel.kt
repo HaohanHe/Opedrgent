@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -20,12 +21,15 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
+import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
+import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MemoryEntry
 import top.hsyscn.opedrgent.model.MemoryType
+import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.QuestionPart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ResearchSession
@@ -96,8 +100,10 @@ import top.hsyscn.opedrgent.stt.SpeechEngine
 import top.hsyscn.opedrgent.stt.SherpaOnnxEngine
 import top.hsyscn.opedrgent.stt.MimoAsrEngine
 import top.hsyscn.opedrgent.stt.AndroidSpeechRecognizer
+import kotlin.math.pow
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
+import top.hsyscn.opedrgent.mcp.skills.CuratorService
 import top.hsyscn.opedrgent.stt.RecognitionMode
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.insight.InsightSproutEngine
@@ -215,7 +221,7 @@ enum class SproutingState {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
-    private val apiSettings = ApiSettings(app)
+    val apiSettings = ApiSettings(app)
     private val localEngine = LocalLlmEngine.getInstance(app)
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
@@ -223,16 +229,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val llm = LlmClient(http)
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings)
+    val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
+    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
-    val noteRepository = NoteRepository(app)
+    val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
     
     // Skills registry and prompt cache
     private val skillRegistry = top.hsyscn.opedrgent.mcp.skills.SkillRegistry.getInstance().apply {
         setIndexFile(java.io.File(app.filesDir, "skills_index.json"))
     }
+
+    // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
+    private val curatorService = CuratorService(skillRegistry, app)
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
@@ -305,12 +315,99 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var sttJob: Job? = null
     private var sproutJob: Job? = null
 
+    // ==================== AI 风格转换 ====================
+    private val _aiConvertedContent = MutableStateFlow<String?>(null)
+    val aiConvertedContent: StateFlow<String?> = _aiConvertedContent.asStateFlow()
+
+    private val _isConverting = MutableStateFlow(false)
+    val isConverting: StateFlow<Boolean> = _isConverting.asStateFlow()
+
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
     private val cancelled = AtomicBoolean(false)
     private val sessionCache = mutableMapOf<String, ResearchSession>()
     // Tool executor serialized via limitedParallelism(1) dispatcher to prevent concurrent duplicate searches
     private val searchDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+    // ==================== Agent 循环状态机 ====================
+
+    /** Agent 循环状态 */
+    private enum class LoopState {
+        IDLE,       // 空闲
+        RUNNING,    // 运行中
+        RETRYING,   // 重试中
+        COMPACTING, // 压缩中
+    }
+
+    /** 循环轮次结果 */
+    private sealed class LoopOutcome {
+        object Continue : LoopOutcome()
+        object Break : LoopOutcome()
+        data class Retry(val delay: Long) : LoopOutcome()
+        data class Error(val message: String) : LoopOutcome()
+    }
+
+    /** 循环上下文 —— 跨轮次共享的可变状态 */
+    private class LoopContext(
+        val sessionId: String,
+        val config: top.hsyscn.opedrgent.settings.ApiConfig,
+        val maxContextTokens: Int,
+        val toolMessages: MutableList<ChatMessage> = mutableListOf(),
+        val allToolParts: MutableList<ToolPart> = mutableListOf(),
+        val usedUrls: HashSet<String> = hashSetOf(),
+        var sourceTagIdx: Int = 0,
+        var accumulatedText: String = "",
+        var accumulatedReasoning: String = "",
+        var finalContent: String = "",
+        var finalReasoning: String = "",
+    )
+
+    /** runLoop() 返回值 —— 供 runModel() 后处理使用 */
+    private data class LoopResult(
+        val finalContent: String,
+        val finalReasoning: String,
+        val accumulatedText: String,
+        val accumulatedReasoning: String,
+        val allToolParts: List<ToolPart>,
+        val wasCancelled: Boolean,
+    )
+
+    private var loopState = LoopState.IDLE
+    private var retryCount = 0
+    private var lastError: String? = null
+
+    private object RetryPolicy {
+        const val INITIAL_DELAY_MS = 2000L
+        const val BACKOFF_FACTOR = 2.0
+        const val MAX_DELAY_MS = 30_000L
+        const val MAX_RETRIES = 3
+
+        fun delay(attempt: Int, error: Exception): Long {
+            return minOf(
+                INITIAL_DELAY_MS * BACKOFF_FACTOR.pow(attempt),
+                MAX_DELAY_MS.toDouble(),
+            ).toLong()
+        }
+
+        fun isRetryable(error: Exception): Boolean {
+            val msg = error.message?.lowercase() ?: return false
+            if (msg.contains("overflow") || msg.contains("token")) return false
+            if (msg.contains("429") || msg.contains("rate limit")) return true
+            if (msg.contains("500") || msg.contains("502") || msg.contains("503")) return true
+            if (msg.contains("network") || msg.contains("timeout")) return true
+            return false
+        }
+
+        fun isRetryableErrorType(classifiedType: top.hsyscn.opedrgent.network.ClassifiedErrorType): Boolean {
+            return when (classifiedType) {
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT,
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT,
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.SERVER_ERROR,
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.NETWORK_ERROR -> true
+                else -> false
+            }
+        }
+    }
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -320,6 +417,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         top.hsyscn.opedrgent.mcp.skills.BuiltinSkillLoader.loadBuiltinSkills(skillRegistry)
         // Initialize skill prompt cache
         top.hsyscn.opedrgent.mcp.skills.SkillPromptCache.initialize(app.cacheDir)
+
+        // Curator: 启动时非阻塞检查是否需要运行维护（空闲触发）
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = curatorService.maybeRunCurator()
+            if (result.ran) {
+                DebugLog.i("Curator: maintenance completed — ${result.summary}")
+            }
+        }
         
         _state.value = _state.value.copy(
             deepThinkingEnabled = apiSettings.isDeepThinking(),
@@ -396,6 +501,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openSession(id: String) {
+        // 切换会话时，如果正在生成回复，先取消并保存部分内容
+        if (_state.value.isStreaming) {
+            cancelled.set(true)
+            currentCall?.cancel()
+            currentRunJob?.cancel()
+            currentCall = null
+            currentRunJob = null
+            savePartialStreamingContent()
+            _state.value = _state.value.copy(
+                isStreaming = false,
+                streamingText = "",
+                streamingReasoning = "",
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+                streamingSessionId = null,
+                loading = false,
+            )
+        }
         _state.value = _state.value.copy(current = store.getSession(id), error = null)
         apiSettings.setLastSessionId(id)
     }
@@ -459,7 +582,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun sendUserMessage(text: String) {
-        val sessionId = _state.value.current?.id ?: return
+        var sessionId = _state.value.current?.id
+        if (sessionId == null) {
+            // 从外部入口进入时没有活跃 session，自动创建
+            val session = store.createSession("新对话")
+            refreshSessions()
+            openSession(session.id)
+            sessionId = session.id
+            // 触发导航到 AI Tab
+            _state.value = _state.value.copy(navigateToSessionId = session.id)
+            DebugLog.i("sendUserMessage: 自动创建新 session $sessionId, 导航到 AI Tab")
+        }
         if (text.isBlank()) return
         DebugLog.i("sendUserMessage: ${text.take(100)}")
 
@@ -477,6 +610,150 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(current = store.getSession(sessionId))
         refreshSessions()
         runModel(sessionId)
+    }
+
+    // ==================== 知识图谱 API ====================
+
+    /** 将笔记内容发送到聊天，让 AI 分析 */
+    fun sendNoteToChat(noteId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val note = noteRepository.getNoteById(noteId) ?: return@launch
+            val linkedIds = noteRepository.getLinkedNotes(noteId)
+            val prompt = buildString {
+                appendLine("请帮我分析以下笔记，并与已有关联笔记进行对比：")
+                appendLine()
+                appendLine("【标题】${note.title}")
+                appendLine("【内容】")
+                append(note.content.take(2000))
+                if (linkedIds.isNotEmpty()) {
+                    appendLine()
+                    appendLine()
+                    appendLine("已知关联笔记：")
+                    for (linkedId in linkedIds.take(5)) {
+                        val linkedNote = noteRepository.getNoteById(linkedId.toLongOrNull() ?: continue)
+                        if (linkedNote != null) {
+                            appendLine("- ${linkedNote.title}: ${linkedNote.content.take(200)}")
+                        }
+                    }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                sendUserMessage(prompt)
+            }
+        }
+    }
+
+    /**
+     * 将笔记内容通过指定 Skill 发送到聊天让 AI 处理。
+     * 自动切换到 AI Tab 并发送消息。
+     */
+    fun sendNoteWithSkill(noteId: Long, skillId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val note = noteRepository.getNoteById(noteId) ?: return@launch
+
+            // 内置 Skill prompt（SkillSystem 中定义的三个笔记 AI 操作）
+            val builtInPrompts = mapOf(
+                "insight_review" to "你是一位善于发现亮点的分析师。请对以下文本进行深入分析，识别其中的闪光点和高光时刻，给出正向强化的评价，帮助用户看到自己做得好的地方。",
+                "critical_inquiry" to "你是一位严谨的思想挑战师。请对以下观点进行苏格拉底式追问，帮助用户把想法想透，发现逻辑漏洞、隐含假设和潜在反驳。",
+                "text_refine" to "你是一位专业的内容编辑。请对以下文本进行润色和优化，把口语化表达打磨成流畅的成品内容，保留用户的真实声音和核心观点。",
+            )
+
+            val promptText = builtInPrompts[skillId]
+                ?: _state.value.skills.firstOrNull { it.id == skillId }?.prompt
+                ?: "请分析以下内容："
+
+            val prompt = buildString {
+                appendLine(promptText)
+                appendLine()
+                appendLine("---")
+                appendLine("标题: ${note.title}")
+                appendLine("内容:")
+                appendLine(note.content)
+                appendLine("---")
+            }
+
+            withContext(Dispatchers.Main) {
+                sendUserMessage(prompt)
+            }
+        }
+    }
+
+    /** 将 AI 回复保存为笔记 */
+    fun saveAiReplyAsNote(messageIndex: Int) {
+        val session = _state.value.current ?: return
+        val message = session.messages.getOrNull(messageIndex) ?: return
+        if (message.role != Role.ASSISTANT) return
+
+        val note = Note(
+            title = "AI 回复 - ${session.title}",
+            content = message.content,
+            type = NoteType.AI_CHAT,
+            sourceType = top.hsyscn.opedrgent.note.SourceType.AI_GENERATED,
+        )
+        viewModelScope.launch {
+            noteRepository.saveNote(note)
+        }
+    }
+
+    /** 从文本创建笔记（录音转写 / AI 回复等场景） */
+    fun createNoteFromText(title: String, content: String, type: NoteType = NoteType.TEXT) {
+        val note = Note(
+            title = title,
+            content = content,
+            type = type,
+            sourceType = when (type) {
+                NoteType.MEETING -> top.hsyscn.opedrgent.note.SourceType.MEETING_TRANSCRIPT
+                NoteType.ASR -> top.hsyscn.opedrgent.note.SourceType.ASR
+                NoteType.AI_CHAT -> top.hsyscn.opedrgent.note.SourceType.AI_GENERATED
+                NoteType.LINK -> top.hsyscn.opedrgent.note.SourceType.LINK_EXTRACT
+                NoteType.IMAGE -> top.hsyscn.opedrgent.note.SourceType.DOCUMENT_IMPORT
+                NoteType.PDF -> top.hsyscn.opedrgent.note.SourceType.DOCUMENT_IMPORT
+                else -> top.hsyscn.opedrgent.note.SourceType.MANUAL
+            },
+            wordCount = content.length,
+        )
+        viewModelScope.launch {
+            noteRepository.saveNote(note)
+        }
+    }
+
+    /** 获取笔记的上下文（用于 AI 对话时引用） */
+    fun getNoteContext(noteId: Long): String? {
+        val note = runCatching {
+            kotlinx.coroutines.runBlocking { noteRepository.getNoteById(noteId) }
+        }.getOrNull() ?: return null
+        return "笔记「${note.title}」：${note.content.take(500)}"
+    }
+
+    /** 获取知识图谱统计 */
+    fun getKnowledgeStats(): top.hsyscn.opedrgent.note.KnowledgeGraph.GraphStats {
+        return noteRepository.getKnowledgeStats()
+    }
+
+    /** 语义搜索笔记 */
+    fun searchNotesByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
+        return noteRepository.searchByRelevance(query, maxResults)
+    }
+
+    /** 获取笔记的关联 */
+    fun getLinkedNotes(noteId: Long): List<String> {
+        return noteRepository.getLinkedNotes(noteId)
+    }
+
+    // ==================== 笔记推荐 ====================
+
+    private val _recommendedNotes = MutableStateFlow<List<Note>>(emptyList())
+    val recommendedNotes: StateFlow<List<Note>> = _recommendedNotes.asStateFlow()
+
+    fun refreshRecommendations() {
+        viewModelScope.launch {
+            val notes = noteRepository.getRecentNotes(1)
+            if (notes.isNotEmpty()) {
+                val latestNote = notes.first()
+                val recommended = noteRepository.getLinkedNotesWithTitles(latestNote.id)
+                _recommendedNotes.value = recommended
+            }
+        }
     }
 
     fun runSkill(skillId: String) {
@@ -819,10 +1096,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun runModel(sessionId: String, artifactKind: ArtifactKind? = null) {
+        // 防止并发：如果已有运行中的任务，先取消并保存部分内容
+        if (currentRunJob?.isActive == true) {
+            cancelled.set(true)
+            currentCall?.cancel()
+            currentRunJob?.cancel()
+            currentCall = null
+            currentRunJob = null
+            savePartialStreamingContent()
+            _state.value = _state.value.copy(
+                isStreaming = false,
+                streamingText = "",
+                streamingReasoning = "",
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+                streamingSessionId = null,
+                loading = false,
+            )
+        }
         cancelled.set(false)
         currentRunJob = viewModelScope.launch {
             setLoading(true)
-            _state.value = _state.value.copy(streamingSessionId = sessionId)
+            _state.value = _state.value.copy(
+                streamingSessionId = sessionId,
+                isStreaming = true,
+                streamingText = "",
+                streamingReasoning = "",
+            )
             try {
                 val useLocalModel = apiSettings.isLocalModelEnabled() && localEngine.isReady
 
@@ -850,421 +1150,56 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 val config = apiSettings.getApiConfig()
                     ?: throw IllegalStateException("请先在设置里填写 API Key 或加载本地模型")
-                val toolMessages = mutableListOf<ChatMessage>()
-                val allToolParts = mutableListOf<ToolPart>()
-                var accumulatedText = ""
-                var accumulatedReasoning = ""
-                var finalContent = ""
-                var finalReasoning = ""
-                val usedUrls = HashSet<String>()
-                var sourceTagIdx = 0
                 val maxContextTokens = if (top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(config.model)) {
                     top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
                 } else 16000
 
-                val state = ResearchState(maxRounds = 10)
+                val ctx = LoopContext(
+                    sessionId = sessionId,
+                    config = config,
+                    maxContextTokens = maxContextTokens,
+                )
 
-                while (state.shouldContinue()) {
-                    if (cancelled.get()) {
-                        DebugLog.i("runModel cancelled at round ${state.roundsUsed}")
-                        return@launch
-                    }
+                val loopResult = runLoop(ctx)
 
-                    val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
-                    val system = buildSystemPrompt(session)
-
-                    val allMessages = session.messages + toolMessages
-                    val compressed = ContextCompressor.compress(allMessages, system, maxContextTokens)
-                    val compressedSystem = if (compressed.summary != null) {
-                        "$system\n\n${compressed.summary}"
-                    } else system
-                    val messages = compressed.recentMessages
-
-                    DebugLog.d("runModel: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
-
-                    state.advanceTo(ResearchPhase(
-                        name = if (state.roundsUsed == 0) "思考中" else "继续思考",
-                    ))
-                    _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
-
-                    val mapImages = if (state.roundsUsed == 0) {
-                        withContext(Dispatchers.IO) { tryFetchLocationMap(messages) }
-                    } else emptyList()
-
-                    val result = if (mapImages.isNotEmpty()) {
-                        _state.value = _state.value.copy(streamingPhase = "正在分析地图…")
-                        withContext(Dispatchers.IO) {
-                            streamMultimodalLlm(config, compressedSystem, messages, mapImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
-                        }
-                    } else {
-                        withContext(Dispatchers.IO) {
-                            streamLlm(config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
-                        }
-                    }
-
-                    if (cancelled.get()) {
-                        DebugLog.i("runModel cancelled after streaming round ${state.roundsUsed}")
-                        return@launch
-                    }
-
-                    if (result.error != null) {
-                        val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
-                            java.lang.Exception(result.error), null, null
-                        )
-                        DebugLog.e("runModel: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
-                        DebugLog.e("runModel: error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
-                        if (result.content.isNotBlank()) {
-                            accumulatedText += (if (accumulatedText.isNotBlank()) "\n\n" else "") + result.content
-                        }
-                        val enhancedErrorMsg = when (classified.type) {
-                            top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "${result.error} (请求过于频繁，请稍后重试)"
-                            top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "${result.error} (请求超时，请检查网络)"
-                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "${result.error} (触发了人机验证，可能需要更换API Key或节点)"
-                            top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "${result.error} (SSL证书错误)"
-                            top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "${result.error} (访问被拒绝，请检查API Key是否有效)"
-                            else -> result.error
-                        }
-                        state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
-                        _state.value = _state.value.copy(
-                            streamingText = accumulatedText,
-                            streamingPhase = "生成回答…",
-                        )
-                        break
-                    }
-
-                    finalContent = result.content
-                    finalReasoning = result.reasoning
-
-                    if (result.content.isNotBlank()) {
-                        accumulatedText += (if (accumulatedText.isNotBlank()) "\n\n" else "") + result.content
-                    }
-                    if (result.reasoning.isNotBlank()) {
-                        accumulatedReasoning += (if (accumulatedReasoning.isNotBlank()) "\n" else "") + result.reasoning
-                    }
-
-                    _state.value = _state.value.copy(
-                        streamingText = accumulatedText,
-                        streamingReasoning = accumulatedReasoning,
-                        streamingPhase = "生成回答…",
-                    )
-
-                    if (result.toolCalls.isEmpty()) {
-                        DebugLog.i("runModel: no tool_call in response, model is done at round ${state.roundsUsed}")
-                        state.recordNoToolCalls(result.content)
-                        _state.value = _state.value.copy(streamingPhase = "生成回答…")
-                        break
-                    }
-
-                    val toolCallIds = result.toolCalls.map { it.id }
-                    val toolCallMap = result.toolCalls.associateBy { it.id }
-
-                    val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
-                        val parsedArgs: Map<String, String> = runCatching {
-                            org.json.JSONObject(tc.arguments).let { json ->
-                                json.keys().asSequence().associateWith { json.opt(it).toString() }
-                            }
-                        }.getOrDefault(emptyMap())
-                        ToolPart(
-                            tool = tc.name,
-                            state = ToolState(
-                                status = ToolStateType.PENDING,
-                                input = parsedArgs,
-                                startTime = System.currentTimeMillis(),
-                            ),
-                        )
-                    }
-                    allToolParts.addAll(pendingToolParts)
-                    _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                    coroutineScope {
-                        result.toolCalls.forEachIndexed { idx, tc ->
-                            async(Dispatchers.IO) {
-                                if (cancelled.get()) return@async
-
-                                val tp = pendingToolParts[idx]
-                                val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
-
-                                val phaseText = when {
-                                    tc.name == "web_search" -> {
-                                        val q = tp.state.input["query"] ?: tp.state.input["keyword"] ?: ""
-                                        if (q.isNotBlank() && q != "{{query}}") "正在搜索: $q" else "正在搜索…"
-                                    }
-                                    tc.name == "read_url" -> {
-                                        val u = tp.state.input["url"] ?: ""
-                                        if (u.isNotBlank()) {
-                                            val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
-                                            "正在读取: $host"
-                                        } else "正在读取网页…"
-                                    }
-                                    else -> "正在执行: ${tc.name}"
-                                }
-                                _state.value = _state.value.copy(streamingPhase = phaseText)
-
-                                synchronized(allToolParts) {
-                                    val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                    if (pos >= 0) allToolParts[pos] = runningTp
-                                }
-                                _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                                val toolDef = agentTools.firstOrNull { it.name == tc.name }
-                                val toolDesc = toolDef?.description ?: tc.name
-                                val paramsJson = tc.arguments
-
-                                if (tc.name == "ask_question") {
-                                    try {
-                                        val params = org.json.JSONObject(tc.arguments ?: "{}")
-                                        val questionsArray = params.getJSONArray("questions")
-                                        val questions = (0 until questionsArray.length()).map { i ->
-                                            val q = questionsArray.getJSONObject(i)
-                                            val optionsArray = q.getJSONArray("options")
-                                            val options = (0 until optionsArray.length()).map { j ->
-                                                val opt = optionsArray.getJSONObject(j)
-                                                QuestionOption(
-                                                    label = opt.getString("label"),
-                                                    description = if (opt.has("description")) opt.getString("description") else "",
-                                                )
-                                            }
-                                            QuestionInfo(
-                                                question = q.getString("question"),
-                                                header = if (q.has("header")) q.getString("header") else "请选择",
-                                                options = options,
-                                                multiple = q.optBoolean("multiple", false),
-                                                allowCustom = q.optBoolean("allowCustom", false),
-                                            )
-                                        }
-
-                                        _questionRequest.emit(QuestionRequest(questions = questions))
-
-                                        _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
-
-                                        val answers = _questionResponse.first()
-                                        _questionRequest.value = null
-
-                                        val resultAnswers = answers.mapIndexed { idx, ans ->
-                                            mapOf("question" to questions[idx].question, "answers" to ans)
-                                        }
-                                        val resultTp = tp.copy(state = tp.state.copy(
-                                            status = ToolStateType.COMPLETED,
-                                            output = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
-                                        ))
-                                        synchronized(allToolParts) {
-                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                            if (pos >= 0) allToolParts[pos] = resultTp
-                                        }
-                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                                        toolMessages.add(ChatMessage(
-                                            role = Role.USER,
-                                            content = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
-                                            createdAt = System.currentTimeMillis(),
-                                            toolCallId = tc.id,
-                                        ))
-                                    } catch (e: Exception) {
-                                        DebugLog.e("ask_question error: ${e.message}", e)
-                                        _questionRequest.value = null
-                                        val errorTp = tp.copy(state = tp.state.copy(
-                                            status = ToolStateType.ERROR,
-                                            error = "ask_question 处理失败: ${e.message}",
-                                        ))
-                                        synchronized(allToolParts) {
-                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                            if (pos >= 0) allToolParts[pos] = errorTp
-                                        }
-                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-                                    }
-                                    return@async
-                                }
-
-                                if (tc.name == "ask_confirmation") {
-                                    try {
-                                        val params = org.json.JSONObject(tc.arguments ?: "{}")
-                                        val message = params.optString("message", "请确认")
-                                        val detail = params.optString("detail", "")
-                                        val timeoutSeconds = params.optInt("timeoutSeconds", 30)
-                                        val optionsArray = params.optJSONArray("options") ?: org.json.JSONArray()
-                                        val options = (0 until optionsArray.length()).map { j ->
-                                            val opt = optionsArray.getJSONObject(j)
-                                            ConfirmationOption(
-                                                label = opt.optString("label", ""),
-                                                description = opt.optString("description", ""),
-                                            )
-                                        }
-
-                                        _confirmationRequest.emit(ConfirmationRequest(
-                                            message = message,
-                                            detail = detail,
-                                            options = options,
-                                            timeoutSeconds = timeoutSeconds,
-                                        ))
-
-                                        _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
-
-                                        val selectedOption = _confirmationResponse.first()
-                                        _confirmationRequest.value = null
-                                        val confirmed = selectedOption != null
-                                        val actualOption = if (selectedOption == "__confirmed__") null else selectedOption
-
-                                        val resultMap = buildString {
-                                            append("{")
-                                            append("\"confirmed\": $confirmed")
-                                            if (actualOption != null) {
-                                                append(", \"selectedOption\": \"${actualOption.replace("\"", "\\\"")}\"")
-                                            }
-                                            append(", \"timeout\": false")
-                                            append("}")
-                                        }
-                                        val resultTp = tp.copy(state = tp.state.copy(
-                                            status = ToolStateType.COMPLETED,
-                                            output = resultMap,
-                                        ))
-                                        synchronized(allToolParts) {
-                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                            if (pos >= 0) allToolParts[pos] = resultTp
-                                        }
-                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                                        toolMessages.add(ChatMessage(
-                                            role = Role.USER,
-                                            content = resultMap,
-                                            createdAt = System.currentTimeMillis(),
-                                            toolCallId = tc.id,
-                                        ))
-                                    } catch (e: Exception) {
-                                        DebugLog.e("ask_confirmation error: ${e.message}", e)
-                                        _confirmationRequest.value = null
-                                        val errorTp = tp.copy(state = tp.state.copy(
-                                            status = ToolStateType.ERROR,
-                                            error = "ask_confirmation 处理失败: ${e.message}",
-                                        ))
-                                        synchronized(allToolParts) {
-                                            val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                            if (pos >= 0) allToolParts[pos] = errorTp
-                                        }
-                                        _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-                                    }
-                                    return@async
-                                }
-
-                                val execResult = withContext(Dispatchers.IO) {
-                                    toolExecutor.execute(tp, config, system, useProviderSearch = isProviderWebSearchEnabled())
-                                }
-
-                                val doneTp = execResult.toolPart
-                                synchronized(allToolParts) {
-                                    val pos = allToolParts.indexOfFirst { it.id == tp.id }
-                                    if (pos >= 0) allToolParts[pos] = doneTp
-                                }
-                                _state.value = _state.value.copy(streamingToolParts = allToolParts.toList())
-
-                                val newSources = execResult.addedSources.filter { usedUrls.add(it) }
-                                if (newSources.isNotEmpty()) {
-                                    val s = store.getSession(sessionId)
-                                    newSources.forEach { url ->
-                                        if (s != null && s.sources.none { it.url == url }) {
-                                            store.addSource(sessionId, SourceType.URL, title = url, url = url, content = "")
-                                        }
-                                    }
-                                }
-
-                                if (execResult.openBrowserUrl != null) {
-                                    _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
-                                }
-
-                                val newSources2 = execResult.addedSources.filter { it.isNotBlank() && !usedUrls.contains(it) }
-                                if (newSources2.isNotEmpty()) {
-                                    val s = store.getSession(sessionId)
-                                    newSources2.forEach { url ->
-                                        if (s != null && s.sources.none { it.url == url }) {
-                                            store.addSource(sessionId, SourceType.URL, title = url, url = url, content = "")
-                                        }
-                                    }
-                                }
-
-                                val taggedSources = execResult.addedSources.mapNotNull { url ->
-                                    if (url.isBlank()) return@mapNotNull null
-                                    sourceTagIdx++
-                                    "S$sourceTagIdx"
-                                }
-                                val sourceTags = if (taggedSources.isNotEmpty()) {
-                                    "\n[来源: ${taggedSources.joinToString(" ")}]"
-                                } else ""
-
-                                val toolOutput = when {
-                                    execResult.toolPart.state.status == ToolStateType.ERROR -> {
-                                        "[工具执行失败: ${execResult.toolPart.state.error?.take(100)}]"
-                                    }
-                                    execResult.toolPart.state.output != null -> execResult.toolPart.state.output
-                                    else -> "工具执行完成"
-                                }
-                                toolMessages.add(ChatMessage(
-                                        role = Role.USER,
-                                        content = "$toolOutput$sourceTags",
-                                        createdAt = System.currentTimeMillis(),
-                                        toolCallId = tc.id,
-                                    ))
-                            }
-                        }
-                    }
-
-                    refreshSessions()
-
-                    val searchCount = result.toolCalls.count { it.name == "web_search" }
-                    val fetchCount = result.toolCalls.count { it.name == "read_url" }
-                    if (searchCount > 0) {
-                        state.advanceTo(ResearchPhase(
-                            name = "搜索完成",
-                            searchesCompleted = state.completedSearches.size + searchCount,
-                            lastToolName = "web_search",
-                        ))
-                    } else if (fetchCount > 0) {
-                        state.advanceTo(ResearchPhase(
-                            name = "读取完成",
-                            pagesFetched = state.fetchedUrls.size + fetchCount,
-                            lastToolName = "read_url",
-                        ))
-                    }
-                    _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
-
-                    if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
-                        val tcJsonArr = org.json.JSONArray()
-                        result.toolCalls.forEach { tc ->
-                            tcJsonArr.put(org.json.JSONObject().apply {
-                                put("id", tc.id)
-                                put("type", "function")
-                                put("function", org.json.JSONObject().apply {
-                                    put("name", tc.name)
-                                    put("arguments", tc.arguments)
-                                })
-                            })
-                        }
-                        val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(result.reasoning)
-                        toolMessages.add(ChatMessage(
-                            role = Role.ASSISTANT,
-                            content = result.content,
-                            createdAt = System.currentTimeMillis(),
-                            apiToolCallsJson = tcJsonArr.toString(),
-                            reasoningParts = if (cleanReasoning.isNotEmpty()) {
-                                listOf(ReasoningPart(text = cleanReasoning, endTime = System.currentTimeMillis()))
-                            } else emptyList(),
-                        ))
-                    }
-
-                    if (cancelled.get()) return@launch
+                if (loopResult == null || loopResult.wasCancelled) {
+                    savePartialStreamingContent()
+                    return@launch
                 }
 
-                val rawContent = top.hsyscn.opedrgent.utils.ToolCallParser.stripAllTags(finalContent).trim()
-                val cleanFinal = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(rawContent).let { if (it.isEmpty()) finalContent.trim() else it }
-                val displayContent = cleanFinal.ifEmpty { finalContent.trim() }
+                val rawContent = top.hsyscn.opedrgent.utils.ToolCallParser.stripAllTags(loopResult.finalContent).trim()
+                val cleanFinal = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(rawContent).let { if (it.isEmpty()) loopResult.finalContent.trim() else it }
+                val displayContent = cleanFinal.ifEmpty { loopResult.finalContent.trim() }
 
-                val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(finalReasoning)
+                val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(loopResult.finalReasoning)
                 val reasoningParts = if (cleanReasoning.isNotEmpty()) {
                     listOf(ReasoningPart(text = cleanReasoning, endTime = System.currentTimeMillis()))
                 } else emptyList()
 
+                // 构建结构化 parts 列表（新模型）
+                val messageParts = buildList {
+                    if (loopResult.accumulatedReasoning.isNotBlank()) {
+                        add(MessagePart.Reasoning(content = loopResult.accumulatedReasoning))
+                    }
+                    loopResult.allToolParts.forEach { tp ->
+                        add(MessagePart.ToolCall(
+                            toolName = tp.tool,
+                            callId = tp.id,
+                            state = tp.state,
+                            input = tp.state.input,
+                            output = tp.state.output,
+                        ))
+                    }
+                    if (displayContent.isNotBlank()) {
+                        add(MessagePart.Text(content = displayContent))
+                    }
+                }
+
                 store.addMessage(
                     sessionId, Role.ASSISTANT, displayContent,
-                    toolParts = allToolParts,
+                    toolParts = loopResult.allToolParts,
                     reasoningParts = reasoningParts,
+                    parts = messageParts,
                 )
 
                 if (artifactKind != null) {
@@ -1305,7 +1240,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
 
-                DebugLog.i("runModel: complete, final=${displayContent.length} chars, tools=${allToolParts.size}")
+                DebugLog.i("runModel: complete, final=${displayContent.length} chars, tools=${loopResult.allToolParts.size}")
             } catch (e: Exception) {
                 if (!cancelled.get()) {
                     DebugLog.e("runModel error: ${e.message}", e)
@@ -1326,6 +1261,471 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 currentCall = null
                 currentRunJob = null
             }
+        }
+    }
+
+
+    // ==================== Agent 循环状态机方法 ====================
+
+    /** runLoop: 状态机驱动的 Agent 循环 */
+    private suspend fun runLoop(ctx: LoopContext): LoopResult? {
+        loopState = LoopState.RUNNING
+        retryCount = 0
+        lastError = null
+
+        val state = ResearchState(maxRounds = 10)
+
+        try {
+            while (state.shouldContinue()) {
+                // 1. 取消检查
+                if (cancelled.get()) {
+                    DebugLog.i("runLoop cancelled at round ${state.roundsUsed}")
+                    return null
+                }
+
+                // 2. 执行单轮 LLM 调用
+                val outcome = try {
+                    executeOneRound(ctx, state)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    handleRoundError(e)
+                }
+
+                // 3. 根据结果决定下一步
+                when (outcome) {
+                    is LoopOutcome.Continue -> {
+                        retryCount = 0  // 成功，重置重试计数
+                    }
+                    is LoopOutcome.Break -> break
+                    is LoopOutcome.Retry -> {
+                        loopState = LoopState.RETRYING
+                        retryCount++
+                        _state.value = _state.value.copy(
+                            streamingPhase = "请求失败，${outcome.delay / 1000}秒后重试…(第${retryCount}次)",
+                        )
+                        delay(outcome.delay)
+                        loopState = LoopState.RUNNING
+                    }
+                    is LoopOutcome.Error -> {
+                        lastError = outcome.message
+                        break
+                    }
+                }
+            }
+        } finally {
+            loopState = LoopState.IDLE
+        }
+
+        return LoopResult(
+            finalContent = ctx.finalContent,
+            finalReasoning = ctx.finalReasoning,
+            accumulatedText = ctx.accumulatedText,
+            accumulatedReasoning = ctx.accumulatedReasoning,
+            allToolParts = ctx.allToolParts.toList(),
+            wasCancelled = cancelled.get(),
+        )
+    }
+
+    /** 执行单轮 LLM 调用 + 工具执行 */
+    private suspend fun executeOneRound(ctx: LoopContext, state: ResearchState): LoopOutcome {
+        val session = store.getSession(ctx.sessionId) ?: throw IllegalStateException("会话不存在")
+        val system = buildSystemPrompt(session)
+
+        val allMessages = session.messages + ctx.toolMessages
+        val compressed = ContextCompressor.compress(allMessages, system, ctx.maxContextTokens)
+        val compressedSystem = if (compressed.summary != null) {
+            "$system\n\n${compressed.summary}"
+        } else system
+        val messages = compressed.messages
+
+        DebugLog.d("executeOneRound: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
+
+        state.advanceTo(ResearchPhase(
+            name = if (state.roundsUsed == 0) "思考中" else "继续思考",
+        ))
+        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
+
+        val mapImages = if (state.roundsUsed == 0) {
+            withContext(Dispatchers.IO) { tryFetchLocationMap(messages) }
+        } else emptyList()
+
+        val result = if (mapImages.isNotEmpty()) {
+            _state.value = _state.value.copy(streamingPhase = "正在分析地图…")
+            withContext(Dispatchers.IO) {
+                streamMultimodalLlm(ctx.config, compressedSystem, messages, mapImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+            }
+        } else {
+            withContext(Dispatchers.IO) {
+                streamLlm(ctx.config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+            }
+        }
+
+        // 取消检查（流式传输后）
+        if (cancelled.get()) {
+            DebugLog.i("executeOneRound cancelled after streaming round ${state.roundsUsed}")
+            return LoopOutcome.Break
+        }
+
+        // 处理 LLM 返回的错误
+        if (result.error != null) {
+            val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
+                java.lang.Exception(result.error), null, null
+            )
+            DebugLog.e("executeOneRound: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
+            DebugLog.e("executeOneRound: error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
+            if (result.content.isNotBlank()) {
+                ctx.accumulatedText += (if (ctx.accumulatedText.isNotBlank()) "\n\n" else "") + result.content
+            }
+            val enhancedErrorMsg = when (classified.type) {
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "${result.error} (请求过于频繁，请稍后重试)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "${result.error} (请求超时，请检查网络)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "${result.error} (触发了人机验证，可能需要更换API Key或节点)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "${result.error} (SSL证书错误)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "${result.error} (访问被拒绝，请检查API Key是否有效)"
+                else -> result.error
+            }
+            state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
+            _state.value = _state.value.copy(
+                streamingText = ctx.accumulatedText,
+                streamingPhase = "生成回答…",
+            )
+            // 可重试错误：返回 Retry 让 runLoop 处理
+            if (RetryPolicy.isRetryableErrorType(classified.type)) {
+                val retryDelay = top.hsyscn.opedrgent.network.ErrorClassifier.getRetryDelayMs(classified)
+                return LoopOutcome.Retry(retryDelay)
+            }
+            return LoopOutcome.Error(enhancedErrorMsg)
+        }
+
+        ctx.finalContent = result.content
+        ctx.finalReasoning = result.reasoning
+
+        if (result.content.isNotBlank()) {
+            ctx.accumulatedText += (if (ctx.accumulatedText.isNotBlank()) "\n\n" else "") + result.content
+        }
+        if (result.reasoning.isNotBlank()) {
+            ctx.accumulatedReasoning += (if (ctx.accumulatedReasoning.isNotBlank()) "\n" else "") + result.reasoning
+        }
+
+        _state.value = _state.value.copy(
+            streamingText = ctx.accumulatedText,
+            streamingReasoning = ctx.accumulatedReasoning,
+            streamingPhase = "生成回答…",
+        )
+
+        if (result.toolCalls.isEmpty()) {
+            DebugLog.i("executeOneRound: no tool_call in response, model is done at round ${state.roundsUsed}")
+            state.recordNoToolCalls(result.content)
+            _state.value = _state.value.copy(streamingPhase = "生成回答…")
+            return LoopOutcome.Break
+        }
+
+        val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
+            val parsedArgs: Map<String, String> = runCatching {
+                org.json.JSONObject(tc.arguments).let { json ->
+                    json.keys().asSequence().associateWith { json.opt(it).toString() }
+                }
+            }.getOrDefault(emptyMap())
+            ToolPart(
+                tool = tc.name,
+                state = ToolState(
+                    status = ToolStateType.PENDING,
+                    input = parsedArgs,
+                    startTime = System.currentTimeMillis(),
+                ),
+            )
+        }
+        ctx.allToolParts.addAll(pendingToolParts)
+        _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+
+        coroutineScope {
+            result.toolCalls.forEachIndexed { idx, tc ->
+                async(Dispatchers.IO) {
+                    if (cancelled.get()) return@async
+
+                    val tp = pendingToolParts[idx]
+                    val runningTp = tp.copy(state = tp.state.copy(status = ToolStateType.RUNNING))
+
+                    val phaseText = when {
+                        tc.name == "web_search" -> {
+                            val q = tp.state.input["query"] ?: tp.state.input["keyword"] ?: ""
+                            if (q.isNotBlank() && q != "{{query}}") "正在搜索: $q" else "正在搜索…"
+                        }
+                        tc.name == "read_url" -> {
+                            val u = tp.state.input["url"] ?: ""
+                            if (u.isNotBlank()) {
+                                val host = runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
+                                "正在读取: $host"
+                            } else "正在读取网页…"
+                        }
+                        else -> "正在执行: ${tc.name}"
+                    }
+                    _state.value = _state.value.copy(streamingPhase = phaseText)
+
+                    synchronized(ctx.allToolParts) {
+                        val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                        if (pos >= 0) ctx.allToolParts[pos] = runningTp
+                    }
+                    _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+
+                    val toolDef = agentTools.firstOrNull { it.name == tc.name }
+                    val toolDesc = toolDef?.description ?: tc.name
+                    val paramsJson = tc.arguments
+
+                    if (tc.name == "ask_question") {
+                        try {
+                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val questionsArray = params.getJSONArray("questions")
+                            val questions = (0 until questionsArray.length()).map { i ->
+                                val q = questionsArray.getJSONObject(i)
+                                val optionsArray = q.getJSONArray("options")
+                                val options = (0 until optionsArray.length()).map { j ->
+                                    val opt = optionsArray.getJSONObject(j)
+                                    QuestionOption(
+                                        label = opt.getString("label"),
+                                        description = if (opt.has("description")) opt.getString("description") else "",
+                                    )
+                                }
+                                QuestionInfo(
+                                    question = q.getString("question"),
+                                    header = if (q.has("header")) q.getString("header") else "请选择",
+                                    options = options,
+                                    multiple = q.optBoolean("multiple", false),
+                                    allowCustom = q.optBoolean("allowCustom", false),
+                                )
+                            }
+
+                            _questionRequest.emit(QuestionRequest(questions = questions))
+
+                            _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
+
+                            val answers = _questionResponse.first()
+                            _questionRequest.value = null
+
+                            val resultAnswers = answers.mapIndexed { idx, ans ->
+                                mapOf("question" to questions[idx].question, "answers" to ans)
+                            }
+                            val resultTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.COMPLETED,
+                                output = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = resultTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+
+                            ctx.toolMessages.add(ChatMessage(
+                                role = Role.USER,
+                                content = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
+                                createdAt = System.currentTimeMillis(),
+                                toolCallId = tc.id,
+                            ))
+                        } catch (e: Exception) {
+                            DebugLog.e("ask_question error: ${e.message}", e)
+                            _questionRequest.value = null
+                            val errorTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.ERROR,
+                                error = "ask_question 处理失败: ${e.message}",
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = errorTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                        }
+                        return@async
+                    }
+
+                    if (tc.name == "ask_confirmation") {
+                        try {
+                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val message = params.optString("message", "请确认")
+                            val detail = params.optString("detail", "")
+                            val timeoutSeconds = params.optInt("timeoutSeconds", 30)
+                            val optionsArray = params.optJSONArray("options") ?: org.json.JSONArray()
+                            val options = (0 until optionsArray.length()).map { j ->
+                                val opt = optionsArray.getJSONObject(j)
+                                ConfirmationOption(
+                                    label = opt.optString("label", ""),
+                                    description = opt.optString("description", ""),
+                                )
+                            }
+
+                            _confirmationRequest.emit(ConfirmationRequest(
+                                message = message,
+                                detail = detail,
+                                options = options,
+                                timeoutSeconds = timeoutSeconds,
+                            ))
+
+                            _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
+
+                            val selectedOption = _confirmationResponse.first()
+                            _confirmationRequest.value = null
+                            val confirmed = selectedOption != null
+                            val actualOption = if (selectedOption == "__confirmed__") null else selectedOption
+
+                            val resultMap = buildString {
+                                append("{")
+                                append("\"confirmed\": $confirmed")
+                                if (actualOption != null) {
+                                    append(", \"selectedOption\": \"${actualOption.replace("\"", "\\\"")}\"")
+                                }
+                                append(", \"timeout\": false")
+                                append("}")
+                            }
+                            val resultTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.COMPLETED,
+                                output = resultMap,
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = resultTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+
+                            ctx.toolMessages.add(ChatMessage(
+                                role = Role.USER,
+                                content = resultMap,
+                                createdAt = System.currentTimeMillis(),
+                                toolCallId = tc.id,
+                            ))
+                        } catch (e: Exception) {
+                            DebugLog.e("ask_confirmation error: ${e.message}", e)
+                            _confirmationRequest.value = null
+                            val errorTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.ERROR,
+                                error = "ask_confirmation 处理失败: ${e.message}",
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = errorTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                        }
+                        return@async
+                    }
+
+                    val execResult = withContext(Dispatchers.IO) {
+                        toolExecutor.execute(tp, ctx.config, system, useProviderSearch = isProviderWebSearchEnabled())
+                    }
+
+                    val doneTp = execResult.toolPart
+                    synchronized(ctx.allToolParts) {
+                        val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                        if (pos >= 0) ctx.allToolParts[pos] = doneTp
+                    }
+                    _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+
+                    val newSources = execResult.addedSources.filter { ctx.usedUrls.add(it) }
+                    if (newSources.isNotEmpty()) {
+                        val s = store.getSession(ctx.sessionId)
+                        newSources.forEach { url ->
+                            if (s != null && s.sources.none { it.url == url }) {
+                                store.addSource(ctx.sessionId, SourceType.URL, title = url, url = url, content = "")
+                            }
+                        }
+                    }
+
+                    if (execResult.openBrowserUrl != null) {
+                        _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
+                    }
+
+                    val newSources2 = execResult.addedSources.filter { it.isNotBlank() && !ctx.usedUrls.contains(it) }
+                    if (newSources2.isNotEmpty()) {
+                        val s = store.getSession(ctx.sessionId)
+                        newSources2.forEach { url ->
+                            if (s != null && s.sources.none { it.url == url }) {
+                                store.addSource(ctx.sessionId, SourceType.URL, title = url, url = url, content = "")
+                            }
+                        }
+                    }
+
+                    val taggedSources = execResult.addedSources.mapNotNull { url ->
+                        if (url.isBlank()) return@mapNotNull null
+                        ctx.sourceTagIdx++
+                        "S${ctx.sourceTagIdx}"
+                    }
+                    val sourceTags = if (taggedSources.isNotEmpty()) {
+                        "\n[来源: ${taggedSources.joinToString(" ")}]"
+                    } else ""
+
+                    val toolOutput = when {
+                        execResult.toolPart.state.status == ToolStateType.ERROR -> {
+                            "[工具执行失败: ${execResult.toolPart.state.error?.take(100)}]"
+                        }
+                        execResult.toolPart.state.output != null -> execResult.toolPart.state.output
+                        else -> "工具执行完成"
+                    }
+                    ctx.toolMessages.add(ChatMessage(
+                            role = Role.USER,
+                            content = "$toolOutput$sourceTags",
+                            createdAt = System.currentTimeMillis(),
+                            toolCallId = tc.id,
+                        ))
+                }
+            }
+        }
+
+        refreshSessions()
+
+        val searchCount = result.toolCalls.count { it.name == "web_search" }
+        val fetchCount = result.toolCalls.count { it.name == "read_url" }
+        if (searchCount > 0) {
+            state.advanceTo(ResearchPhase(
+                name = "搜索完成",
+                searchesCompleted = state.completedSearches.size + searchCount,
+                lastToolName = "web_search",
+            ))
+        } else if (fetchCount > 0) {
+            state.advanceTo(ResearchPhase(
+                name = "读取完成",
+                pagesFetched = state.fetchedUrls.size + fetchCount,
+                lastToolName = "read_url",
+            ))
+        }
+        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
+
+        if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
+            val tcJsonArr = org.json.JSONArray()
+            result.toolCalls.forEach { tc ->
+                tcJsonArr.put(org.json.JSONObject().apply {
+                    put("id", tc.id)
+                    put("type", "function")
+                    put("function", org.json.JSONObject().apply {
+                        put("name", tc.name)
+                        put("arguments", tc.arguments)
+                    })
+                })
+            }
+            val cleanReasoning = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(result.reasoning)
+            ctx.toolMessages.add(ChatMessage(
+                role = Role.ASSISTANT,
+                content = result.content,
+                createdAt = System.currentTimeMillis(),
+                apiToolCallsJson = tcJsonArr.toString(),
+                reasoningParts = if (cleanReasoning.isNotEmpty()) {
+                    listOf(ReasoningPart(text = cleanReasoning, endTime = System.currentTimeMillis()))
+                } else emptyList(),
+            ))
+        }
+
+        return LoopOutcome.Continue
+    }
+
+    /** 处理轮次异常，返回 Retry 或 Error */
+    private fun handleRoundError(e: Exception): LoopOutcome {
+        if (e is CancellationException) throw e
+
+        val retryDelay = RetryPolicy.delay(retryCount, e)
+        return if (RetryPolicy.isRetryable(e) && retryCount < RetryPolicy.MAX_RETRIES) {
+            DebugLog.e("handleRoundError: retryable error, attempt ${retryCount + 1}, delay=${retryDelay}ms: ${e.message}")
+            LoopOutcome.Retry(retryDelay)
+        } else {
+            DebugLog.e("handleRoundError: non-retryable error: ${e.message}", e)
+            LoopOutcome.Error(e.message ?: "未知错误")
         }
     }
 
@@ -1723,6 +2123,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         super.onCleared()
+        // Curator: 会话结束时非阻塞触发维护检查
+        viewModelScope.launch(Dispatchers.IO) {
+            curatorService.maybeRunCurator()
+        }
         sttJob?.cancel()
         sttJob = null
         sproutJob?.cancel()
@@ -1733,6 +2137,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         androidSpeechRecognizer = null
         sttEngine?.close()
         sttEngine = null
+        asrManager.close()
         sproutCache.clear()
         tts.shutdown()
         DebugLog.i("MainViewModel: onCleared - STT/发芽资源已释放")
@@ -1812,7 +2217,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val compressedSystem = if (compressed.summary != null) {
             "$system\n\n[历史摘要]\n${compressed.summary}"
         } else system
-        val recentMessages = compressed.recentMessages
+        val recentMessages = compressed.messages
 
         val prompt = buildString {
             appendLine(compressedSystem)
@@ -1880,7 +2285,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             onComplete = {
                 DebugLog.i("runLocalModel: completed, text=${accumulatedText.length}, reasoning=${accumulatedReasoning.length}, ctx=${String.format("%.0f%%", compressed.usageRatio * 100)}")
 
-                store.addMessage(sessionId, Role.ASSISTANT, accumulatedText)
+                val localParts = buildList {
+                    if (accumulatedReasoning.isNotBlank()) {
+                        add(MessagePart.Reasoning(content = accumulatedReasoning))
+                    }
+                    if (accumulatedText.isNotBlank()) {
+                        add(MessagePart.Text(content = accumulatedText))
+                    }
+                }
+                store.addMessage(sessionId, Role.ASSISTANT, accumulatedText, parts = localParts)
 
                 if (compressed.needsCompression && !preCheck.isCritical) {
                     DebugLog.i("runLocalModel: 上下文使用 ${String.format("%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
@@ -1896,7 +2309,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     streamingPhase = "错误",
                 )
                 if (accumulatedText.isNotBlank()) {
-                    store.addMessage(sessionId, Role.ASSISTANT, accumulatedText)
+                    val errorParts = buildList {
+                        if (accumulatedReasoning.isNotBlank()) {
+                            add(MessagePart.Reasoning(content = accumulatedReasoning))
+                        }
+                        add(MessagePart.Error(message = error))
+                        add(MessagePart.Text(content = accumulatedText))
+                    }
+                    store.addMessage(sessionId, Role.ASSISTANT, accumulatedText, parts = errorParts)
                 }
                 setLoading(false)
             },
@@ -2084,6 +2504,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentRunJob?.cancel()
         currentCall = null
         currentRunJob = null
+        // 保存已生成的部分文本到会话中，避免内容丢失
+        savePartialStreamingContent()
         _state.value = _state.value.copy(
             isStreaming = false,
             streamingText = "",
@@ -2093,6 +2515,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loading = false,
             streamingSessionId = null,
         )
+    }
+
+    /**
+     * 将当前正在流式生成的部分内容保存为一条助手消息，
+     * 避免用户取消后已输出的文本丢失。
+     */
+    private fun savePartialStreamingContent() {
+        val s = _state.value
+        val text = s.streamingText
+        val reasoning = s.streamingReasoning
+        val toolParts = s.streamingToolParts
+        val sessionId = s.streamingSessionId ?: s.current?.id ?: return
+        if (text.isBlank() && reasoning.isBlank()) return
+        val reasoningParts = if (reasoning.isNotBlank()) {
+            listOf(ReasoningPart(text = reasoning, endTime = System.currentTimeMillis()))
+        } else emptyList()
+        // 构建结构化 parts（取消时的部分内容保存）
+        val messageParts = buildList {
+            if (reasoning.isNotBlank()) {
+                add(MessagePart.Reasoning(content = reasoning))
+            }
+            toolParts.forEach { tp ->
+                add(MessagePart.ToolCall(
+                    toolName = tp.tool,
+                    callId = tp.id,
+                    state = tp.state,
+                    input = tp.state.input,
+                    output = tp.state.output,
+                ))
+            }
+            if (text.isNotBlank()) {
+                add(MessagePart.Text(content = text))
+            }
+        }
+        store.addMessage(
+            sessionId, Role.ASSISTANT, text.ifBlank { "（已取消，无内容）" },
+            toolParts = toolParts,
+            reasoningParts = reasoningParts,
+            parts = messageParts,
+        )
+        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshSessions()
+    }
+
+    /** 撤回/删除指定消息 */
+    fun deleteMessage(messageId: String) {
+        val sessionId = _state.value.current?.id ?: return
+        val session = store.getSession(sessionId) ?: return
+        val updatedMessages = session.messages.filter { it.id != messageId }
+        val updatedSession = session.copy(messages = updatedMessages, updatedAt = System.currentTimeMillis())
+        store.updateSession(updatedSession)
+        _state.value = _state.value.copy(current = updatedSession)
+        refreshSessions()
     }
 
     fun answerQuestion(answer: String) {
@@ -3085,39 +3560,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                val recommendedModel = ModelManager.getRecommendedModel(context)
+                // 检查是否需要下载本地模型（MiMo 在线引擎不需要下载）
                 val useMiMoAsr = apiSettings.getSttEngine() == "mimo" && apiSettings.hasApiKey()
+                if (!useMiMoAsr) {
+                    val recommendedModel = ModelManager.getRecommendedModel(context)
+                    if (!ModelManager.isModelDownloaded(context, recommendedModel)) {
+                        val modelInfo = ModelManager.AVAILABLE_MODELS.find { it.type == recommendedModel }
+                        val modelSizeMb = ((modelInfo?.sizeBytes ?: 0L) / (1024 * 1024)).toInt()
+                        _sttUiState.value = SttUiState.DownloadingModel(0f, modelSizeMb)
+                        _sttProgress.value = SttProgressState.DOWNLOADING_MODEL
 
-                if (!useMiMoAsr && !ModelManager.isModelDownloaded(context, recommendedModel)) {
-                    val modelInfo = ModelManager.AVAILABLE_MODELS.find { it.type == recommendedModel }
-                    val modelSizeMb = ((modelInfo?.sizeBytes ?: 0L) / (1024 * 1024)).toInt()
-                    _sttUiState.value = SttUiState.DownloadingModel(0f, modelSizeMb)
-                    _sttProgress.value = SttProgressState.DOWNLOADING_MODEL
-
-                    ModelManager.downloadModel(context, recommendedModel).collect { progress ->
-                        when (progress) {
-                            is ModelManager.DownloadProgress.Downloading -> {
-                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
-                                DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
-                            }
-                            is ModelManager.DownloadProgress.Extracting -> {
-                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
-                            }
-                            is ModelManager.DownloadProgress.Complete -> { /* done */ }
-                            is ModelManager.DownloadProgress.Error -> {
-                                _sttUiState.value = SttUiState.Error(
-                                    "模型下载失败，请检查网络连接",
-                                    "DOWNLOAD_FAILED",
-                                    "请确保网络畅通后点击重试",
-                                )
-                                _sttProgress.value = SttProgressState.ERROR
-                                _sttError.value = "模型下载失败"
-                                lastFailedUri = uri
-                                return@collect
+                        ModelManager.downloadModel(context, recommendedModel).collect { progress ->
+                            when (progress) {
+                                is ModelManager.DownloadProgress.Downloading -> {
+                                    _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                                    DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
+                                }
+                                is ModelManager.DownloadProgress.Extracting -> {
+                                    _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
+                                }
+                                is ModelManager.DownloadProgress.Complete -> { /* done */ }
+                                is ModelManager.DownloadProgress.Error -> {
+                                    _sttUiState.value = SttUiState.Error(
+                                        "模型下载失败，请检查网络连接",
+                                        "DOWNLOAD_FAILED",
+                                        "请确保网络畅通后点击重试",
+                                    )
+                                    _sttProgress.value = SttProgressState.ERROR
+                                    _sttError.value = "模型下载失败"
+                                    lastFailedUri = uri
+                                    return@collect
+                                }
                             }
                         }
+                        if (_sttProgress.value == SttProgressState.ERROR) return@launch
                     }
-                    if (_sttProgress.value == SttProgressState.ERROR) return@launch
                 }
 
                 _sttUiState.value = SttUiState.DecodingAudio(0f, fileName)
@@ -3128,23 +3605,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _sttUiState.value = SttUiState.Recognizing(0f, 0, audioMeta?.let { Math.ceil(it.durationMs / 30000.0).toInt() } ?: 1)
                 _sttProgress.value = SttProgressState.RECOGNIZING
 
+                // 使用 AsrManager 统一引擎转录
                 val result = withContext(Dispatchers.IO) {
-                    if (useMiMoAsr) {
-                        DebugLog.i("STT: 使用 MiMo ASR 在线引擎")
-                        val mimoEngine = MimoAsrEngine(context, apiSettings)
-                        mimoEngine.initialize()
-                        sttEngine = mimoEngine
-                        mimoEngine.recognizeFile(uri)
-                    } else {
-                        val modelDir = ModelManager.getModelPath(context, recommendedModel)
-                        val e = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
-                        sttEngine = e
-                        sherpaOnnxEngine = e
-                        if (modelDir != null) e.initialize(modelDir)
-                        e.recognizeFile(uri)
-                    }
+                    DebugLog.i("STT: 使用 AsrManager 统一引擎转录")
+                    asrManager.transcribeFile(uri)
                 }
-                val enrichedResult = result.copy(modelUsed = if (useMiMoAsr) "MiMo-ASR" else recommendedModel.name)
+                val enrichedResult = result
 
                 _sttResult.value = enrichedResult
                 _sttUiState.value = SttUiState.Done(enrichedResult)
@@ -3178,9 +3644,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 lastFailedUri = uri
                 _sttEventBus.tryEmit("转录失败: ${e.message}")
             } finally {
-                sttEngine?.close()
-                sttEngine = null
-                sherpaOnnxEngine = null
+                // 引擎生命周期由 AsrManager 管理，此处无需手动关闭
             }
         }
     }
@@ -3297,6 +3761,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _sttProgress.value = SttProgressState.IDLE
             _sttUiState.value = SttUiState.Idle
         }
+    }
+
+    /**
+     * 启动统一 ASR 流式识别（用于输入栏麦克风按钮）。
+     * 使用 AsrManager 统一引擎，根据用户设置自动选择 MiMo/Sherpa。
+     * 返回 Flow<StreamingRecognitionState>，调用方 collect 获取识别结果。
+     */
+    suspend fun startUnifiedStreamingAsr(): kotlinx.coroutines.flow.Flow<top.hsyscn.opedrgent.stt.StreamingRecognitionState> {
+        asrManager.ensureInitialized()
+        return asrManager.startStreaming()
+    }
+
+    /**
+     * 停止统一 ASR 流式识别。
+     */
+    fun stopUnifiedStreamingAsr() {
+        asrManager.stopStreaming()
     }
 
     fun copyToClipboard(text: String, showToast: Boolean = true) {
@@ -3614,5 +4095,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _sproutingState.value = SproutingState.IDLE
             _sproutUiState.value = SproutUiState.Idle
         }
+    }
+
+    // ==================== AI 风格转换 ====================
+
+    fun convertNoteStyle(noteId: Long, style: String) {
+        viewModelScope.launch {
+            _isConverting.value = true
+            try {
+                val note = noteRepository.getNoteById(noteId) ?: return@launch
+                val config = apiSettings.getApiConfig()
+                    ?: throw IllegalStateException("请先在设置里填写 API Key")
+                val stylePrompt = when (style) {
+                    "xiaohongshu" -> "请将以下笔记内容改写为小红书风格：使用emoji、分段清晰、有吸引力的标题、口语化表达、适当使用话题标签。"
+                    "wechat" -> "请将以下笔记内容改写为公众号文章风格：专业、有深度、逻辑清晰、适当使用小标题、结尾有总结。"
+                    "moments" -> "请将以下笔记内容精简为朋友圈风格：简短有力（150字以内）、有感悟、有金句、适合配图发布。"
+                    else -> "请优化以下内容："
+                }
+
+                val prompt = "$stylePrompt\n\n---\n${note.content}\n---"
+                val response = withContext(Dispatchers.IO) {
+                    llm.chatCompletions(
+                        config = config,
+                        system = "你是一位专业的内容创作者，擅长不同平台的内容风格转换。",
+                        messages = listOf(
+                            ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis()),
+                        ),
+                    )
+                }
+                _aiConvertedContent.value = response.trim()
+            } catch (e: Exception) {
+                _aiConvertedContent.value = "转换失败: ${e.message}"
+            } finally {
+                _isConverting.value = false
+            }
+        }
+    }
+
+    fun clearConvertedContent() {
+        _aiConvertedContent.value = null
     }
 }

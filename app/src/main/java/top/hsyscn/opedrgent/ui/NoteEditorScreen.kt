@@ -52,9 +52,12 @@ fun NoteEditorScreen(
     initialType: NoteType = NoteType.TEXT,
     initialContent: String = "",
     onSaved: (Long) -> Unit = {},
+    onSendToChat: (Long) -> Unit = {},
+    onSendWithSkill: (Long, String) -> Unit = { _, _ -> },
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf(TextFieldValue(initialContent)) }
     var noteType by remember { mutableStateOf(initialType) }
@@ -64,8 +67,9 @@ fun NoteEditorScreen(
     var tagInput by remember { mutableStateOf("") }
     var isPreviewMode by remember { mutableStateOf(false) }
     var showFormatToolbar by remember { mutableStateOf(true) }
+    var showAiMenu by remember { mutableStateOf(false) }
 
-    suspend fun save() {
+    suspend fun save(showGraphInfo: Boolean = false) {
         if (isSaving) return
         isSaving = true
         try {
@@ -80,6 +84,14 @@ fun NoteEditorScreen(
             val id = repository.saveNote(note)
             lastSavedAt = System.currentTimeMillis()
             onSaved(id)
+            // 手动保存时显示知识图谱关联信息
+            if (showGraphInfo && id > 0) {
+                val newLinkCount = repository.knowledgeGraph.getLinkCount(id.toString())
+                snackbarHostState.showSnackbar(
+                    message = if (newLinkCount > 0) "已保存并发现 $newLinkCount 个关联" else "笔记已保存",
+                    duration = SnackbarDuration.Short
+                )
+            }
         } finally {
             isSaving = false
         }
@@ -129,6 +141,7 @@ fun NoteEditorScreen(
     val focusManager = LocalFocusManager.current
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (noteId == null) "新建笔记" else "编辑笔记") },
@@ -152,13 +165,35 @@ fun NoteEditorScreen(
                     IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
                         Icon(Icons.Default.FormatBold, "格式化", tint = AccentBlue)
                     }
+
+                    // AI 操作按钮（只在编辑已有笔记时显示）
+                    if (noteId != null) {
+                        IconButton(onClick = { showAiMenu = true }) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = AccentBlue)
+                        }
+                    }
                     
                     TextButton(
-                        onClick = { scope.launch { save() } },
+                        onClick = { scope.launch { save(showGraphInfo = true) } },
                         enabled = !isSaving && content.text.isNotBlank(),
                     ) {
                         if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AccentBlue)
                         else Text("保存", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                    }
+
+                    // 在聊天中讨论按钮
+                    if (noteId != null) {
+                        TextButton(
+                            onClick = {
+                                scope.launch { save() }
+                                onSendToChat(noteId)
+                            },
+                            enabled = content.text.isNotBlank(),
+                        ) {
+                            Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
+                            Spacer(Modifier.width(4.dp))
+                            Text("讨论", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -357,6 +392,53 @@ fun NoteEditorScreen(
                     }
                 }
             }
+        }
+    }
+
+    // AI 操作弹窗
+    if (showAiMenu && noteId != null) {
+        AlertDialog(
+            onDismissRequest = { showAiMenu = false },
+            title = { Text("AI 操作") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AIActionButton("💡 点评", "识别亮点，正向强化", "insight_review") {
+                        showAiMenu = false
+                        onSendWithSkill(noteId, "insight_review")
+                    }
+                    AIActionButton("🔍 拷问", "深度追问，挑战逻辑", "critical_inquiry") {
+                        showAiMenu = false
+                        onSendWithSkill(noteId, "critical_inquiry")
+                    }
+                    AIActionButton("✨ 润色", "优化表达，提升质量", "text_refine") {
+                        showAiMenu = false
+                        onSendWithSkill(noteId, "text_refine")
+                    }
+                }
+            },
+            confirmButton = {},
+        )
+    }
+}
+
+@Composable
+private fun AIActionButton(label: String, description: String, skillId: String, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.AutoAwesome, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
         }
     }
 }

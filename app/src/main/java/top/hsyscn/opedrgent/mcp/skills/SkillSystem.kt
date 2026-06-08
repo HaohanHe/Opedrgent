@@ -44,7 +44,21 @@ data class SkillDefinition(
     val requiredTools: List<String> = emptyList(),
     val metadata: Map<String, String> = emptyMap(),
     val body: String = "", // Markdown body content (after YAML frontmatter)
-)
+) {
+    /** 是否为 pinned（固定）skill，pinned 跳过所有自动转换 */
+    fun isPinned(): Boolean = tags.contains("pinned") || metadata["pinned"] == "true"
+
+    /** 获取最后使用时间，默认返回注册时间 */
+    fun lastUsedAt(): Long = metadata["lastUsedAt"]?.toLongOrNull() ?: metadata["registeredAt"]?.toLongOrNull() ?: 0L
+
+    /** 返回带更新字段的副本 */
+    fun withMetadata(key: String, value: String): SkillDefinition =
+        copy(metadata = this.metadata + (key to value))
+
+    /** 返回移除指定 metadata key 的副本 */
+    fun withoutMetadata(key: String): SkillDefinition =
+        copy(metadata = this.metadata - key)
+}
 
 enum class SkillCategory {
     RESEARCH,
@@ -185,6 +199,76 @@ class SkillRegistry {
 
     fun getAllSkills(): List<SkillDefinition> {
         return skills.values.toList()
+    }
+
+    // ── Curator 支持：使用追踪 / 归档 / 恢复 ──
+
+    private val lastUsedMap = ConcurrentHashMap<String, Long>()
+
+    /** 记录 skill 被使用，更新 lastUsedAt */
+    fun touchSkill(skillId: String) {
+        val now = System.currentTimeMillis()
+        lastUsedMap[skillId] = now
+        skills[skillId]?.let { skill ->
+            skills[skillId] = skill.withMetadata("lastUsedAt", now.toString())
+            DebugLog.d("SkillRegistry: touched skill $skillId at $now")
+        }
+    }
+
+    /** 标记 skill 为已归档（不删除，可恢复） */
+    fun archiveSkill(skillId: String) {
+        val skill = skills[skillId] ?: return
+        val now = System.currentTimeMillis()
+        skills[skillId] = skill.withMetadata("archivedAt", now.toString()).withMetadata("state", "archived")
+        DebugLog.i("SkillRegistry: archived skill $skillId (recoverable)")
+        saveIndex()
+    }
+
+    /** 恢复已归档的 skill */
+    fun restoreSkill(skillId: String): Boolean {
+        val skill = skills[skillId] ?: return false
+        if (skill.metadata["state"] != "archived") return false
+        skills[skillId] = skill.withMetadata("restoredAt", System.currentTimeMillis().toString())
+            .withoutMetadata("archivedAt").withoutMetadata("state")
+        DebugLog.i("SkillRegistry: restored skill $skillId")
+        saveIndex()
+        return true
+    }
+
+    /** 标记 skill 为 stale（不活跃） */
+    fun markSkillStale(skillId: String) {
+        val skill = skills[skillId] ?: return
+        skills[skillId] = skill.withMetadata("staleAt", System.currentTimeMillis().toString())
+            .withMetadata("state", "stale")
+        DebugLog.d("SkillRegistry: marked skill $skillId as stale")
+        saveIndex()
+    }
+
+    /** 获取所有不活跃（stale 或 archived）的 non-pinned skills */
+    fun getStaleSkills(thresholdMs: Long = 30L * 24 * 60 * 60 * 1000): List<SkillDefinition> {
+        val now = System.currentTimeMillis()
+        return skills.values.filter { skill ->
+            !skill.isPinned() && (now - skill.lastUsedAt()) > thresholdMs
+        }
+    }
+
+    /** 获取所有已归档的 skills */
+    fun getArchivedSkills(): List<SkillDefinition> {
+        return skills.values.filter { it.metadata["state"] == "archived" }
+    }
+
+    /** 设置/取消 pinned 状态 */
+    fun setPinned(skillId: String, pinned: Boolean): Boolean {
+        val skill = skills[skillId] ?: return false
+        skills[skillId] = if (pinned) {
+            skill.copy(tags = if ("pinned" in skill.tags) skill.tags else skill.tags + "pinned")
+                .withMetadata("pinned", "true")
+        } else {
+            skill.copy(tags = skill.tags - "pinned").withoutMetadata("pinned")
+        }
+        saveIndex()
+        DebugLog.i("SkillRegistry: skill $skillId pinned=$pinned")
+        return true
     }
 
     private fun extractKeywords(text: String): List<String> {
