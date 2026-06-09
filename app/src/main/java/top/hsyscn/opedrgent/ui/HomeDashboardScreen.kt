@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -63,6 +65,7 @@ import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.intelligence.BuddySystem
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,6 +86,7 @@ fun HomeDashboardScreen(
     vm: MainViewModel,
     repository: NoteRepository,
     folderRepository: FolderRepository,
+    buddy: BuddySystem = remember { BuddySystem() },
     onNewNote: () -> Unit,
     onNoteClick: (Long) -> Unit,
     onSendToChat: (Long) -> Unit = {},
@@ -124,8 +128,8 @@ fun HomeDashboardScreen(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ========== 1. 顶部问候语 ==========
-        GreetingHeader()
+        // ========== 1. 顶部问候语（BuddySystem 动态生成） ==========
+        GreetingHeader(buddy = buddy)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -149,6 +153,7 @@ fun HomeDashboardScreen(
         StatsRow(
             todayCount = todayNoteCount,
             totalCount = totalNoteCount.toInt(),
+            aiSessionCount = vm.sessionCount,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -157,7 +162,7 @@ fun HomeDashboardScreen(
         QuickActionsRow(
             onNewNote = onNewNote,
             onVoiceRecord = { onOpenSubScreen("meeting") },
-            onImportFile = { /* TODO: 导入文件 */ },
+            onImportFile = { onOpenSubScreen("import") },
             onSproutAnalysis = { onOpenSubScreen("notes") },
         )
 
@@ -208,10 +213,10 @@ fun HomeDashboardScreen(
 
 // ==================== 子组件 ====================
 
-/** 顶部问候语 */
+/** 顶部问候语（BuddySystem 动态生成） */
 @Composable
-private fun GreetingHeader() {
-    val greeting = rememberGreeting()
+private fun GreetingHeader(buddy: BuddySystem) {
+    val greeting = buddy.generateGreeting()
     val dateStr = SimpleDateFormat("M月d日 E", Locale.CHINA).format(Date())
 
     Column {
@@ -265,7 +270,7 @@ private fun AiAssistantCard(
     onSend: () -> Unit,
     onTap: () -> Unit,
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "owl-bounce")
+    val infiniteTransition = rememberInfiniteTransition(label = "ai-pulse")
     val bounceOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -6f,
@@ -390,15 +395,18 @@ private fun AiAssistantCard(
     }
 }
 
-/** 统计卡片行 */
+/** 统计卡片行（3卡片：笔记 + 知识库 + AI对话） */
 @Composable
-private fun StatsRow(todayCount: Int, totalCount: Int) {
+private fun StatsRow(todayCount: Int, totalCount: Int, aiSessionCount: Int = 0) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd)
         StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome)
+        StatCard(title = "AI 对话", value = "$aiSessionCount 次", icon = Icons.Default.ChatBubble)
     }
 }
 

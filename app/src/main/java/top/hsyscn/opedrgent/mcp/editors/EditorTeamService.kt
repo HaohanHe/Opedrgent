@@ -10,6 +10,10 @@ import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.intelligence.FeaturePipeline
+import top.hsyscn.opedrgent.intelligence.AgentContext
+import top.hsyscn.opedrgent.intelligence.CostTrackerFeature
+import java.util.UUID
 
 /** 单步执行结果 */
 data class EditorResult(
@@ -58,6 +62,17 @@ class EditorTeamService(
 ) {
 
     private var isCancelled = false
+
+    // ==================== FeaturePipeline（拦截器链）====================
+
+    /** 编辑团执行流水线，预装成本追踪 Feature */
+    private val pipeline = FeaturePipeline.standard().also { pl ->
+        // 成本追踪：记录每次 LLM 调用的 token 消耗
+        pl.install(CostTrackerFeature())
+    }
+
+    /** 获取 Pipeline（供外部查询状态或安装额外 Feature） */
+    fun getPipeline(): FeaturePipeline = pipeline
 
     fun cancel() {
         isCancelled = true
@@ -220,12 +235,25 @@ class EditorTeamService(
         )
     }
 
-    /** 单角色咨询（自由模式） */
+    /** 单角色咨询（自由模式，支持预设角色和动态角色） */
     suspend fun singleRoleConsult(
         role: EditorRole,
         input: String,
+        dynamicSystemPrompt: String? = null,
     ): EditorResult {
-        return executeStep(RoleInstance.Preset(role), input)
+        // 如果有动态系统提示词，使用动态角色包装
+        val instance = if (dynamicSystemPrompt != null) {
+            RoleInstance.Dynamic(DynamicRole(
+                name = role.displayName,
+                alias = role.alias,
+                icon = role.icon,
+                description = role.description,
+                systemPrompt = dynamicSystemPrompt,
+            ))
+        } else {
+            RoleInstance.Preset(role)
+        }
+        return executeStep(instance, input)
     }
 
     /**
@@ -582,51 +610,93 @@ $styleHint
     }
 
     /**
-     * 执行单个步骤。
+     * 执行单个步骤（通过 FeaturePipeline 拦截器链）。
+     *
+     * 执行流程：
+     * 1. Pipeline beforeExecute → 成本追踪/审批检查等
+     * 2. 实际 LLM 调用
+     * 3. Pipeline afterExecute → 记忆写入/情绪更新/成本记录
      */
     private suspend fun executeStep(
         role: RoleInstance,
         input: String,
         extraInstructions: String = "",
         contextNotes: List<String> = emptyList(),
-    ): EditorResult = withContext(Dispatchers.IO) {
+    ): EditorResult {
         val startTime = System.currentTimeMillis()
+        val stepId = UUID.randomUUID().toString()
 
-        val config = apiSettings.getApiConfig()
-        if (config == null) {
-            return@withContext EditorResult(
-                role = role, output = "", error = "未配置 API Key",
-                durationMs = System.currentTimeMillis() - startTime,
-            )
-        }
+        // 构建 AgentContext（在 Pipeline 各 Feature 间传递的共享状态）
+        val context = AgentContext(
+            sessionId = "editor_${System.currentTimeMillis()}",
+            userInput = input,
+            systemPrompt = buildSystemPrompt(role, extraInstructions),
+            messages = mutableListOf(),
+            metadata = mutableMapOf(
+                "role_alias" to role.alias,
+                "role_name" to role.name,
+                "step_id" to stepId,
+            ),
+        )
 
-        if (isCancelled) {
-            return@withContext EditorResult(
-                role = role, output = "", error = "用户取消操作",
-                durationMs = System.currentTimeMillis() - startTime,
-            )
-        }
+        // 通过 Pipeline 执行
+        return try {
+            pipeline.execute(context) { ctx ->
+                // === 实际 LLM 调用（Agent Block）===
+                withContext(Dispatchers.IO) {
+                    val config = apiSettings.getApiConfig()
+                    if (config == null) {
+                        return@withContext EditorResult(
+                            role = role, output = "", error = "未配置 API Key",
+                            durationMs = System.currentTimeMillis() - startTime,
+                        )
+                    }
 
-        try {
-            val systemPrompt = buildSystemPrompt(role, extraInstructions)
-            val userMessage = buildUserMessage(input, contextNotes)
+                    if (isCancelled) {
+                        return@withContext EditorResult(
+                            role = role, output = "", error = "用户取消操作",
+                            durationMs = System.currentTimeMillis() - startTime,
+                        )
+                    }
 
-            DebugLog.i("EditorTeamService.executeStep → ${role.alias} input=${input.take(50)}...")
+                    try {
+                        val userMessage = buildUserMessage(input, contextNotes)
 
-            val response = llmClient.chatCompletions(
-                config = config,
-                system = systemPrompt,
-                messages = listOf(ChatMessage(role = Role.USER, content = userMessage)),
-            )
+                        DebugLog.i("EditorTeamService.executeStep → ${role.alias} input=${input.take(50)}...")
 
-            val duration = System.currentTimeMillis() - startTime
-            DebugLog.i("EditorTeamService.executeStep ← ${role.alias} done ${duration}ms, ${response.length} chars")
+                        val response = llmClient.chatCompletions(
+                            config = config,
+                            system = ctx.systemPrompt,
+                            messages = listOf(ChatMessage(role = Role.USER, content = userMessage)),
+                        )
 
-            EditorResult(role = role, output = response.trim(), durationMs = duration)
+                        val duration = System.currentTimeMillis() - startTime
+                        DebugLog.i("EditorTeamService.executeStep ← ${role.alias} done ${duration}ms, ${response.length} chars")
+
+                        // 将 token 信息写入 context，供 afterExecute 的 CostTracker 使用
+                        // （简化估算：按字符数粗略估算 token）
+                        val estimatedTokens = (response.length / 2) + (input.length / 2)
+                        ctx["input_tokens"] = input.length / 2
+                        ctx["output_tokens"] = response.length / 2
+
+                        EditorResult(role = role, output = response.trim(), tokensUsed = estimatedTokens, durationMs = duration)
+                    } catch (e: Exception) {
+                        DebugLog.e("EditorTeamService.executeStep error: ${e.message}", e)
+                        EditorResult(role = role, output = "", error = e.message ?: "未知错误",
+                            durationMs = System.currentTimeMillis() - startTime)
+                    }
+                }
+            }
         } catch (e: Exception) {
-            DebugLog.e("EditorTeamService.executeStep error: ${e.message}", e)
-            EditorResult(role = role, output = "", error = e.message ?: "未知错误",
-                durationMs = System.currentTimeMillis() - startTime)
+            // Pipeline 中止异常（如审批拒绝）
+            if (e is top.hsyscn.opedrgent.intelligence.PipelineAbortedException) {
+                EditorResult(role = role, output = "", error = "执行被中断: ${e.featureName}",
+                    durationMs = System.currentTimeMillis() - startTime)
+            } else {
+                DebugLog.e("EditorTeamService.pipeline execute error: ${e.message}", e)
+                EditorResult(role = role, output = "", error = e.message ?: "流水线执行错误",
+                    durationMs = System.currentTimeMillis() - startTime)
+            }
         }
     }
 

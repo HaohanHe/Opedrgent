@@ -470,7 +470,7 @@ fun AppRoot(
                         MainTab.RECORDING -> RecordingTab(
                             vm = vm,
                             onOpenSubScreen = { subScreen = it },
-                            onNavigateToNotes = { selectedTab = MainTab.AI },
+                            onNavigateToNotes = { selectedTab = MainTab.NOTES },
                         )
                         MainTab.AI -> ChatTab(
                             vm = vm,
@@ -1318,7 +1318,7 @@ fun SessionScreen(
                                         fontWeight = FontWeight.Medium,
                                     )
                                     Text(
-                                        text = "8人编辑团队：选题、素材、撰写、审稿、排版",
+                                        text = "AI 动态规划编辑团队",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = TextGrey,
                                     )

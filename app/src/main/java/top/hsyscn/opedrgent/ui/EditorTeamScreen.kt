@@ -130,7 +130,7 @@ fun EditorTeamScreen(
     var planReasoning by remember { mutableStateOf("") }
 
     // 自由模式状态
-    var selectedRole by remember { mutableStateOf<EditorRole?>(null) }
+    var selectedRole by remember { mutableStateOf<RoleInstance?>(null) }
     var freeModeInput by remember { mutableStateOf(initialInput) }
     var freeModeResult by remember { mutableStateOf<EditorResult?>(null) }
     var isRunningFree by remember { mutableStateOf(false) }
@@ -230,8 +230,8 @@ fun EditorTeamScreen(
         }
     }
 
-    // 自由模式调用
-    suspend fun runFreeConsult(role: EditorRole) {
+    // 自由模式调用（支持预设角色和动态角色）
+    suspend fun runFreeConsult(role: RoleInstance) {
         if (freeModeInput.isBlank()) {
             showSnackbar("请输入内容")
             return
@@ -239,7 +239,11 @@ fun EditorTeamScreen(
         isRunningFree = true
         freeModeResult = null
 
-        val result = service.singleRoleConsult(role = role, input = freeModeInput)
+        val result = service.singleRoleConsult(
+            role = (role as? RoleInstance.Preset)?.role ?: EditorRole.WRITER,
+            input = freeModeInput,
+            dynamicSystemPrompt = (role as? RoleInstance.Dynamic)?.dynamicRole?.systemPrompt,
+        )
         freeModeResult = result
         isRunningFree = false
     }
@@ -301,7 +305,8 @@ fun EditorTeamScreen(
                 )
 
                 EditorMode.FREE -> FreeModeContent(
-                    roles = EditorRole.allRoles,
+                    roles = EditorRole.allRoles.map { RoleInstance.Preset(it) } +
+                            (currentPlan?.steps?.map { it.role } ?: emptyList()),
                     selectedRole = selectedRole,
                     onRoleSelect = { selectedRole = it },
                     freeModeInput = freeModeInput,
@@ -627,14 +632,14 @@ private fun PlanResultCard(
 
 @Composable
 private fun FreeModeContent(
-    roles: List<EditorRole>,
-    selectedRole: EditorRole?,
-    onRoleSelect: (EditorRole) -> Unit,
+    roles: List<RoleInstance>,
+    selectedRole: RoleInstance?,
+    onRoleSelect: (RoleInstance) -> Unit,
     freeModeInput: String,
     onFreeInputChange: (String) -> Unit,
     freeModeResult: EditorResult?,
     isRunningFree: Boolean,
-    onRunConsult: (EditorRole) -> Unit,
+    onRunConsult: (RoleInstance) -> Unit,
     onCopyText: (String) -> Unit,
     onBackToGrid: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1022,8 +1027,8 @@ private fun FinalOutputCard(
 
 @Composable
 private fun RoleSelectionGrid(
-    roles: List<EditorRole>,
-    onSelect: (EditorRole) -> Unit,
+    roles: List<RoleInstance>,
+    onSelect: (RoleInstance) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -1070,7 +1075,7 @@ private fun RoleSelectionGrid(
 
 @Composable
 private fun RoleCard(
-    role: EditorRole,
+    role: RoleInstance,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1089,7 +1094,7 @@ private fun RoleCard(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(Color(role.color).copy(alpha = 0.1f), CircleShape),
+                    .background(Color(role.displayColor).copy(alpha = 0.1f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(text = role.icon, fontSize = 24.sp)
@@ -1101,25 +1106,31 @@ private fun RoleCard(
                 fontSize = 14.sp,
             )
             Text(
-                text = role.displayName,
+                text = role.name,
                 fontSize = 11.sp,
                 color = TextGrey,
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = role.description,
-                fontSize = 10.sp,
-                color = Color(0xFF999999),
-                maxLines = 2,
-                textAlign = TextAlign.Center,
-            )
+            val roleDesc = when (role) {
+                is RoleInstance.Preset -> role.role.description
+                is RoleInstance.Dynamic -> role.dynamicRole.description.ifBlank { role.dynamicRole.inputHint }
+            }
+            if (roleDesc.isNotBlank()) {
+                Text(
+                    text = roleDesc,
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999),
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun RoleConsultView(
-    role: EditorRole,
+    role: RoleInstance,
     inputValue: String,
     onInputChange: (String) -> Unit,
     result: EditorResult?,
@@ -1148,21 +1159,29 @@ private fun RoleConsultView(
         // 角色信息卡
         Card(
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(role.color).copy(alpha = 0.06f)),
+            colors = CardDefaults.cardColors(containerColor = Color(role.displayColor).copy(alpha = 0.06f)),
         ) {
             Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .background(Color(role.color).copy(alpha = 0.15f), CircleShape),
+                        .background(Color(role.displayColor).copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(text = role.icon, fontSize = 22.sp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("${role.alias} · ${role.displayName}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(role.description, fontSize = 12.sp, color = TextGrey)
+                    val roleTitle = when (role) {
+                        is RoleInstance.Preset -> "${role.role.alias} · ${role.role.displayName}"
+                        is RoleInstance.Dynamic -> "${role.dynamicRole.alias} · ${role.dynamicRole.name}"
+                    }
+                    Text(roleTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    val roleDesc = when (role) {
+                        is RoleInstance.Preset -> role.role.description
+                        is RoleInstance.Dynamic -> role.dynamicRole.description.ifBlank { "动态生成角色" }
+                    }
+                    Text(roleDesc, fontSize = 12.sp, color = TextGrey)
                 }
             }
         }
