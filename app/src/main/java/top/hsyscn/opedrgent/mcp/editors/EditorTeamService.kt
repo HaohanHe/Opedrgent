@@ -132,12 +132,12 @@ class EditorTeamService(
 
         // 流水线步骤：每个步骤的输出会作为下一步的上下文
         val pipelineSequence = mutableListOf<EditorRole>().apply {
-            add(EditorRole.ZHAO_XUAN_TI)
-            add(EditorRole.ZHANG_SU_CAI)
-            add(EditorRole.LI_WEN_ZHANG)
-            add(EditorRole.ZHOU_SHEN_GAO)
-            add(EditorRole.WU_CHA_CHA)
-            add(EditorRole.CHEN_PAI_BAN)
+            add(EditorRole.TOPIC_PLANNER)
+            add(EditorRole.RESEARCHER)
+            add(EditorRole.WRITER)
+            add(EditorRole.REVIEWER)
+            add(EditorRole.FACT_CHECKER)
+            add(EditorRole.FORMATTER)
         }
 
         // 构建逐步累积的上下文
@@ -148,19 +148,19 @@ class EditorTeamService(
 
             // 为当前步骤构建指令
             val stepInstructions = when (role) {
-                EditorRole.ZHAO_XUAN_TI -> ""
-                EditorRole.ZHANG_SU_CAI -> {
-                    val prevResult = steps.lastOrNull { it.role == EditorRole.ZHAO_XUAN_TI }
-                    "上一步【赵选题】的选题建议如下，请针对选定的选题方向收集素材：\n${prevResult?.output ?: ""}"
+                EditorRole.TOPIC_PLANNER -> ""
+                EditorRole.RESEARCHER -> {
+                    val prevResult = steps.lastOrNull { it.role == EditorRole.TOPIC_PLANNER }
+                    "上一步【选题策划】的选题建议如下，请针对选定的选题方向收集素材：\n${prevResult?.output ?: ""}"
                 }
-                EditorRole.LI_WEN_ZHANG -> {
-                    val topicResult = steps.lastOrNull { it.role == EditorRole.ZHAO_XUAN_TI }?.output ?: ""
-                    val materialResult = steps.lastOrNull { it.role == EditorRole.ZHANG_SU_CAI }?.output ?: ""
+                EditorRole.WRITER -> {
+                    val topicResult = steps.lastOrNull { it.role == EditorRole.TOPIC_PLANNER }?.output ?: ""
+                    val materialResult = steps.lastOrNull { it.role == EditorRole.RESEARCHER }?.output ?: ""
                     "请基于以下信息撰写完整文章：\n\n## 选题方向\n$topicResult\n\n## 素材库\n$materialResult"
                 }
-                EditorRole.ZHOU_SHEN_GAO -> "请对以下文章进行审稿："
-                EditorRole.WU_CHA_CHA -> "请对以下内容进行事实核查："
-                EditorRole.CHEN_PAI_BAN -> {
+                EditorRole.REVIEWER -> "请对以下文章进行审稿："
+                EditorRole.FACT_CHECKER -> "请对以下内容进行事实核查："
+                EditorRole.FORMATTER -> {
                     val platformHint = "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}"
                     if (styleReference.isNotEmpty()) {
                         "$platformHint\n\n风格参考：$styleReference"
@@ -172,12 +172,12 @@ class EditorTeamService(
 
             // 确定每步的输入
             val stepInput = when (role) {
-                EditorRole.LI_WEN_ZHANG,
-                EditorRole.ZHOU_SHEN_GAO,
-                EditorRole.WU_CHA_CHA,
-                EditorRole.CHEN_PAI_BAN -> {
-                    // 后续步骤使用李文章的输出作为主要输入
-                    val articleDraft = steps.lastOrNull { it.role == EditorRole.LI_WEN_ZHANG }?.output
+                EditorRole.WRITER,
+                EditorRole.REVIEWER,
+                EditorRole.FACT_CHECKER,
+                EditorRole.FORMATTER -> {
+                    // 后续步骤使用撰写的输出作为主要输入
+                    val articleDraft = steps.lastOrNull { it.role == EditorRole.WRITER }?.output
                         ?: accumulatedContext
                     articleDraft
                 }
@@ -209,7 +209,7 @@ class EditorTeamService(
         }
 
         // 最终输出取最后一步（排版）的结果，如果没有则取最近的成功结果
-        val finalOutput = steps.lastOrNull { it.role == EditorRole.CHEN_PAI_BAN && it.isSuccess }?.output
+        val finalOutput = steps.lastOrNull { it.role == EditorRole.FORMATTER && it.isSuccess }?.output
             ?: steps.lastOrNull { it.isSuccess }?.output
             ?: ""
 

@@ -44,7 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 笔记列表页（参考得到大脑笔记列表设计）。
+ * 笔记列表页。
  *
  * 功能：
  * - 搜索栏（标题/内容模糊搜索）

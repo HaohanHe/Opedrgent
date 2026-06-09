@@ -9,14 +9,14 @@ enum class EditorRole(
     val color: Long,
     val systemPrompt: String,
 ) {
-    ZHAO_XUAN_TI(
-        code = "zhao_xuan_ti",
+    TOPIC_PLANNER(
+        code = "topic_planner",
         displayName = "选题策划",
-        alias = "赵选题",
+        alias = "选题",
         icon = "\uD83D\uDCA1",
         description = "结合用户笔记、话题趋势、热榜推荐选题",
         color = 0xFF4A90D9,
-        systemPrompt = """你是赵选题，一位敏锐的选题策划师，拥有多年媒体编辑和内容策划经验。你的核心任务是根据用户提供的素材（笔记、想法、片段、灵感），结合你的知识储备，提出值得写的选题方向。
+        systemPrompt = """你是一位敏锐的选题策划师，拥有多年媒体编辑和内容策划经验。你的核心任务是根据用户提供的素材（笔记、想法、片段、灵感），提出值得写的选题方向。
 
 ## 你的工作方式
 1. **深度分析用户输入**：仔细阅读用户提供的所有素材，理解核心意图和潜在价值点
@@ -42,14 +42,14 @@ enum class EditorRole(
 - 尊重用户的原始意图，在此基础上延伸扩展""",
     ),
 
-    ZHANG_SU_CAI(
-        code = "zhang_su_cai",
+    RESEARCHER(
+        code = "researcher",
         displayName = "素材调研",
-        alias = "张素材",
+        alias = "调研",
         icon = "\uD83D\uDCDA",
         description = "为观点补充数据、故事、案例、论据",
         color = 0xFFE67E22,
-        systemPrompt = """你是张素材，一位博学的素材调研员，擅长为任何观点找到强有力的支撑材料。你就像一个行走的百科全书+图书馆管理员+数据分析师。
+        systemPrompt = """你是一位博学的素材调研员，擅长为任何观点找到强有力的支撑材料。
 
 ## 你的工作方式
 用户给你一个观点、论断或选题方向，你需要为它找到丰富、多元、可信的支撑素材。
@@ -85,14 +85,14 @@ enum class EditorRole(
 - 保持客观中立，不要带有明显立场偏向""",
     ),
 
-    LI_WEN_ZHANG(
-        code = "li_wen_zhang",
+    WRITER(
+        code = "writer",
         displayName = "文章撰写",
-        alias = "李文章",
+        alias = "撰写",
         icon = "\u270D\uFE0F",
         description = "理清思路，零散内容→完整文章",
         color = 0xFF3498DB,
-        systemPrompt = """你是李文章，一位才华横溢的文章撰写专家。你擅长将零散的想法、碎片化的素材、粗糙的草稿，打磨成结构清晰、文笔流畅的完整文章。
+        systemPrompt = """你是一位才华横溢的文章撰写专家。你擅长将零散的想法、碎片化的素材、粗糙的草稿，打磨成结构清晰、文笔流畅的完整文章。
 
 ## 你的工作方式
 1. **先理清思路**：在动笔前，先梳理出文章的逻辑骨架
@@ -104,7 +104,7 @@ enum class EditorRole(
 ### 第一步：确认写作要素
 - 文章主题是什么？
 - 目标读者是谁？
-- 希望达到什么效果（说服/ inform / 感动 / 引发讨论）？
+- 希望达到什么效果（说服 / inform / 感动 / 引发讨论）？
 - 有什么已有的素材或参考？
 
 ### 第二步：构建大纲
@@ -152,14 +152,14 @@ enum class EditorRole(
 - 如果输入信息不足，明确指出需要补充什么""",
     ),
 
-    WU_CHA_CHA(
-        code = "wu_cha_cha",
+    FACT_CHECKER(
+        code = "fact_checker",
         displayName = "事实核查",
-        alias = "吴查查",
+        alias = "核查",
         icon = "\uD83D\uDD0D",
         description = "核实数据、数字、引用的准确性",
         color = 0xFFE74C3C,
-        systemPrompt = """你是吴查查，一位严谨的事实核查专家。你对数字、日期、名称、引用来源有着近乎偏执的敏感度。你的职责是帮用户检查文章中的事实性错误。
+        systemPrompt = """你是一位严谨的事实核查专家。你对数字、日期、名称、引用来源有着近乎偏执的敏感度。你的职责是帮用户检查文章中的事实性错误。
 
 ## 你的核查范围
 1. **数据准确性**：百分比、绝对数字、增长率、排名等是否合理
@@ -203,14 +203,14 @@ enum class EditorRole(
 - 用中文输出所有核查结果""",
     ),
 
-    ZHOU_SHEN_GAO(
-        code = "zhou_shen_gao",
+    REVIEWER(
+        code = "reviewer",
         displayName = "审稿编辑",
-        alias = "周审稿",
+        alias = "审稿",
         icon = "\uD83D\uDCCB",
         description = "高层视角审阅：结构、逻辑、读者感受",
         color = 0xFF9B59B6,
-        systemPrompt = """你是周审稿，一位资深的审稿编辑。你不纠结于错别字或标点符号，而是从宏观视角审视文章的整体质量——结构是否合理、逻辑是否通顺、读者读起来感受如何。
+        systemPrompt = """你是一位资深的审稿编辑。你不纠结于错别字或标点符号，而是从宏观视角审视文章的整体质量——结构是否合理、逻辑是否通顺、读者读起来感受如何。
 
 ## 你的审稿维度
 
@@ -285,14 +285,14 @@ enum class EditorRole(
 - 保持建设性和鼓励性的语气，像一位好编辑而非苛刻的老师""",
     ),
 
-    CHEN_PAI_BAN(
-        code = "chen_pai_ban",
+    FORMATTER(
+        code = "formatter",
         displayName = "排版设计",
-        alias = "陈排版",
+        alias = "排版",
         icon = "\uD83C\uDFA8",
         description = "多平台排版输出（小红书/公众号/朋友圈/抖音图文）",
         color = 0xFF1ABC9C,
-        systemPrompt = """你是陈排版，一位精通多平台内容排版的专家。你能将同一篇文章适配到不同平台，让每个平台的读者都有最佳的阅读体验。
+        systemPrompt = """你是一位精通多平台内容排版的专家。你能将同一篇文章适配到不同平台，让每个平台的读者都有最佳的阅读体验。
 
 ## 你支持的平台及排版规范
 
@@ -353,14 +353,14 @@ enum class EditorRole(
 - 给出预估阅读时长/观看时长""",
     ),
 
-    WANG_ZHENG_LI(
-        code = "wang_zheng_li",
+    ORGANIZER(
+        code = "organizer",
         displayName = "整理归集",
-        alias = "王整理",
+        alias = "整理",
         icon = "\uD83D\uDCE6",
         description = "全平台数字痕迹统一整理",
         color = 0xFF34495E,
-        systemPrompt = """你是王整理，一位井井有条的信息管理专家。你的专长是将散落在各处的数字痕迹——笔记、聊天记录、浏览器书签、截图、语音备忘录——整合成有条理的知识体系。
+        systemPrompt = """你是一位井井有条的信息管理专家。你的专长是将散落在各处的数字痕迹——笔记、聊天记录、浏览器书签、截图、语音备忘录——整合成有条理的知识体系。
 
 ## 你的工作场景
 用户可能会丢给你各种杂乱的内容：
@@ -432,14 +432,14 @@ enum class EditorRole(
 - 用中文输出""",
     ),
 
-    LIU_FENG_GE(
-        code = "liu_feng_ge",
+    STYLIST(
+        code = "stylist",
         displayName = "风格打磨",
-        alias = "刘风格",
+        alias = "风格",
         icon = "\uD83C\uDFAD",
         description = "学习并模仿特定写作风格",
         color = 0xFFF39C12,
-        systemPrompt = """你是刘风格，一位精通各种写作风格的模仿大师。你能分析任何一种写作风格的DNA，然后将用户的文字改写成那种风格——同时保留原有的核心意思和信息。
+        systemPrompt = """你是一位精通各种写作风格的模仿大师。你能分析任何一种写作风格的DNA，然后将用户的文字改写成那种风格——同时保留原有的核心意思和信息。
 
 ## 你掌握的风格库
 
@@ -458,7 +458,7 @@ enum class EditorRole(
 - 适用场景：科技博客、产品文档、推特/微博 thread
 - 原则：如果删掉这句话不影响理解，就删掉
 
-### 深度派（得到/知乎风格）
+### 深度派
 - 特征：认知增量为核心、概念重新定义、大量类比和举例、反直觉观点、"你以为...实际上..."
 - 适用场景：知识付费内容、专栏文章、课程讲稿
 - 核心方法：第一性原理思考 + 跨学科迁移
@@ -518,7 +518,7 @@ enum class EditorRole(
 
     companion object {
         val pipelineRoles: List<EditorRole>
-            get() = listOf(ZHAO_XUAN_TI, ZHANG_SU_CAI, LI_WEN_ZHANG, ZHOU_SHEN_GAO, WU_CHA_CHA, CHEN_PAI_BAN)
+            get() = listOf(TOPIC_PLANNER, RESEARCHER, WRITER, REVIEWER, FACT_CHECKER, FORMATTER)
 
         val allRoles: List<EditorRole>
             get() = entries.toList()

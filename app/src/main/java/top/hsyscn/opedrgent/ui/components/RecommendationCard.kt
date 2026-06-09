@@ -55,7 +55,7 @@ import top.hsyscn.opedrgent.ui.theme.TextGrey
 import kotlin.math.roundToInt
 
 /**
- * 推荐卡片 — 首页展示"越用越熟"主动推送的核心 UI 组件。
+ * 推荐卡片 — 首页展示智能推荐的核心 UI 组件。
  *
  * ## 设计规范
  * - 卡片圆角 14dp

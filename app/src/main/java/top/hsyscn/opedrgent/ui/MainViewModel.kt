@@ -242,7 +242,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
 
-    // ==================== 主动推送引擎（越用越熟）====================
+    // ==================== 主动推送引擎 ====================
     val behaviorTracker = UserBehaviorTracker(app)
     private val recommendationEngine = RecommendationEngine(behaviorTracker, noteRepository)
     val pushNotificationHelper = PushNotificationHelper(app)

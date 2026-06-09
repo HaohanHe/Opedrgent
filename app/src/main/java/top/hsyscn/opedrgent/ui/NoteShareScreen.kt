@@ -40,7 +40,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * 笔记分享屏幕（参考得到大脑分享系统设计）。
+ * 笔记分享屏幕。
  *
  * 支持：
  * - AI 风格转换（小红书/公众号/朋友圈）
