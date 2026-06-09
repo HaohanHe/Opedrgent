@@ -40,8 +40,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -211,13 +213,14 @@ fun EditorTeamScreen(
             if (r.isSuccess && r.role != roleInstance) "【${r.role.alias}】的输出：\n${r.output.take(2000)}" else null
         }.takeLast(3)
 
-        // 使用 singleRoleConsult（如果是预设角色）或直接执行
+        // 使用 singleRoleConsult（统一支持预设角色和动态角色）
         val newResult = when (roleInstance) {
             is RoleInstance.Preset -> service.singleRoleConsult(role = roleInstance.role, input = stepInput)
-            is RoleInstance.Dynamic -> {
-                // 动态角色需要通过 planAndExecute 的内部机制，这里简化处理
-                EditorResult(role = roleInstance, output = "动态角色重新执行需要完整流水线", error = "暂不支持单独重新执行动态角色")
-            }
+            is RoleInstance.Dynamic -> service.singleRoleConsult(
+                role = top.hsyscn.opedrgent.mcp.editors.EditorRole.WRITER,
+                input = stepInput,
+                dynamicSystemPrompt = roleInstance.dynamicRole.systemPrompt,
+            )
         }
 
         val updated = pipelineResults.toMutableList()
@@ -301,6 +304,22 @@ fun EditorTeamScreen(
                     onStopPipeline = { service.cancel() },
                     onRerunStep = { scope.launch { rerunStep(it) } },
                     onCopyText = { copyToClipboard(it) },
+                    onSaveToNote = {
+                        // 将最终输出保存为新笔记
+                        scope.launch {
+                            val noteId = vm.noteRepository.quickCreate(finalOutput, top.hsyscn.opedrgent.note.NoteType.TEXT)
+                            showSnackbar("已保存为笔记 (ID: $noteId)")
+                        }
+                    },
+                    onShare = {
+                        // 系统分享
+                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, finalOutput)
+                        }
+                        val chooser = android.content.Intent.createChooser(sendIntent, "分享文章")
+                        context.startActivity(chooser)
+                    },
                     modifier = Modifier.weight(1f),
                 )
 
@@ -383,6 +402,8 @@ private fun PipelineModeContent(
     onStopPipeline: () -> Unit,
     onRerunStep: (Int) -> Unit,
     onCopyText: (String) -> Unit,
+    onSaveToNote: () -> Unit = {},
+    onShare: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -531,6 +552,8 @@ private fun PipelineModeContent(
                     platform = selectedPlatform,
                     duration = totalDuration,
                     onCopy = { onCopyText(finalOutput) },
+                    onSaveToNote = onSaveToNote,
+                    onShare = onShare,
                 )
             }
         }
@@ -965,6 +988,8 @@ private fun FinalOutputCard(
     platform: OutputPlatform,
     duration: Long,
     onCopy: () -> Unit,
+    onSaveToNote: () -> Unit = {},
+    onShare: () -> Unit = {},
 ) {
     var expanded by rememberSaveable("final_output_expanded") { mutableStateOf(true) }
 
@@ -1011,12 +1036,26 @@ private fun FinalOutputCard(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     ) {
-                        OutlinedButton(onClick = onCopy, shape = RoundedCornerShape(16.dp)) {
+                        OutlinedButton(onClick = onSaveToNote, shape = RoundedCornerShape(16.dp)) {
+                            Icon(Icons.Default.NoteAdd, null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("存为笔记", fontSize = 12.sp)
+                        }
+                        OutlinedButton(onClick = onShare, shape = RoundedCornerShape(16.dp)) {
+                            Icon(Icons.Default.Share, null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("分享", fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = onCopy,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        ) {
                             Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("复制全文", fontSize = 12.sp)
+                            Text("复制全文", fontSize = 12.sp, color = Color.White)
                         }
                     }
                 }

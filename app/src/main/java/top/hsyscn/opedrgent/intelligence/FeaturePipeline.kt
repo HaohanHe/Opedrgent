@@ -141,7 +141,7 @@ class FeaturePipeline {
     private var isExecuting = false
 
     companion object {
-        /** 创建预配置的标准 Pipeline */
+        /** 创建预配置的标准 Pipeline（预装核心 Feature 链） */
         fun standard(): FeaturePipeline {
             return FeaturePipeline()
         }

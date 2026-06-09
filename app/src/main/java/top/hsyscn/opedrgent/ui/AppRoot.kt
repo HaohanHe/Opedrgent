@@ -308,121 +308,37 @@ fun AppRoot(
                     onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
                     onBack = { subScreen = "notes" },
                 )
-                "noteEditor_new" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onBack = { subScreen = "notes" },
-                )
-                "noteEditor_new_text" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    initialType = NoteType.TEXT,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onOpenEditorTeam = { input ->
-                        editorTeamInitialInput = input
-                        subScreen = "editorTeam"
-                    },
-                    onBack = { subScreen = "notes" },
-                )
-                "noteEditor_new_quick" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    initialType = NoteType.QUICK,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onOpenEditorTeam = { input ->
-                        editorTeamInitialInput = input
-                        subScreen = "editorTeam"
-                    },
-                    onBack = { subScreen = "notes" },
-                )
-                "noteEditor_new_link" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    initialType = NoteType.LINK,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onOpenEditorTeam = { input ->
-                        editorTeamInitialInput = input
-                        subScreen = "editorTeam"
-                    },
-                    onBack = { subScreen = "notes" },
-                )
-                "noteEditor_new_image" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    initialType = NoteType.IMAGE,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onOpenEditorTeam = { input ->
-                        editorTeamInitialInput = input
-                        subScreen = "editorTeam"
-                    },
-                    onBack = { subScreen = "notes" },
-                )
-                "noteEditor_new_pdf" -> NoteEditorScreen(
-                    repository = vm.noteRepository,
-                    initialType = NoteType.PDF,
-                    onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
-                    onSendToChat = { noteId ->
-                        vm.sendNoteToChat(noteId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onSendWithSkill = { noteId, skillId ->
-                        vm.sendNoteWithSkill(noteId, skillId)
-                        selectedTab = MainTab.AI
-                        subScreen = null
-                    },
-                    onOpenEditorTeam = { input ->
-                        editorTeamInitialInput = input
-                        subScreen = "editorTeam"
-                    },
-                    onBack = { subScreen = "notes" },
-                )
+                // 统一 NoteEditor 路由：从 subScreen 解析 initialType（替代原来6个重复分支）
+                in listOf("noteEditor_new", "noteEditor_new_text", "noteEditor_new_quick", "noteEditor_new_link", "noteEditor_new_image", "noteEditor_new_pdf") -> {
+                    val initialType = when (subScreen) {
+                        "noteEditor_new_text" -> top.hsyscn.opedrgent.note.NoteType.TEXT
+                        "noteEditor_new_quick" -> top.hsyscn.opedrgent.note.NoteType.QUICK
+                        "noteEditor_new_link" -> top.hsyscn.opedrgent.note.NoteType.LINK
+                        "noteEditor_new_image" -> top.hsyscn.opedrgent.note.NoteType.IMAGE
+                        "noteEditor_new_pdf" -> top.hsyscn.opedrgent.note.NoteType.PDF
+                        else -> null
+                    }
+                    NoteEditorScreen(
+                        repository = vm.noteRepository,
+                        initialType = initialType,
+                        onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
+                        onSendToChat = { noteId ->
+                            vm.sendNoteToChat(noteId)
+                            selectedTab = MainTab.AI
+                            subScreen = null
+                        },
+                        onSendWithSkill = { noteId, skillId ->
+                            vm.sendNoteWithSkill(noteId, skillId)
+                            selectedTab = MainTab.AI
+                            subScreen = null
+                        },
+                        onOpenEditorTeam = { input ->
+                            editorTeamInitialInput = input
+                            subScreen = "editorTeam"
+                        },
+                        onBack = { subScreen = "notes" },
+                    )
+                }
                 null -> {
                     when (selectedTab) {
                         MainTab.HOME -> HomeDashboardScreen(
