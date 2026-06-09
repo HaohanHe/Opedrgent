@@ -68,11 +68,11 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 首页仪表盘（参考得到大脑首页设计）。
+ * 首页仪表盘。
  *
  * 功能：
  * - 顶部问候语（早上好/下午好 + 日期）
- * - AI 助手快捷入口卡片（猫头鹰图标 + 输入框）
+ * - AI 助手快捷入口卡片（AI 图标 + 输入框）
  * - 今日统计卡片（新增笔记数、活跃天数、知识库文档数）
  * - 最近笔记列表（最新 5 条）
  * - 快捷操作按钮行
@@ -287,27 +287,21 @@ private fun AiAssistantCard(
         Column(
             modifier = Modifier.padding(20.dp),
         ) {
-            // 猫头鹰图标 + 文字
+            // AI 图标 + 文字
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 猫头鹰头像区域
+                // AI 头像区域
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFF667EEA),
-                                    Color(0xFF764BA2),
-                                ),
-                            ),
-                        ),
+                        .background(AccentBlue),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "\uD83E\uDD89",
-                        fontSize = 26.sp,
-                        modifier = Modifier.offset(y = bounceOffset.dp),
+                    Icon(
+                        imageVector = Icons.Default.ChatBubble,
+                        contentDescription = "AI 助手",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
                     )
                 }
 
@@ -315,7 +309,7 @@ private fun AiAssistantCard(
 
                 Column {
                     Text(
-                        text = "我是小布，你的AI助手",
+                        text = "AI 智能助手",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextDark,

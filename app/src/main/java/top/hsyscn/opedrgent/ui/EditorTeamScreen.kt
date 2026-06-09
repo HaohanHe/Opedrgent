@@ -186,9 +186,9 @@ fun EditorTeamScreen(
 
         // 确定输入：使用原始输入或上一步的输出
         val stepInput = when (role) {
-            EditorRole.ZHAO_XUAN_TI -> pipelineInput
+            EditorRole.TOPIC_PLANNER -> pipelineInput
             else -> {
-                val prevArticle = pipelineResults.lastOrNull { it.role == EditorRole.LI_WEN_ZHANG }?.output ?: pipelineInput
+                val prevArticle = pipelineResults.lastOrNull { it.role == EditorRole.WRITER }?.output ?: pipelineInput
                 prevArticle
             }
         }

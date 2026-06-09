@@ -9,7 +9,7 @@ import java.util.UUID
 /**
  * 用户行为事件枚举 — 追踪用户在 Opedrgent 中的所有关键操作。
  *
- * 这些事件是"越用越熟"主动推送引擎的数据基础。
+ * 这些事件是智能推荐引擎的数据基础。
  */
 enum class BehaviorEvent {
     NOTE_CREATED,         // 创建笔记
@@ -111,7 +111,7 @@ private class BehaviorDatabase(context: Context) : SQLiteOpenHelper(
 }
 
 /**
- * 用户行为追踪器 — "越用越熟"核心数据层。
+ * 用户行为追踪器 — 智能推荐引擎的核心数据层。
  *
  * 职责：
  * - 记录用户在 App 中的所有关键行为事件

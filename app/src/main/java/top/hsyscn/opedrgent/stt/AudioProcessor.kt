@@ -953,12 +953,12 @@ object AudioProcessor {
         return merged.filter { it.endTimeMs > it.startTimeMs }
     }
 
-    // ==================== 录音质量预处理（参考得到大脑 RecordConfig）====================
+    // ==================== 录音质量预处理 ====================
 
     /**
      * 噪声抑制：基于谱减法的轻量级降噪。
      *
-     * 参考 得到大脑 RecordConfig.noiseSuppress = true 的设计思路：
+     * 参考 RecordConfig.noiseSuppress = true 的设计思路：
      * - 估算噪声基底（取前 200ms 作为噪声样本）
      * - 对每个频段做谱减，衰减噪声成分
      * - 保留语音特征频段（300Hz-3400Hz）
@@ -1012,7 +1012,7 @@ object AudioProcessor {
     /**
      * 自动增益控制（AGC）：将音频归一化到目标电平。
      *
-     * 参考 得到大脑 RecordConfig.autoGain = true：
+     * 参考 RecordConfig.autoGain = true：
      * - 检测信号峰值
      * - 动态调整增益使峰值接近目标电平（-3dB = 0.707）
      * - 限制最大增益倍数防止噪声过度放大
@@ -1059,7 +1059,7 @@ object AudioProcessor {
     /**
      * 完整的录音预处理管线（组合所有预处理步骤）。
      *
-     * 处理顺序（参考 得到大脑 音频链路）：
+     * 处理顺序（音频链路）：
      * 1. 噪声抑制 [applyNoiseSuppression]
      * 2. 自动增益 [applyAutoGain]
      *

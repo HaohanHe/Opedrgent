@@ -1466,8 +1466,8 @@ fun SessionScreen(
 }
 
 /**
- * AI 助手状态指示器条（类似得到大脑的小布头像 + "我在"）。
- * 显示在 SessionScreen 顶部栏下方，增强"AI 在线陪伴"的感觉。
+ * AI 助手状态指示器条。
+ * 显示在 SessionScreen 顶部栏下方，增强 AI 在线感。
  */
 @Composable
 private fun AiStatusBar(isStreaming: Boolean) {
@@ -1489,19 +1489,20 @@ private fun AiStatusBar(isStreaming: Boolean) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 小布猫头鹰头像
+        // AI 头像
         Box(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF667EEA), Color(0xFF764BA2)),
-                    ),
-                ),
+                .background(AccentBlue),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "\uD83E\uDD89", fontSize = 16.sp)
+            Icon(
+                Icons.Default.ChatBubble,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.sp.value.dp.coerceAtLeast(14.dp)),
+            )
         }
 
         Spacer(modifier = Modifier.width(10.dp))
