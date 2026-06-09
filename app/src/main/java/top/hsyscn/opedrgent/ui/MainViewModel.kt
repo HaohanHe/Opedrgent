@@ -268,6 +268,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
 
+    /** AI 对话会话总数（供首页统计卡片使用） */
+    val sessionCount: Int get() = _state.value.sessions.size
+
     private val _toolPermissionRequest = MutableStateFlow<ToolPermissionRequest?>(null)
     val toolPermissionRequest: StateFlow<ToolPermissionRequest?> = _toolPermissionRequest
 
