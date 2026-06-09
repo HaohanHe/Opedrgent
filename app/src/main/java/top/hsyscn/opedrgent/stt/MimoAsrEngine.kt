@@ -26,9 +26,9 @@ import kotlin.math.abs
 /**
  * MiMO 在线语音识别引擎 — 支持文件转录和实时流式识别。
  *
- * ## 流式模式（参考得到大脑 VolcAsrPlugin 的 Stream 模式）
+ * ## 流式模式（Stream 模式）
  *
- * 得到大脑使用 `recorder_data_source_type=Stream` + SEED 协议实现边录边传。
+ * 使用 `recorder_data_source_type=Stream` + SEED 协议实现边录边传。
  * MiMO 的 chat/completions API 不支持原生音频流式输入，因此采用 **伪流式方案**：
  *
  * 1. 外部通过 [feedAudioData] 持续喂入 PCM 浮点采样点
@@ -56,7 +56,7 @@ class MimoAsrEngine(
         /** 原始文件最大 100MB */
         private const val MAX_FILE_BYTES = 100 * 1024 * 1024
 
-        // ---- 流式参数（参考得到大脑 VolcAsrPlugin 配置）----
+        // ---- 流式参数 ----
         /** 每次 API 请求的音频窗口大小（ms），3 秒一 chunk 平衡延迟与准确率 */
         private const val CHUNK_INTERVAL_MS = 3000L
         /** 最小发送阈值（ms），太短的片段不发送避免浪费 API 调用 */
@@ -156,7 +156,7 @@ class MimoAsrEngine(
      * 3. 外部调用 stopStreamingRecognition() → 循环退出
      * 4. 发送剩余缓冲区 → emit FinalResult(fullText)
      *
-     * 参考：得到大脑 VolcAsrPlugin 用 SEED 协议 + Stream 数据源实现真流式，
+     * 参考：SEED 协议 + Stream 数据源实现真流式，
      *       我们用 chunked HTTP 请求模拟类似效果。
      */
     override fun startStreamingRecognition(): Flow<StreamingRecognitionState> {

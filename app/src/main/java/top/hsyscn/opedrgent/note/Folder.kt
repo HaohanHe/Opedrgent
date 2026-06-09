@@ -6,7 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 
 /**
- * 文件夹数据模型（参考得到大脑笔记本系统设计）。
+ * 文件夹数据模型。
  *
  * 支持：
  * - 创建/重命名/删除文件夹

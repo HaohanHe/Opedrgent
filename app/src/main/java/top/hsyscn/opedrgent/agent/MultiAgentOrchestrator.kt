@@ -19,7 +19,7 @@ import java.util.UUID
  *   CrewAI (角色扮演+任务委派)
  *   LangGraph (状态图编排)
  *   REDEREF (概率路由+信用分配)
- *   得到大脑 (小龙虾Skill系统)
+ *   Skill系统
  */
 class MultiAgentOrchestrator(
     private val llmCall: suspend (prompt: String) -> String,
