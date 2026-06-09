@@ -2,6 +2,8 @@ package top.hsyscn.opedrgent.mcp.editors
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.network.LlmClient
@@ -9,8 +11,9 @@ import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 
+/** 单步执行结果 */
 data class EditorResult(
-    val role: EditorRole,
+    val role: RoleInstance,
     val output: String,
     val tokensUsed: Int = 0,
     val durationMs: Long = 0,
@@ -19,11 +22,13 @@ data class EditorResult(
     val isSuccess: Boolean get() = error == null
 }
 
+/** 流水线最终结果 */
 data class PipelineResult(
     val steps: List<EditorResult>,
     finalOutput: String,
-    val totalTokensUsed: Int,
-    val totalDurationMs: Long,
+    plan: ExecutionPlan,
+    totalTokensUsed: Int,
+    totalDurationMs: Long,
 )
 
 enum class OutputPlatform(
@@ -37,6 +42,16 @@ enum class OutputPlatform(
     PDF_REPORT("PDF报告", "正式报告格式，结构严谨"),
 }
 
+/**
+ * AI 编辑团服务 — 核心架构：LLM 规划 + 动态执行。
+ *
+ * 工作流程：
+ * 1. 用户输入任务描述
+ * 2. LLM（总编角色）分析任务，输出执行计划（需要几个角色、各做什么）
+ * 3. 按计划逐步调用每个角色执行
+ * 4. 每步结果传递给下一步作为上下文
+ * 5. 输出最终成果
+ */
 class EditorTeamService(
     private val apiSettings: ApiSettings,
     private val llmClient: LlmClient = LlmClient(),
@@ -49,207 +64,349 @@ class EditorTeamService(
         DebugLog.i("EditorTeamService: cancelled")
     }
 
-    fun resetCancel() {
-        isCancelled = false
-    }
+    fun resetCancel() { isCancelled = false }
+
+    // ==================== 核心：规划 + 执行 ====================
 
     /**
-     * 调用指定角色处理内容
+     * 主入口：让 LLM 规划并执行编辑任务。
+     *
+     * @param userInput 用户输入的任务/内容
+     * @param targetPlatform 目标输出平台（可选）
+     * @param styleReference 风格参考（可选）
+     * @param onPlanReady 规划完成回调（UI 可展示计划给用户确认）
+     * @param onStepComplete 每步完成回调
      */
-    suspend fun consultRole(
-        role: EditorRole,
+    suspend fun planAndExecute(
         userInput: String,
-        contextNotes: List<String> = emptyList(),
-        extraInstructions: String = "",
-    ): EditorResult = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-
-        val config = apiSettings.getApiConfig()
-        if (config == null) {
-            return@withContext EditorResult(
-                role = role,
-                output = "",
-                error = "未配置 API Key，请先在设置中配置",
-                durationMs = System.currentTimeMillis() - startTime,
-            )
-        }
-
-        if (isCancelled) {
-            return@withContext EditorResult(
-                role = role,
-                output = "",
-                error = "用户取消操作",
-                durationMs = System.currentTimeMillis() - startTime,
-            )
-        }
-
-        try {
-            val systemPrompt = buildSystemPrompt(role, extraInstructions)
-            val userMessage = buildUserMessage(userInput, contextNotes)
-
-            DebugLog.i("EditorTeamService.consultRole → ${role.alias} input=${userInput.take(50)}...")
-
-            val response = llmClient.chatCompletions(
-                config = config,
-                system = systemPrompt,
-                messages = listOf(
-                    ChatMessage(role = Role.USER, content = userMessage),
-                ),
-            )
-
-            val duration = System.currentTimeMillis() - startTime
-            DebugLog.i("EditorTeamService.consultRole ← ${role.alias} done ${duration}ms, ${response.length} chars")
-
-            EditorResult(
-                role = role,
-                output = response.trim(),
-                durationMs = duration,
-            )
-        } catch (e: Exception) {
-            DebugLog.e("EditorTeamService.consultRole error: ${e.message}", e)
-            EditorResult(
-                role = role,
-                output = "",
-                error = e.message ?: "未知错误",
-                durationMs = System.currentTimeMillis() - startTime,
-            )
-        }
-    }
-
-    /**
-     * 完整的写作流水线：选题→素材→撰写→审稿→核查→排版
-     */
-    suspend fun fullWritingPipeline(
-        userInput: String,
-        targetPlatform: OutputPlatform = OutputPlatform.WECHAT,
+        targetPlatform: OutputPlatform? = null,
         styleReference: String = "",
-        onStepComplete: (EditorRole, String) -> Unit = { _, _ -> },
+        contextNotes: List<String> = emptyList(),
+        onPlanReady: (ExecutionPlan) -> Unit = {},
+        onStepComplete: (RoleInstance, String) -> Unit = { _, _ -> },
     ): PipelineResult = withContext(Dispatchers.IO) {
         resetCancel()
-        val steps = mutableListOf<EditorResult>()
-        var totalTokens = 0
         val startTime = System.currentTimeMillis()
 
-        // 流水线步骤：每个步骤的输出会作为下一步的上下文
-        val pipelineSequence = mutableListOf<EditorRole>().apply {
-            add(EditorRole.TOPIC_PLANNER)
-            add(EditorRole.RESEARCHER)
-            add(EditorRole.WRITER)
-            add(EditorRole.REVIEWER)
-            add(EditorRole.FACT_CHECKER)
-            add(EditorRole.FORMATTER)
+        // Step 1: LLM 规划（总编分析任务）
+        val plan = if (isCancelled) {
+            ExecutionPlan(emptyList(), "用户取消")
+        } else {
+            planPipeline(userInput, targetPlatform, styleReference)
         }
 
-        // 构建逐步累积的上下文
+        onPlanReady(plan)
+
+        if (plan.steps.isEmpty() || isCancelled) {
+            return@withContext PipelineResult(
+                steps = emptyList(),
+                finalOutput = "",
+                plan = plan,
+                totalTokensUsed = 0,
+                totalDurationMs = System.currentTimeMillis() - startTime,
+            )
+        }
+
+        // Step 2: 按计划逐步执行
+        val steps = mutableListOf<EditorResult>()
+        var totalTokens = 0
         var accumulatedContext = userInput
 
-        for ((index, role) in pipelineSequence.withIndex()) {
+        for ((index, step) in plan.steps.withIndex()) {
             if (isCancelled) break
 
-            // 为当前步骤构建指令
-            val stepInstructions = when (role) {
-                EditorRole.TOPIC_PLANNER -> ""
-                EditorRole.RESEARCHER -> {
-                    val prevResult = steps.lastOrNull { it.role == EditorRole.TOPIC_PLANNER }
-                    "上一步【选题策划】的选题建议如下，请针对选定的选题方向收集素材：\n${prevResult?.output ?: ""}"
-                }
-                EditorRole.WRITER -> {
-                    val topicResult = steps.lastOrNull { it.role == EditorRole.TOPIC_PLANNER }?.output ?: ""
-                    val materialResult = steps.lastOrNull { it.role == EditorRole.RESEARCHER }?.output ?: ""
-                    "请基于以下信息撰写完整文章：\n\n## 选题方向\n$topicResult\n\n## 素材库\n$materialResult"
-                }
-                EditorRole.REVIEWER -> "请对以下文章进行审稿："
-                EditorRole.FACT_CHECKER -> "请对以下内容进行事实核查："
-                EditorRole.FORMATTER -> {
-                    val platformHint = "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}"
-                    if (styleReference.isNotEmpty()) {
-                        "$platformHint\n\n风格参考：$styleReference"
-                    } else {
-                        platformHint
-                    }
-                }
+            // 确定该步骤的输入
+            val stepInput = if (step.dependsOnPrevious && steps.isNotEmpty()) {
+                // 使用上一步的输出
+                steps.last().output.ifBlank { accumulatedContext }
+            } else {
+                accumulatedContext
             }
 
-            // 确定每步的输入
-            val stepInput = when (role) {
-                EditorRole.WRITER,
-                EditorRole.REVIEWER,
-                EditorRole.FACT_CHECKER,
-                EditorRole.FORMATTER -> {
-                    // 后续步骤使用撰写的输出作为主要输入
-                    val articleDraft = steps.lastOrNull { it.role == EditorRole.WRITER }?.output
-                        ?: accumulatedContext
-                    articleDraft
-                }
-                else -> accumulatedContext
-            }
-
-            // 收集前面所有相关结果作为上下文笔记
-            val contextNotes = steps.mapNotNull { result ->
-                if (result.isSuccess && result.role != role) "${result.role.alias}的输出：\n${result.output.take(2000)}" else null
+            // 收集前面步骤的结果作为上下文
+            val stepContext = steps.mapNotNull { r ->
+                if (r.isSuccess) "【${r.role.alias}】的输出：\n${r.output.take(2000)}" else null
             }.takeLast(3)
 
-            val result = consultRole(
-                role = role,
-                userInput = stepInput,
-                contextNotes = contextNotes,
-                extraInstructions = stepInstructions,
+            // 执行当前步骤
+            val result = executeStep(
+                role = step.role,
+                input = stepInput,
+                extraInstructions = step.instruction,
+                contextNotes = stepContext + contextNotes,
             )
 
             steps.add(result)
             totalTokens += result.tokensUsed
 
             if (result.isSuccess) {
-                onStepComplete(role, result.output)
-                // 更新累积上下文（使用最新输出）
+                onStepComplete(step.role, result.output)
                 accumulatedContext = result.output
-            } else {
-                DebugLog.w("EditorTeamPipeline: step ${role.alias} failed: ${result.error}")
             }
         }
 
-        // 最终输出取最后一步（排版）的结果，如果没有则取最近的成功结果
-        val finalOutput = steps.lastOrNull { it.role == EditorRole.FORMATTER && it.isSuccess }?.output
-            ?: steps.lastOrNull { it.isSuccess }?.output
-            ?: ""
+        // 最终输出：取最后一步的成功结果
+        val finalOutput = steps.lastOrNull { it.isSuccess }?.output ?: ""
 
         PipelineResult(
             steps = steps.toList(),
             finalOutput = finalOutput,
+            plan = plan,
             totalTokensUsed = totalTokens,
             totalDurationMs = System.currentTimeMillis() - startTime,
         )
     }
 
-    /**
-     * 单独调用某个角色（用于自由模式）
-     */
+    // ==================== 兼容旧接口 ====================
+
+    /** 固定流水线（向后兼容） */
+    suspend fun fullWritingPipeline(
+        userInput: String,
+        targetPlatform: OutputPlatform = OutputPlatform.WECHAT,
+        styleReference: String = "",
+        onStepComplete: (EditorRole, String) -> Unit = { _, _ -> },
+    ): PipelineResult {
+        // 将旧的固定流水线转为 ExecutionPlan 执行
+        val roles = EditorRole.fullCreationPipeline.map { RoleInstance.Preset(it) }
+        val lastIdx = roles.lastIndex
+        val steps = roles.mapIndexed { idx, role ->
+            PlanStep(
+                index = idx,
+                role = role,
+                instruction = when (role) {
+                    is RoleInstance.Preset -> when (role.role) {
+                        EditorRole.FORMATTER ->
+                            "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}" +
+                                    if (styleReference.isNotEmpty()) "\n\n风格参考：$styleReference" else ""
+                        else -> ""
+                    }
+                    is RoleInstance.Dynamic -> ""
+                },
+                dependsOnPrevious = true,
+            )
+        }
+        val fixedPlan = ExecutionPlan(steps, reasoning = "默认完整创作流水线")
+
+        return planAndExecute(
+            userInput = userInput,
+            targetPlatform = targetPlatform,
+            styleReference = styleReference,
+            onPlanReady = {},
+            onStepComplete = { role, output ->
+                if (role is RoleInstance.Preset) onStepComplete(role.role, output)
+            },
+        )
+    }
+
+    /** 单角色咨询（自由模式） */
     suspend fun singleRoleConsult(
         role: EditorRole,
         input: String,
     ): EditorResult {
-        return consultRole(
-            role = role,
-            userInput = input,
-        )
+        return executeStep(RoleInstance.Preset(role), input)
     }
 
-    private fun buildSystemPrompt(role: EditorRole, extraInstructions: String): String {
-        return if (extraInstructions.isNotBlank()) {
-            "${role.systemPrompt}\n\n## 额外指令\n$extraInstructions"
-        } else {
-            role.systemPrompt
+    // ==================== 内部方法 ====================
+
+    /**
+     * 调用 LLM 规划执行计划。
+     *
+     * 让 LLM 扮演"总编"角色，分析用户需求后输出：
+     * - 需要几个步骤（2-6 步）
+     * - 每个步骤用什么角色（可选用预设或自创）
+     * - 每步的具体指令
+     */
+    private suspend fun planPipeline(
+        userInput: String,
+        targetPlatform: OutputPlatform?,
+        styleReference: String,
+    ): ExecutionPlan {
+        val config = apiSettings.getApiConfig()
+        if (config == null) {
+            return ExecutionPlan(emptyList(), error = "未配置 API Key")
+        }
+
+        // 构建可用角色列表供 LLM 参考
+        val availableRolesDescription = buildString {
+            appendLine("## 可用的预设角色模板")
+            for (role in EditorRole.allRoles) {
+                appendLine("- **${role.displayName}** (${role.alias})：${role.description}")
+            }
+            appendLine()
+            appendLine("你也可以根据任务需要，创建不在上述列表中的新角色。")
+        }
+
+        val platformHint = targetPlatform?.let { "\n- 目标平台：${it.displayName}" } ?: ""
+        val styleHint = if (styleReference.isNotEmpty()) "\n- 风格参考：$styleReference" else ""
+
+        val plannerPrompt = """你是一位资深的内容创作总编。你的任务是分析用户的写作需求，制定一个高效的执行计划。
+
+## 你的工作方式
+1. 分析用户想要做什么（写文章？整理笔记？润色草稿？其他？）
+2. 判断需要几个处理步骤（建议 2-6 个步骤，不要太多也不要太少）
+3. 为每个步骤分配合适的编辑角色
+
+$availableRolesDescription
+
+## 用户需求
+$userInput
+$platformHint
+$styleHint
+
+## 输出要求
+你必须严格按以下 JSON 格式输出（不要输出任何其他文字）：
+
+```json
+{
+  "reasoning": "简要说明为什么这样规划",
+  "steps": [
+    {
+      "step": 1,
+      "role_name": "角色名称（如：选题策划 / 文章撰写 / 或自定义名称）",
+      "role_alias": "简称（2-3字）",
+      "system_prompt": "该角色的完整系统提示词（详细描述职责、工作方式、输出格式）",
+      "instruction": "给这个步骤的具体指令（基于用户需求的上下文）"
+    }
+  ]
+}
+```
+
+### 规划原则
+- 步骤数要合理：简单任务 2-3 步，复杂任务 4-6 步
+- 第一步通常是理解/分析/策划类角色
+- 最后一步通常是输出/排版/总结类角色
+- 中间步骤根据需要安排：调研、撰写、核查、审稿等
+- 如果用户只是想润色已有内容，不需要选题和调研步骤"""
+
+        try {
+            val response = llmClient.chatCompletions(
+                config = config,
+                system = plannerPrompt,
+                messages = listOf(ChatMessage(role = Role.USER, content = "请为以下需求制定执行计划：\n\n$userInput")),
+            )
+
+            return parsePlanFromResponse(response)
+        } catch (e: Exception) {
+            DebugLog.e("EditorTeamService.planPipeline error: ${e.message}", e)
+            // 规划失败时回退到默认流水线
+            DebugLog.w("EditorTeamService: plan failed, fallback to default pipeline")
+            return createFallbackPlan(targetPlatform, styleReference)
         }
     }
 
-    private fun buildUserMessage(userInput: String, contextNotes: List<String>): String {
-        return if (contextNotes.isEmpty()) {
-            userInput
-        } else {
-            val notesSection = contextNotes.joinToString("\n\n---\n\n") { note ->
-                "[参考笔记]\n$note"
+    /**
+     * 解析 LLM 返回的 JSON 规划。
+     */
+    private fun parsePlanFromResponse(response: String): ExecutionPlan {
+        return try {
+            // 提取 JSON（可能被 ```json 包裹）
+            val jsonStr = response.trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+
+            val json = JSONObject(jsonStr)
+            val reasoning = json.optString("reasoning", "")
+            val stepsArray = json.optJSONArray("steps") ?: JSONArray()
+
+            val steps = (0 until stepsArray.length()).map { i ->
+                val stepJson = stepsArray.getJSONObject(i)
+                val index = stepJson.optInt("step", i + 1)
+                val roleName = stepJson.getString("role_name")
+                val alias = stepJson.optString("role_alias", roleName.take(3))
+                val systemPrompt = stepJson.getString("system_prompt")
+                val instruction = stepJson.optString("instruction", "")
+
+                // 尝试匹配预设角色
+                val matchedPreset = findBestMatch(roleName, alias)
+                val roleInstance = if (matchedPreset != null) {
+                    // 用预设角色的系统提示词 + 可能的自定义增强
+                    val enhancedPrompt = if (instruction.isNotBlank()) {
+                        "${matchedPreset.systemPrompt}\n\n## 本次任务指令\n$instruction"
+                    } else matchedPreset.systemPrompt
+                    RoleInstance.Preset(matchedPreset)
+                } else {
+                    // 完全动态创建的角色
+                    DynamicRole(
+                        name = roleName,
+                        alias = alias,
+                        icon = pickIconForName(roleName),
+                        description = "",
+                        systemPrompt = systemPrompt,
+                        inputHint = instruction,
+                    ).let { RoleInstance.Dynamic(it) }
+                }
+
+                PlanStep(index = index, role = roleInstance, instruction = instruction)
             }
-            """以下是相关的背景笔记/参考资料：
+
+            ExecutionPlan(steps = steps, reasoning = reasoning)
+        } catch (e: Exception) {
+            DebugLog.w("EditorTeamService: failed to parse plan JSON: ${e.message}")
+            createFallbackPlan(null, "")
+        }
+    }
+
+    /**
+     * 执行单个步骤。
+     */
+    private suspend fun executeStep(
+        role: RoleInstance,
+        input: String,
+        extraInstructions: String = "",
+        contextNotes: List<String> = emptyList(),
+    ): EditorResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+
+        val config = apiSettings.getApiConfig()
+        if (config == null) {
+            return@withContext EditorResult(
+                role = role, output = "", error = "未配置 API Key",
+                durationMs = System.currentTimeMillis() - startTime,
+            )
+        }
+
+        if (isCancelled) {
+            return@withContext EditorResult(
+                role = role, output = "", error = "用户取消操作",
+                durationMs = System.currentTimeMillis() - startTime,
+            )
+        }
+
+        try {
+            val systemPrompt = buildSystemPrompt(role, extraInstructions)
+            val userMessage = buildUserMessage(input, contextNotes)
+
+            DebugLog.i("EditorTeamService.executeStep → ${role.alias} input=${input.take(50)}...")
+
+            val response = llmClient.chatCompletions(
+                config = config,
+                system = systemPrompt,
+                messages = listOf(ChatMessage(role = Role.USER, content = userMessage)),
+            )
+
+            val duration = System.currentTimeMillis() - startTime
+            DebugLog.i("EditorTeamService.executeStep ← ${role.alias} done ${duration}ms, ${response.length} chars")
+
+            EditorResult(role = role, output = response.trim(), durationMs = duration)
+        } catch (e: Exception) {
+            DebugLog.e("EditorTeamService.executeStep error: ${e.message}", e)
+            EditorResult(role = role, output = "", error = e.message ?: "未知错误",
+                durationMs = System.currentTimeMillis() - startTime)
+        }
+    }
+
+    private fun buildSystemPrompt(role: RoleInstance, extraInstructions: String): String {
+        return if (extraInstructions.isNotBlank()) {
+            "${role.systemPrompt}\n\n## 额外指令\n$extraInstructions"
+        } else role.systemPrompt
+    }
+
+    private fun buildUserMessage(userInput: String, contextNotes: List<String>): String {
+        return if (contextNotes.isEmpty()) userInput else {
+            val notesSection = contextNotes.joinToString("\n\n---\n\n") { "[参考资料]\n$it" }
+            """以下是相关的背景资料：
 
 $notesSection
 
@@ -258,5 +415,42 @@ $notesSection
 ## 你的任务
 $userInput"""
         }
+    }
+
+    // ==================== 辅助方法 ====================
+
+    /** 根据角色名找最匹配的预设角色 */
+    private fun findBestMatch(name: String, alias: String): EditorRole? {
+        for (preset in EditorRole.allRoles) {
+            if (name.contains(preset.displayName) || preset.displayName.contains(name)) return preset
+            if (alias == preset.alias || name.contains(preset.alias)) return preset
+        }
+        // 编辑斯距离模糊匹配
+        return EditorRole.allRoles.minByOrNull {
+            levenshteinDistance(name.lowercase(), it.displayName.lowercase()) +
+            levenshteinDistance(alias.lowercase(), it.alias.lowercase())
+        }.takeIf { dist(name, it.displayName) < 5 || dist(alias, it.alias) < 3 }
+    }
+
+    /** 为动态角色选一个合适的图标 */
+    private fun pickIconForName(name: String): String {
+        val keywords = mapOf(
+            "选题" to "\uD83D\uDCA1", "调研" to "\uD83D\uDCDA", "撰写" to "\u270D\uFE0F",
+            "核查" to "\uD83D\uDD0D", "审稿" to "\uD83D\uDCCB", "排版" to "\uD83C\uDFA8",
+            "整理" to "\uD83D\uDCE6", "风格" to "\uD83C\uDFAD", "翻译" to "\uD83C\uDF0D",
+            "分析" to "\uD83D\uDCCA", "设计" to "\uD83C\uDFA8", "校对" to "\uD83D\uDCDD",
+            "数据" to "\uD83D\uDCCA", "创意" to "\uD83C\uDF31", "优化" to "\u2B06",
+        )
+        for ((kw, icon) in keywords) { if (name.contains(kw) || kw.contains(name)) return icon }
+        return "\u2604" // 默认星号图标
+    }
+
+    /** 回退方案：规划失败时使用默认流水线 */
+    private fun createFallbackPlan(platform: OutputPlatform?, styleRef: String): ExecutionPlan {
+        val roles = EditorRole.defaultPipeline.map { RoleInstance.Preset(it) }
+        val steps = roles.mapIndexed { idx, role ->
+            PlanStep(idx + 1, role, dependsOnPrevious = true)
+        }
+        return ExecutionPlan(steps, reasoning = "使用默认推荐组合（规划回退）")
     }
 }

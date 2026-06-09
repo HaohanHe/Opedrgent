@@ -87,8 +87,9 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.mcp.editors.EditorResult
 import top.hsyscn.opedrgent.mcp.editors.EditorRole
 import top.hsyscn.opedrgent.mcp.editors.EditorTeamService
+import top.hsyscn.opedrgent.mcp.editors.ExecutionPlan
 import top.hsyscn.opedrgent.mcp.editors.OutputPlatform
-import top.hsyscn.opedrgent.mcp.editors.pipelineRoles
+import top.hsyscn.opedrgent.mcp.editors.RoleInstance
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
@@ -123,6 +124,11 @@ fun EditorTeamScreen(
     var finalOutput by remember { mutableStateOf("") }
     var totalDuration by remember { mutableStateOf(0L) }
 
+    // 规划阶段状态
+    var isPlanning by remember { mutableStateOf(false) }
+    var currentPlan by remember { mutableStateOf<ExecutionPlan?>(null) }
+    var planReasoning by remember { mutableStateOf("") }
+
     // 自由模式状态
     var selectedRole by remember { mutableStateOf<EditorRole?>(null) }
     var freeModeInput by remember { mutableStateOf(initialInput) }
@@ -153,20 +159,27 @@ fun EditorTeamScreen(
             return
         }
         isRunningPipeline = true
+        isPlanning = true  // 新增：进入规划阶段
         pipelineResults = emptyList()
         currentStepIndex = -1
         finalOutput = ""
         rerunningStepIndex = -1
         service.resetCancel()
 
-        val result = service.fullWritingPipeline(
+        val result = service.planAndExecute(
             userInput = pipelineInput,
             targetPlatform = selectedPlatform,
             styleReference = styleReference,
-            onStepComplete = { role, output ->
+            onPlanReady = { plan ->
+                // 规划完成
+                isPlanning = false
+                currentPlan = plan
+                planReasoning = plan.reasoning
+            },
+            onStepComplete = { roleInstance, output ->
                 currentStepIndex = pipelineResults.size
                 pipelineResults = pipelineResults + EditorResult(
-                    role = role,
+                    role = roleInstance,  // 注意：role 现在是 RoleInstance
                     output = output,
                 )
             },
@@ -176,41 +189,44 @@ fun EditorTeamScreen(
         finalOutput = result.finalOutput
         totalDuration = result.totalDurationMs
         isRunningPipeline = false
+        isPlanning = false
     }
 
     // 重新执行某一步
     suspend fun rerunStep(stepIndex: Int) {
         if (stepIndex < 0 || stepIndex >= pipelineResults.size) return
-        val role = pipelineResults[stepIndex].role
+        val roleInstance = pipelineResults[stepIndex].role  // RoleInstance 类型
         rerunningStepIndex = stepIndex
 
-        // 确定输入：使用原始输入或上一步的输出
-        val stepInput = when (role) {
-            EditorRole.TOPIC_PLANNER -> pipelineInput
+        // 确定输入
+        val stepInput = when {
+            stepIndex == 0 -> pipelineInput
             else -> {
-                val prevArticle = pipelineResults.lastOrNull { it.role == EditorRole.WRITER }?.output ?: pipelineInput
-                prevArticle
+                pipelineResults.getOrNull(stepIndex - 1)?.output?.takeIf { it.isNotBlank() }
+                    ?: pipelineInput
             }
         }
 
         val contextNotes = pipelineResults.take(stepIndex).mapNotNull { r ->
-            if (r.isSuccess && r.role != role) "${r.role.alias}的输出：\n${r.output.take(2000)}" else null
+            if (r.isSuccess && r.role != roleInstance) "【${r.role.alias}】的输出：\n${r.output.take(2000)}" else null
         }.takeLast(3)
 
-        val newResult = service.consultRole(
-            role = role,
-            userInput = stepInput,
-            contextNotes = contextNotes,
-        )
+        // 使用 singleRoleConsult（如果是预设角色）或直接执行
+        val newResult = when (roleInstance) {
+            is RoleInstance.Preset -> service.singleRoleConsult(role = roleInstance.role, input = stepInput)
+            is RoleInstance.Dynamic -> {
+                // 动态角色需要通过 planAndExecute 的内部机制，这里简化处理
+                EditorResult(role = roleInstance, output = "动态角色重新执行需要完整流水线", error = "暂不支持单独重新执行动态角色")
+            }
+        }
 
         val updated = pipelineResults.toMutableList()
         updated[stepIndex] = newResult
         pipelineResults = updated
         rerunningStepIndex = -1
 
-        // 如果后续步骤存在，提示用户可能需要重新执行后续步骤
         if (stepIndex < pipelineResults.size - 1) {
-            showSnackbar("「${role.alias}」已重新完成，建议同时重新执行后续步骤")
+            showSnackbar("「${roleInstance.alias}」已重新完成，建议同时重新执行后续步骤")
         }
     }
 
@@ -269,6 +285,9 @@ fun EditorTeamScreen(
                     styleReference = styleReference,
                     onStyleChange = { styleReference = it },
                     isRunning = isRunningPipeline,
+                    isPlanning = isPlanning,
+                    planReasoning = planReasoning,
+                    currentPlan = currentPlan,
                     results = pipelineResults,
                     currentStepIndex = currentStepIndex,
                     finalOutput = finalOutput,
@@ -347,6 +366,9 @@ private fun PipelineModeContent(
     styleReference: String,
     onStyleChange: (String) -> Unit,
     isRunning: Boolean,
+    isPlanning: Boolean,
+    planReasoning: String,
+    currentPlan: ExecutionPlan?,
     results: List<EditorResult>,
     currentStepIndex: Int,
     finalOutput: String,
@@ -446,11 +468,37 @@ private fun PipelineModeContent(
             }
         }
 
+        // 规划中提示
+        if (isPlanning) {
+            item {
+                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = AccentBlue)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("AI 正在分析任务...", fontWeight = FontWeight.SemiBold)
+                            Text("规划最优编辑流程", fontSize = 12.sp, color = TextGrey)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 规划结果展示
+        if (!isPlanning && currentPlan != null && results.isEmpty()) {
+            item {
+                PlanResultCard(
+                    plan = currentPlan!!,
+                    reasoning = planReasoning,
+                )
+            }
+        }
+
         // 步骤进度指示器
         if (results.isNotEmpty() || isRunning) {
             item {
                 PipelineStepIndicator(
-                    steps = EditorRole.pipelineRoles,
+                    steps = currentPlan?.steps ?: emptyList(),
                     results = results,
                     currentIndex = currentStepIndex,
                     isRunning = isRunning,
@@ -460,7 +508,7 @@ private fun PipelineModeContent(
         }
 
         // 各步骤结果（可折叠）
-        itemsIndexed(results, key = { _, result -> result.role.code }) { index, result ->
+        itemsIndexed(results, key = { index, _ -> index }) { index, result ->
             StepResultCard(
                 result = result,
                 isRerunning = rerunningStepIndex == index,
@@ -483,35 +531,39 @@ private fun PipelineModeContent(
         }
 
         // 运行中的加载提示
-        if (isRunning && currentStepIndex >= 0 && currentStepIndex < EditorRole.pipelineRoles.size) {
-            item {
-                val currentRole = EditorRole.pipelineRoles.getOrNull(currentStepIndex)
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(currentRole?.color ?: 0xFF4A90D9).copy(alpha = 0.08f)),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+        if (isRunning && currentStepIndex >= 0) {
+            val planSteps = currentPlan?.steps ?: emptyList()
+            if (currentStepIndex < planSteps.size) {
+                item {
+                    val currentStep = planSteps[currentStepIndex]
+                    val currentRoleInstance = currentStep.role
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(currentRoleInstance.displayColor).copy(alpha = 0.08f)),
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.5.dp,
-                            color = Color(currentRole?.color ?: AccentBlue.toArgb()),
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "${currentRole?.icon} ${currentRole?.alias} 正在工作中...",
-                                fontWeight = FontWeight.Medium,
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.5.dp,
+                                color = Color(currentRoleInstance.displayColor),
                             )
-                            Text(
-                                text = "正在调用 AI 处理，请稍候...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
-                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "${currentRoleInstance.icon} ${currentRoleInstance.alias} 正在工作中...",
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Text(
+                                    text = "正在调用 AI 处理，请稍候...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextGrey,
+                                )
+                            }
                         }
                     }
                 }
@@ -519,6 +571,55 @@ private fun PipelineModeContent(
         }
 
         item { Spacer(Modifier.height(100.dp)) }
+    }
+}
+
+@Composable
+private fun PlanResultCard(
+    plan: ExecutionPlan,
+    reasoning: String,
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardWhite),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("执行计划", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("${plan.steps.size} 个步骤", fontSize = 12.sp, color = AccentBlue)
+            }
+            if (reasoning.isNotBlank()) {
+                Text(reasoning, fontSize = 12.sp, color = TextGrey, modifier = Modifier.padding(top = 4.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            plan.steps.forEachIndexed { index, step ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(step.role.displayColor)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(step.role.icon, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${index + 1}. ${step.role.name}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (step.instruction.isNotBlank()) {
+                        Text(
+                            text = " - ${step.instruction.take(30)}...",
+                            fontSize = 11.sp,
+                            color = TextGrey,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -601,7 +702,7 @@ private fun PipelineInputField(
 
 @Composable
 private fun PipelineStepIndicator(
-    steps: List<EditorRole>,
+    steps: List<PlanStep>,
     results: List<EditorResult>,
     currentIndex: Int,
     isRunning: Boolean,
@@ -621,16 +722,17 @@ private fun PipelineStepIndicator(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                steps.forEachIndexed { index, role ->
-                    val result = results.find { it.role == role }
+                steps.forEachIndexed { index, step ->
+                    val roleInstance = step.role
+                    val result = results.find { it.role == roleInstance }
                     val isCompleted = result != null && result.isSuccess
                     val isCurrent = index == currentIndex && isRunning
                     val isRerunning = index == rerunningIndex
 
                     StepIndicatorNode(
-                        icon = role.icon,
-                        alias = role.alias,
-                        color = role.color,
+                        icon = roleInstance.icon,
+                        alias = roleInstance.alias,
+                        color = roleInstance.displayColor,
                         isCompleted = isCompleted,
                         isCurrent = isCurrent || isRerunning,
                         isPending = !isCompleted && !isCurrent && index > currentIndex,
@@ -735,7 +837,7 @@ private fun StepResultCard(
     enabled: Boolean,
 ) {
     val role = result.role
-    var expanded by rememberSaveable("${role.code}_expanded") { mutableStateOf(true) }
+    var expanded by rememberSaveable("${role.alias}_expanded") { mutableStateOf(true) }
 
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -753,7 +855,7 @@ private fun StepResultCard(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(Color(role.color).copy(alpha = 0.1f), CircleShape),
+                        .background(Color(role.displayColor).copy(alpha = 0.1f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(text = role.icon, fontSize = 16.sp)
@@ -768,7 +870,7 @@ private fun StepResultCard(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = role.displayName,
+                            text = role.name,
                             fontSize = 11.sp,
                             color = TextGrey,
                         )
@@ -813,7 +915,7 @@ private fun StepResultCard(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = Color(role.color),
+                                color = Color(role.displayColor),
                             )
                         }
                     } else {
@@ -1112,7 +1214,7 @@ private fun RoleConsultView(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(14.dp),
                                 strokeWidth = 2.dp,
-                                color = Color(role.color),
+                                color = Color(role.displayColor),
                             )
                             Spacer(Modifier.width(6.dp))
                             Text("处理中...")
