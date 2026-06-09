@@ -34,6 +34,7 @@ enum class MessageType {
     INFO,
     CONFIG_UPDATE,
     ERROR,
+    AUDIO,
 }
 
 data class ChatMessage(
@@ -56,6 +57,14 @@ data class ChatMessage(
             parts.filterIsInstance<MessagePart.Text>()
                 .joinToString("") { it.content }
         } else content
+
+    /** 从 parts 提取所有音频片段 */
+    val audioClips: List<MessagePart.AudioClip>
+        get() = parts.filterIsInstance<MessagePart.AudioClip>()
+
+    /** 是否包含音频消息 */
+    val hasAudio: Boolean
+        get() = audioClips.isNotEmpty()
 }
 
 data class Artifact(
@@ -161,6 +170,24 @@ sealed class MessagePart {
         val reasoning: String = "",
         val phase: String = "",
     ) : MessagePart()
+
+    /** 音频片段（对标 Gallery ChatHistory AudioMessageProto） */
+    data class AudioClip(
+        val filePath: String,
+        val sampleRate: Int = 16000,
+        val durationMs: Long = 0L,
+        val transcript: String = "",
+        val format: AudioFormat = AudioFormat.M4A,
+    ) : MessagePart()
+}
+
+/** 音频文件格式 */
+enum class AudioFormat(val mimeType: String, val extension: String) {
+    M4A("audio/mp4", ".m4a"),
+    MP3("audio/mpeg", ".mp3"),
+    WAV("audio/wav", ".wav"),
+    OGG("audio/ogg", ".ogg"),
+    AAC("audio/aac", ".aac"),
 }
 
 enum class ToolStateType { PENDING, RUNNING, COMPLETED, ERROR, SOURCE_ADDED }

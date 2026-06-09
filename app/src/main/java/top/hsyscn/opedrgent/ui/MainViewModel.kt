@@ -73,6 +73,8 @@ import top.hsyscn.opedrgent.utils.PlatformContext
 import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.intelligence.TokenBudgetMonitor
+import top.hsyscn.opedrgent.security.FailClosedValidator
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
 import top.hsyscn.opedrgent.ui.components.QuestionRequest
@@ -662,6 +664,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(current = store.getSession(sessionId))
         refreshSessions()
         runModel(sessionId)
+    }
+
+    /**
+     * 将录音文件作为音频消息发送到当前会话。
+     * 对标 Gallery ChatHistory AudioMessageProto 的多模态音频消息。
+     */
+    fun sendAudioMessage(filePath: String, durationMs: Long, transcript: String? = null) {
+        var sessionId = _state.value.current?.id
+        if (sessionId == null) {
+            val session = store.createSession("新对话")
+            refreshSessions()
+            openSession(session.id)
+            sessionId = session.id
+            _state.value = _state.value.copy(navigateToSessionId = session.id)
+        }
+
+        val audioPart = MessagePart.AudioClip(
+            filePath = filePath,
+            sampleRate = 16000,
+            durationMs = durationMs,
+            transcript = transcript ?: "",
+        )
+
+        // 构造带转录文本的消息内容（如果有）
+        val contentText = if (!transcript.isNullOrBlank()) {
+            "[语音消息] $transcript"
+        } else "[语音消息]"
+
+        store.addMessage(
+            sessionId = sessionId,
+            role = Role.USER,
+            content = contentText,
+            parts = listOf(audioPart),
+        )
+        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshSessions()
+        runModel(sessionId)
+
+        DebugLog.i("sendAudioMessage: 已发送音频消息, 文件=$filePath, 时长=${durationMs}ms")
     }
 
     // ==================== 知识图谱 API ====================
@@ -1328,6 +1369,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         lastError = null
 
         val state = ResearchState(maxRounds = 10)
+        val budgetTracker = TokenBudgetMonitor.createTracker()
 
         try {
             while (state.shouldContinue()) {
@@ -1346,7 +1388,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     handleRoundError(e)
                 }
 
-                // 3. 根据结果决定下一步
+                // 3. Token 预算检查（递减检测）
+                val currentTokens = ctx.toolMessages.sumOf { top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(it.textContent) }
+                val budgetDecision = TokenBudgetMonitor.checkBudget(budgetTracker, ctx.maxContextTokens, currentTokens)
+
+                when (budgetDecision) {
+                    is TokenBudgetMonitor.BudgetDecision.Continue -> {
+                        _state.value = _state.value.copy(
+                            streamingPhase = budgetDecision.nudgeMessage,
+                        )
+                    }
+                    is TokenBudgetMonitor.BudgetDecision.Stop -> {
+                        DebugLog.i("runLoop: TokenBudgetMonitor 决定停止 — diminishing=${budgetDecision.diminishingReturns}, duration=${budgetDecision.durationMs}ms")
+                        if (budgetDecision.diminishingReturns) {
+                            _state.value = _state.value.copy(streamingPhase = "检测到 token 递减，主动结束生成")
+                        }
+                        // 推进状态以便记录最终结果，然后跳出循环
+                        budgetTracker.let { TokenBudgetMonitor.advanceState(it, currentTokens) }
+                        break
+                    }
+                }
+
+                // 更新预算追踪状态
+                budgetTracker.let { TokenBudgetMonitor.advanceState(it, currentTokens) }
+
+                // 4. 根据结果决定下一步
                 when (outcome) {
                     is LoopOutcome.Continue -> {
                         retryCount = 0  // 成功，重置重试计数
@@ -1493,8 +1559,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ctx.allToolParts.addAll(pendingToolParts)
         _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
 
+        // FAIL-CLOSED 参数校验：在执行前检查所有工具调用的安全性
+        val rejectedToolIndices = mutableSetOf<Int>()
+        for ((idx, tc) in result.toolCalls.withIndex()) {
+            val parsedArgs: Map<String, String> = runCatching {
+                org.json.JSONObject(tc.arguments).let { json ->
+                    json.keys().asSequence().associateWith { json.opt(it).toString() }
+                }
+            }.getOrDefault(emptyMap())
+            val (passed, errorMsg) = FailClosedValidator.validateToolInputStringParams(tc.name, parsedArgs)
+            if (!passed) {
+                DebugLog.w("executeOneRound: FailClosedValidator 拒绝 tool=${tc.name} — $errorMsg")
+                val errorTp = pendingToolParts[idx].copy(state = pendingToolParts[idx].state.copy(
+                    status = ToolStateType.ERROR,
+                    error = "安全校验失败: $errorMsg",
+                ))
+                synchronized(ctx.allToolParts) {
+                    val pos = ctx.allToolParts.indexOfFirst { it.id == pendingToolParts[idx].id }
+                    if (pos >= 0) ctx.allToolParts[pos] = errorTp
+                }
+                ctx.toolMessages.add(ChatMessage(
+                    role = Role.USER,
+                    content = "[安全校验拒绝] $errorMsg",
+                    createdAt = System.currentTimeMillis(),
+                    toolCallId = tc.id,
+                ))
+                rejectedToolIndices.add(idx)
+            }
+        }
+
         coroutineScope {
             result.toolCalls.forEachIndexed { idx, tc ->
+                // 跳过被 FAIL-CLOSED 校验拒绝的工具调用
+                if (idx in rejectedToolIndices) return@forEachIndexed
+
                 async(Dispatchers.IO) {
                     if (cancelled.get()) return@async
 

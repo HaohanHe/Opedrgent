@@ -30,8 +30,12 @@ data class Skill(
     val children: List<ChildAbility> = emptyList(),
 )
 
+/**
+ * 旧版技能定义（SkillSystem V1）
+ * @deprecated 使用 [StandardSkillDefinition] 替代，对标 Google Gallery SKILL.md 格式
+ */
 @Serializable
-data class SkillDefinition(
+data class LegacySkillDefinition(
     val id: String,
     val name: String,
     val description: String,
@@ -52,13 +56,20 @@ data class SkillDefinition(
     fun lastUsedAt(): Long = metadata["lastUsedAt"]?.toLongOrNull() ?: metadata["registeredAt"]?.toLongOrNull() ?: 0L
 
     /** 返回带更新字段的副本 */
-    fun withMetadata(key: String, value: String): SkillDefinition =
+    fun withMetadata(key: String, value: String): LegacySkillDefinition =
         copy(metadata = this.metadata + (key to value))
 
     /** 返回移除指定 metadata key 的副本 */
-    fun withoutMetadata(key: String): SkillDefinition =
+    fun withoutMetadata(key: String): LegacySkillDefinition =
         copy(metadata = this.metadata - key)
 }
+
+/**
+ * 向后兼容类型别名
+ * 新代码应使用 [StandardSkillDefinition]（Gallery SKILL.md 格式）
+ */
+@Deprecated("使用 StandardSkillDefinition 替代", ReplaceWith("StandardSkillDefinition"))
+typealias SkillDefinition = LegacySkillDefinition
 
 enum class SkillCategory {
     RESEARCH,
