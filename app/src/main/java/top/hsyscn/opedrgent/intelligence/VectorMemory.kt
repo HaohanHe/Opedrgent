@@ -156,9 +156,16 @@ sealed class Filter {
  * - 存储（内存 + 可选持久化）
  * - 搜索（相似度 + 过滤）
  * - 管理（集合 CRUD）
+ *
+ * ## 持久化支持
+ * 通过 [persistence] 参数可注入不同的持久化后端：
+ * - 不传或传 null：使用内存存储（原有行为，App 重启后数据丢失）
+ * - 传入 [SqlitePersistence]：SQLite 持久化（生产环境推荐）
+ * - 传入 [InMemoryPersistence]：显式内存模式（用于测试）
  */
 class VectorMemory(
     private val defaultDim: Int = VECTOR_DIM,
+    private val persistence: PersistenceLayer? = null,  // 可选的持久化层
 ) {
 
     private val store = mutableListOf<MemoryVector>()
@@ -166,6 +173,42 @@ class VectorMemory(
 
     // 集合（分片）管理
     private val collections = mutableMapOf<String, MutableSet<String>>()
+
+    /** 标记是否已启用持久化 */
+    private val isPersistent: Boolean get() = persistence != null
+
+    init {
+        // 初始化持久化层并恢复数据
+        if (isPersistent) {
+            persistence!!.initialize()
+            restoreFromPersistence()
+        }
+    }
+
+    /**
+     * 从持久化层恢复数据到内存。
+     *
+     * 在 VectorMemory 构造时调用，将数据库中已有的向量加载到内存中，
+     * 确保重启后数据不丢失。
+     */
+    private fun restoreFromPersistence() {
+        if (!isPersistent) return
+
+        try {
+            val vectors = persistence!!.getAll()
+            if (vectors.isNotEmpty()) {
+                store.clear()
+                collections.clear()
+                store.addAll(vectors)
+                for (mv in vectors) {
+                    collections.getOrPut(mv.collection) { mutableSetOf() }.add(mv.id)
+                }
+                DebugLog.i("VectorMemory", "从持久化层恢复了 ${vectors.size} 条向量记忆")
+            }
+        } catch (e: Exception) {
+            DebugLog.e("VectorMemory", "从持久化层恢复数据失败: ${e.message}", e)
+        }
+    }
 
     // ==================== 向量化 ====================
 
@@ -269,6 +312,12 @@ class VectorMemory(
         if (idx < 0) return@withLock false
         val removed = store.removeAt(idx)
         collections[removed.collection]?.remove(id)
+
+        // 同步从持久化层删除（如果启用）
+        if (isPersistent) {
+            persistence!!.deleteById(id)
+        }
+
         DebugLog.d("VectorMemory", "deleted [$id]")
         true
     }
@@ -280,6 +329,12 @@ class VectorMemory(
         val ids = collections[collection]?.toSet() ?: emptySet()
         val count = store.removeAll { it.id in ids || it.collection == collection }.size
         collections.remove(collection)
+
+        // 同步从持久化层删除集合（如果启用）
+        if (isPersistent) {
+            persistence!!.deleteByCollection(collection)
+        }
+
         count
     }
 
@@ -419,6 +474,12 @@ class VectorMemory(
         for (mv in data) {
             collections.getOrPut(mv.collection) { mutableSetOf() }.add(mv.id)
         }
+
+        // 批量写入持久化层（如果启用）
+        if (isPersistent && data.isNotEmpty()) {
+            persistence!!.saveBatch(data)
+        }
+
         DebugLog.i("VectorMemory", "imported ${data.size} vectors")
     }
 
