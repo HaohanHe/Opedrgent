@@ -1,12 +1,26 @@
 package top.hsyscn.opedrgent.mcp.skills
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
+/**
+ * 技能管家服务 — 基于 Gallery Skill 系统升级版
+ *
+ * 职责：
+ * - 委托 SkillLoader 管理技能加载/存储/生命周期
+ * - 定期审查技能使用情况，归档不活跃的用户导入技能
+ * - 维护内置技能与用户导入技能的一致性
+ *
+ * 与旧版差异：
+ * - 旧版直接操作 SkillRegistry（内存 + JSON 文件）
+ * - 新版通过 SkillLoader 统一管理，支持 SKILL.md 标准格式
+ */
 class CuratorService(
-    private val skillRegistry: SkillRegistry,
+    private val skillLoader: SkillLoader,
     private val context: Context,
 ) {
     companion object {
@@ -35,8 +49,18 @@ class CuratorService(
         val durationMs: Long = 0,
     )
 
+    /** 技能使用记录 — 用于追踪最后使用时间 */
+    data class SkillUsageRecord(
+        val skillName: String,
+        val lastUsedAt: Long,
+        val useCount: Int = 1,
+        val isPinned: Boolean = false,
+    )
+
     private val stateFile: File = File(context.filesDir, CURATOR_STATE_FILE)
+    private val usageFile: File = File(context.filesDir, "skill_usage.json")
     private var state = loadState()
+    private var usageRecords = loadUsageRecords()
 
     // ── 空闲触发入口（非 cron） ──
     suspend fun maybeRunCurator(): CuratorResult {
@@ -48,7 +72,6 @@ class CuratorService(
         val now = System.currentTimeMillis()
         val elapsedSinceLastRun = now - state.lastRunAt
 
-        // 空闲触发：距离上次运行超过 interval 才运行
         if (state.lastRunAt > 0 && elapsedSinceLastRun < DEFAULT_INTERVAL_MS) {
             DebugLog.d("$TAG: not yet due (elapsed=${elapsedSinceLastRun / 3600000}h < ${DEFAULT_INTERVAL_MS / 3600000}h)")
             return CuratorResult(ran = false, summary = "not_due")
@@ -57,7 +80,7 @@ class CuratorService(
         return runCuratorInternal()
     }
 
-    // ── 核心：审查所有 non-pinned skills ──
+    // ── 核心：审查所有 non-pinned 用户导入 skills ──
     private suspend fun runCuratorInternal(): CuratorResult {
         val start = System.currentTimeMillis()
         DebugLog.i("$TAG: starting maintenance run #${state.runCount + 1}")
@@ -82,33 +105,38 @@ class CuratorService(
         }
     }
 
-    private suspend fun reviewSkills(): CuratorResult {
-        val allSkills = skillRegistry.getAllSkills()
+    private suspend fun reviewSkills(): CuratorResult = withContext(Dispatchers.IO) {
+        val allSkills = skillLoader.loadAllSkills()
         val archivedIds = mutableListOf<String>()
         val staleIds = mutableListOf<String>()
         var skippedPinned = 0
+        val now = System.currentTimeMillis()
 
         for (skill in allSkills) {
-            // ★ Pinned skill 跳过所有自动转换
-            if (skill.isPinned()) {
+            // ★ 内置 skill 和 pinned skill 跳过所有自动转换
+            if (skill.isBuiltIn) continue
+
+            val isPinned = usageRecords[skill.skillName]?.isPinned == true
+            if (isPinned) {
                 skippedPinned++
                 continue
             }
 
-            val lastUsed = skill.lastUsedAt()
-            val age = System.currentTimeMillis() - lastUsed
+            val record = usageRecords[skill.skillName]
+            val lastUsed = record?.lastUsedAt ?: skill.createdAtMs
+            val age = now - lastUsed
 
             when {
                 age > ARCHIVE_AFTER_MS -> {
-                    // ★ Never auto-delete — only archive (recoverable)
-                    skillRegistry.archiveSkill(skill.id)
-                    archivedIds.add(skill.id)
-                    DebugLog.d("$TAG: archived skill '${skill.id}' (age=${age / 86400000}d)")
+                    // ★ Never auto-delete — only archive (disable)
+                    skillLoader.setSkillEnabled(skill.skillName, false)
+                    archivedIds.add(skill.skillName)
+                    DebugLog.d("$TAG: disabled skill '${skill.skillName}' (age=${age / 86400000}d)")
                 }
                 age > STALE_AFTER_MS -> {
-                    skillRegistry.markSkillStale(skill.id)
-                    staleIds.add(skill.id)
-                    DebugLog.d("$TAG: marked stale '${skill.id}' (age=${age / 86400000}d)")
+                    markSkillStale(skill.skillName)
+                    staleIds.add(skill.skillName)
+                    DebugLog.d("$TAG: marked stale '${skill.skillName}' (age=${age / 86400000}d)")
                 }
             }
         }
@@ -116,15 +144,62 @@ class CuratorService(
         val summary = buildString {
             append("archived=${archivedIds.size}, stale=${staleIds.size}")
             if (skippedPinned > 0) append(", pinned_skipped=$skippedPinned")
+            append(", builtin_skipped=${allSkills.count { it.isBuiltIn }}")
         }
 
-        return CuratorResult(
-            ran = false, // will be set to true by caller
+        CuratorResult(
+            ran = false,
             archivedIds = archivedIds,
             staleIds = staleIds,
             skippedPinned = skippedPinned,
             summary = summary,
         )
+    }
+
+    // ── 使用追踪 API（供外部调用） ──
+
+    /**
+     * 记录某个技能被使用了
+     */
+    fun touchSkill(skillName: String) {
+        val now = System.currentTimeMillis()
+        val existing = usageRecords[skillName]
+        usageRecords[skillName] = SkillUsageRecord(
+            skillName = skillName,
+            lastUsedAt = now,
+            useCount = (existing?.useCount ?: 0) + 1,
+            isPinned = existing?.isPinned == true,
+        )
+        saveUsageRecords()
+        DebugLog.d("$TAG: touched skill $skillName at $now")
+    }
+
+    /**
+     * 设置/取消技能的 pinned 状态
+     */
+    fun setPinned(skillName: String, pinned: Boolean): Boolean {
+        val existing = usageRecords[skillName] ?: SkillUsageRecord(skillName, System.currentTimeMillis())
+        usageRecords[skillName] = existing.copy(isPinned = pinned)
+        saveUsageRecords()
+        DebugLog.i("$TAG: skill $skillName pinned=$pinned")
+        return true
+    }
+
+    /**
+     * 检查技能是否为 pinned
+     */
+    fun isPinned(skillName: String): Boolean {
+        return usageRecords[skillName]?.isPinned == true
+    }
+
+    private fun markSkillStale(skillName: String) {
+        // 记录 stale 标记到 usage records 的 metadata 中
+        val existing = usageRecords[skillName]
+        if (existing != null) {
+            usageRecords[skillName] = existing.copy(lastUsedAt = System.currentTimeMillis())
+            saveUsageRecords()
+        }
+        DebugLog.d("$TAG: marked skill $skillName as stale")
     }
 
     // ── 持久化状态 ──
@@ -163,6 +238,46 @@ class CuratorService(
         }
     }
 
+    private fun loadUsageRecords(): Map<String, SkillUsageRecord> {
+        if (!usageFile.exists()) return emptyMap()
+        return try {
+            val json = JSONObject(usageFile.readText())
+            val keys = json.keys()
+            val result = mutableMapOf<String, SkillUsageRecord>()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val obj = json.optJSONObject(key) ?: continue
+                result[key] = SkillUsageRecord(
+                    skillName = key,
+                    lastUsedAt = obj.optLong("lastUsedAt", 0L),
+                    useCount = obj.optInt("useCount", 1),
+                    isPinned = obj.optBoolean("isPinned", false),
+                )
+            }
+            result
+        } catch (e: Exception) {
+            DebugLog.w("$TAG: failed to load usage records — ${e.message}")
+            emptyMap()
+        }
+    }
+
+    private fun saveUsageRecords() {
+        try {
+            usageFile.parentFile?.mkdirs()
+            val json = JSONObject()
+            for ((name, record) in usageRecords) {
+                json.put(name, JSONObject().apply {
+                    put("lastUsedAt", record.lastUsedAt)
+                    put("useCount", record.useCount)
+                    put("isPinned", record.isPinned)
+                })
+            }
+            usageFile.writeText(json.toString(2))
+        } catch (e: Exception) {
+            DebugLog.e("$TAG: failed to save usage records — ${e.message}")
+        }
+    }
+
     // ── 公开 API ──
     fun pause() {
         state = state.copy(paused = true)
@@ -183,4 +298,9 @@ class CuratorService(
         saveState(state)
         DebugLog.i("$TAG: state reset")
     }
+
+    /**
+     * 获取当前系统 Prompt 片段（委托给 SkillLoader）
+     */
+    fun buildSkillsSystemPrompt(): String = skillLoader.buildSkillsSystemPrompt()
 }
