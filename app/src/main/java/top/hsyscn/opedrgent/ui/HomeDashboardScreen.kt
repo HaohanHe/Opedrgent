@@ -191,7 +191,7 @@ fun HomeDashboardScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         if (recentNotes.isEmpty()) {
-            EmptyRecentNotes(onNewNote = onNewNote)
+            EmptyRecentNotes(onNewNote = onNewNote, onNavigateToAi = onNavigateToAi)
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -537,9 +537,9 @@ private fun RecentNoteItem(note: Note, onClick: () -> Unit) {
     }
 }
 
-/** 空最近笔记状态 */
+/** 空最近笔记状态（含 AI 对话引导） */
 @Composable
-private fun EmptyRecentNotes(onNewNote: () -> Unit) {
+private fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -557,5 +557,36 @@ private fun EmptyRecentNotes(onNewNote: () -> Unit) {
             fontSize = 13.sp,
             color = TextGrey.copy(alpha = 0.7f),
         )
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // AI 对话引导卡片
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.05f)),
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .clickable { onNavigateToAi() },
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(AccentBlue.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.ChatBubble, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("试试 AI 智能助手", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = TextDark)
+                    Text("输入想法，让 AI 帮你整理成结构化内容", fontSize = 12.sp, color = TextGrey)
+                }
+                Icon(Icons.Default.ArrowForward, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+            }
+        }
     }
 }
