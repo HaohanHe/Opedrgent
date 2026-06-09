@@ -54,6 +54,7 @@ fun NoteEditorScreen(
     onSaved: (Long) -> Unit = {},
     onSendToChat: (Long) -> Unit = {},
     onSendWithSkill: (Long, String) -> Unit = { _, _ -> },
+    onOpenEditorTeam: (String) -> Unit = { _ -> },
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -413,6 +414,12 @@ fun NoteEditorScreen(
                     AIActionButton("✨ 润色", "优化表达，提升质量", "text_refine") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
+                    }
+                    HorizontalDivider(color = Color(0xFFE0E0E0), modifier = Modifier.padding(vertical = 4.dp))
+                    AIActionButton("🖊️ AI 编辑团", "8人编辑团协作创作", "editor_team") {
+                        showAiMenu = false
+                        scope.launch { save() }
+                        onOpenEditorTeam(content.text)
                     }
                 }
             },
