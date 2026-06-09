@@ -264,6 +264,7 @@ data class PlanStep(
     val role: RoleInstance,
     val instruction: String = "",      // 给该步骤的具体指令
     val dependsOnPrevious: Boolean = true, // 是否依赖上一步输出
+    val condition: StepCondition? = null,  // 条件边（对标 Koog onCondition）
 )
 
 /**
@@ -294,3 +295,66 @@ private fun levenshteinDistance(a: String, b: String): Int {
 }
 
 private fun dist(a: String, b: String): Int = levenshteinDistance(a.lowercase(), b.lowercase())
+
+// ==================== 条件边（对标 Koog onCondition） ====================
+
+/**
+ * 步骤条件：控制是否执行某一步骤
+ */
+data class StepCondition(
+    val expression: String,        // 条件表达式（如 "output_length > 1000", "contains_error == false"）
+    val description: String = "",   // 自然语言描述
+)
+
+/**
+ * 条件分支：根据条件选择不同路径
+ */
+data class ConditionalBranch(
+    val condition: StepCondition,
+    val thenSteps: List<PlanStep>,    // 条件满足时执行的步骤
+    val elseSteps: List<PlanStep> = emptyList(), // 条件不满足时执行的步骤
+)
+
+/**
+ * 工作流存储：跨步骤共享状态（对标 Koog storage）
+ */
+class WorkflowStorage {
+    private val data = mutableMapOf<String, Any>()
+    
+    fun set(key: String, value: Any) {
+        data[key] = value
+        DebugLog.i("WorkflowStorage: set[$key] = ${value.toString().take(50)}")
+    }
+    
+    @Suppress("UNCHECKED_CAST")
+    fun <T> get(key: String): T? = data[key] as? T
+    
+    fun getOrDefault(key: String, default: String): String = get<String>(key) ?: default
+    
+    fun contains(key: String): Boolean = data.containsKey(key)
+    
+    fun remove(key: String) { data.remove(key) }
+    
+    fun keys(): Set<String> = data.keys.toSet()
+    
+    fun toMap(): Map<String, Any> = data.toMap()
+    
+    fun clear() { data.clear() }
+}
+
+/**
+ * 执行计划 V2：支持条件边和分支
+ */
+data class ExecutionPlanV2(
+    val steps: List<PlanStep>,
+    val branches: List<ConditionalBranch> = emptyList(),
+    val reasoning: String = "",
+    val error: String? = null,
+    val metadata: Map<String, String> = emptyMap(),
+) {
+    val isFailed: Boolean get() = error != null
+    val isEmpty: Boolean get() = steps.isEmpty() && branches.isEmpty()
+    
+    /** 转换为 V1 格式（向后兼容） */
+    fun toV1(): ExecutionPlan = ExecutionPlan(steps, reasoning)
+}

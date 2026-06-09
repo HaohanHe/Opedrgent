@@ -66,6 +66,15 @@ class EditorTeamService(
 
     fun resetCancel() { isCancelled = false }
 
+    // ==================== Workflow Storage（对标 Koog） ====================
+    
+    private val storage = WorkflowStorage()
+    
+    fun getStorage(): WorkflowStorage = storage
+    
+    /** 清理 storage（新任务开始时调用） */
+    private fun resetStorage() { storage.clear() }
+
     // ==================== 核心：规划 + 执行 ====================
 
     /**
@@ -86,6 +95,7 @@ class EditorTeamService(
         onStepComplete: (RoleInstance, String) -> Unit = { _, _ -> },
     ): PipelineResult = withContext(Dispatchers.IO) {
         resetCancel()
+        resetStorage()
         val startTime = System.currentTimeMillis()
 
         // Step 1: LLM 规划（总编分析任务）
@@ -142,6 +152,18 @@ class EditorTeamService(
             if (result.isSuccess) {
                 onStepComplete(step.role, result.output)
                 accumulatedContext = result.output
+                
+                // 自动记录到 storage（对标 Koog storage.set）
+                storage.set("step_${index}_output", result.output)
+                storage.set("step_${index}_role", step.role.alias)
+                storage.set("step_${index}_tokens", result.tokensUsed)
+                storage.set("last_output", result.output)
+                storage.set("last_role", step.role.alias)
+                
+                // 记录元数据
+                if (result.output.length > 500) {
+                    storage.set("long_output_detected", true)
+                }
             }
         }
 
@@ -204,6 +226,217 @@ class EditorTeamService(
         input: String,
     ): EditorResult {
         return executeStep(RoleInstance.Preset(role), input)
+    }
+
+    /**
+     * 带条件边的执行入口（对标 Koog onCondition）。
+     *
+     * 支持动态决策：每步执行后评估条件，
+     * 根据结果决定是否跳过后续步骤或走不同分支。
+     *
+     * @param plan V2 执行计划（含条件分支）
+     * @param conditionEvaluator 条件评估器（接收 storage 和表达式，返回布尔值）
+     */
+    suspend fun executeWithCondition(
+        plan: ExecutionPlanV2,
+        userInput: String,
+        targetPlatform: OutputPlatform? = null,
+        styleReference: String = "",
+        contextNotes: List<String> = emptyList(),
+        conditionEvaluator: ((WorkflowStorage, String) -> Boolean)? = null,
+        onPlanReady: (ExecutionPlanV2) -> Unit = {},
+        onStepComplete: (RoleInstance, String) -> Unit = { _, _ -> },
+        onBranchTaken: (ConditionalBranch, Boolean) -> Unit = { _, _ -> },
+    ): PipelineResult = withContext(Dispatchers.IO) {
+        resetCancel()
+        resetStorage()
+        val startTime = System.currentTimeMillis()
+        
+        onPlanReady(plan)
+        
+        if (plan.isEmpty || isCancelled) {
+            return@withContext PipelineResult(
+                steps = emptyList(),
+                finalOutput = "",
+                plan = plan.toV1(),
+                totalTokensUsed = 0,
+                totalDurationMs = System.currentTimeMillis() - startTime,
+            )
+        }
+        
+        val allSteps = mutableListOf<EditorResult>()
+        var totalTokens = 0
+        var accumulatedContext = userInput
+        
+        // 执行主步骤序列
+        for ((index, step) in plan.steps.withIndex()) {
+            if (isCancelled) break
+            
+            // 检查步骤级条件
+            if (step.condition != null) {
+                val shouldExecute = evaluateCondition(step.condition!!, conditionEvaluator)
+                if (!shouldExecute) {
+                    DebugLog.i("EditorTeamService: step $index skipped (condition: ${step.condition.expression})")
+                    continue
+                }
+            }
+            
+            val stepInput = if (step.dependsOnPrevious && allSteps.isNotEmpty()) {
+                allSteps.last().output.ifBlank { accumulatedContext }
+            } else {
+                accumulatedContext
+            }
+            
+            val stepContext = allSteps.mapNotNull { r ->
+                if (r.isSuccess) "【${r.role.alias}】的输出：\n${r.output.take(2000)}" else null
+            }.takeLast(3)
+            
+            val result = executeStep(
+                role = step.role,
+                input = stepInput,
+                extraInstructions = step.instruction,
+                contextNotes = stepContext + contextNotes,
+            )
+            
+            allSteps.add(result)
+            totalTokens += result.tokensUsed
+            
+            if (result.isSuccess) {
+                onStepComplete(step.role, result.output)
+                accumulatedContext = result.output
+                
+                // 存储到 workflow storage
+                storage.set("step_$index", result.output)
+                storage.set("last_output", result.output)
+            }
+        }
+        
+        // 评估并执行条件分支
+        for (branch in plan.branches) {
+            if (isCancelled) break
+            
+            val shouldTakeBranch = evaluateCondition(branch.condition, conditionEvaluator)
+            onBranchTaken(branch, shouldTakeBranch)
+            
+            val branchSteps = if (shouldTakeBranch) branch.thenSteps else branch.elseSteps
+            for (step in branchSteps) {
+                if (isCancelled) break
+                
+                val stepInput = allSteps.lastOrNull { it.isSuccess }?.output ?: accumulatedContext
+                
+                val result = executeStep(
+                    role = step.role,
+                    input = stepInput,
+                    extraInstructions = step.instruction + "\n\n[上下文] " + storage.getOrDefault("last_output", ""),
+                    contextNotes = contextNotes,
+                )
+                
+                allSteps.add(result)
+                totalTokens += result.tokensUsed
+                
+                if (result.isSuccess) {
+                    onStepComplete(step.role, result.output)
+                    accumulatedContext = result.output
+                    storage.set("last_output", result.output)
+                }
+            }
+        }
+        
+        val finalOutput = allSteps.lastOrNull { it.isSuccess }?.output ?: ""
+        
+        PipelineResult(
+            steps = allSteps.toList(),
+            finalOutput = finalOutput,
+            plan = plan.toV1(),
+            totalTokensUsed = totalTokens,
+            totalDurationMs = System.currentTimeMillis() - startTime,
+        )
+    }
+    
+    /**
+     * 评估条件表达式。
+     * 
+     * 支持简单表达式和 LLM 语义判断两种模式。
+     */
+    private suspend fun evaluateCondition(
+        condition: StepCondition,
+        customEvaluator: ((WorkflowStorage, String) -> Boolean)?,
+    ): Boolean {
+        // 优先使用自定义评估器
+        customEvaluator?.let { return it(storage, condition.expression) }
+        
+        // 内置简单表达式求值
+        return try {
+            when {
+                // 输出长度检查
+                condition.expression.contains("output_length") -> {
+                    val lastOutput = storage.getOrDefault("last_output", "")
+                    val threshold = extractNumber(condition.expression) ?: 0
+                    when {
+                        condition.expression.contains(">") -> lastOutput.length > threshold
+                        condition.expression.contains("<") -> lastOutput.length < threshold
+                        condition.expression.contains(">=") -> lastOutput.length >= threshold
+                        condition.expression.contains("<=") -> lastOutput.length <= threshold
+                        else -> true // 无法解析则默认执行
+                    }
+                }
+                // 错误检查
+                condition.expression.contains("contains_error") || condition.expression.contains("has_error") -> {
+                    val lastResult = storage.get<String>("last_output") ?: ""
+                    !lastResult.lowercase().contains("error") && 
+                    !lastResult.lowercase().contains("失败") &&
+                    !lastResult.lowercase().contains("异常")
+                }
+                // 存储键存在性检查
+                condition.expression.contains("storage.has") -> {
+                    val key = condition.expression.substringAfter("storage.has(").substringBefore(")")
+                    storage.contains(key.trim())
+                }
+                // 默认：让 LLM 判断
+                else -> run { evaluateConditionWithLLM(condition) }
+            }
+        } catch (e: Exception) {
+            DebugLog.w("EditorTeamService: condition eval error: ${e.message}, defaulting to true")
+            true // 条件评估失败默认执行
+        }
+    }
+    
+    /**
+     * 使用 LLM 评估复杂条件（语义级别判断）。
+     */
+    private suspend fun evaluateConditionWithLLM(condition: StepCondition): Boolean {
+        val config = apiSettings.getApiConfig() ?: return true
+        val lastOutput = storage.getOrDefault("last_output", "(无前序输出)")
+        
+        val prompt = """你是一个条件判断器。请严格按以下格式输出 ONLY "true" 或 "false"。
+
+## 待判断的条件
+${condition.description.ifBlank { condition.expression }}
+
+## 当前工作流状态
+- 上一步输出（前200字）：${lastOutput.take(200)}
+- Storage 键：${storage.keys().joinToString(", ")}
+
+## 判断规则
+基于当前状态，判断条件是否满足。只能输出 true 或 false，不要输出其他内容。"""
+        
+        return try {
+            val response = llmClient.chatCompletions(
+                config = config,
+                system = prompt,
+                messages = listOf(ChatMessage(role = Role.USER, content = "请判断：${condition.expression}")),
+            )
+            response.trim().lowercase().contains("true")
+        } catch (e: Exception) {
+            DebugLog.w("EditorTeamService: LLM condition eval error: ${e.message}")
+            true
+        }
+    }
+    
+    /** 从表达式中提取数字 */
+    private fun extractNumber(expression: String): Int? {
+        val regex = Regex("\\d+")
+        return regex.find(expression)?.value?.toIntOrNull()
     }
 
     // ==================== 内部方法 ====================
