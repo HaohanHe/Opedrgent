@@ -67,6 +67,18 @@ class ApprovalPolicy(
     var trustLevel: TrustLevel = TrustLevel.NORMAL,
 ) {
 
+    companion object {
+        /** 全局单例实例，供 Settings UI 和运行时共同访问 */
+        @Volatile
+        private var _instance: ApprovalPolicy? = null
+
+        /** 获取全局单例（懒加载） */
+        fun getInstance(): ApprovalPolicy =
+            _instance ?: synchronized(this) {
+                _instance ?: ApprovalPolicy().also { _instance = it }
+            }
+    }
+
     /** 工具名 → 风险等级映射（默认规则） */
     private val toolRiskMap = mutableMapOf<String, RiskLevel>(
         // SAFE: 只读和信息获取
@@ -191,6 +203,19 @@ class ApprovalPolicy(
      * @return 工具名称到风险等级的不可变映射
      */
     fun getToolRules(): Map<String, RiskLevel> = toolRiskMap.toMap()
+
+    /**
+     * 设置全局信任级别（供 Settings UI 调用）。
+     *
+     * 切换信任级别后，后续所有工具调用评估都会使用新级别。
+     *
+     * @param level 新的信任级别
+     */
+    fun setTrustLevel(level: TrustLevel) {
+        val oldLevel = this.trustLevel
+        this.trustLevel = level
+        DebugLog.i("ApprovalPolicy: 信任级别从 ${oldLevel.displayName} 切换为 ${level.displayName}")
+    }
 
     // ==================== 内部方法 ====================
 
