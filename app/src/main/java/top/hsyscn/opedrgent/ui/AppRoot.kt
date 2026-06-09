@@ -17,6 +17,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -55,6 +61,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Note
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -160,7 +167,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-enum class MainTab { NOTES, RECORDING, AI, SETTINGS }
+enum class MainTab { HOME, NOTES, RECORDING, AI, SETTINGS }
 
 @Composable
 fun AppRoot(
@@ -170,9 +177,10 @@ fun AppRoot(
     onActionConsumed: () -> Unit = {},
     vm: MainViewModel = viewModel(),
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(MainTab.NOTES) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
+    var editorTeamInitialInput by rememberSaveable { mutableStateOf("") }
 
     val state by vm.state.collectAsStateCompat()
 
@@ -220,6 +228,12 @@ fun AppRoot(
                 containerColor = Color.White,
             ) {
                 NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text("首页") },
+                    selected = selectedTab == MainTab.HOME,
+                    onClick = { selectedTab = MainTab.HOME },
+                )
+                NavigationBarItem(
                     icon = { Icon(Icons.Default.Note, contentDescription = null) },
                     label = { Text("笔记") },
                     selected = selectedTab == MainTab.NOTES,
@@ -262,6 +276,11 @@ fun AppRoot(
                 )
                 "knowledge" -> KnowledgeBaseScreen(vm = vm, onBack = { subScreen = null })
                 "export" -> ExportScreen(vm = vm, onBack = { subScreen = null })
+                "editorTeam" -> EditorTeamScreen(
+                    vm = vm,
+                    initialInput = editorTeamInitialInput,
+                    onBack = { subScreen = null },
+                )
                 "notes" -> NoteListScreen(
                     repository = vm.noteRepository,
                     folderRepository = vm.folderRepository,
@@ -318,6 +337,10 @@ fun AppRoot(
                         selectedTab = MainTab.AI
                         subScreen = null
                     },
+                    onOpenEditorTeam = { input ->
+                        editorTeamInitialInput = input
+                        subScreen = "editorTeam"
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_quick" -> NoteEditorScreen(
@@ -333,6 +356,10 @@ fun AppRoot(
                         vm.sendNoteWithSkill(noteId, skillId)
                         selectedTab = MainTab.AI
                         subScreen = null
+                    },
+                    onOpenEditorTeam = { input ->
+                        editorTeamInitialInput = input
+                        subScreen = "editorTeam"
                     },
                     onBack = { subScreen = "notes" },
                 )
@@ -350,6 +377,10 @@ fun AppRoot(
                         selectedTab = MainTab.AI
                         subScreen = null
                     },
+                    onOpenEditorTeam = { input ->
+                        editorTeamInitialInput = input
+                        subScreen = "editorTeam"
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 "noteEditor_new_image" -> NoteEditorScreen(
@@ -365,6 +396,10 @@ fun AppRoot(
                         vm.sendNoteWithSkill(noteId, skillId)
                         selectedTab = MainTab.AI
                         subScreen = null
+                    },
+                    onOpenEditorTeam = { input ->
+                        editorTeamInitialInput = input
+                        subScreen = "editorTeam"
                     },
                     onBack = { subScreen = "notes" },
                 )
@@ -382,10 +417,37 @@ fun AppRoot(
                         selectedTab = MainTab.AI
                         subScreen = null
                     },
+                    onOpenEditorTeam = { input ->
+                        editorTeamInitialInput = input
+                        subScreen = "editorTeam"
+                    },
                     onBack = { subScreen = "notes" },
                 )
                 null -> {
                     when (selectedTab) {
+                        MainTab.HOME -> HomeDashboardScreen(
+                            vm = vm,
+                            repository = vm.noteRepository,
+                            folderRepository = vm.folderRepository,
+                            onNewNote = { subScreen = "noteEditor_new" },
+                            onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onSendToChat = { noteId ->
+                                vm.sendNoteToChat(noteId)
+                                selectedTab = MainTab.AI
+                            },
+                            onSendWithSkill = { noteId, skillId ->
+                                vm.sendNoteWithSkill(noteId, skillId)
+                                selectedTab = MainTab.AI
+                            },
+                            onOpenSubScreen = { subScreen = it },
+                            onNavigateToAi = {
+                                selectedTab = MainTab.AI
+                                if (vm.state.value.current == null) {
+                                    vm.createSessionAndNavigate("新对话")
+                                }
+                            },
+                            onNavigateToNotes = { selectedTab = MainTab.NOTES },
+                        )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
                             folderRepository = vm.folderRepository,
@@ -448,6 +510,10 @@ fun AppRoot(
                                     vm.sendNoteWithSkill(nid, skillId)
                                     selectedTab = MainTab.AI
                                     subScreen = null
+                                },
+                                onOpenEditorTeam = { input ->
+                                    editorTeamInitialInput = input
+                                    subScreen = "editorTeam"
                                 },
                                 onBack = { subScreen = "notes" },
                             )
@@ -726,6 +792,9 @@ fun SessionScreen(
                 }
             }
         }
+
+        // AI 助手状态指示器条
+        AiStatusBar(isStreaming = state.isStreaming)
 
         if (session == null) {
             Column(
@@ -1220,6 +1289,43 @@ fun SessionScreen(
                             }
                         }
 
+                        // AI Editor Team
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    showMoreOptionsSheet = false
+                                    onOpenSubScreen("editorTeam")
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "\uD83E\uDDD1\u200D\uD83C\uDFA8",
+                                    fontSize = 24.sp,
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "AI 编辑团",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = "8人编辑团队：选题、素材、撰写、审稿、排版",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGrey,
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
@@ -1359,12 +1465,65 @@ fun SessionScreen(
     }
 }
 
+/**
+ * AI 助手状态指示器条（类似得到大脑的小布头像 + "我在"）。
+ * 显示在 SessionScreen 顶部栏下方，增强"AI 在线陪伴"的感觉。
+ */
+@Composable
+private fun AiStatusBar(isStreaming: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulse",
+    )
 
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardWhite)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 小布猫头鹰头像
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFF667EEA), Color(0xFF764BA2)),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "\uD83E\uDD89", fontSize = 16.sp)
+        }
 
+        Spacer(modifier = Modifier.width(10.dp))
 
+        // 状态文字
+        Text(
+            text = if (isStreaming) "思考中..." else "我在",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = AccentBlue,
+        )
 
-
-
+        // 在线指示灯
+        Box(
+            modifier = Modifier
+                .padding(start = 6.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(GreenDot.copy(alpha = pulseAlpha)),
+        )
+    }
+}
 
 
 @Composable

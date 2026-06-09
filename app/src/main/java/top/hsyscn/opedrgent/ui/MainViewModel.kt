@@ -108,6 +108,12 @@ import top.hsyscn.opedrgent.stt.RecognitionMode
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.insight.InsightSproutEngine
 import top.hsyscn.opedrgent.insight.SproutConfig
+import top.hsyscn.opedrgent.intelligence.BehaviorEvent
+import top.hsyscn.opedrgent.intelligence.DailyReview
+import top.hsyscn.opedrgent.intelligence.PushNotificationHelper
+import top.hsyscn.opedrgent.intelligence.Recommendation
+import top.hsyscn.opedrgent.intelligence.RecommendationEngine
+import top.hsyscn.opedrgent.intelligence.UserBehaviorTracker
 
 data class UiState(
     val sessions: List<SessionSummary> = emptyList(),
@@ -235,6 +241,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
+
+    // ==================== 主动推送引擎（越用越熟）====================
+    val behaviorTracker = UserBehaviorTracker(app)
+    private val recommendationEngine = RecommendationEngine(behaviorTracker, noteRepository)
+    val pushNotificationHelper = PushNotificationHelper(app)
+
+    private val _recommendations = MutableStateFlow<List<Recommendation>>(emptyList())
+    /** 当前推荐列表（首页展示） */
+    val recommendations: StateFlow<List<Recommendation>> = _recommendations.asStateFlow()
+
+    private val _dailyReview = MutableStateFlow<DailyReview?>(null)
+    /** 每日回顾数据 */
+    val dailyReview: StateFlow<DailyReview?> = _dailyReview.asStateFlow()
     
     // Skills registry and prompt cache
     private val skillRegistry = top.hsyscn.opedrgent.mcp.skills.SkillRegistry.getInstance().apply {
@@ -412,7 +431,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
         DebugLog.i("MainViewModel init")
-        
+
+        // 主动推送引擎：记录应用打开事件
+        behaviorTracker.track(BehaviorEvent.APP_OPENED)
+
         // Load built-in skills
         top.hsyscn.opedrgent.mcp.skills.BuiltinSkillLoader.loadBuiltinSkills(skillRegistry)
         // Initialize skill prompt cache
@@ -424,8 +446,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (result.ran) {
                 DebugLog.i("Curator: maintenance completed — ${result.summary}")
             }
+            // 首次生成推荐
+            refreshActivePushInternal()
         }
-        
+
         _state.value = _state.value.copy(
             deepThinkingEnabled = apiSettings.isDeepThinking(),
             deepResearchEnabled = apiSettings.isDeepResearch(),
@@ -485,6 +509,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(memories = memoryStore.list())
     }
 
+    // ==================== 主动推送引擎 API ====================
+
+    /**
+     * 刷新主动推荐列表（公开方法，供 UI 调用）。
+     * 在后台线程异步执行，完成后更新 StateFlow。
+     */
+    fun refreshActivePush() {
+        viewModelScope.launch(Dispatchers.IO) { refreshActivePushInternal() }
+    }
+
+    /**
+     * 内部推荐刷新实现 — 同步调用推荐引擎并更新 StateFlow。
+     */
+    private suspend fun refreshActivePushInternal() {
+        try {
+            val recs = recommendationEngine.generateRecommendations()
+            _recommendations.value = recs
+            val review = recommendationEngine.generateDailyReview()
+            _dailyReview.value = review
+        } catch (e: Exception) {
+            DebugLog.e("推荐引擎刷新失败: ${e.message}")
+        }
+    }
+
     fun addMemory(title: String, content: String, type: MemoryType = MemoryType.USER) {
         memoryStore.add(title, content, type)
         refreshMemories()
@@ -529,6 +577,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun createSession(title: String) {
+        behaviorTracker.track(BehaviorEvent.AI_CHAT_CREATED, mapOf("title" to title))
         val session = store.createSession(title)
         refreshSessions()
         openSession(session.id)
@@ -582,6 +631,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun sendUserMessage(text: String) {
+        // 主动推送引擎：追踪 AI 消息发送行为
+        behaviorTracker.track(BehaviorEvent.AI_MESSAGE_SENT, mapOf("length" to text.length.toString()))
+
         var sessionId = _state.value.current?.id
         if (sessionId == null) {
             // 从外部入口进入时没有活跃 session，自动创建
@@ -616,6 +668,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 将笔记内容发送到聊天，让 AI 分析 */
     fun sendNoteToChat(noteId: Long) {
+        behaviorTracker.track(BehaviorEvent.NOTE_SENT_TO_AI, mapOf("noteId" to noteId.toString()))
         viewModelScope.launch(Dispatchers.IO) {
             val note = noteRepository.getNoteById(noteId) ?: return@launch
             val linkedIds = noteRepository.getLinkedNotes(noteId)
@@ -648,6 +701,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 自动切换到 AI Tab 并发送消息。
      */
     fun sendNoteWithSkill(noteId: Long, skillId: String) {
+        behaviorTracker.track(BehaviorEvent.SKILL_USED, mapOf("noteId" to noteId.toString(), "skillId" to skillId))
         viewModelScope.launch(Dispatchers.IO) {
             val note = noteRepository.getNoteById(noteId) ?: return@launch
 
@@ -3269,6 +3323,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun handleIncomingShare(text: String) {
+        behaviorTracker.track(BehaviorEvent.FILE_IMPORTED, mapOf("source" to "share"))
         val raw = text.trim()
         if (raw.isEmpty()) return
         val url = raw.takeIf { it.startsWith("http://") || it.startsWith("https://") }
@@ -3453,6 +3508,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun importFile(uri: Uri) {
+        behaviorTracker.track(BehaviorEvent.FILE_IMPORTED, mapOf("source" to "file_picker"))
         val sessionId = _state.value.current?.id ?: return
         viewModelScope.launch {
             setLoading(true)
