@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,6 +96,10 @@ fun HomeDashboardScreen(
     onOpenSubScreen: (String) -> Unit = {},
     onNavigateToAi: () -> Unit,
     onNavigateToNotes: () -> Unit,
+    // 新增：推荐卡片回调参数
+    onOpenEditorTeam: () -> Unit = {},
+    onNavigateToRecording: () -> Unit = {},
+    onNavigateToKnowledge: () -> Unit = {},
 ) {
     // AI 助手输入框状态
     var aiInputText by remember { mutableStateOf("") }
@@ -102,6 +108,12 @@ fun HomeDashboardScreen(
     var recentNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var todayNoteCount by remember { mutableStateOf(0) }
     var totalNoteCount by remember { mutableStateOf(0L) }
+
+    // 推荐卡片相关状态
+    var hasUsedEditorTeam by remember { mutableStateOf(false) }  // 是否使用过编辑团
+    var hasTodayRecording by remember { mutableStateOf(false) }   // 今天是否有录音
+    var knowledgeDocCount by remember { mutableStateOf(0) }      // 知识库文档数
+    var recommendations by remember { mutableStateOf<List<RecommendationItem>>(emptyList()) }  // 推荐列表
 
     // 加载数据
     LaunchedEffect(Unit) {
@@ -117,6 +129,17 @@ fun HomeDashboardScreen(
             todayNoteCount = notes.count { it.createdAt >= todayStart }
             totalNoteCount = notes.size.toLong()
             recentNotes = notes.take(5)
+            knowledgeDocCount = notes.count { it.type == top.hsyscn.opedrgent.note.NoteType.KNOWLEDGE }
+
+            // 根据条件动态生成推荐列表
+            recommendations = buildRecommendations(
+                hasUsedEditorTeam = hasUsedEditorTeam,
+                hasTodayRecording = hasTodayRecording,
+                knowledgeDocCount = knowledgeDocCount,
+                onOpenEditorTeam = onOpenEditorTeam,
+                onNavigateToRecording = onNavigateToRecording,
+                onNavigateToKnowledge = onNavigateToKnowledge,
+            )
         }
     }
 
@@ -155,6 +178,13 @@ fun HomeDashboardScreen(
             totalCount = totalNoteCount.toInt(),
             aiSessionCount = vm.sessionCount,
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ========== 3.5 智能推荐卡片区域 ==========
+        if (recommendations.isNotEmpty()) {
+            RecommendationSection(recommendations = recommendations)
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -586,6 +616,197 @@ private fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit =
                     Text("输入想法，让 AI 帮你整理成结构化内容", fontSize = 12.sp, color = TextGrey)
                 }
                 Icon(Icons.Default.ArrowForward, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+// ==================== 推荐卡片相关组件 ====================
+
+/** 推荐项数据模型 */
+data class RecommendationItem(
+    val icon: ImageVector,
+    val title: String,
+    val description: String,
+    val onClick: () -> Unit,
+    val gradientColors: List<Color> = listOf(AccentBlue, Color(0xFF6C63FF)),  // 默认渐变色
+)
+
+/**
+ * 根据用户行为动态生成推荐列表（按优先级排序）
+ *
+ * 优先级规则：
+ * 1. AI 编辑团推荐（如果用户从未使用过编辑团）
+ * 2. 录音转写推荐（如果今天没有录音记录）
+ * 3. 知识库推荐（如果知识库文档 < 3 篇）
+ * 4. 默认推荐（以上条件都不满足时，轮播展示所有推荐）
+ */
+private fun buildRecommendations(
+    hasUsedEditorTeam: Boolean,
+    hasTodayRecording: Boolean,
+    knowledgeDocCount: Int,
+    onOpenEditorTeam: () -> Unit,
+    onNavigateToRecording: () -> Unit,
+    onNavigateToKnowledge: () -> Unit,
+): List<RecommendationItem> {
+    val recommendations = mutableListOf<RecommendationItem>()
+
+    // a. AI 编辑团推荐（优先级最高）
+    if (!hasUsedEditorTeam) {
+        recommendations.add(
+            RecommendationItem(
+                icon = Icons.Default.AutoAwesome,
+                title = "试试 AI 编辑团",
+                description = "输入主题，AI 自动规划角色团队协作创作",
+                onClick = onOpenEditorTeam,
+                gradientColors = listOf(Color(0xFF667eea), Color(0xFF764ba2)),
+            )
+        )
+    }
+
+    // b. 录音转写推荐
+    if (!hasTodayRecording) {
+        recommendations.add(
+            RecommendationItem(
+                icon = Icons.Default.Mic,
+                title = "语音速记",
+                description = "录音自动转文字，一键保存为笔记",
+                onClick = onNavigateToRecording,
+                gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
+            )
+        )
+    }
+
+    // c. 知识库推荐
+    if (knowledgeDocCount < 3) {
+        recommendations.add(
+            RecommendationItem(
+                icon = Icons.Default.FolderSpecial,
+                title = "构建知识库",
+                description = "导入文档，让 AI 帮你管理和检索知识",
+                onClick = onNavigateToKnowledge,
+                gradientColors = listOf(Color(0xFF4facfe), Color(0xFF00f2fe)),
+            )
+        )
+    }
+
+    // d. 如果以上条件都不满足，返回默认推荐（轮播展示所有推荐）
+    if (recommendations.isEmpty()) {
+        return listOf(
+            RecommendationItem(
+                icon = Icons.Default.AutoAwesome,
+                title = "试试 AI 编辑团",
+                description = "输入主题，AI 自动规划角色团队协作创作",
+                onClick = onOpenEditorTeam,
+                gradientColors = listOf(Color(0xFF667eea), Color(0xFF764ba2)),
+            ),
+            RecommendationItem(
+                icon = Icons.Default.Mic,
+                title = "语音速记",
+                description = "录音自动转文字，一键保存为笔记",
+                onClick = onNavigateToRecording,
+                gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
+            ),
+            RecommendationItem(
+                icon = Icons.Default.FolderSpecial,
+                title = "构建知识库",
+                description = "导入文档，让 AI 帮你管理和检索知识",
+                onClick = onNavigateToKnowledge,
+                gradientColors = listOf(Color(0xFF4facfe), Color(0xFF00f2fe)),
+            ),
+        )
+    }
+
+    return recommendations
+}
+
+/** 推荐卡片区域容器（水平滑动展示） */
+@Composable
+private fun RecommendationSection(recommendations: List<RecommendationItem>) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(recommendations, key = { it.title }) { recommendation ->
+            RecommendationCard(item = recommendation)
+        }
+    }
+}
+
+/** 单个推荐卡片（Material3 Card + 渐变背景） */
+@Composable
+private fun RecommendationCard(item: RecommendationItem) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier
+            .width(280.dp)
+            .clickable { item.onClick() },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(colors = item.gradientColors)
+                )
+                .padding(20.dp),
+        ) {
+            Column {
+                // 图标
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.25f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.title,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 标题
+                Text(
+                    text = item.title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 描述
+                Text(
+                    text = item.description,
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.9f),
+                    lineHeight = 18.sp,
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 箭头图标
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "立即体验",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "立即体验",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
         }
     }

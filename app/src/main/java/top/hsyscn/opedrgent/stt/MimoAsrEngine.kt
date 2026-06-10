@@ -265,19 +265,23 @@ class MimoAsrEngine(
 
     /**
      * 将当前缓冲区内容作为一个 chunk 发送到 MiMO API 进行转录。
-     * 成功后清空缓冲区并返回转录文本；失败返回 null（不清空，下次重试）。
+     *
+     * **修复说明**：原实现在 synchronized 块内立即清空缓冲区，导致失败时数据丢失。
+     * 新实现采用"事务性"策略：先取出数据，成功后再清空；失败时回填数据到缓冲区头部。
+     *
+     * @return 转录文本；失败返回 null（缓冲区数据保留，下次可重试）
      */
     private suspend fun sendBufferChunk(): String? = withContext(Dispatchers.IO) {
+        // 步骤1：从缓冲区取出数据（此时不清空）
         val chunkData: FloatArray
         synchronized(audioBuffer) {
             if (audioBuffer.isEmpty()) return@withContext null
             chunkData = audioBuffer.toFloatArray()
-            audioBuffer.clear()
-            lastChunkTimeMs = System.currentTimeMillis()
+            // 注意：这里暂不 clear()，等成功后再清空
         }
 
         try {
-            // 噪声抑制 + 自动增益预处理
+            // 步骤2：噪声抑制 + 自动增益预处理
             val processed = AudioProcessor.applyNoiseSuppression(chunkData)
 
             // 编码为 WAV → Base64
@@ -306,6 +310,8 @@ class MimoAsrEngine(
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     DebugLog.e(TAG, "流式 chunk 请求失败: HTTP ${response.code}, body=${body.take(200)}")
+                    // 失败：回填数据到缓冲区
+                    restoreChunkToBuffer(chunkData)
                     return@withContext null
                 }
                 try {
@@ -319,7 +325,24 @@ class MimoAsrEngine(
                     }
                 } catch (e: Exception) {
                     DebugLog.w(TAG, "解析 chunk 响应失败: ${e.message}")
+                    // 解析失败也回填数据（保守策略）
+                    restoreChunkToBuffer(chunkData)
+                    return@withContext null
                 }
+            }
+
+            // 步骤3：成功 - 清空缓冲区并更新时间戳
+            synchronized(audioBuffer) {
+                // 移除已发送的数据（从头部移除 chunkData.size 个元素）
+                if (audioBuffer.size >= chunkData.size) {
+                    val remaining = audioBuffer.drop(chunkData.size)
+                    audioBuffer.clear()
+                    audioBuffer.addAll(remaining)
+                } else {
+                    // 异常情况：缓冲区被外部修改过，直接清空
+                    audioBuffer.clear()
+                }
+                lastChunkTimeMs = System.currentTimeMillis()
             }
 
             if (text.isNotEmpty()) {
@@ -327,10 +350,28 @@ class MimoAsrEngine(
             }
             text.ifEmpty { null }
         } catch (e: Exception) {
-            DebugLog.w(TAG, "chunk 发送失败（数据保留在缓冲区等待重试）: ${e.message}")
-            // 失败时不清空缓冲区——数据还在 synchronized 块外已经取出了
-            // 但为了简单起见，这里返回 null 让上层知道失败了
+            DebugLog.w(TAG, "chunk 发送失败（数据已回填到缓冲区等待重试）: ${e.message}")
+            // 失败时回填数据到缓冲区头部，保证数据不丢失
+            restoreChunkToBuffer(chunkData)
             null
+        }
+    }
+
+    /**
+     * 将未成功发送的 chunk 数据回填到缓冲区头部。
+     *
+     * 确保在网络故障、API 错误等场景下音频数据不会丢失，
+     * 下次定时发送或静音检测触发时会重新发送。
+     */
+    private fun restoreChunkToBuffer(chunkData: FloatArray) {
+        synchronized(audioBuffer) {
+            // 将 chunk 数据插回缓冲区头部（保持时间顺序）
+            val tempList = chunkData.toMutableList()
+            tempList.addAll(audioBuffer)
+            audioBuffer.clear()
+            audioBuffer.addAll(tempList)
+            
+            DebugLog.d(TAG, "已回填 ${chunkData.size} 个采样点到缓冲区（当前缓冲区大小=${audioBuffer.size}）")
         }
     }
 
