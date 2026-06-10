@@ -131,6 +131,7 @@ fun SessionScreen(
     var prompt by rememberSaveable { mutableStateOf("") }
     var listening by rememberSaveable { mutableStateOf(false) }
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
+    var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -450,9 +451,14 @@ fun SessionScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = {
-                                if (prompt.isNotBlank()) {
+                                if (!isSending && prompt.isNotBlank()) {
+                                    isSending = true
                                     vm.sendUserMessage(prompt)
                                     prompt = ""
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(500)
+                                        isSending = false
+                                    }
                                 }
                             }),
                         )
@@ -515,24 +521,44 @@ fun SessionScreen(
                 // Send button
                 Card(
                     shape = CircleShape,
-                    colors = CardDefaults.cardColors(containerColor = if (prompt.isNotBlank()) AccentBlue else Color(0xFFE0E0E0)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            isSending -> Color(0xFFBDBDBD)  // 发送中：灰色
+                            prompt.isNotBlank() -> AccentBlue
+                            else -> Color(0xFFE0E0E0)
+                        },
+                    ),
                     modifier = Modifier
                         .size(37.dp)
                         .clip(CircleShape),
                     onClick = {
-                        if (prompt.isNotBlank()) {
+                        if (!isSending && prompt.isNotBlank()) {
+                            isSending = true
                             vm.sendUserMessage(prompt)
                             prompt = ""
+                            // 流式输出开始后重置发送状态
+                            scope.launch {
+                                kotlinx.coroutines.delay(500)
+                                isSending = false
+                            }
                         }
                     },
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            Icons.Default.ArrowForward,
-                            contentDescription = "send",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
+                        if (isSending) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.ArrowForward,
+                                contentDescription = "send",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
             }

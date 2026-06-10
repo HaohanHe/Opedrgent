@@ -70,6 +70,10 @@ fun NoteEditorScreen(
     var showFormatToolbar by remember { mutableStateOf(true) }
     var showAiMenu by remember { mutableStateOf(false) }
 
+    // 未保存更改追踪：记录上次保存时的内容快照
+    var lastSavedContentSnapshot by remember { mutableStateOf(initialContent) }
+    var showUnsavedDialog by remember { mutableStateOf(false) }
+
     suspend fun save(showGraphInfo: Boolean = false) {
         if (isSaving) return
         isSaving = true
@@ -84,6 +88,8 @@ fun NoteEditorScreen(
             note.setTags(tags)
             val id = repository.saveNote(note)
             lastSavedAt = System.currentTimeMillis()
+            // 同步保存快照，用于未保存更改检测
+            lastSavedContentSnapshot = content.text
             onSaved(id)
             // 手动保存时显示知识图谱关联信息
             if (showGraphInfo && id > 0) {
@@ -148,8 +154,16 @@ fun NoteEditorScreen(
                 title = { Text(if (noteId == null) "新建笔记" else "编辑笔记") },
                 navigationIcon = {
                     IconButton(onClick = {
-                        scope.launch { save() }
-                        onBack()
+                        // 检测是否有未保存的更改
+                        val hasUnsavedChanges = content.text != lastSavedContentSnapshot &&
+                            content.text.isNotBlank() &&
+                            content.text != initialContent
+                        if (hasUnsavedChanges) {
+                            showUnsavedDialog = true
+                        } else {
+                            scope.launch { save() }
+                            onBack()
+                        }
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
                 actions = {
@@ -424,6 +438,35 @@ fun NoteEditorScreen(
                 }
             },
             confirmButton = {},
+        )
+    }
+
+    // 未保存更改确认对话框
+    if (showUnsavedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnsavedDialog = false },
+            title = { Text("未保存的更改") },
+            text = {
+                Text(
+                    "您有尚未保存的内容。是否要在离开前保存？",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    scope.launch {
+                        save(showGraphInfo = true)
+                        onBack()
+                    }
+                }) { Text("保存并离开", fontWeight = FontWeight.SemiBold, color = AccentBlue) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    onBack()
+                }) { Text("不保存") }
+            },
         )
     }
 }
