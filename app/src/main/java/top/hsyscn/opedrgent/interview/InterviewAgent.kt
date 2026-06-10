@@ -34,6 +34,48 @@ object InterviewAgent {
 
     private const val TAG = "InterviewAgent"
 
+    // ==================== 海马体记忆系统 ====================
+
+    /**
+     * 活跃的海马体实例映射（sessionId → HippocampusMemory）。
+     *
+     * 支持多个面试会话同时运行，每个会话有独立的海马体实例。
+     */
+    private val activeHippocampus = mutableMapOf<String, HippocampusMemory>()
+
+    /**
+     * 创建带海马体保护的面试会话。
+     *
+     * @param sessionId 会话唯一标识
+     * @param config 面试配置
+     * @return 海马体实例（已锚定目标）
+     */
+    fun createSession(sessionId: String, config: InterviewConfig): HippocampusMemory {
+        DebugLog.i(TAG, "创建海马体会话: $sessionId")
+
+        // 清理旧会话（如果存在）
+        activeHippocampus[sessionId]?.reset()
+
+        val hippo = HippocampusMemory(config)
+        hippo.anchorGoal()
+        activeHippocampus[sessionId] = hippo
+        return hippo
+    }
+
+    /**
+     * 获取指定会话的海马体实例。
+     */
+    fun getHippocampus(sessionId: String): HippocampusMemory? = activeHippocampus[sessionId]
+
+    /**
+     * 关闭指定会话的海马体并获取漂移报告。
+     */
+    fun closeSession(sessionId: String): HippocampusMemory.DriftReport? {
+        val hippo = activeHippocampus.remove(sessionId) ?: return null
+        DebugLog.i(TAG, "关闭海马体会话: $sessionId")
+        return hippo.getDriftReport()
+    }
+
     // ==================== 核心：单一元 Prompt ====================
 
     /**
@@ -412,6 +454,120 @@ object InterviewAgent {
         )
 
         return parseNextActionFromJson(response)
+    }
+
+    /**
+     * 处理候选人回答 → 生成追问或下一题（带海马体注意力管理版本）。
+     *
+     * 与原版 [processAnswer] 的区别：
+     * - 在调用 LLM 前，通过海马体获取注意力上下文
+     * - 将注意力上下文作为额外的 system message 注入
+     * - LLM 回复后，海马体检测漂移并记录
+     *
+     * @param llmClient LLM 客户端
+     * @param config 面试配置
+     * @param answer 候选人回答文本
+     * @param currentQuestion 当前问题
+     * @param history 完整对话历史
+     * @param currentQuestionIndex 当前问题索引
+     * @param hippo 海马体实例（必须已调用 anchorGoal）
+     * @return 下一步动作（FollowUp / NextQuestion / EndInterview）
+     */
+    suspend fun processAnswerWithAttention(
+        llmClient: LlmClient,
+        config: InterviewConfig,
+        answer: String,
+        currentQuestion: DialogueTurn,
+        history: List<DialogueTurn>,
+        currentQuestionIndex: Int,
+        hippo: HippocampusMemory,
+    ): NextAction {
+        DebugLog.i(TAG, "处理回答（海马体保护） #$currentQuestionIndex: '${answer.take(50)}...'")
+
+        val systemPrompt = buildUnifiedPrompt(config)
+        val isLastQuestion = currentQuestionIndex >= config.questionCount - 1
+
+        // 1. 海马体准备注意力上下文
+        val lastAiResponse = history.lastOrNull()?.aiMessage ?: currentQuestion.content
+        val attentionContext = hippo.prepareTurnContext(
+            turnIndex = currentQuestionIndex,
+            userMessage = answer,
+            lastAiResponse = lastAiResponse,
+        )
+
+        // 2. 构建用户消息（包含进度信息）
+        val followUpPrompt = buildString {
+            appendLine("【参与者第 ${currentQuestionIndex + 1} 个回答】")
+            appendLine(answer)
+            appendLine()
+            appendLine("当前进度：第 ${currentQuestionIndex + 1}/${config.questionCount} 题")
+
+            if (isLastQuestion) {
+                appendLine()
+                appendLine("⚠️ 这已是计划中的最后一个问题。")
+                appendLine("如果你认为已经获得了足够的信息来做出评估，可以选择结束对话（action: end_interview）。")
+                appendLine("如果认为还需要更多信息，可以继续提问（action: next_question 或 follow_up）。")
+            } else {
+                appendLine()
+                appendLine("请根据回答质量和对话进展，自主决定下一步动作：")
+                appendLine("- 回答不完整或模糊 → follow_up（追问）")
+                appendLine("- 回答完整且质量好 → next_question（下一题）")
+                appendLine("- 已获得足够信息 → end_interview（结束）")
+            }
+        }
+
+        // 3. 构建消息列表（注入注意力上下文）
+        val messages = contextToMessages(history).toMutableList()
+
+        // 注入海马体注意力上下文（作为额外的 system 消息）
+        if (attentionContext.isNotBlank()) {
+            messages.add(0, ChatMessage(role = Role.SYSTEM, content = attentionContext))
+        }
+
+        // 添加当前轮次的用户消息
+        messages.add(ChatMessage(role = Role.USER, content = followUpPrompt))
+
+        // 4. 调用 LLM
+        val response = callLlmWithMessages(
+            llmClient = llmClient,
+            systemPrompt = systemPrompt,
+            messages = messages,
+        )
+
+        // 5. 海马体记录本轮结果（用于漂移追踪）
+        val aiContent = extractContentFromJsonResponse(response)
+        hippo.detectDrift(currentQuestionIndex, answer, aiContent)
+
+        // 6. 定期更新关键信息快照
+        if (currentQuestionIndex > 0 && currentQuestionIndex % HippocampusMemory.SNAPSHOT_INTERVAL == 0) {
+            hippo.updateCriticalSnapshot(currentQuestionIndex, "第${currentQuestionIndex + 1}轮对话完成")
+        }
+
+        return parseNextActionFromJson(response)
+    }
+
+    /**
+     * 调用 LLM（支持自定义消息列表）。
+     */
+    private suspend fun callLlmWithMessages(
+        llmClient: LlmClient,
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+    ): String {
+        return try {
+            llmClient.chatCompletions(
+                config = ApiConfig(
+                    baseUrl = "",  // 将由外部注入
+                    apiKey = "",
+                    model = "",
+                ),
+                system = systemPrompt,
+                messages = messages,
+            )
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "LLM 调用失败: ${e.message}")
+            "抱歉，AI 服务暂时不可用，请稍后重试。"
+        }
     }
 
     /**
