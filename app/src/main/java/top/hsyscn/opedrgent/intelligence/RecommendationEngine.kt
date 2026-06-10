@@ -265,7 +265,7 @@ class RecommendationEngine(
             hour in 7..9 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.MORNING_GREETING,
-                    title = "早上好 ☀️",
+                    title = "早上好",
                     description = "新的一天开始了！今天有什么想记录或探索的吗？",
                     priority = 5,
                     actionText = "开始记录",
@@ -274,7 +274,7 @@ class RecommendationEngine(
             hour in 14..16 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.AFTERNOON_ENERGY,
-                    title = "下午好 ⚡",
+                    title = "下午好",
                     description = "午后时光，适合整理一下上午的想法。看看有没有需要发芽的笔记？",
                     priority = 4,
                 ))
@@ -282,7 +282,7 @@ class RecommendationEngine(
             hour in 20..22 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.EVENING_REFLECTION,
-                    title = "晚间回顾 🌙",
+                    title = "晚间回顾",
                     description = "一天即将结束，花一分钟回顾今天的收获吧。",
                     priority = 6,
                     actionText = "查看今日回顾",
@@ -293,7 +293,7 @@ class RecommendationEngine(
         if (isWeekend) {
             out.add(Recommendation.ContextualTip(
                 tipCategory = TipCategory.WEEKEND_DEEP_DIVE,
-                title = "周末深挖 📚",
+                title = "周末深挖",
                 description = "周末适合深度思考——找一条重要笔记，让 AI 帮你深度发芽分析。",
                 priority = 3,
             ))
@@ -309,7 +309,7 @@ class RecommendationEngine(
             3 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.STREAK_CELEBRATION,
-                    title = "连续使用 3 天 🎉",
+                    title = "连续使用 3 天",
                     description = "你已经连续使用了 3 天！保持记录的习惯，AI 会越来越懂你。",
                     priority = 9,
                     actionText = "太棒了",
@@ -318,7 +318,7 @@ class RecommendationEngine(
             7 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.STREAK_CELEBRATION,
-                    title = "一周不间断 🔥",
+                    title = "一周不间断",
                     description = "连续 7 天使用！你已经养成了记录的好习惯，继续加油！",
                     priority = 10,
                     actionText = "感谢陪伴",
@@ -327,7 +327,7 @@ class RecommendationEngine(
             14 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.STREAK_CELEBRATION,
-                    title = "两周坚持 💪",
+                    title = "两周坚持",
                     description = "14 天不间断！你的数据正在变得越来越有价值。",
                     priority = 10,
                     actionText = "继续保持",
@@ -336,7 +336,7 @@ class RecommendationEngine(
             30 -> {
                 out.add(Recommendation.ContextualTip(
                     tipCategory = TipCategory.STREAK_CELEBRATION,
-                    title = "满月纪念 🏆",
+                    title = "满月纪念",
                     description = "整整一个月！你是真正的记录达人。Opedrgent 已经很了解你了。",
                     priority = 11,
                     actionText = "领取成就",
@@ -349,7 +349,7 @@ class RecommendationEngine(
         if (inactiveDays >= 7 && inactiveDays <= 30) {
             out.add(Recommendation.ContextualTip(
                 tipCategory = TipCategory.INACTIVE_RETURN,
-                title = "好久不见 👋",
+                title = "好久不见",
                 description = "距离上次使用已经 ${inactiveDays} 天了。回来继续记录吧，AI 还在等你。",
                 priority = 12,
                 actionText = "我回来了",
@@ -366,7 +366,7 @@ class RecommendationEngine(
             out.add(Recommendation.ActionSuggestion(
                 actionType = SuggestedAction.SPROUT_LATEST_NOTE,
                 targetId = latestUnsprouted.id.toString(),
-                title = "🌱 笔记待发芽",
+                title = "笔记待发芽",
                 description = "「${latestUnsprouted.title.ifBlank { latestUnsprouted.content.take(20) }}」还没有发芽分析，让它生长出更多洞察？",
                 priority = 7,
                 actionText = "立即发芽",
@@ -380,7 +380,7 @@ class RecommendationEngine(
         if (totalNotes >= 20) {
             out.add(Recommendation.ActionSuggestion(
                 actionType = SuggestedAction.ORGANIZE_NOTES,
-                title = "📁 整理笔记",
+                title = "整理笔记",
                 description = "你已有 ${totalNotes} 条笔记了，考虑整理到知识库中方便后续检索和关联。",
                 priority = 2,
                 actionText = "去整理",
@@ -393,7 +393,7 @@ class RecommendationEngine(
         if (aiMsgCount >= 5 && skillUsedCount == 0) {
             out.add(Recommendation.ActionSuggestion(
                 actionType = SuggestedAction.TRY_EDITOR_TEAM,
-                title = "✨ 试试 AI 技能",
+                title = "试试 AI 技能",
                 description = "你经常和 AI 对话，试试「点评」「拷问」「润色」技能，让 AI 更精准地帮你处理内容。",
                 priority = 3,
                 actionText = "体验技能",
@@ -411,7 +411,7 @@ class RecommendationEngine(
         if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY && hour in 14..18) {
             out.add(Recommendation.ActionSuggestion(
                 actionType = SuggestedAction.REVIEW_WEEKLY,
-                title = "📊 本周回顾",
+                title = "本周回顾",
                 description = "周五了！生成本周的使用报告，回顾一周的思考和收获。",
                 priority = 6,
                 actionText = "生成周报",
@@ -422,7 +422,7 @@ class RecommendationEngine(
         if (dayOfMonth == 1) {
             out.add(Recommendation.ActionSuggestion(
                 actionType = SuggestedAction.BACKUP_DATA,
-                title = "💾 新月备份",
+                title = "新月备份",
                 description = "月初了，建议备份一下你的笔记和数据，开启新的记录周期。",
                 priority = 4,
                 actionText = "备份数据",

@@ -969,7 +969,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             append("[使用技能: ${skill.metadata.name}]\n")
             append("${skill.metadata.description}\n\n")
             if (skill.needsSecret) {
-                append("⚠️ 此技能需要 API Key。如果尚未配置，请提示用户输入。\n\n")
+                append("[注意] 此技能需要 API Key。如果尚未配置，请提示用户输入。\n\n")
             }
             // 如果有 JS 脚本路径，提示 LLM 使用 run_js 工具
             if (skill.localScriptsPath != null) {
@@ -4779,22 +4779,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     appendLine(report.summary)
                     appendLine()
                     if (report.strengths.isNotEmpty()) {
-                        appendLine("## ✅ 优势")
+                        appendLine("## [优势]")
                         report.strengths.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.weaknesses.isNotEmpty()) {
-                        appendLine("## ⚠️ 不足")
+                        appendLine("## [不足]")
                         report.weaknesses.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.recommendations.isNotEmpty()) {
-                        appendLine("## 💡 改进建议")
+                        appendLine("## [改进建议]")
                         report.recommendations.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.dimensions.isNotEmpty()) {
-                        appendLine("## 📊 各维度评分")
+                        appendLine("## [各维度评分]")
                         report.dimensions.forEach { dim ->
                             appendLine("- **${dim.name}**: ${dim.score}/${dim.maxScore.toInt()} - ${dim.feedback}")
                         }

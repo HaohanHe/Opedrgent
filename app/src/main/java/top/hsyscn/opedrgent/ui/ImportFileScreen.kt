@@ -261,7 +261,7 @@ fun ImportFileScreen(
                             modifier = Modifier.padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("❌ 导入失败", fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                            Text("导入失败", fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(importError!!, fontSize = 13.sp, color = TextGrey)
                         }
@@ -277,7 +277,7 @@ fun ImportFileScreen(
                             modifier = Modifier.padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("✅ 导入成功", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                            Text("导入成功", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(importedFileName ?: "", fontSize = 13.sp, color = TextGrey)
                             Spacer(modifier = Modifier.height(12.dp))

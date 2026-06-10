@@ -378,7 +378,7 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
                     modifier = Modifier.size((12 * pulseScale).dp),
                 ) {
                     if (isCompleted) {
-                        Text("✓", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("[OK]", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                     } else {
                         Canvas(modifier = Modifier.size((10 * pulseScale).dp)) {
                             drawCircle(color = dotColor)

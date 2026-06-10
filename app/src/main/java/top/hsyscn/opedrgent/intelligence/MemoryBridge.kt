@@ -65,7 +65,7 @@ class MemoryBridge(
                     importance = importance,
                 ),
             )
-            DebugLog.d("MemoryBridge", "dual-write[$path] ✓")
+            DebugLog.d("MemoryBridge", "dual-write[$path] OK")
         } catch (e: Exception) {
             // 向量写入失败不阻断主流程（MemoryDir 已成功）
             DebugLog.w("MemoryBridge", "vector write failed for [$path]: ${e.message}")

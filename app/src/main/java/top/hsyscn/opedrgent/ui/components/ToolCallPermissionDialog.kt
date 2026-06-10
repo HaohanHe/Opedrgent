@@ -56,7 +56,7 @@ fun ToolCallPermissionDialog(
         shape = RoundedCornerShape(16.dp),
         title = {
             Text(
-                text = "⚡ 工具调用确认",
+                text = "工具调用确认",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark,

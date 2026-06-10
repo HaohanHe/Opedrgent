@@ -203,7 +203,7 @@ class MeetingTranscriptBridge(
             .removeSuffix(".m4a")
             .removeSuffix(".pcm")
 
-        return "🎙️ 会议转写 - $baseName"
+        return "会议转写 - $baseName"
     }
 
     /**

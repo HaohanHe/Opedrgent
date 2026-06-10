@@ -631,7 +631,7 @@ private fun NoteCard(
                             leadingIcon = { Icon(Icons.Default.PushPin, null) },
                         )
                         DropdownMenuItem(
-                            text = { Text("🌱 发芽") },
+                            text = { Text("发芽") },
                             onClick = { showMenu = false; onSprout() },
                             leadingIcon = { Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF4CAF50)) },
                         )
@@ -641,7 +641,7 @@ private fun NoteCard(
                             leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, null, tint = AccentBlue) },
                         )
                         DropdownMenuItem(
-                            text = { Text("💡 点评亮点") },
+                            text = { Text("点评亮点") },
                             leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
                             onClick = {
                                 showMenu = false
@@ -649,7 +649,7 @@ private fun NoteCard(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("🔍 深度拷问") },
+                            text = { Text("深度拷问") },
                             leadingIcon = { Icon(Icons.Default.Search, null) },
                             onClick = {
                                 showMenu = false
@@ -657,7 +657,7 @@ private fun NoteCard(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("✨ 润色优化") },
+                            text = { Text("润色优化") },
                             leadingIcon = { Icon(Icons.Default.Edit, null) },
                             onClick = {
                                 showMenu = false
@@ -735,7 +735,7 @@ private fun RecommendationCard(
             // 标题行
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "🔗 发现关联",
+                    text = "发现关联",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,

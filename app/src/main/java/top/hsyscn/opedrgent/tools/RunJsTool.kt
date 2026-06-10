@@ -111,7 +111,7 @@ class RunJsTool(
                     if (outputText.isNotBlank()) append(outputText)
                     if (errorMsg.isNotBlank()) {
                         if (isNotBlank()) append("\n\n")
-                        append("⚠️ JS 执行警告: $errorMsg")
+                        append("[警告] JS 执行警告: $errorMsg")
                     }
                     if (imageBase64 != null) {
                         if (isNotBlank()) append("\n\n")

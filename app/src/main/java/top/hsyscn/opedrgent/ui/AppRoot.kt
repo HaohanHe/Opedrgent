@@ -776,10 +776,10 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             val result = vm.importSkillFromFile(context, uri)
             isImporting = false
             importMessage = if (result.isSuccess) {
-                "✅ 导入成功：${result.getOrNull()?.skillName}"
+                "导入成功：${result.getOrNull()?.skillName}"
                 vm.refreshGallerySkills() // 刷新列表
             } else {
-                "❌ 导入失败：${result.exceptionOrNull()?.message}"
+                "导入失败：${result.exceptionOrNull()?.message}"
             }
         }
     }
@@ -1025,14 +1025,14 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             val result = vm.importSkillFromUrl(url)
                             isImporting = false
                             importMessage = if (result.isSuccess) {
-                                "✅ 导入成功：${result.getOrNull()?.skillName}"
+                                "导入成功：${result.getOrNull()?.skillName}"
                                 vm.refreshGallerySkills()
                                 gallerySkills = vm.gallerySkills
                                 // 延迟关闭对话框
                                 kotlinx.coroutines.delay(800)
                                 showUrlImportDialog = false
                             } else {
-                                "❌ 导入失败：${result.exceptionOrNull()?.message}"
+                                "导入失败：${result.exceptionOrNull()?.message}"
                             }
                         }
                     },
@@ -1076,7 +1076,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (msg.startsWith("✅")) Color(0xFF4CAF50) else Color(0xFFE53935),
+                            color = if (msg.startsWith("导入成功")) Color(0xFF4CAF50) else Color(0xFFE53935),
                         )
                     }
                 }
@@ -1220,7 +1220,7 @@ private fun GallerySkillCard(
                 if (skill.needsSecret) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("🔑 API Key", fontSize = 10.sp) },
+                        label = { Text("API Key", fontSize = 10.sp) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
                             containerColor = Color(0xFFFFF3E0), // 浅橙

@@ -202,7 +202,7 @@ class VoiceConversationEngine(
             return
         }
 
-        DebugLog.i(TAG, "🚀 开始全双工语音对话 [场景：${scenario.label}]")
+        DebugLog.i(TAG, "开始全双工语音对话 [场景：${scenario.label}]")
 
         // 初始化海马体（如果提供了配置或实例）
         this.hippo = hippo
@@ -296,12 +296,12 @@ class VoiceConversationEngine(
             return
         }
 
-        DebugLog.i(TAG, "⏹️ 停止全双工对话")
+        DebugLog.i(TAG, "停止全双工对话")
 
         // 输出海马体漂移报告（如果有）
         hippo?.let { h ->
             val report = h.getDriftReport()
-            DebugLog.i(TAG, "📊 海马体漂移报告:\n${report.summary}")
+            DebugLog.i(TAG, "海马体漂移报告:\n${report.summary}")
         }
 
         // 清理海马体
@@ -433,7 +433,7 @@ class VoiceConversationEngine(
 
         // 2. 插话回调
         duplexEngine.onBargeIn {
-            DebugLog.i(TAG, "🗣️ 用户打断了 AI！")
+            DebugLog.i(TAG, "用户打断了 AI！")
             onBargeIn.invoke()
 
             // 停止当前 TTS 播放
@@ -479,7 +479,7 @@ class VoiceConversationEngine(
     ) {
         if (!conversationActive.get()) return
 
-        DebugLog.i(TAG, "🎤 收集到用户语音 (${pcmData.size} bytes)，开始 ASR 识别...")
+        DebugLog.i(TAG, "收集到用户语音 (${pcmData.size} bytes)，开始 ASR 识别...")
 
         // 标记正在处理用户输入
         isProcessing.set(true)
@@ -499,7 +499,7 @@ class VoiceConversationEngine(
                     return@launch
                 }
 
-                DebugLog.i(TAG, "📝 ASR 结果: '${recognizedText.take(100)}'")
+                DebugLog.d(TAG, "ASR 结果: '${recognizedText.take(100)}'")
 
                 // 通知 UI：用户说的话
                 onUserSpeak(recognizedText)
@@ -532,7 +532,7 @@ class VoiceConversationEngine(
                     return@launch
                 }
 
-                DebugLog.i(TAG, "🤖 AI 回复: '${aiResponse.take(100)}'")
+                DebugLog.i(TAG, "AI 回复: '${aiResponse.take(100)}'")
 
                 // 记录海马体漂移检测
                 this.hippo?.detectDrift(turnCounter, recognizedText, aiResponse)

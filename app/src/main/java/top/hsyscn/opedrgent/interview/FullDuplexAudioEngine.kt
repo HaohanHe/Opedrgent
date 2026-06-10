@@ -249,7 +249,7 @@ class FullDuplexAudioEngine(
             }
 
             changeState(DuplexState.CONNECTED)
-            DebugLog.i(TAG, "✅ 音频通道已连接 (recordBuf=${bufferSize}, playBuf=${playBufferSize})")
+            DebugLog.i(TAG, "音频通道已连接 (recordBuf=${bufferSize}, playBuf=${playBufferSize})")
 
         } catch (e: IllegalStateException) {
             releaseResources()
@@ -294,7 +294,7 @@ class FullDuplexAudioEngine(
             return
         }
 
-        DebugLog.i(TAG, "🎙️ 开始全双工对话")
+        DebugLog.i(TAG, "开始全双工对话")
 
         isRecording.set(true)
         bargeInDetected = false
@@ -312,7 +312,7 @@ class FullDuplexAudioEngine(
      * 停止对话（保留连接，可重新 [start]）。
      */
     fun stop() {
-        DebugLog.i(TAG, "⏹️ 停止对话")
+        DebugLog.i(TAG, "停止对话")
 
         isRecording.set(false)
         isPlaying.set(false)
@@ -384,7 +384,7 @@ class FullDuplexAudioEngine(
             return
         }
 
-        DebugLog.i(TAG, "🔊 AI 说话: '${text.take(50)}...'")
+        DebugLog.i(TAG, "AI 说话: '${text.take(50)}...'")
 
         changeState(DuplexState.AI_SPEAKING)
 
@@ -430,7 +430,7 @@ class FullDuplexAudioEngine(
      * 清空播放队列 + 停止当前 AudioTrack 播放。
      */
     fun stopAiSpeaking() {
-        DebugLog.i(TAG, "🛑 停止 AI 说话")
+        DebugLog.i(TAG, "停止 AI 说话")
 
         bargeInDetected = true
         playQueue.clear()
@@ -453,13 +453,13 @@ class FullDuplexAudioEngine(
     fun muteUser(muted: Boolean) {
         if (muted) {
             if (_state != DuplexState.MUTED) {
-                DebugLog.i(TAG, "🔇 用户已静音")
+                DebugLog.i(TAG, "用户已静音")
                 changeState(DuplexState.MUTED)
                 // 不停止录音线程，只是忽略采集的数据
             }
         } else {
             if (_state == DuplexState.MUTED) {
-                DebugLog.i(TAG, "🎤 用户取消静音")
+                DebugLog.i(TAG, "用户取消静音")
                 changeState(if (isPlaying.get()) DuplexState.AI_SPEAKING else DuplexState.LISTENING)
             }
         }
@@ -734,7 +734,7 @@ class FullDuplexAudioEngine(
      * 处理插话事件。
      */
     private fun handleBargeIn() {
-        DebugLog.i(TAG, "🗣️ 检测到插话！(用户打断了 AI)")
+        DebugLog.i(TAG, "检测到插话！(用户打断了 AI)")
 
         bargeInDetected = true
 
