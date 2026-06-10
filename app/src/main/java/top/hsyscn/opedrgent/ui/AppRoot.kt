@@ -275,6 +275,15 @@ fun AppRoot(
                     },
                 )
                 "knowledge" -> KnowledgeBaseScreen(vm = vm, onBack = { subScreen = null })
+                // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
+                "import" -> ImportFileScreen(
+                    vm = vm,
+                    onBack = { subScreen = null },
+                    onImportSuccess = { noteId ->
+                        // 导入成功后跳转到笔记编辑器
+                        subScreen = "noteEditor_$noteId"
+                    },
+                )
                 "export" -> ExportScreen(vm = vm, onBack = { subScreen = null })
                 "editorTeam" -> EditorTeamScreen(
                     vm = vm,
@@ -363,6 +372,17 @@ fun AppRoot(
                                 }
                             },
                             onNavigateToNotes = { selectedTab = MainTab.NOTES },
+                            // 修复：传递推荐卡片回调，确保用户点击推荐卡片能正确跳转
+                            onOpenEditorTeam = {
+                                editorTeamInitialInput = ""
+                                subScreen = "editorTeam"
+                            },
+                            onNavigateToRecording = {
+                                selectedTab = MainTab.RECORDING
+                            },
+                            onNavigateToKnowledge = {
+                                subScreen = "knowledge"
+                            },
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
