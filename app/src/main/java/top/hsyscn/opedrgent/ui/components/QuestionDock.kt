@@ -75,6 +75,7 @@ fun QuestionDock(
     val isMultiQuestion = questions.size > 1
     var currentQuestionIndex by rememberSaveable { mutableIntStateOf(0) }
     var collapsed by rememberSaveable { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) } // 提交状态反馈
     val answers = remember {
         mutableStateMapOf<Int, Set<String>>().apply {
             questions.indices.forEach { put(it, emptySet()) }
@@ -292,14 +293,26 @@ fun QuestionDock(
                                 }
                             } else {
                                 androidx.compose.material3.Button(
-                                    onClick = { submitAllAnswers(answers, customInputs, questions, onAnswer) },
-                                    enabled = canProceed,
+                                    onClick = {
+                                        if (isSubmitting) return@Button
+                                        isSubmitting = true
+                                        submitAllAnswers(answers, customInputs, questions, onAnswer)
+                                    },
+                                    enabled = canProceed && !isSubmitting,
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 ) {
-                                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    if (isSubmitting) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("确认提交")
+                                    Text(if (isSubmitting) "提交中..." else "确认提交")
                                 }
                             }
                         }
