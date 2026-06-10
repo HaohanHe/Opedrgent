@@ -177,6 +177,13 @@ fun HomeDashboardScreen(
             todayCount = todayNoteCount,
             totalCount = totalNoteCount.toInt(),
             aiSessionCount = vm.sessionCount,
+            onStatClick = { statType ->
+                when (statType) {
+                    "notes" -> onNavigateToNotes()
+                    "knowledge" -> onNavigateToKnowledge()
+                    "ai" -> onNavigateToAi()
+                }
+            },
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -427,26 +434,38 @@ private fun AiAssistantCard(
 
 /** 统计卡片行（3卡片：笔记 + 知识库 + AI对话） */
 @Composable
-private fun StatsRow(todayCount: Int, totalCount: Int, aiSessionCount: Int = 0) {
+private fun StatsRow(
+    todayCount: Int,
+    totalCount: Int,
+    aiSessionCount: Int = 0,
+    onStatClick: (String) -> Unit = {},  // 新增：统计卡片点击回调
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd)
-        StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome)
-        StatCard(title = "AI 对话", value = "$aiSessionCount 次", icon = Icons.Default.ChatBubble)
+        StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd, onClick = { onStatClick("notes") })
+        StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome, onClick = { onStatClick("knowledge") })
+        StatCard(title = "AI 对话", value = "$aiSessionCount 次", icon = Icons.Default.ChatBubble, onClick = { onStatClick("ai") })
     }
 }
 
 @Composable
-private fun StatCard(title: String, value: String, icon: ImageVector) {
+private fun StatCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    onClick: () -> Unit = {},
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.weight(1f),
+        modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onClick),  // 新增：卡片可点击
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
