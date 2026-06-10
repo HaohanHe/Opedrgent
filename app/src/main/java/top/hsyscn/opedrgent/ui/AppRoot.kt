@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Note
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -737,11 +739,48 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
 
 @Composable
 fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
+    val context = LocalContext.current
     val state by vm.state.collectAsStateCompat()
+    val scope = rememberCoroutineScope()
+
+    // ── 旧版技能（兼容保留）──
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var name by rememberSaveable { mutableStateOf("") }
     var prompt by rememberSaveable { mutableStateOf("") }
+
+    // ── Gallery 标准导入功能 ──
+    var showImportMenu by remember { mutableStateOf(false) }          // FAB 展开的导入选项菜单
+    var showUrlImportDialog by remember { mutableStateOf(false) }     // URL 导入对话框
+    var urlInput by rememberSaveable { mutableStateOf("") }            // URL 输入框内容
+    var isImporting by remember { mutableStateOf(false) }             // 导入中加载状态
+    var importMessage by remember { mutableStateOf<String?>(null) }   // 导入结果消息
+    var gallerySkills by remember { mutableStateOf<List<top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition>>(emptyList()) } // Gallery 技能列表
+
+    // ── 本地文件选择器 ──
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent("*/*")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        isImporting = true
+        importMessage = null
+        scope.launch {
+            val result = vm.importSkillFromFile(context, uri)
+            isImporting = false
+            importMessage = if (result.isSuccess) {
+                "✅ 导入成功：${result.getOrNull()?.skillName}"
+                vm.refreshGallerySkills() // 刷新列表
+            } else {
+                "❌ 导入失败：${result.exceptionOrNull()?.message}"
+            }
+        }
+    }
+
+    // ── 初始加载 Gallery 技能列表 ──
+    LaunchedEffect(Unit) {
+        vm.refreshGallerySkills()
+        gallerySkills = vm.gallerySkills
+    }
 
     Scaffold(
         topBar = {
@@ -753,44 +792,293 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        editingId = null
-                        name = ""
-                        prompt = ""
-                        editorOpen = true
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "add")
-                    }
+                    // 统计信息角标
+                    Text(
+                        text = "${state.skills.size + gallerySkills.size} 项",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextGrey,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
                 },
             )
         },
         containerColor = BgGray,
+        floatingActionButton = {
+            // Gallery 标准的多功能 FAB：展开为三个导入入口
+            Column(horizontalAlignment = Alignment.End) {
+                // 展开动画：导入选项按钮组
+                AnimatedVisibility(visible = showImportMenu, enter = fadeIn(), exit = fadeOut()) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        // ① 从 URL 加载
+                        ImportFabOption(
+                            icon = Icons.Default.Link,
+                            label = "从 URL 加载",
+                            onClick = {
+                                showImportMenu = false
+                                urlInput = ""
+                                importMessage = null
+                                showUrlImportDialog = true
+                            },
+                        )
+                        // ② 从本地文件导入
+                        ImportFabOption(
+                            icon = Icons.Default.AttachFile,
+                            label = "从文件导入",
+                            onClick = {
+                                showImportMenu = false
+                                filePickerLauncher.launch("application/octet-stream")
+                            },
+                        )
+                        // ③ 手动创建（原有功能）
+                        ImportFabOption(
+                            icon = Icons.Default.Add,
+                            label = "手动创建",
+                            onClick = {
+                                showImportMenu = false
+                                editingId = null
+                                name = ""
+                                prompt = ""
+                                editorOpen = true
+                            },
+                        )
+                    }
+                }
+
+                // 主 FAB 按钮
+                FloatingActionButton(
+                    onClick = { showImportMenu = !showImportMenu },
+                    containerColor = AccentBlue,
+                ) {
+                    Icon(
+                        imageVector = if (showImportMenu) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = if (showImportMenu) "收起" else "添加技能",
+                    )
+                }
+            }
+        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(state.skills, key = { it.id }) { s ->
-                Card(
-                    modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
-                    shape = RoundedCornerShape(11.dp),
-                    onClick = {
-                        editingId = s.id
-                        name = s.name
-                        prompt = s.prompt
-                        editorOpen = true
-                    },
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = s.name, fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = s.prompt.take(120) + if (s.prompt.length > 120) "…" else "")
+            // ════════════════════════════════════
+            // 第一区：Gallery 标准技能（来自 SkillLoader）
+            // ════════════════════════════════════
+            if (gallerySkills.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Gallery 技能",
+                        subtitle = "支持 JS 沙箱 / Native Intent / 纯提示词",
+                        count = gallerySkills.size,
+                    )
+                }
+                items(gallerySkills, key = { it.skillName + "_gallery" }) { skill ->
+                    GallerySkillCard(
+                        skill = skill,
+                        onClick = {
+                            // 点击 Gallery Skill：将指令作为用户消息发送到当前会话
+                            vm.runGallerySkill(skill)
+                        },
+                        onToggleEnabled = { enabled ->
+                            vm.toggleGallerySkill(skill.skillName, enabled)
+                            // 刷新本地状态
+                            gallerySkills = gallerySkills.map {
+                                if (it.skillName == skill.skillName) it.copy(isEnabled = enabled) else it
+                            }
+                        },
+                        onDelete = {
+                            if (!skill.isBuiltIn) {
+                                vm.deleteGallerySkill(skill.skillName)
+                                gallerySkills = gallerySkills.filter { it.skillName != skill.skillName }
+                            }
+                        },
+                    )
+                }
+
+                // 分隔线
+                item {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        color = Color.LightGray.copy(alpha = 0.3f),
+                    )
+                }
+            }
+
+            // ════════════════════════════════════
+            // 第二区：旧版自定义技能（兼容保留）
+            // ════════════════════════════════════
+            if (state.skills.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "自定义技能",
+                        subtitle = "纯提示词快捷方式",
+                        count = state.skills.size,
+                    )
+                }
+                items(state.skills, key = { it.id }) { s ->
+                    Card(
+                        modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                        shape = RoundedCornerShape(11.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardWhite),
+                        onClick = {
+                            editingId = s.id
+                            name = s.name
+                            prompt = s.prompt
+                            editorOpen = true
+                        },
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = s.name,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextDark,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                // 旧版标识标签
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text("Legacy", fontSize = 11.sp) },
+                                    border = null,
+                                    colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                                        containerColor = Color.Gray.copy(alpha = 0.15f),
+                                        labelColor = Color.Gray,
+                                    ),
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = s.prompt.take(120) + if (s.prompt.length > 120) "…" else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                                maxLines = 2,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ════════════════════════════════════
+            // 空状态提示
+            // ════════════════════════════════════
+            if (state.skills.isEmpty() && gallerySkills.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.DeveloperBoard,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color.LightGray,
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(text = "暂无技能", color = TextGrey, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "点击右下角 + 按钮，可从 URL / 文件导入 Gallery 技能\n或手动创建自定义提示词技能",
+                                color = TextGrey,
+                                fontSize = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp),
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
+    // ════════════════════════════════════════════════
+    // URL 导入对话框（Gallery 标准）
+    // ════════════════════════════════════════════════
+    if (showUrlImportDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                if (!isImporting) showUrlImportDialog = false 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val url = urlInput.trim()
+                        if (url.isBlank()) {
+                            importMessage = "请输入 SKILL.md 的 URL"
+                            return@Button
+                        }
+                        isImporting = true
+                        importMessage = null
+                        scope.launch {
+                            val result = vm.importSkillFromUrl(url)
+                            isImporting = false
+                            importMessage = if (result.isSuccess) {
+                                "✅ 导入成功：${result.getOrNull()?.skillName}"
+                                vm.refreshGallerySkills()
+                                gallerySkills = vm.gallerySkills
+                                // 延迟关闭对话框
+                                kotlinx.coroutines.delay(800)
+                                showUrlImportDialog = false
+                            } else {
+                                "❌ 导入失败：${result.exceptionOrNull()?.message}"
+                            }
+                        }
+                    },
+                    enabled = !isImporting,
+                ) {
+                    if (isImporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text("加载")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { if (!isImporting) showUrlImportDialog = false }) {
+                    Text("取消")
+                }
+            },
+            title = { Text("从 URL 导入 Skill") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "输入 SKILL.md 文件的远程 URL，应用将下载并验证后导入到本地。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextGrey,
+                    )
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        label = { Text("SKILL.md URL") },
+                        placeholder = { Text("https://example.com/skill/SKILL.md") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    )
+                    // 导入状态/结果消息
+                    importMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (msg.startsWith("✅")) Color(0xFF4CAF50) else Color(0xFFE53935),
+                        )
+                    }
+                }
+            },
+        )
+    }
+
+    // ════════════════════════════════════════════════
+    // 旧版编辑对话框（兼容保留）
+    // ════════════════════════════════════════════════
     if (editorOpen) {
         val deleting = editingId != null
         AlertDialog(
@@ -817,7 +1105,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     TextButton(onClick = { editorOpen = false }) { Text("取消") }
                 }
             },
-            title = { Text(if (editingId == null) "新建技能" else "编辑技能") },
+            title = { Text(if (editingId == null) "新建自定义技能" else "编辑自定义技能") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -831,12 +1119,188 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         value = prompt,
                         onValueChange = { prompt = it },
                         label = { Text("内容（会作为 User 消息发送）") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxSize(),
                         minLines = 4,
                     )
                 }
             },
         )
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// SkillsScreen 子组件 — Gallery 标准辅助 UI
+// ════════════════════════════════════════════════════════════
+
+/** 区块标题 */
+@Composable
+private fun SectionHeader(title: String, subtitle: String, count: Int) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = subtitle, fontSize = 12.sp, color = TextGrey)
+        }
+        Text(
+            text = "$count",
+            fontSize = 12.sp,
+            color = AccentBlue,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** FAB 展开选项按钮 */
+@Composable
+private fun ImportFabOption(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(AccentBlue.copy(alpha = 0.9f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+/** Gallery 技能卡片 — 显示完整的 StandardSkillDefinition 信息 */
+@Composable
+private fun GallerySkillCard(
+    skill: top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition,
+    onClick: () -> Unit,
+    onToggleEnabled: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(11.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (skill.isEnabled) CardWhite else Color.LightGray.copy(alpha = 0.3f),
+        ),
+        onClick = onClick,
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // 第一行：名称 + 标签组
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = skill.metadata.name,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (skill.isEnabled) TextDark else TextGrey,
+                    modifier = Modifier.weight(1f),
+                )
+                // 内置标签
+                if (skill.isBuiltIn) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("内置", fontSize = 10.sp) },
+                        border = null,
+                        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                            containerColor = AccentBlue.copy(alpha = 0.12f),
+                            labelColor = AccentBlue,
+                        ),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                // 需要 Secret 标签
+                if (skill.needsSecret) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("🔑 API Key", fontSize = 10.sp) },
+                        border = null,
+                        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                            containerColor = Color(0xFFFFF3E0), // 浅橙
+                            labelColor = Color(0xFFE65100),
+                        ),
+                    )
+                }
+                // JS Skill 标识
+                if (skill.localScriptsPath != null) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("JS", fontSize = 10.sp) },
+                        border = null,
+                        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                            containerColor = Color(0xFFE8F5E9), // 浅绿
+                            labelColor = Color(0xFF2E7D32),
+                        ),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 描述文本
+            Text(
+                text = skill.metadata.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (skill.isEnabled) TextDark.copy(alpha = 0.7f) else TextGrey,
+                maxLines = 2,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 底部操作栏：分类 + 启用开关 + 删除
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // 分类标签
+                Text(
+                    text = skill.metadata.category.displayName,
+                    fontSize = 11.sp,
+                    color = TextGrey,
+                    modifier = Modifier
+                        .background(Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 启用/禁用开关
+                    Switch(
+                        checked = skill.isEnabled,
+                        onCheckedChange = onToggleEnabled,
+                        thumbContent = {
+                            if (skill.isEnabled) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = Color.White,
+                                )
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = AccentBlue,
+                        ),
+                    )
+
+                    // 非内置技能显示删除按钮
+                    if (!skill.isBuiltIn) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

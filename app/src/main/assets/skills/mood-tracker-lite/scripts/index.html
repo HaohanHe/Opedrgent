@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood Tracker</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #f5f5f5; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+<script>
+/**
+ * Mood Tracker Lite — Gallery 标准入口
+ *
+ * 使用 localStorage 持久化心情数据，支持：
+ * - log_mood: 记录心情
+ * - get_mood: 查询某日心情
+ * - get_history: 获取历史 + 可选的 webview 仪表盘
+ * - analyze_trends: 分析趋势
+ */
+window['ai_edge_gallery_get_result'] = async function(data) {
+    try {
+        const json = JSON.parse(data);
+        const action = json.action || 'get_history';
+
+        switch (action) {
+            case 'log_mood':
+                return handleLogMood(json);
+            case 'get_mood':
+                return handleGetMood(json);
+            case 'get_history':
+                return handleGetHistory(json);
+            case 'analyze_trends':
+                return handleAnalyzeTrends(json);
+            case 'export_data':
+                return handleExportData();
+            case 'wipe_data':
+                return handleWipeData();
+            default:
+                return JSON.stringify({ error: `未知操作: ${action}。支持的操作: log_mood, get_mood, get_history, analyze_trends` });
+        }
+    } catch (e) {
+        console.error('[mood-tracker] Error:', e);
+        return JSON.stringify({ error: `操作失败: ${e.message}` });
+    }
+};
+
+// ==================== 数据层 ====================
+
+const STORAGE_KEY = 'mood_tracker_data';
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+}
+
+function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getDateKey(dateStr) {
+    if (dateStr === 'today') {
+        return new Date().toISOString().split('T')[0];
+    }
+    if (dateStr === 'yesterday') {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toISOString().split('T')[0];
+    }
+    // 已经是 YYYY-MM-DD 格式或直接使用
+    return dateStr;
+}
+
+function getScoreLabel(score) {
+    if (score <= 2) return '😢 很低落';
+    if (score <= 4) return '😔 有些低落';
+    if (score <= 6) return '😐 还行';
+    if (score <= 8) return '😊 不错';
+    return '🤩 很棒!';
+}
+
+// ==================== 操作处理器 ====================
+
+function handleLogMood(json) {
+    const score = parseInt(json.score, 10);
+    const comment = String(json.comment || '');
+    const dateKey = getDateKey(String(json.date || 'today'));
+
+    if (isNaN(score) || score < 1 || score > 10) {
+        return JSON.stringify({ error: '心情分数必须是 1-10 之间的整数' });
+    }
+
+    const data = loadData();
+    data[dateKey] = {
+        score: score,
+        comment: comment,
+        timestamp: Date.now(),
+    };
+    saveData(data);
+
+    return JSON.stringify({
+        result: [
+            `✅ 心情已记录！`,
+            ``,
+            `📅 日期: ${dateKey}`,
+            `😊 心情分数: ${score}/10 — ${getScoreLabel(score)}`,
+            comment ? `💬 备注: ${comment}` : '',
+        ].filter(Boolean).join('\n'),
+        metadata: { date: dateKey, score, comment }
+    });
+}
+
+function handleGetMood(json) {
+    const dateKey = getDateKey(String(json.date || 'today'));
+    const data = loadData();
+    const entry = data[dateKey];
+
+    if (!entry) {
+        return JSON.stringify({
+            result: `📅 ${dateKey} 没有找到心情记录。使用 "log_mood" 操作来记录今天的心情吧！`
+        });
+    }
+
+    return JSON.stringify({
+        result: [
+            `📅 ${dateKey} 的心情记录`,
+            ``,
+            `😊 分数: ${entry.score}/10 — ${getScoreLabel(entry.score)}`,
+            entry.comment ? `💬 备注: ${entry.comment}` : '',
+            `🕐 记录时间: ${new Date(entry.timestamp).toLocaleString('zh-CN')}`,
+        ].filter(Boolean).join('\n'),
+        metadata: entry
+    });
+}
+
+function handleGetHistory(json) {
+    const days = parseInt(json.days, 10) || 7;
+    const showDashboard = json.show_dashboard === true;
+    const data = loadData();
+
+    // 获取最近 N 天的数据
+    const entries = [];
+    for (let i = 0; i < days; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().split('T')[0];
+        if (data[key]) {
+            entries.push({ date: key, ...data[key] });
+        }
+    }
+
+    if (entries.length === 0) {
+        return JSON.stringify({
+            result: `过去 ${days} 天没有心情记录。开始记录你的心情吧！`
+        });
+    }
+
+    // 计算统计信息
+    const scores = entries.map(e => e.score);
+    const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+
+    let resultText = [
+        `📊 过去 ${days} 天心情概览 (${entries.length} 条记录)`,
+        ``,
+        `📈 平均分: ${avg}/10`,
+        `🔻 最低: ${min}/10 | 🔺 最高: ${max}/10`,
+        ``,
+        `**详细记录:**`,
+    ];
+
+    entries.forEach(e => {
+        resultText.push(`${e.date}: ${e.score}/10 ${getScoreLabel(e.score)}${e.comment ? ' — ' + e.comment : ''}`);
+    });
+
+    const response = {
+        result: resultText.join('\n'),
+        metadata: { days, count: entries.length, avg, min, max }
+    };
+
+    // 如果需要返回 webview 仪表盘
+    if (showDashboard) {
+        response.webview = {
+            url: "dashboard.html?" + buildDashboardQuery(entries),
+            aspectRatio: 1.3
+        };
+    }
+
+    return JSON.stringify(response);
+}
+
+function handleAnalyzeTrends(json) {
+    const days = parseInt(json.days, 30) || 30;
+    const data = loadData();
+
+    // 收集所有数据（不限天数）
+    const allEntries = Object.entries(data)
+        .map(([date, val]) => ({ date, ...(typeof val === 'object' ? val : { score: val }) }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-days);
+
+    if (allEntries.length < 3) {
+        return JSON.stringify({
+            result: `分析趋势需要至少 3 条记录（当前 ${allEntries.length} 条）。请多记录几天后再来分析！`
+        });
+    }
+
+    const scores = allEntries.map(e => e.score);
+    const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+    const firstHalf = scores.slice(0, Math.floor(scores.length / 2));
+    const secondHalf = scores.slice(Math.floor(scores.length / 2));
+    const firstAvg = (firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length).toFixed(1);
+    const secondAvg = (secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length).toFixed(1);
+
+    let trend = '稳定';
+    let trendEmoji = '➡️';
+    if (secondAvg > firstAvg + 0.5) { trend = '上升 📈'; trendEmoji = '🔼'; }
+    else if (secondAvg < firstAvg - 0.5) { trend = '下降 📉'; trendEmoji = '🔽'; }
+
+    // 找出最好和最坏的日子
+    const bestDay = allEntries.reduce((a, b) => a.score >= b.score ? a : b);
+    const worstDay = allEntries.reduce((a, b) => a.score <= b.score ? a : b);
+
+    return JSON.stringify({
+        result: [
+            `🔍 **心情趋势分析** (过去 ${Math.min(allEntries.length, days)} 天)`,
+            ``,
+            `**整体概况:**`,
+            `- 平均心情: ${avg}/10 ${getScoreLabel(Math.round(avg))}`,
+            `- 趋势方向: ${trend} ${trendEmoji}`,
+            `- 前半段均分: ${firstAvg}/10 → 后半段均分: ${secondAvg}/10`,
+            ``,
+            `**极值记录:**`,
+            `- 🏆 最佳日: ${bestDay.date} (${bestDay.score}/10)${bestDay.comment ? ' — ' + bestDay.comment : ''}`,
+            `- 💔 低谷日: ${worstDay.date} (${worstDay.score}/10)${worstDay.comment ? ' — ' + worstDay.comment : ''}`,
+            ``,
+            secondAvg > firstAvg + 1
+                ? '🎉 总体趋势向好！继续保持积极的生活方式！'
+                : secondAvg < firstAvg - 1
+                ? '💪 近期有些挑战，但每个低谷都是反弹的开始。'
+                    : '⚖️ 心情保持平稳，关注那些让你稳定的因素。',
+        ].join('\n'),
+        metadata: { trend, avg, bestDay, worstDay, analyzedDays: allEntries.length }
+    });
+}
+
+function handleExportData() {
+    const data = loadData();
+    const entries = Object.entries(data)
+        .sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (entries.length === 0) {
+        return JSON.stringify({ error: '没有可导出的数据' });
+    }
+
+    let csv = 'Date,Score,Comment,Timestamp\n';
+    entries.forEach(([date, val]) => {
+        const v = typeof val === 'object' ? val : { score: val };
+        csv += `${date},${v.score},"${(v.comment || '').replace(/"/g, '""')}",${v.timestamp || ''}\n`;
+    });
+
+    return JSON.stringify({
+        result: `📤 导出完成！共 ${entries.length} 条记录。\n\n\`\`\`csv\n${csv}\n\`\`\``
+    });
+}
+
+function handleWipeData() {
+    saveData({});
+    return JSON.stringify({ result: '🗑️ 所有心情数据已清除。' });
+}
+
+// ==================== 辅助函数 ====================
+
+function buildDashboardQuery(entries) {
+    // 将数据编码为 URL 参数传递给 dashboard.html
+    const data = entries.map(e =>
+        `${e.date}|${e.score}|${encodeURIComponent(e.comment || '')}`
+    ).join('&');
+    return 'data=' + encodeURIComponent(data);
+}
+</script>
+</body>
+</html>
