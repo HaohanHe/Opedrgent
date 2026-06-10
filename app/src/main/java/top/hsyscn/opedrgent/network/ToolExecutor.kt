@@ -21,11 +21,14 @@ import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
 import top.hsyscn.opedrgent.tools.ReadUrlTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
+import top.hsyscn.opedrgent.tools.RunIntentTool
+import top.hsyscn.opedrgent.tools.RunJsTool
 import top.hsyscn.opedrgent.tools.SpeechToTextTool
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
+import top.hsyscn.opedrgent.mcp.skills.SkillLoader
 import java.util.concurrent.ConcurrentHashMap
 
 data class ToolResult(
@@ -42,6 +45,7 @@ class ToolExecutor(
     private val llm: LlmClient,
     private val apiSettings: ApiSettings,
     private val asrManager: top.hsyscn.opedrgent.stt.AsrManager? = null,
+    private val skillLoader: SkillLoader? = null, // Gallery Skill 系统加载器（可选，用于 run_js 工具）
 ) {
 
     private var webViewAgent: WebViewAgent? = null
@@ -59,6 +63,11 @@ class ToolExecutor(
         if (asrManager != null) {
             register(SpeechToTextTool(context, asrManager))
         }
+        // ★ Gallery 核心工具：run_js（JS Skill 沙箱执行）和 run_intent（原生 Intent）
+        if (skillLoader != null) {
+            register(RunJsTool(context, skillLoader))
+        }
+        register(RunIntentTool(context))
     }
 
     private fun buildSearchConfig(): SearchConfig = SearchConfig(

@@ -238,7 +238,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
     val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager)
+    // Gallery Skill 系统加载器（用于 run_js 工具执行 JS Skill）
+    private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
+    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
@@ -902,6 +904,94 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteSkill(skillId: String) {
         skillsStore.delete(skillId)
         refreshSkills()
+    }
+
+    // ════════════════════════════════════════════════
+    // Gallery 标准技能管理（V2 SkillLoader 集成）
+    // ════════════════════════════════════════════════
+
+    /** Gallery 标准技能列表（来自 SkillLoader） */
+    var gallerySkills: List<top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition> = emptyList()
+        private set
+
+    /**
+     * 刷新 Gallery 技能列表（从 SkillLoader 重新加载）
+     * 在 UI 层通过 LaunchedEffect 调用
+     */
+    suspend fun refreshGallerySkills() {
+        gallerySkills = skillLoader.loadAllSkills()
+    }
+
+    /**
+     * 从远程 URL 导入 Skill（Gallery 标准）
+     * @param url SKILL.md 文件的远程 URL
+     * @return 导入结果
+     */
+    suspend fun importSkillFromUrl(url: String): Result<top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition> {
+        return skillLoader.importFromUrl(url)
+    }
+
+    /**
+     * 从本地文件导入 Skill（Gallery 标准）
+     * @param context Android Context（用于 ContentResolver）
+     * @param uri 文件 URI
+     * @return 导入结果
+     */
+    suspend fun importSkillFromFile(
+        context: android.content.Context,
+        uri: android.net.Uri,
+    ): Result<top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition> {
+        return skillLoader.importFromFile(uri)
+    }
+
+    /**
+     * 运行 Gallery 标准技能：将技能指令注入当前会话并触发 LLM 执行
+     *
+     * 对于 JS/Native 类型的 Skill，LLM 会通过 run_js / run_intent 工具自动调用；
+     * 对于 Text-Only 类型，指令直接作为系统上下文增强。
+     */
+    fun runGallerySkill(skill: top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition) {
+        val sessionId = _state.value.current?.id ?: run {
+            _state.value = _state.value.copy(error = "请先打开或创建一个 AI 会话")
+            return
+        }
+        // 构建包含完整指令的用户消息，让 LLM 知道要使用该技能
+        val instructionMessage = buildString {
+            append("[使用技能: ${skill.metadata.name}]\n")
+            append("${skill.metadata.description}\n\n")
+            if (skill.needsSecret) {
+                append("⚠️ 此技能需要 API Key。如果尚未配置，请提示用户输入。\n\n")
+            }
+            // 如果有 JS 脚本路径，提示 LLM 使用 run_js 工具
+            if (skill.localScriptsPath != null) {
+                append("请使用 run_js 工具执行此技能的 JavaScript 脚本。\n")
+                append("脚本名称: ${skill.skillName}\n")
+            } else {
+                // Text-Only Skill：将指令作为用户请求发送
+                append(skill.instructions)
+            }
+        }
+        store.addMessage(sessionId, Role.USER, instructionMessage.trim())
+        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshSessions()
+        runModel(sessionId)
+    }
+
+    /**
+     * 切换 Gallery 技能的启用/禁用状态
+     */
+    fun toggleGallerySkill(skillName: String, enabled: Boolean) {
+        skillLoader.setSkillEnabled(skillName, enabled)
+    }
+
+    /**
+     * 删除用户导入的 Gallery 技能（内置技能不可删除）
+     */
+    fun deleteGallerySkill(skillName: String) {
+        val success = skillLoader.deleteSkill(skillName)
+        if (!success) {
+            _state.value = _state.value.copy(error = "无法删除技能 '$skillName'（可能为内置技能）")
+        }
     }
 
     fun listSkillsAsMessage() {
