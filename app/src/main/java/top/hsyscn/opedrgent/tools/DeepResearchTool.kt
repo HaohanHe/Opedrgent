@@ -120,7 +120,7 @@ class DeepResearchTool(
             "深度研究摘要生成失败：${e.message}\n\n=== 原始材料 ===\n${combinedSource.take(3000)}"
         }
 
-        val warningsText = if (warnings.isNotEmpty()) "\n\n⚠ 以下来源抓取失败已跳过：\n${warnings.joinToString("\n")}" else ""
+        val warningsText = if (warnings.isNotEmpty()) "\n\n[警告] 以下来源抓取失败已跳过：\n${warnings.joinToString("\n")}" else ""
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary + warningsText, endTime = System.currentTimeMillis())))
     }

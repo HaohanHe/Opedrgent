@@ -417,20 +417,20 @@ fun NoteEditorScreen(
             title = { Text("AI 操作") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AIActionButton("💡 点评", "识别亮点，正向强化", "insight_review") {
+                    AIActionButton("点评", "识别亮点，正向强化", "insight_review") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "insight_review")
                     }
-                    AIActionButton("🔍 拷问", "深度追问，挑战逻辑", "critical_inquiry") {
+                    AIActionButton("拷问", "深度追问，挑战逻辑", "critical_inquiry") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "critical_inquiry")
                     }
-                    AIActionButton("✨ 润色", "优化表达，提升质量", "text_refine") {
+                    AIActionButton("润色", "优化表达，提升质量", "text_refine") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
                     }
                     HorizontalDivider(color = Color(0xFFE0E0E0), modifier = Modifier.padding(vertical = 4.dp))
-                    AIActionButton("🖊️ AI 编辑团", "8人编辑团协作创作", "editor_team") {
+                    AIActionButton("AI 编辑团", "8人编辑团协作创作", "editor_team") {
                         showAiMenu = false
                         scope.launch { save() }
                         onOpenEditorTeam(content.text)

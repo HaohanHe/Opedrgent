@@ -195,8 +195,8 @@ object InterviewAgent {
         appendLine("}")
         appendLine("```")
         appendLine()
-        appendLine("⚠️ 开场白时 action 为 \"next_question\"，content 包含自我介绍和第一个问题。")
-        appendLine("⚠️ 结束面试时 action 为 \"end_interview\"，content 包含总结评语。")
+        appendLine("注意：开场白时 action 为 \"next_question\"，content 包含自我介绍和第一个问题。")
+        appendLine("注意：结束面试时 action 为 \"end_interview\"，content 包含总结评语。")
     }
 
     /**
@@ -434,7 +434,7 @@ object InterviewAgent {
 
             if (isLastQuestion) {
                 appendLine()
-                appendLine("⚠️ 这已是计划中的最后一个问题。")
+                appendLine("注意：这已是计划中的最后一个问题。")
                 appendLine("如果你认为已经获得了足够的信息来做出评估，可以选择结束对话（action: end_interview）。")
                 appendLine("如果认为还需要更多信息，可以继续提问（action: next_question 或 follow_up）。")
             } else {
@@ -504,7 +504,7 @@ object InterviewAgent {
 
             if (isLastQuestion) {
                 appendLine()
-                appendLine("⚠️ 这已是计划中的最后一个问题。")
+                appendLine("注意：这已是计划中的最后一个问题。")
                 appendLine("如果你认为已经获得了足够的信息来做出评估，可以选择结束对话（action: end_interview）。")
                 appendLine("如果认为还需要更多信息，可以继续提问（action: next_question 或 follow_up）。")
             } else {

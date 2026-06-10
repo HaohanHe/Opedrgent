@@ -340,10 +340,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
                     // 当前选中状态的简要说明
                     val levelDesc = when (selectedTrustLevel) {
-                        TrustLevel.YOLO -> "⚠️ 当前为完全信任模式，所有操作将自动执行"
-                        TrustLevel.NORMAL -> "✅ 当前为正常确认模式，平衡安全与便利"
-                        TrustLevel.STRICT -> "🔒 当前为严格模式，大部分操作需要确认"
-                        TrustLevel.PARANOID -> "🔒 当前为偏执模式，几乎所有操作都需要确认"
+                        TrustLevel.YOLO -> "当前为完全信任模式，所有操作将自动执行"
+                        TrustLevel.NORMAL -> "当前为正常确认模式，平衡安全与便利"
+                        TrustLevel.STRICT -> "当前为严格模式，大部分操作需要确认"
+                        TrustLevel.PARANOID -> "当前为偏执模式，几乎所有操作都需要确认"
                     }
                     Text(text = levelDesc, style = MaterialTheme.typography.bodySmall, color = Color(0xFFE65100))
                 }

@@ -173,7 +173,7 @@ class AsrManager(
                 DebugLog.i(TAG, "尝试创建 MiMO ASR 引擎 (在线模式)")
                 val mimoEngine = MimoAsrEngine(context, apiSettings)
                 if (mimoEngine.initialize()) {
-                    DebugLog.i(TAG, "✅ MiMO ASR 引擎创建成功")
+                    DebugLog.i(TAG, "MiMO ASR 引擎创建成功")
                     return mimoEngine
                 }
                 DebugLog.w(TAG, "MiMO ASR 初始化返回 false，尝试降级到本地引擎...")
@@ -187,7 +187,7 @@ class AsrManager(
 
         // 场景2：用户选择 MiMO 但无 API Key → 自动使用本地引擎（不报错）
         if (sttEngine == "mimo" && !hasKey) {
-            DebugLog.w(TAG, "⚠️ sttEngine=mimo 但 API Key 未设置，自动降级到本地引擎")
+            DebugLog.w(TAG, "sttEngine=mimo 但 API Key 未设置，自动降级到本地引擎")
             return fallbackToLocalEngine("API Key 未设置")
         }
 
@@ -203,7 +203,7 @@ class AsrManager(
      * @throws IllegalStateException 如果本地引擎也不可用
      */
     private fun fallbackToLocalEngine(reason: String): SpeechEngine {
-        DebugLog.i(TAG, "🔄 降级到本地引擎 (原因: $reason)")
+        DebugLog.i(TAG, "降级到本地引擎 (原因: $reason)")
         
         return try {
             createLocalEngine()
@@ -257,7 +257,7 @@ class AsrManager(
             )
         }
 
-        DebugLog.i(TAG, "✅ Sherpa-ONNX 引擎创建成功 (model=$recommendedModel)")
+        DebugLog.i(TAG, "Sherpa-ONNX 引擎创建成功 (model=$recommendedModel)")
         return engine
     }
 }

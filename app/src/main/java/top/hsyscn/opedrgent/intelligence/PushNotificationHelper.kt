@@ -49,11 +49,11 @@ class PushNotificationHelper(private val context: Context) {
         )
 
         private val TYPE_ICONS = mapOf(
-            RecommendationType.RELATED_NOTE to "📝",
-            RecommendationType.ACTION_SUGGESTION to "✨",
-            RecommendationType.CONTEXTUAL_TIP to "💡",
-            RecommendationType.DAILY_REVIEW to "📊",
-            RecommendationType.WEEKLY_REPORT to "📈",
+            RecommendationType.RELATED_NOTE to "",
+            RecommendationType.ACTION_SUGGESTION to "",
+            RecommendationType.CONTEXTUAL_TIP to "",
+            RecommendationType.DAILY_REVIEW to "",
+            RecommendationType.WEEKLY_REPORT to "",
         )
     }
 
@@ -65,7 +65,7 @@ class PushNotificationHelper(private val context: Context) {
      */
     fun formatRecommendation(rec: Recommendation): FormattedRecommendation {
         val color = TYPE_COLORS[rec.type] ?: 0xFF2B68DEL
-        val icon = TYPE_ICONS[rec.type] ?: "💡"
+        val icon = TYPE_ICONS[rec.type] ?: ""
 
         return when (rec) {
             is Recommendation.NoteRecommendation -> FormattedRecommendation(
@@ -135,7 +135,7 @@ class PushNotificationHelper(private val context: Context) {
      * 发送每日回顾通知。
      */
     fun sendDailyReviewNotification(dailyReview: top.hsyscn.opedrgent.intelligence.DailyReview) {
-        val title = "📊 今日回顾 — ${dailyReview.date}"
+        val title = "今日回顾 — ${dailyReview.date}"
         val body = buildString {
             append("今日记录 ${dailyReview.notesCreated} 条笔记")
             if (dailyReview.aiChats > 0) append("，AI 对话 ${dailyReview.aiChats} 次")

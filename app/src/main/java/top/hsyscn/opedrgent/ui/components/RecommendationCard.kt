@@ -289,7 +289,7 @@ fun DailyReviewCard(
 
             Spacer(Modifier.width(10.dp))
 
-            Text(text = "📊", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
+            Text(text = "[图表]", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(

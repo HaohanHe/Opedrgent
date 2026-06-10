@@ -33,8 +33,8 @@ import top.hsyscn.opedrgent.utils.DebugLog
  * ├ Attention   │                       │              │
  * └ Context Prot│                       └─────────────┘
  *
- * 没有 Hippocampus: LLM 直接调用 → 容易跑偏 ✗
- * 有 Hippocampus:  LLM 调用前先过海马体 → 始终聚焦 ✓
+ * 没有 Hippocampus: LLM 直接调用 -> 容易跑偏 [X]
+ * 有 Hippocampus:  LLM 调用前先过海马体 -> 始终聚焦 [OK]
  *
  * ## 使用方式
  *
@@ -359,7 +359,7 @@ class HippocampusMemory(
                 |【禁止】不要偏离到与上述目标无关的话题。
             """.trimMargin()
             turnIndex <= 2 -> """【提醒】当前目标: ${anchor.primaryGoal}（第${turnIndex + 1}轮）"""
-            else -> """【🧭 锚定】${anchor.primaryGoal}"""
+            else -> """【锚定】${anchor.primaryGoal}"""
         }
 
         // 根据漂移等级动态调整提醒强度
@@ -367,29 +367,29 @@ class HippocampusMemory(
             DriftLevel.NONE -> ""  // 无漂移，不额外打扰
             DriftLevel.MILD -> """
                 |
-                |⚠️ 注意：对话有轻微偏移趋势。
+                |[注意] 对话有轻微偏移趋势。
                 |当前已覆盖: ${extractMatchedTopics(drift)}。
                 |请自然地将对话引回主线。
             """.trimMargin()
             DriftLevel.MODERATE -> """
                 |
-                |🔴 【注意力提醒】对话正在偏离核心目标！
+                |[注意力提醒] 对话正在偏离核心目标！
                 |原因: ${drift.driftReason}
                 |建议: ${drift.suggestedCorrection}
                 |请在下一轮回复中将话题拉回正轨。
             """.trimMargin()
             DriftLevel.SEVERE -> """
                 |
-                |🚨 【紧急纠偏】对话已严重跑偏！
+                |[紧急纠偏] 对话已严重跑偏！
                 |原因: ${drift.driftReason}
                 |你的任务是: ${anchor.primaryGoal}
                 |必须覆盖: ${anchor.keyTopics.joinToString("、")}
-                |⛔ 禁止: ${anchor.forbiddenTopics.joinToString("、")}
+                |禁止: ${anchor.forbiddenTopics.joinToString("、")}
                 |请立即停止当前话题，回到面试/答辩的正轨上来！
             """.trimMargin()
             DriftLevel.OFF_TOPIC -> """
                 |
-                |💥 【严重警告】对话已完全离题！
+                |[严重警告] 对话已完全离题！
                 |立即停止一切无关对话。
                 |回到目标: ${anchor.primaryGoal}
                 |下一句话必须是针对候选人的专业提问或评价。
@@ -503,22 +503,22 @@ class HippocampusMemory(
 
         // 构建保护性上下文文本
         return buildString {
-            appendLine("⏱️ 对话进度回顾（第${snapshot.turnIndex + 1}轮快照）：")
+            appendLine("对话进度回顾（第${snapshot.turnIndex + 1}轮快照）：")
 
             if (snapshot.coveredTopics.isNotEmpty()) {
-                appendLine("- ✅ 已覆盖: ${snapshot.coveredTopics.joinToString("、")}")
+                appendLine("- 已覆盖: ${snapshot.coveredTopics.joinToString("、")}")
             }
 
             if (snapshot.pendingTopics.isNotEmpty()) {
-                appendLine("- ⏳ 待覆盖: ${snapshot.pendingTopics.joinToString("、")}")
+                appendLine("- 待覆盖: ${snapshot.pendingTopics.joinToString("、")}")
             }
 
             if (snapshot.redFlags.isNotEmpty()) {
-                appendLine("- ⚠️ 发现的风险点: ${snapshot.redFlags.joinToString("；")}")
+                appendLine("- 发现的风险点: ${snapshot.redFlags.joinToString("；")}")
             }
 
             if (snapshot.userMentionedFacts.isNotEmpty()) {
-                appendLine("- 📝 候选人提及: ${snapshot.userMentionedFacts.take(3).joinToString("；")}")
+                appendLine("- 候选人提及: ${snapshot.userMentionedFacts.take(3).joinToString("；")}")
             }
         }
     }
@@ -593,9 +593,9 @@ class HippocampusMemory(
             appendLine("共 $totalTurns 轮对话，其中 $driftCount 轮发生注意力漂移（漂移率 %.1f%%）。".format(driftRate * 100))
 
             when {
-                driftRate < 0.2f -> appendLine("✅ 对话整体聚焦良好，AI 始终保持在目标轨道上。")
-                driftRate < 0.5f -> appendLine("⚠️ 存在轻微漂移，但总体可控。建议关注后续对话的聚焦程度。")
-                else -> appendLine("❌ 注意力漂移较严重，AI 多次偏离主题。建议优化提示词或增加锚定强度。")
+                driftRate < 0.2f -> appendLine("对话整体聚焦良好，AI 始终保持在目标轨道上。")
+                driftRate < 0.5f -> appendLine("存在轻微漂移，但总体可控。建议关注后续对话的聚焦程度。")
+                else -> appendLine("注意力漂移较严重，AI 多次偏离主题。建议优化提示词或增加锚定强度。")
             }
 
             appendLine("最高漂移等级: ${maxDriftLevel.name}")

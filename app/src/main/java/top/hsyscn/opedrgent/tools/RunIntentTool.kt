@@ -88,7 +88,7 @@ class RunIntentTool(
             "open_url" -> handleOpenUrl(params)
             "share_text" -> handleShareText(params)
             "dial_phone" -> handleDialPhone(params)
-            else -> "❌ 不支持的 Intent 类型: $intentType。支持的类型: send_email, send_text_message, create_calendar_event, open_url, share_text, dial_phone"
+            else -> "[失败] 不支持的 Intent 类型: $intentType。支持的类型: send_email, send_text_message, create_calendar_event, open_url, share_text, dial_phone"
         }
     }
 
@@ -100,7 +100,7 @@ class RunIntentTool(
         val subject = params.optString("extra_subject", "")
         val text = params.optString("extra_text", "")
 
-        if (email.isBlank()) return "❌ 发送邮件失败：缺少收件人地址 (extra_email)"
+        if (email.isBlank()) return "[失败] 发送邮件失败：缺少收件人地址 (extra_email)"
 
         return try {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -114,9 +114,9 @@ class RunIntentTool(
             chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(chooser)
 
-            "✅ 已打开邮件编辑器 → 收件人: $email${if (subject.isNotBlank()) ", 主题: $subject" else ""}"
+            "[成功] 已打开邮件编辑器 → 收件人: $email${if (subject.isNotBlank()) ", 主题: $subject" else ""}"
         } catch (e: Exception) {
-            "❌ 发送邮件失败: ${e.message}。请确认设备已安装邮件应用。"
+            "[失败] 发送邮件失败: ${e.message}。请确认设备已安装邮件应用。"
         }
     }
 
@@ -125,7 +125,7 @@ class RunIntentTool(
         val phone = params.optString("phone", "")
         val text = params.optString("text", "")
 
-        if (phone.isBlank()) return "❌ 发送短信失败：缺少手机号码 (phone)"
+        if (phone.isBlank()) return "[失败] 发送短信失败：缺少手机号码 (phone)"
 
         return try {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -136,9 +136,9 @@ class RunIntentTool(
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
 
-            "✅ 已打开短信编辑器 → 收件人: $phone"
+            "[成功] 已打开短信编辑器 → 收件人: $phone"
         } catch (e: Exception) {
-            "❌ 发送短信失败: ${e.message}"
+            "[失败] 发送短信失败: ${e.message}"
         }
     }
 
@@ -165,12 +165,12 @@ class RunIntentTool(
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (intent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(intent)
-                "✅ 已打开日历事件编辑器 → 「$title」"
+                "[成功] 已打开日历事件编辑器 → 「$title」"
             } else {
-                "⚠️ 未找到日历应用，无法创建事件"
+                "[警告] 未找到日历应用，无法创建事件"
             }
         } catch (e: Exception) {
-            "❌ 创建日历事件失败: ${e.message}"
+            "[失败] 创建日历事件失败: ${e.message}"
         }
     }
 
@@ -178,7 +178,7 @@ class RunIntentTool(
     private fun handleOpenUrl(params: JSONObject): String {
         val url = params.optString("url", "")
 
-        if (url.isBlank()) return "❌ 打开链接失败：缺少 URL 参数"
+        if (url.isBlank()) return "[失败] 打开链接失败：缺少 URL 参数"
 
         return try {
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
@@ -186,12 +186,12 @@ class RunIntentTool(
 
             if (intent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(intent)
-                "✅ 已在浏览器中打开: $url"
+                "[成功] 已在浏览器中打开: $url"
             } else {
-                "⚠️ 没有可用的浏览器应用"
+                "[警告] 没有可用的浏览器应用"
             }
         } catch (e: Exception) {
-            "❌ 打开链接失败: ${e.message}"
+            "[失败] 打开链接失败: ${e.message}"
         }
     }
 
@@ -200,7 +200,7 @@ class RunIntentTool(
         val text = params.optString("text", "")
         val title = params.optString("title", "分享")
 
-        if (text.isBlank()) return "❌ 分享失败：缺少文本内容"
+        if (text.isBlank()) return "[失败] 分享失败：缺少文本内容"
 
         return try {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -213,9 +213,9 @@ class RunIntentTool(
             chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(chooser)
 
-            "✅ 已打开分享面板"
+            "[成功] 已打开分享面板"
         } catch (e: Exception) {
-            "❌ 分享失败: ${e.message}"
+            "[失败] 分享失败: ${e.message}"
         }
     }
 
@@ -223,16 +223,16 @@ class RunIntentTool(
     private fun handleDialPhone(params: JSONObject): String {
         val phone = params.optString("phone", "")
 
-        if (phone.isBlank()) return "❌ 拨号失败：缺少手机号码"
+        if (phone.isBlank()) return "[失败] 拨号失败：缺少手机号码"
 
         return try {
             val intent = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone"))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
 
-            "✅ 已打开拨号面板 → $phone"
+            "[成功] 已打开拨号面板 → $phone"
         } catch (e: Exception) {
-            "❌ 拨号失败: ${e.message}"
+            "[失败] 拨号失败: ${e.message}"
         }
     }
 

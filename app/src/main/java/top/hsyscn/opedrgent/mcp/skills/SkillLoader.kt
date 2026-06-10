@@ -333,7 +333,7 @@ class SkillLoader(private val context: Context) {
             for (skill in categorySkills.sortedBy { it.metadata.name }) {
                 lines.add("- **${skill.metadata.name}**: ${skill.metadata.description}")
                 if (skill.needsSecret) {
-                    lines.add("  ⚠️ 此技能需要 API Key（Secret），请先确认已配置。")
+                    lines.add("  [注意] 此技能需要 API Key（Secret），请先确认已配置。")
                 }
             }
             lines.add("")
