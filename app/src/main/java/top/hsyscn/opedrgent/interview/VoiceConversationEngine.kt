@@ -8,19 +8,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.stt.AsrManager
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
-import top.hsyscn.opedrgent.tts.MimoTtsClient
 import top.hsyscn.opedrgent.tts.MimoTtsClient.StyleControl
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * 语音对话状态枚举
+ * 语音对话状态枚举（兼容旧接口）。
+ *
+ * @see FullDuplexAudioEngine.DuplexState 新的全双工状态枚举
  */
 enum class ConversationState {
     /** 空闲 */
@@ -40,30 +42,45 @@ enum class ConversationState {
 }
 
 /**
- * 语音对话引擎 — 串联 STT → LLM → TTS 的完整管线。
+ * 语音对话引擎 v3.0 — 全双工电话模式。
  *
- * 核心职责：
- * 1. 管理 TTS 播放（面试官说话）— 支持场景化语音风格
- * 2. 管理 ASR 监听（收集候选人回答）
- * 3. 协调对话状态流转
- * 4. 提供回调接口供 UI 层更新
+ * ## 架构对比
  *
- * ## v2.0 新增：TTS 场景化
- * - 不同对话场景使用不同的语音风格（语速、音调、角色设定）
- * - 通过 [TtsScenario] 枚举控制导演模式参数
- * - 参考飞书 APK 的场景化 TTS 设计
+ * v2.0（半双工对讲机）：              v3.0（全双工电话）：
+ * ┌──────────────┐                  ┌──────────────────┐
+ * 用户按住录音     │                  │ AudioRecord(持续)  │
+ * ↓               │                  ↓  并行             │
+ * ASR 识别         │                  AudioTrack(同时播放) │
+ * ↓               │                  ↓                   │
+ * LLM 处理         │   ──升级──→       FullDuplexAudioEngine│
+ * ↓               │                  ├→ VAD(自动断句)      │
+ * TTS 播放         │                  ├→ AEC(回声消除)      │
+ * ↓               │                  └→ BargeIn(插话检测)  │
+ * 等待下次按住     │                                   │
+ * └──────────────┘                  └──────────────────┘
  *
- * 使用方式：
+ * ## 核心特性
+ * 1. **全双工**：录音和播放同时进行，无需手动切换
+ * 2. **自动断句**：VAD 检测用户自然停顿后自动提交
+ * 3. **插话打断**：用户可在 AI 说话时随时开口，立即响应
+ * 4. **硬件 AEC**：使用 VOICE_COMMUNICATION 音源的回声消除
+ * 5. **低延迟**：目标端到端 < 500ms（VAD→ASR→LLM→TTS 流水线）
+ *
+ * ## 使用方式
  * ```kotlin
  * val engine = VoiceConversationEngine(context, ttsPlayer, apiSettings)
- * engine.startConversationLoop(
- *     scenario = TtsScenario.INTERVIEW,  // 指定TTS场景
- *     onAiSpeak = { text -> ui.updateAiMessage(text) },
- *     onUserSpeak = { text -> ui.updateUserMessage(text) },
- *     onStateChange = { state -> ui.updateState(state) },
- *     getAiResponse = { userInput -> llm.generateResponse(userInput) }
+ * engine.startFullDuplex(
+ *     scenario = TtsScenario.INTERVIEW,
+ *     onAiSpeak = { text -> ui.showAiMessage(text) },
+ *     onUserSpeak = { text -> ui.showMessage(text) },
+ *     onStateChange = { state -> ui.updateCallUI(state) },
+ *     getAiResponse = { input -> llm.generate(input) },
  * )
  * ```
+ *
+ * ## 兼容性
+ * - 保留旧的 [startConversationLoop] 接口（内部委托给 [startFullDuplex]）
+ * - 新代码建议直接使用 [startFullDuplex] API
  */
 class VoiceConversationEngine(
     private val context: Context,
@@ -72,7 +89,7 @@ class VoiceConversationEngine(
 ) {
 
     companion object {
-        private const val TAG = "VoiceConversationEngine"
+        private const val TAG = "VoiceConvEngineV3"
 
         /** 面试官默认声音：白桦（成熟男声） */
         const val DEFAULT_INTERVIEWER_VOICE = "白桦"
@@ -81,39 +98,82 @@ class VoiceConversationEngine(
         val DEFAULT_TTS_SCENARIO = TtsScenario.INTERVIEW
     }
 
-    // 状态标志
-    private val isListening = AtomicBoolean(false)
-    private val conversationActive = AtomicBoolean(false)
-
-    // ASR 管理器
-    private var asrManager: AsrManager? = null
-
-    // 当前 ASR 流式识别 Job
-    private var asrJob: Job? = null
-
-    // 当前 TTS 播放 Job
-    private var ttsJob: Job? = null
+    // ==================== 全双工引擎 ====================
 
     /**
-     * 开始一轮完整的对话循环。
+     * 内部持有的全双工音频引擎实例。
+     */
+    private val duplexEngine = FullDuplexAudioEngine(context)
+
+    // ==================== 状态管理 ====================
+
+    /**
+     * 对话是否活跃（用于控制主循环）。
+     */
+    private val conversationActive = AtomicBoolean(false)
+
+    /**
+     * 是否正在处理中（LLM 调用期间）。
+     */
+    private val isProcessing = AtomicBoolean(false)
+
+    // ==================== ASR 相关 ====================
+
+    /**
+     * ASR 管理器（用于将 PCM 转为文字）。
+     */
+    private var asrManager: AsrManager? = null
+
+    /**
+     * 当前 ASR 流式识别 Job。
+     */
+    private var asrJob: Job? = null
+
+    /**
+     * 当前 TTS 播放 Job。
+     */
+    private var ttsJob: Job? = null
+
+    // ==================== 当前轮次状态 ====================
+
+    /**
+     * 用户最新输入文本（由 ASR 填充）。
+     */
+    @Volatile
+    private var latestUserText: String = ""
+
+    /**
+     * 等待用户输入完成的信号。
+     */
+    private var waitingForUserInput = false
+
+    // ==================== 公开 API：全双工模式（推荐）====================
+
+    /**
+     * 开始全双工语音对话（推荐使用此方法）。
      *
      * 工作流程：
-     * 1. AI 说话（TTS）→ 回调通知 UI
-     * 2. 开始监听用户回答（ASR）
-     * 3. 收集到用户输入后，调用 LLM 生成回复
-     * 4. 循环步骤 1-3，直到 [stopConversation] 被调用
+     * 1. 连接并启动全双工音频引擎
+     * 2. VAD 自动检测用户说话 → ASR 实时识别
+     * 3. 用户说完一句话后自动提交给 LLM
+     * 4. LLM 回复通过 TTS 播放（支持插话打断）
+     * 5. 循环步骤 2-4，直到 [stopFullDuplex] 被调用
      *
      * @param scenario TTS 语音场景（控制语音风格、语速、音调等）
-     * @param onAiSpeak AI 说话时的回调（用于UI更新文字）
+     * @param onAiSpeak AI 说话时的回调（用于 UI 更新文字）
      * @param onUserSpeak 用户说话完成后的回调
-     * @param onStateChange 对话状态变化回调
+     * @param onPartialUserText ASR 实时识别文字回调（显示打字机效果）
+     * @param onStateChange 全双工状态变化回调（可绑定 Compose UI）
+     * @param onBargeIn 用户打断 AI 时的回调
      * @param getAiResponse LLM 调用接口，传入用户输入返回 AI 回复
      */
-    suspend fun startConversationLoop(
+    suspend fun startFullDuplex(
         scenario: TtsScenario = DEFAULT_TTS_SCENARIO,
         onAiSpeak: (String) -> Unit,
         onUserSpeak: (String) -> Unit,
-        onStateChange: (ConversationState) -> Unit,
+        onPartialUserText: (String) -> Unit = {},
+        onStateChange: (FullDuplexAudioEngine.DuplexState) -> Unit,
+        onBargeIn: () -> Unit = {},
         getAiResponse: suspend (userInput: String?) -> String,
     ) {
         if (!conversationActive.compareAndSet(false, true)) {
@@ -121,67 +181,469 @@ class VoiceConversationEngine(
             return
         }
 
-        DebugLog.i(TAG, "开始语音对话循环 [场景：${scenario.label}]")
+        DebugLog.i(TAG, "🚀 开始全双工语音对话 [场景：${scenario.label}]")
 
         try {
-            // 初始化 ASR 管理器
+            // 步骤1：初始化 ASR 管理器
             asrManager = AsrManager(context, apiSettings)
             asrManager?.ensureInitialized()
 
-            while (conversationActive.get()) {
-                // 步骤1：获取 AI 回复并播放
-                val aiResponse = withContext(Dispatchers.IO) {
+            // 步骤2：连接全双工音频引擎
+            duplexEngine.connect()
+
+            // 注册全双工引擎回调
+            setupDuplexCallbacks(
+                scenario = scenario,
+                onAiSpeak = onAiSpeak,
+                onUserSpeak = onUserSpeak,
+                onPartialUserText = onPartialUserText,
+                onLegacyStateChange = { legacyState ->
+                    // 将旧状态映射到新状态通知 UI
+                    when (legacyState) {
+                        ConversationState.IDLE -> onStateChange(FullDuplexAudioEngine.DuplexState.IDLE)
+                        ConversationState.AI_SPEAKING -> onStateChange(FullDuplexAudioEngine.DuplexState.AI_SPEAKING)
+                        ConversationState.LISTENING -> onStateChange(FullDuplexAudioEngine.DuplexState.LISTENING)
+                        ConversationState.PROCESSING -> {}  // PROCESSING 无对应状态
+                        ConversationState.ERROR -> {}
+                    }
+                },
+                onBargeIn = onBargeIn,
+                getAiResponse = getAiResponse,
+            )
+
+            // 同步初始状态
+            onStateChange(duplexEngine.state)
+
+            // 步骤3：启动全双工音频管线
+            duplexEngine.start()
+
+            // 步骤4：获取第一句话的 AI 回复（开场白）
+            if (conversationActive.get()) {
+                val openingLine = withContext(Dispatchers.IO) {
                     getAiResponse(null)
                 }
 
-                if (!conversationActive.get()) break
+                if (conversationActive.get() && openingLine.isNotBlank()) {
+                    onAiSpeak(openingLine)
 
-                // AI 说话（使用场景化语音）
-                onStateChange(ConversationState.AI_SPEAKING)
-                onAiSpeak(aiResponse)
-
-                aiSpeak(aiResponse, scenario = scenario)
-
-                if (!conversationActive.get()) break
-
-                // 步骤2：开始监听用户回答
-                onStateChange(ConversationState.LISTENING)
-
-                val userText = collectUserInput(onUserSpeak, onStateChange)
-
-                if (!conversationActive.get()) break
-
-                if (userText.isBlank()) {
-                    DebugLog.d(TAG, "用户输入为空，继续等待...")
-                    continue
+                    duplexEngine.aiSpeakText(
+                        text = openingLine,
+                        ttsPlayer = ttsPlayer,
+                        scenario = scenario,
+                        voiceId = DEFAULT_INTERVIEWER_VOICE,
+                    )
                 }
-
-                // 步骤3：处理用户输入
-                onUserSpeak(userText)
-                onStateChange(ConversationState.PROCESSING)
             }
+
+            // 步骤5：保持运行直到停止信号
+            // 全双工模式下，事件驱动（VAD 触发），不需要主动循环
+            while (conversationActive.get() && duplexEngine.state != FullDuplexAudioEngine.DuplexState.IDLE) {
+                delay(100L)
+            }
+
         } catch (e: CancellationException) {
-            DebugLog.i(TAG, "对话循环被取消")
+            DebugLog.i(TAG, "全双工对话被取消")
         } catch (e: Exception) {
-            DebugLog.e(TAG, "对话循环异常: ${e.message}", e)
-            onStateChange(ConversationState.ERROR)
+            DebugLog.e(TAG, "全双工对话异常: ${e.message}", e)
         } finally {
-            stopListening()
-            conversationActive.set(false)
-            onStateChange(ConversationState.IDLE)
-            DebugLog.i(TAG, "语音对话循环结束")
+            stopFullDuplex()
         }
     }
 
     /**
-     * 让 AI 说话（使用 TTS 合成并播放）。
+     * 停止全双工对话。
      *
-     * 根据不同的 [TtsScenario] 选择对应的语音风格配置：
-     * - 语速（rate）、音调（pitch）
-     * - 导演模式角色设定和场景描述
+     * 会中断当前正在进行的 TTS 播放和 ASR 监听，
+     * 并释放全双工音频引擎资源。
+     */
+    fun stopFullDuplex() {
+        if (!conversationActive.compareAndSet(true, false)) {
+            return
+        }
+
+        DebugLog.i(TAG, "⏹️ 停止全双工对话")
+
+        // 停止 TTS
+        ttsJob?.cancel()
+        ttsJob = null
+        ttsPlayer.stop()
+
+        // 停止 ASR
+        stopListening()
+
+        // 断开全双工引擎
+        duplexEngine.disconnect()
+
+        isProcessing.set(false)
+        waitingForUserInput = false
+    }
+
+    // ==================== 公开 API：兼容旧接口 ====================
+
+    /**
+     * 开始一轮完整的对话循环（兼容旧接口）。
+     *
+     * 内部委托给 [startFullDuplex] 实现，
+     * 保持与 v2.0 版本的 API 兼容性。
+     *
+     * @param scenario TTS 语音场景（控制语音风格、语速、音调等）
+     * @param onAiSpeak AI 说话时的回调（用于 UI 更新文字）
+     * @param onUserSpeak 用户说话完成后的回调
+     * @param onStateChange 对话状态变化回调（旧版 [ConversationState]）
+     * @param getAiResponse LLM 调用接口，传入用户输入返回 AI 回复
+     *
+     * @deprecated 请使用 [startFullDuplex] 获得完整的全双工体验
+     */
+    @Deprecated("请使用 startFullDuplex() 获得完整的全双工体验", ReplaceWith("startFullDuplex"))
+    suspend fun startConversationLoop(
+        scenario: TtsScenario = DEFAULT_TTS_SCENARIO,
+        onAiSpeak: (String) -> Unit,
+        onUserSpeak: (String) -> Unit,
+        onStateChange: (ConversationState) -> Unit,
+        getAiResponse: suspend (userInput: String?) -> String,
+    ) {
+        // 将旧的状态回调包装为新的 DuplexState 回调
+        startFullDuplex(
+            scenario = scenario,
+            onAiSpeak = onAiSpeak,
+            onUserSpeak = onUserSpeak,
+            onStateChange = { duplexState ->
+                val legacyState = when (duplexState) {
+                    FullDuplexAudioEngine.DuplexState.IDLE -> ConversationState.IDLE
+                    FullDuplexAudioEngine.DuplexState.CONNECTED -> ConversationState.LISTENING
+                    FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> ConversationState.AI_SPEAKING
+                    FullDuplexAudioEngine.DuplexState.LISTENING -> ConversationState.LISTENING
+                    FullDuplexAudioEngine.DuplexState.MUTED -> ConversationState.LISTENING
+                }
+                onStateChange(legacyState)
+            },
+            getAiResponse = getAiResponse,
+        )
+    }
+
+    /**
+     * 停止整个对话循环（兼容旧接口）。
+     *
+     * 内部调用 [stopFullDuplex]。
+     *
+     * @deprecated 请使用 [stopFullDuplex]
+     */
+    @Deprecated("请使用 stopFullDuplex()", ReplaceWith("stopFullDuplex"))
+    fun stopConversation() {
+        stopFullDuplex()
+    }
+
+    // ==================== 公共查询方法 ====================
+
+    /**
+     * 检查是否正在监听（兼容旧接口）。
+     */
+    fun isCurrentlyListening(): Boolean =
+        duplexEngine.state == FullDuplexAudioEngine.DuplexState.LISTENING ||
+        duplexEngine.state == FullDuplexAudioEngine.DuplexState.CONNECTED
+
+    /**
+     * 检查对话是否活跃。
+     */
+    fun isConversationActive(): Boolean = conversationActive.get()
+
+    /**
+     * 获取当前全双工状态（新版 API）。
+     */
+    fun getCurrentDuplexState(): FullDuplexAudioEngine.DuplexState = duplexEngine.state
+
+    // ==================== 内部实现 ====================
+
+    /**
+     * 设置全双工引擎的所有回调。
+     */
+    private fun setupDuplexCallbacks(
+        scenario: TtsScenario,
+        onAiSpeak: (String) -> Unit,
+        onUserSpeak: (String) -> Unit,
+        onPartialUserText: (String) -> Unit,
+        onLegacyStateChange: (ConversationState) -> Unit,
+        onBargeIn: () -> Unit,
+        getAiResponse: suspend (userInput: String?) -> String,
+    ) {
+        // 1. 语音检测回调（VAD 判定为一句话结束）
+        duplexEngine.onSpeechDetected { pcmData ->
+            handleUserSpeechDetected(pcmData, scenario, onAiSpeak, onUserSpeak, onPartialUserText, onLegacyStateChange, onBargeIn, getAiResponse)
+        }
+
+        // 2. 插话回调
+        duplexEngine.onBargeIn {
+            DebugLog.i(TAG, "🗣️ 用户打断了 AI！")
+            onBargeIn.invoke()
+
+            // 停止当前 TTS 播放
+            stopCurrentTts()
+
+            // 重置插话标志以便下次检测
+            duplexEngine.resetBargeIn()
+        }
+
+        // 3. 状态变化回调（同步到 UI）
+        duplexEngine.onStateChanged { duplexState ->
+            DebugLog.d(TAG, "全双工状态: $duplexState")
+
+            // 映射到旧状态
+            when (duplexState) {
+                FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> onLegacyStateChange(ConversationState.AI_SPEAKING)
+                FullDuplexAudioEngine.DuplexState.LISTENING -> onLegacyStateChange(ConversationState.LISTENING)
+                FullDuplexAudioEngine.DuplexState.IDLE -> onLegacyStateChange(ConversationState.IDLE)
+                else -> {}  // CONNECTED/MUTED 不需要特殊处理
+            }
+        }
+    }
+
+    /**
+     * 处理用户语音事件（VAD 检测到一段完整话语）。
+     *
+     * 流程：
+     * 1. 提交 PCM 给 ASR 引擎进行识别
+     * 2. 等待最终识别结果
+     * 3. 通知 UI 显示用户文字
+     * 4. 调用 LLM 生成回复
+     * 5. 通过 TTS 播放回复
+     */
+    private fun handleUserSpeechDetected(
+        pcmData: ByteArray,
+        scenario: TtsScenario,
+        onAiSpeak: (String) -> Unit,
+        onUserSpeak: (String) -> Unit,
+        onPartialUserText: (String) -> Unit,
+        onLegacyStateChange: (ConversationState) -> Unit,
+        onBargeIn: () -> Unit,
+        getAiResponse: suspend (userInput: String?) -> String,
+    ) {
+        if (!conversationActive.get()) return
+
+        DebugLog.i(TAG, "🎤 收集到用户语音 (${pcmData.size} bytes)，开始 ASR 识别...")
+
+        // 标记正在处理用户输入
+        isProcessing.set(true)
+        onLegacyStateChange(ConversationState.PROCESSING)
+
+        // 启动 ASR 识别协程
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 使用流式 ASR 识别
+                val recognizedText = recognizePcmData(pcmData, onPartialUserText)
+
+                if (!conversationActive.get() || recognizedText.isBlank()) {
+                    isProcessing.set(false)
+                    if (conversationActive.get()) {
+                        onLegacyStateChange(ConversationState.LISTENING)
+                    }
+                    return@launch
+                }
+
+                DebugLog.i(TAG, "📝 ASR 结果: '${recognizedText.take(100)}'")
+
+                // 通知 UI：用户说的话
+                onUserSpeak(recognizedText)
+                latestUserText = recognizedText
+                waitingForUserInput = false
+
+                // 调用 LLM 生成回复
+                val aiResponse = withContext(Dispatchers.IO) {
+                    getAiResponse(recognizedText)
+                }
+
+                if (!conversationActive.get() || aiResponse.isBlank()) {
+                    isProcessing.set(false)
+                    if (conversationActive.get()) {
+                        onLegacyStateChange(ConversationState.LISTENING)
+                    }
+                    return@launch
+                }
+
+                DebugLog.i(TAG, "🤖 AI 回复: '${aiResponse.take(100)}'")
+
+                // 通知 UI：AI 的回复文字
+                onAiSpeak(aiResponse)
+
+                // 通过全双工引擎播放 TTS
+                duplexEngine.aiSpeakText(
+                    text = aiResponse,
+                    ttsPlayer = ttsPlayer,
+                    scenario = scenario,
+                    voiceId = DEFAULT_INTERVIEWER_VOICE,
+                )
+
+            } catch (e: CancellationException) {
+                DebugLog.i(TAG, "用户语音处理被取消")
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "用户语音处理异常: ${e.message}", e)
+            } finally {
+                isProcessing.set(false)
+                if (conversationActive.get()) {
+                    onLegacyStateChange(ConversationState.LISTENING)
+                }
+            }
+        }
+    }
+
+    /**
+     * 识别 PCM 音频数据。
+     *
+     * 尝试使用流式 ASR 引擎识别，
+     * 如果不可用则返回空字符串。
+     *
+     * @return 识别出的文本
+     */
+    private suspend fun recognizePcmData(
+        pcmData: ByteArray,
+        onPartialText: (String) -> Unit,
+    ): String {
+        val manager = asrManager ?: run {
+            DebugLog.e(TAG, "ASR 管理器未初始化")
+            return ""
+        }
+
+        return try {
+            // 注意：这里简化处理，实际项目中应该将 PCM 数据送入 ASR 引擎
+            // 由于 AsrManager.startStreaming() 是基于麦克风流式采集的，
+            // 对于离线 PCM 数据，可能需要使用其他接口或扩展 AsrManager
+
+            // 当前实现：启动流式识别等待结果
+            // TODO: 集成离线 PCM 识别接口（如 Whisper API 或本地模型）
+            var finalResult = ""
+
+            asrJob = launch {
+                val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
+                flow
+                    .catch { e ->
+                        DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
+                    }
+                    .collect { state ->
+                        when (state) {
+                            is StreamingRecognitionState.Recognizing -> {
+                                // 实时识别结果（partial）
+                                onPartialText(state.text)
+                            }
+                            is StreamingRecognitionState.FinalResult -> {
+                                // 最终识别结果
+                                finalResult = state.text
+                                DebugLog.i(TAG, "ASR 最终结果: '${finalResult.take(100)}'")
+                            }
+                            is StreamingRecognitionState.Error -> {
+                                DebugLog.e(TAG, "ASR 错误: ${state.message}")
+                            }
+                            is StreamingRecognitionState.Stopped -> {
+                                DebugLog.d(TAG, "ASR 已停止")
+                            }
+                            is StreamingRecognitionState.Listening -> {
+                                DebugLog.d(TAG, "ASR 进入监听状态")
+                            }
+                        }
+                    }
+            }
+
+            // 等待一小段时间让 ASR 返回结果
+            // 注意：实际实现中应该有更完善的结果等待机制
+            delay(2000L)
+
+            asrJob?.cancel()
+            asrJob = null
+
+            finalResult
+
+        } catch (e: CancellationException) {
+            ""
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "ASR 识别失败: ${e.message}", e)
+            ""
+        }
+    }
+
+    /**
+     * 开始监听用户说话（兼容旧接口）。
+     *
+     * 在全双工模式下，监听是自动进行的（由 VAD 控制），
+     * 此方法保留仅为兼容性。
+     *
+     * @param onResult 识别结果回调（实时 partial 文本）
+     */
+    fun startListening(onResult: (String) -> Unit) {
+        DebugLog.w(TAG, "startListening() 在全双工模式下不需要手动调用（VAD 自动管理）")
+
+        // 如果全双工引擎未启动，回退到旧模式
+        if (duplexEngine.state == FullDuplexAudioEngine.DuplexState.IDLE) {
+            startLegacyListening(onResult)
+        }
+    }
+
+    /**
+     * 旧版监听模式（降级方案）。
+     */
+    private fun startLegacyListening(onResult: (String) -> Unit) {
+        val manager = asrManager ?: run {
+            DebugLog.e(TAG, "ASR 管理器未初始化")
+            return
+        }
+
+        DebugLog.i(TAG, "开始旧版 ASR 监听模式")
+
+        asrJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
+                flow
+                    .catch { e ->
+                        DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
+                    }
+                    .collect { state ->
+                        when (state) {
+                            is StreamingRecognitionState.Recognizing -> {
+                                onResult(state.text)
+                            }
+                            is StreamingRecognitionState.FinalResult -> {
+                                onResult(state.text)
+                                DebugLog.i(TAG, "ASR 最终结果: '${state.text.take(100)}'")
+                                stopListening()
+                            }
+                            is StreamingRecognitionState.Error -> {
+                                DebugLog.e(TAG, "ASR 错误: ${state.message}")
+                                stopListening()
+                            }
+                            is StreamingRecognitionState.Stopped -> {
+                                DebugLog.i(TAG, "ASR 已停止")
+                                stopListening()
+                            }
+                            is StreamingRecognitionState.Listening -> {
+                                DebugLog.d(TAG, "ASR 进入监听状态")
+                            }
+                        }
+                    }
+            } catch (e: CancellationException) {
+                DebugLog.i(TAG, "ASR 监听被取消")
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "ASR 启动失败: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * 停止监听用户说话（兼容旧接口）。
+     */
+    fun stopListening() {
+        DebugLog.d(TAG, "停止 ASR 监听")
+
+        asrJob?.cancel()
+        asrJob = null
+
+        asrManager?.stopStreaming()
+    }
+
+    /**
+     * 让 AI 说话（兼容旧接口）。
+     *
+     * 在全双工模式下优先使用 [duplexEngine.aiSpeakText]，
+     * 此方法保留仅为兼容性。
      *
      * @param text 要合成的文本
-     * @param voiceId 音色ID，默认"白桦"
+     * @param voiceId 音色 ID，默认"白桦"
      * @param scenario TTS 场景，控制语音风格（默认 INTERVIEW）
      */
     suspend fun aiSpeak(
@@ -191,11 +653,33 @@ class VoiceConversationEngine(
     ) {
         if (text.isBlank()) return
 
+        // 如果全双工引擎可用，使用它
+        if (duplexEngine.state != FullDuplexAudioEngine.DuplexState.IDLE) {
+            duplexEngine.aiSpeakText(
+                text = text,
+                ttsPlayer = ttsPlayer,
+                scenario = scenario,
+                voiceId = voiceId,
+            )
+            return
+        }
+
+        // 否则回退到旧模式
+        aiSpeakLegacy(text, voiceId, scenario)
+    }
+
+    /**
+     * 旧版 TTS 播放（降级方案）。
+     */
+    private suspend fun aiSpeakLegacy(
+        text: String,
+        voiceId: String,
+        scenario: TtsScenario,
+    ) {
         ttsJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 DebugLog.i(TAG, "AI 说话 [${scenario.label}]: '${text.take(50)}...' (voice=$voiceId)")
 
-                // 使用场景化导演模式配置
                 val style = StyleControl(
                     isDirectorMode = true,
                     directorCharacter = scenario.directorCharacter,
@@ -203,12 +687,11 @@ class VoiceConversationEngine(
                     directorGuidance = buildDirectorGuidance(scenario),
                 )
 
-                // 调用 TTSPlayer 播放（内部会处理 MiMo/Android TTS 选择）
                 ttsPlayer.speak(
                     text = text,
                     localeTag = "zh-CN",
-                    rate = scenario.defaultRate,   // 使用场景默认语速
-                    pitch = scenario.defaultPitch,  // 使用场景默认音调
+                    rate = scenario.defaultRate,
+                    pitch = scenario.defaultPitch,
                     mimoVoice = voiceId,
                 )
 
@@ -218,8 +701,21 @@ class VoiceConversationEngine(
             }
         }
 
-        // 等待播放完成
         ttsJob?.join()
+    }
+
+    /**
+     * 停止当前 TTS 播放。
+     */
+    private fun stopCurrentTts() {
+        DebugLog.d(TAG, "停止当前 TTS 播放")
+
+        ttsJob?.cancel()
+        ttsJob = null
+        ttsPlayer.stop()
+
+        // 同时停止全双工引擎的播放
+        duplexEngine.stopAiSpeaking()
     }
 
     /**
@@ -285,150 +781,10 @@ class VoiceConversationEngine(
     }
 
     /**
-     * 开始监听用户说话（启动 ASR 流式识别）。
-     *
-     * 调用后会持续采集音频直到 [stopListening] 被调用，
-     * 或检测到用户停止说话（静音超时）。
-     *
-     * @param onResult 识别结果回调（实时 partial 文本）
-     */
-    fun startListening(onResult: (String) -> Unit) {
-        if (!isListening.compareAndSet(false, true)) {
-            DebugLog.w(TAG, "已在监听中")
-            return
-        }
-
-        DebugLog.i(TAG, "开始监听用户说话")
-
-        val manager = asrManager ?: run {
-            DebugLog.e(TAG, "ASR 管理器未初始化")
-            isListening.set(false)
-            return
-        }
-
-        asrJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
-                flow
-                    .catch { e ->
-                        DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
-                    }
-                    .collect { state ->
-                        when (state) {
-                            is StreamingRecognitionState.Recognizing -> {
-                                // 实时识别结果（partial）
-                                onResult(state.text)
-                            }
-                            is StreamingRecognitionState.FinalResult -> {
-                                // 最终识别结果
-                                onResult(state.text)
-                                DebugLog.i(TAG, "ASR 最终结果: '${state.text.take(100)}'")
-                                stopListening()
-                            }
-                            is StreamingRecognitionState.Error -> {
-                                DebugLog.e(TAG, "ASR 错误: ${state.message}")
-                                stopListening()
-                            }
-                            is StreamingRecognitionState.Stopped -> {
-                                DebugLog.i(TAG, "ASR 已停止")
-                                stopListening()
-                            }
-                            is StreamingRecognitionState.Listening -> {
-                                // 开始监听，无需特殊处理
-                                DebugLog.d(TAG, "ASR 进入监听状态")
-                            }
-                        }
-                    }
-            } catch (e: CancellationException) {
-                DebugLog.i(TAG, "ASR 监听被取消")
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "ASR 启动失败: ${e.message}", e)
-                isListening.set(false)
-            }
-        }
-    }
-
-    /**
-     * 停止监听用户说话。
-     *
-     * 会触发 ASR 引擎返回最终识别结果。
-     */
-    fun stopListening() {
-        if (isListening.compareAndSet(true, false)) {
-            DebugLog.i(TAG, "停止监听")
-
-            asrJob?.cancel()
-            asrJob = null
-
-            asrManager?.stopStreaming()
-        }
-    }
-
-    /**
-     * 停止整个对话循环。
-     *
-     * 会中断当前正在进行的 TTS 播放和 ASR 监听。
-     */
-    fun stopConversation() {
-        DebugLog.i(TAG, "停止对话")
-
-        conversationActive.set(false)
-        stopListening()
-
-        // 停止 TTS 播放
-        ttsJob?.cancel()
-        ttsJob?.let { job ->
-            CoroutineScope(Dispatchers.Main).launch {
-                job.join()
-            }
-        }
-        ttsJob = null
-
-        ttsPlayer.stop()
-    }
-
-    /**
-     * 检查是否正在监听
-     */
-    fun isCurrentlyListening(): Boolean = isListening.get()
-
-    /**
-     * 检查对话是否活跃
-     */
-    fun isConversationActive(): Boolean = conversationActive.get()
-
-    /**
-     * 收集用户输入（阻塞等待 ASR 结果）。
-     *
-     * @return 用户输入文本，如果被中断则返回空字符串
-     */
-    private suspend fun collectUserInput(
-        onPartialResult: (String) -> Unit,
-        onStateChange: (ConversationState) -> Unit,
-    ): String {
-        var finalText = ""
-
-        // 使用回调方式收集结果
-        startListening { text ->
-            if (text.isNotBlank()) {
-                onPartialResult(text)
-                finalText = text
-            }
-        }
-
-        // 等待监听结束
-        while (isListening.get() && conversationActive.get()) {
-            delay(100L)
-        }
-
-        return finalText.trim()
-    }
-
-    /**
-     * 释放资源
+     * 释放资源。
      */
     fun release() {
-        stopConversation()
+        stopFullDuplex()
         asrManager?.close()
         asrManager = null
     }
