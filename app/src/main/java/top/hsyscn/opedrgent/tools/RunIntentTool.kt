@@ -65,7 +65,7 @@ class RunIntentTool(
             ToolResult(
                 toolPart = toolPart.copy(
                     state = toolPart.state.copy(
-                        status = ToolStateType.DONE,
+                        status = ToolStateType.COMPLETED,
                         output = result,
                         endTime = System.currentTimeMillis(),
                     ),
@@ -157,8 +157,8 @@ class RunIntentTool(
         return try {
             val intent = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
                 .putExtra(CalendarContract.Events.TITLE, title.ifBlank { "新事件" })
-                .putExtra(CalendarContract.EVENT_BEGIN_TIME, startEpochMs)
-                .putExtra(CalendarContract.EVENT_END_TIME, endEpochMs)
+                .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startEpochMs)
+                .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endEpochMs)
                 .putExtra(CalendarContract.Events.EVENT_LOCATION, location)
                 .putExtra(CalendarContract.Events.DESCRIPTION, description)
 

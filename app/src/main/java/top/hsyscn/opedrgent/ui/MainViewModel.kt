@@ -90,6 +90,9 @@ import top.hsyscn.opedrgent.interview.DialogueTurn
 import top.hsyscn.opedrgent.interview.CoachFeedback
 import top.hsyscn.opedrgent.interview.VoiceConversationEngine
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
+import top.hsyscn.opedrgent.interview.AnalysisResult
+import top.hsyscn.opedrgent.interview.NextAction
+import top.hsyscn.opedrgent.interview.MaterialEntry
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
@@ -115,6 +118,7 @@ import kotlin.math.pow
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
 import top.hsyscn.opedrgent.mcp.skills.CuratorService
+import top.hsyscn.opedrgent.mcp.skills.SkillLoader
 import top.hsyscn.opedrgent.stt.RecognitionMode
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.insight.InsightSproutEngine
@@ -4455,11 +4459,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
 
                 // 如果有材料，先分析
-                if (config.materials.isNotBlank()) {
+                if (config.materials.isNotEmpty()) {
                     val analysisResult = withContext(Dispatchers.IO) {
                         InterviewAgent.analyzeMaterials(
                             llmClient = llm,
-                            materials = config.materials,
+                            materials = config.getMaterialsText(),
                             interviewType = config.type,
                         )
                     }
@@ -4801,8 +4805,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
 
-                noteRepository.createNote(
-                    title = "面试报告 - ${report.type.label} (${report.overallScore.toInt()}分)",
+                noteRepository.quickCreate(
                     content = noteContent,
                     type = top.hsyscn.opedrgent.note.NoteType.TEXT,
                 )

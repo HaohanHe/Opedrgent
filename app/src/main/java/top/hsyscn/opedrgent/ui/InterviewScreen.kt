@@ -99,6 +99,7 @@ import top.hsyscn.opedrgent.interview.InterviewReport
 import top.hsyscn.opedrgent.interview.InterviewType
 import top.hsyscn.opedrgent.interview.DifficultyLevel
 import top.hsyscn.opedrgent.interview.DialogueTurn
+import top.hsyscn.opedrgent.interview.MaterialEntry
 import top.hsyscn.opedrgent.interview.CoachFeedback
 import top.hsyscn.opedrgent.interview.AnalysisResult
 import top.hsyscn.opedrgent.interview.Verdict
@@ -110,6 +111,7 @@ import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
+import top.hsyscn.opedrgent.ui.collectAsStateCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -472,7 +474,7 @@ private fun InterviewSetupScreen(
                             position = position.trim(),
                             difficulty = difficultyFromInt(difficultyToInt(difficulty)),
                             questionCount = maxQuestions,
-                            materials = materials.trim(),
+                            materials = if (materials.trim().isNotBlank()) listOf(MaterialEntry(content = materials.trim())) else emptyList(),
                             customInstructions = customInstructions.trim(),
                             enableCoach = enableCoach,
                         )
@@ -983,9 +985,10 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                     }
 
                     // STAR 法则说明
-                    if (feedback.starUsage.isNotBlank()) {
+                    val starScore = feedback.scores["STAR法则"] ?: feedback.scores["star"] ?: 0f
+                    if (starScore > 0f) {
                         Text(
-                            text = "STAR法则: ${feedback.starUsage}",
+                            text = "STAR法则评分: %.1f/10".format(starScore),
                             fontSize = 12.sp,
                             color = TextDark.copy(alpha = 0.7f),
                         )

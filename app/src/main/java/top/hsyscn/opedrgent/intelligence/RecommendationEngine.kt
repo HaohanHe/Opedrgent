@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.intelligence
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -46,18 +47,18 @@ enum class TipCategory {
 }
 
 /**
- * 推荐基类 — 密封类，所有推荐类型的统一接口。
+ * 推荐基类 — 抽象类，所有推荐类型的统一接口。
  *
  * 设计理念：主动感知用户需求，在合适的时机推送有用的建议。
  */
-sealed class Recommendation(
-    val id: String = java.util.UUID.randomUUID().toString(),
+abstract class Recommendation(
+    open val id: String = java.util.UUID.randomUUID().toString(),
     val type: RecommendationType,
-    val title: String,
-    val description: String,
-    val priority: Int = 0,
-    val actionText: String = "查看",
-    val createdAt: Long = System.currentTimeMillis(),
+    open val title: String,
+    open val description: String,
+    open val priority: Int = 0,
+    open val actionText: String = "查看",
+    open val createdAt: Long = System.currentTimeMillis(),
 ) {
 
     /**

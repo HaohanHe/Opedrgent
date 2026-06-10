@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 
 import android.widget.Toast
@@ -65,6 +66,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -115,6 +117,7 @@ import top.hsyscn.opedrgent.ui.components.SttResultCard
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
 
+@Composable
 fun SessionScreen(
     vm: MainViewModel,
     sessionId: String?,
@@ -320,6 +323,7 @@ fun SessionScreen(
                                     errorText = msg.textContent,
                                     snackbarHostState = snackbar,
                                 )
+                                MessageType.AUDIO -> {}
                                 MessageType.TEXT -> {}
                             }
                         }

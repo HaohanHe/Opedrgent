@@ -218,7 +218,7 @@ class AsrManager(
                 append("- 或在设置页下载本地识别模型")
             }
             DebugLog.e(TAG, errorMsg)
-            IllegalStateException(errorMsg)
+            throw IllegalStateException(errorMsg)
         }
     }
 

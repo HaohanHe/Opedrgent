@@ -131,7 +131,7 @@ class RunJsTool(
                 ToolResult(
                     toolPart = toolPart.copy(
                         state = toolPart.state.copy(
-                            status = ToolStateType.DONE,
+                            status = ToolStateType.COMPLETED,
                             output = responseText,
                             endTime = System.currentTimeMillis(),
                         ),
