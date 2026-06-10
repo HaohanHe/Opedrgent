@@ -488,7 +488,7 @@ object InterviewAgent {
         val isLastQuestion = currentQuestionIndex >= config.questionCount - 1
 
         // 1. 海马体准备注意力上下文
-        val lastAiResponse = history.lastOrNull()?.aiMessage ?: currentQuestion.content
+        val lastAiResponse = history.lastOrNull { it.role == "assistant" || it.role == "ai" }?.content ?: currentQuestion.content
         val attentionContext = hippo.prepareTurnContext(
             turnIndex = currentQuestionIndex,
             userMessage = answer,

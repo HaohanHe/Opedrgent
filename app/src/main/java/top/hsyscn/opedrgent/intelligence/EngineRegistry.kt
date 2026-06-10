@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.intelligence
 
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,9 +47,9 @@ data class SearchEngine(
     val displayName: String,              // 展示名
     val description: String = "",
     val category: EngineCategory = EngineCategory.GENERAL,
-    val weight: Float = 1.0f,            // 引擎权重（融合时使用）
+    var weight: Float = 1.0f,            // 引擎权重（融合时使用）
     val timeoutMs: Long = 10_000L,        // 超时时间
-    val enabled: Boolean = true,          // 是否启用
+    var enabled: Boolean = true,          // 是否启用
     val supportsSafeSearch: Boolean = false,
     val maxResults: Int = 10,             // 单引擎最大返回数
 )
@@ -311,7 +312,7 @@ class EngineRegistry {
      * 批量健康检查。
      */
     suspend fun healthCheckAll(): Map<String, Boolean> = coroutineScope {
-        engines.mapKeysToEntries { (name, executor) ->
+        engines.map { (name, executor) ->
             async { name to executor.healthCheck() }
         }.associate { it.await() }
     }

@@ -140,9 +140,9 @@ import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.UserBubbleEnd
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
-import top.hsyscn.opedrgent.ui.components.AIMessageCard
+// import top.hsyscn.opedrgent.ui.components.AIMessageCard  // TODO: 组件尚未实现
 import top.hsyscn.opedrgent.ui.components.MarkdownText
-import top.hsyscn.opedrgent.ui.components.SourceCitations
+// import top.hsyscn.opedrgent.ui.components.SourceCitations  // TODO: 组件尚未实现
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.QuestionDock
@@ -335,7 +335,7 @@ fun AppRoot(
                     }
                     NoteEditorScreen(
                         repository = vm.noteRepository,
-                        initialType = initialType,
+                        initialType = initialType ?: NoteType.TEXT,
                         onSaved = { noteId -> subScreen = "noteEditor_$noteId" },
                         onSendToChat = { noteId ->
                             vm.sendNoteToChat(noteId)
@@ -767,7 +767,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
 
     // ── 本地文件选择器 ──
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent("*/*")
+        contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         isImporting = true
@@ -776,8 +776,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             val result = vm.importSkillFromFile(context, uri)
             isImporting = false
             importMessage = if (result.isSuccess) {
-                "导入成功：${result.getOrNull()?.skillName}"
                 vm.refreshGallerySkills() // 刷新列表
+                "导入成功：${result.getOrNull()?.skillName}"
             } else {
                 "导入失败：${result.exceptionOrNull()?.message}"
             }
@@ -1025,12 +1025,12 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             val result = vm.importSkillFromUrl(url)
                             isImporting = false
                             importMessage = if (result.isSuccess) {
-                                "导入成功：${result.getOrNull()?.skillName}"
                                 vm.refreshGallerySkills()
                                 gallerySkills = vm.gallerySkills
                                 // 延迟关闭对话框
                                 kotlinx.coroutines.delay(800)
                                 showUrlImportDialog = false
+                                "导入成功：${result.getOrNull()?.skillName}"
                             } else {
                                 "导入失败：${result.exceptionOrNull()?.message}"
                             }

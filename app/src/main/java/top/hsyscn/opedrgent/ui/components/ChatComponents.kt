@@ -379,6 +379,7 @@ fun AIMessageCard(
             }
         }
     }
+    }
 }
 
 private fun extractSources(content: String): List<Pair<String, String>> {

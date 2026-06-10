@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.intelligence
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
@@ -262,7 +263,7 @@ class SqlitePersistence(
     /**
      * 将数据库游标转换为 MemoryVector。
      */
-    private fun cursorToVector(android.database.Cursor cursor): MemoryVector? {
+    private fun cursorToVector(cursor: Cursor): MemoryVector? {
         return try {
             val id = cursor.getString(cursor.getColumnIndexOrThrow("id"))
             val content = cursor.getString(cursor.getColumnIndexOrThrow("content"))

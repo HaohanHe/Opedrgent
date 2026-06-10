@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -131,7 +132,7 @@ fun HomeDashboardScreen(
             todayNoteCount = notes.count { it.createdAt >= todayStart }
             totalNoteCount = notes.size.toLong()
             recentNotes = notes.take(5)
-            knowledgeDocCount = notes.count { it.type == top.hsyscn.opedrgent.note.NoteType.KNOWLEDGE }
+            knowledgeDocCount = notes.count { it.type == top.hsyscn.opedrgent.note.NoteType.TEXT }  // TODO: 使用合适的笔记类型替代 KNOWLEDGE
 
             // 根据条件动态生成推荐列表
             recommendations = buildRecommendations(
@@ -851,4 +852,10 @@ private fun RecommendationCard(item: RecommendationItem) {
             }
         }
     }
+}
+
+/** 格式化笔记时间显示 */
+private fun formatNoteTime(timestamp: Long): String {
+    val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA)
+    return sdf.format(java.util.Date(timestamp))
 }

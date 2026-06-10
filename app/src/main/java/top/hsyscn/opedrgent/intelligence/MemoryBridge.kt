@@ -56,12 +56,13 @@ class MemoryBridge(
 
         // 2. 写入 VectorMemory（向量化索引）
         try {
-            vectorMemory.store(
-                content = content,
+            vectorMemory.put(
+                text = content,
                 collection = collection,
-                metadata = MemoryPayload(
-                    sourcePath = path,
-                    tags = tags.toList(),
+                payload = MemoryPayload(
+                    source = path,
+                    content = content,
+                    tags = tags,
                     importance = importance,
                 ),
             )
@@ -86,12 +87,13 @@ class MemoryBridge(
 
         for (entry in entries) {
             try {
-                vectorMemory.store(
-                    content = entry.content,
+                vectorMemory.put(
+                    text = entry.content,
                     collection = entry.metadata["collection"] ?: "default",
-                    metadata = MemoryPayload(
-                        sourcePath = entry.path,
-                        tags = entry.tags.toList(),
+                    payload = MemoryPayload(
+                        source = entry.path,
+                        content = entry.content,
+                        tags = entry.tags,
                         importance = entry.importance,
                     ),
                 )
@@ -124,7 +126,7 @@ class MemoryBridge(
         val dirResults = memoryDir.search(query, fuzzy = true)
         val vectorResults = if (useSemantic) {
             try {
-                vectorMemory.search(query, topK = limit)
+                vectorMemory.search(query, limit = limit)
             } catch (e: Exception) {
                 DebugLog.w("MemoryBridge", "vector search failed: ${e.message}")
                 emptyList()
@@ -193,7 +195,7 @@ class MemoryBridge(
 
         // VectorMemory 结果（余弦相似度 0-1）
         for (result in vectorResults) {
-            val path = result.payload?.sourcePath ?: "vector_${result.id}"
+            val path = result.vector.payload.source ?: "vector_${result.vector.id}"
             val existing = fused[path]
             if (existing != null) {
                 // 已存在于 MemoryDir，补充语义分
@@ -203,11 +205,11 @@ class MemoryBridge(
                 fused[path] = RecallResult(
                     entry = MemoryEntry(
                         path = path,
-                        content = result.content,
-                        createdAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis(),
-                        importance = result.payload?.importance ?: 0.5f,
-                        tags = result.payload?.tags?.toSet() ?: emptySet(),
+                        content = result.vector.payload.content,
+                        createdAt = result.vector.createdAt,
+                        updatedAt = result.vector.createdAt,
+                        importance = result.vector.payload.importance,
+                        tags = result.vector.payload.tags,
                     ),
                     keywordScore = 0f,
                     semanticScore = result.score,
@@ -226,8 +228,8 @@ class MemoryBridge(
     /** 获取整体统计信息 */
     suspend fun stats(): MemoryBridgeStats = MemoryBridgeStats(
         dirStats = memoryDir.stats(),
-        vectorCount = vectorMemory.count(),
-        vectorCollections = vectorMemory.collections().toSet(),
+        vectorCount = vectorMemory.size(),
+        vectorCollections = vectorMemory.listCollections(),
     )
 }
 
