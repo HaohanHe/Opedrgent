@@ -794,6 +794,7 @@ fun SessionScreen(
             }
         }
 
+        // 选择题浮层：锚定在输入框上方，避免遮挡
         questionRequest?.let { request ->
             QuestionDock(
                 request = request,
@@ -802,7 +803,8 @@ fun SessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 80.dp), // 避让底部 InputModeBar
             )
         }
 
