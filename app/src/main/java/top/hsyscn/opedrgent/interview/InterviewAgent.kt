@@ -8,292 +8,261 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.UUID
 
 /**
- * 面试 Agent — 核心驱动引擎（三角色系统）。
+ * 面试 Agent — 核心驱动引擎（LLM 自主决策架构）。
  *
- * 基于 Voice AI Interview Playbook 最佳实践实现三个 Persona：
+ * ## 架构理念（v2.0 重构）
  *
- * 1. **Interviewer（面试官）**：负责提问、追问、控制节奏
- *    - 一次只问一个问题
- *    - 不给提示、不透露评分标准
- *    - 追问模糊回答（2-3层深度）
- *    - 中性专业语气
+ * **旧架构（已废弃）：规则驱动**
+ * - 3套硬编码 Prompt 模板（求职/答辩/场景）
+ * - 8条固定行为规则
+ * - 固定问题风格递进策略
+ * - 固定6评估维度 + 权重 + 阈值(PASS≥75)
+ * - [FEEDBACK][QUESTION][END] 硬编码标记
  *
- * 2. **Coach（教练）**：提供实时反馈（可选显示）
- *    - 关注逻辑结构、表达清晰度、自信度、STAR法则使用
- *    - 每轮回答后生成反馈
+ * **新架构：LLM 自主决策**
+ * - 1个元 Prompt 模板（告诉 LLM 角色和目标，不教它怎么做）
+ * - 所有行为参数通过 [InterviewConfig] 注入
+ * - 评估体系完全开放（维度、权重、阈值由 LLM 动态决定）
+ * - 轻量 JSON 输出协议
  *
- * 3. **Evaluator（评估者）**：面试结束后多维度评分
- *    - 维度：专业知识、沟通表达、逻辑思维、问题解决、文化匹配、压力应对
- *    - 生成完整评估报告
+ * 参考飞书 APK 的 Agent 架构设计：
+ * - 场景驱动而非规则堆砌
+ * - 元指令（meta-prompt）而非规则清单
+ * - 配置注入而非硬编码预设
  */
 object InterviewAgent {
 
     private const val TAG = "InterviewAgent"
 
-    // ==================== Persona 1: 面试官 ====================
+    // ==================== 核心：单一元 Prompt ====================
 
     /**
-     * 构建面试官 System Prompt。
+     * 构建统一的面试官 System Prompt（元指令）。
      *
-     * 根据面试类型和配置动态生成专业的面试官人设。
+     * 设计原则：
+     * 1. **角色定义**（1-2句）：你是什么角色
+     * 2. **目标定义**（1-2句）：你要达成什么目标
+     * 3. **能力边界**（2-3句）：你能做什么不能做什么
+     * 4. **输出协议**（结构化格式）：让 LLM 按约定格式输出以便解析
+     * 5. **上下文注入**：config 中所有用户配置的信息原样传入
      *
-     * @param config 面试配置
-     * @return 完整的面试官系统提示词
+     * 不再写死任何行为规则，而是让 LLM 根据场景自主决策。
+     *
+     * @param config 面试配置（包含所有用户指定的参数和约束）
+     * @return 完整的元 Prompt 文本
      */
-    fun buildInterviewerPrompt(config: InterviewConfig): String {
-        return when (config.type) {
-            InterviewType.JOB_INTERVIEW -> buildJobInterviewerPrompt(config)
-            InterviewType.THESIS_DEFENSE -> buildDefensePrompt(config)
-            InterviewType.SCENARIO -> buildScenarioPrompt(config)
-        }
-    }
-
-    /**
-     * 构建求职面试官 Prompt。
-     */
-    private fun buildJobInterviewerPrompt(config: InterviewConfig): String = buildString {
-        appendLine("你是一位经验丰富的 ${config.position} 面试官，正在为 ${config.company.ifBlank { "某知名企业" }} 进行面试。")
+    fun buildUnifiedPrompt(config: InterviewConfig): String = buildString {
+        // ========== 第一部分：角色与目标定义 ==========
+        appendLine("你是一位专业的对话引导者。")
         appendLine()
 
-        // 基本信息注入
+        // 注入场景描述（核心！）
+        val scenario = config.getEffectiveScenarioDescription()
+        appendLine("【你的任务】")
+        appendLine("正在参与一场「${scenario}」的模拟对话。你需要扮演面试官/考官/评委的角色，")
+        appendLine("根据场景特点自主决定提问内容、追问策略、节奏控制和结束时机。")
+        appendLine()
+
+        // ========== 第二部分：风格与约束注入 ==========
+        appendLine("【交互风格】")
+        when (config.interviewerStyle) {
+            InterviewerStyle.PROFESSIONAL -> {
+                appendLine("- 专业严谨，客观中立，像真实的资深面试官")
+            }
+            InterviewerStyle.FRIENDLY -> {
+                appendLine("- 友善亲和，营造轻松氛围，适合初学者练习")
+            }
+            InterviewerStyle.RIGOROUS -> {
+                appendLine("- 严格苛刻，高压挑战，测试候选人极限反应")
+            }
+            InterviewerStyle.CASUAL -> {
+                appendLine("- 随性自然，像真实聊天一样，不刻意保持面试感")
+            }
+        }
+        appendLine("- 对话语言：${config.language}")
+        appendLine()
+
+        // ========== 第三部分：上下文信息注入 ==========
+        val contextParts = mutableListOf<String>()
+
         if (config.company.isNotBlank()) {
-            appendLine("【目标公司】${config.company}")
+            contextParts.add("公司/机构：${config.company}")
         }
         if (config.position.isNotBlank()) {
-            appendLine("【目标岗位】${config.position}")
+            contextParts.add("岗位/主题：${config.position}")
         }
-        appendLine("【难度等级】${config.difficulty.label} (${config.difficulty.level}/10)")
-        appendLine("【问题上限】${config.questionCount} 个")
-        appendLine()
+        contextParts.add("参考难度：${config.difficulty.label} (${config.difficulty.level}/10)")
+        contextParts.add("预期问题数：约 ${config.questionCount} 个（可根据实际情况调整）")
+        contextParts.add("时间限制：约 ${config.durationMinutes} 分钟")
 
-        // 简历信息（如果有）
-        if (config.materials.isNotBlank()) {
-            appendLine("【候选人简历/材料】")
-            appendLine(config.materials)
+        if (contextParts.isNotEmpty()) {
+            appendLine("【基本信息】")
+            contextParts.forEach { appendLine("- $it") }
             appendLine()
         }
 
-        // 自定义指令（如果有）
+        // 材料信息
+        val materialsText = config.getMaterialsText()
+        if (materialsText.isNotBlank()) {
+            appendLine("【候选人背景材料】")
+            appendLine(materialsText)
+            appendLine()
+        }
+
+        // 用户自定义指令（最高优先级）
         if (config.customInstructions.isNotBlank()) {
-            appendLine("【用户特殊要求】")
+            appendLine("【用户的特殊要求】（请务必遵守）")
             appendLine(config.customInstructions)
             appendLine()
         }
 
-        appendLine("═══════════════════════════════════════")
-        appendLine("【核心行为规则】")
-        appendLine("1. 一次只问一个问题，等待完整回答后再继续")
-        appendLine("2. 绝不主动给提示或帮助候选人回答")
-        appendLine("3. 追问模糊或不完整的回答（目标2-3层深度）")
-        appendLine("4. 中性专业语气，既不鼓励也不打击")
-        appendLine("5. 不透露评分标准")
-        appendLine("6. 时间管理：每个问题控制在合理范围内")
+        // 评估维度（如果用户指定了）
+        if (!config.evalDimensions.isNullOrEmpty()) {
+            appendLine("【用户指定的评估维度】")
+            appendLine(config.evalDimensions.joinToString("、"))
+            appendLine("(请在最终评估时重点关注以上维度)")
+            appendLine()
+        }
+
+        // 判定阈值（如果用户指定了）
+        if (config.verdictThresholds != null) {
+            appendLine("【判定标准】")
+            appendLine("- 通过(PASS)：总分 ≥ ${config.verdictThresholds.passScore}")
+            appendLine("- 有条件通过(CONDITIONAL_PASS)：总分 ≥ ${config.verdictThresholds.conditionalPassScore}")
+            appendLine("- 未通过(FAIL)：总分 < ${config.verdictThresholds.conditionalPassScore}")
+            appendLine()
+        }
+
+        // ========== 第四部分：能力边界（轻量级） ==========
+        appendLine("【能力与边界】")
+        appendLine("- 你需要根据候选人的回答质量，自主决定是继续追问、进入下一题还是结束面试")
+        appendLine("- 追问深度、问题难度递进、时间分配等全部由你根据实际情况灵活掌握")
+        appendLine("- 不要给候选人提示或透露评分标准")
+        appendLine("- 保持角色一致性，不要出戏")
         appendLine()
 
-        appendLine("【问题风格递进策略】")
-        appendLine("- 开场：行为框架题（\"请描述一次...\"）")
-        appendLine("- 中段：技术概念题（\"你会怎么处理...\"）")
-        appendLine("- 深挖：具体细节题（\"为什么选择X而非Y？\"）")
-        appendLine("- 压力：挑战假设（\"如果...会怎样\"）")
-        appendLine()
-
-        appendLine("【难度自适应规则】")
-        appendLine("- 前2题答得好 → 提高难度（更具体、更深层）")
-        appendLine("- 基础题答不好 → 不进阶，继续同级别问题")
-        appendLine("- 连续答好3题以上 → 加入压力测试元素")
-        appendLine()
-
-        appendLine("【严格禁止行为】")
-        appendLine("- ❌ 不说\"好答案！\"、\"不错\"等评价性词语")
-        appendLine("- ❌ 不说\"错了\"，改为\"能详细说说你的思路吗？\"")
-        appendLine("- ❌ 不复述候选人的话（避免重复）")
-        appendLine("- ❌ 不给明确的时间提示（如\"还有30秒\"）")
-        appendLine()
-
+        // ========== 第五部分：输出协议 ==========
         appendLine("【输出格式要求】")
-        appendLine("每次回复必须包含以下标记（不要有其他内容）：")
-        appendLine("[FEEDBACK] 对上一个回答的简短中性过渡语（1句话，不评价好坏）")
-        appendLine("[QUESTION] 下一个问题的完整内容")
+        appendLine("每次回复请使用以下 JSON 格式（不要有其他多余内容）：")
+        appendLine("```json")
+        appendLine("{")
+        appendLine("  \"action\": \"follow_up\" | \"next_question\" | \"end_interview\",")
+        appendLine("  \"content\": \"你说的话（开场白/问题/追问/结束语）\",")
+        appendLine("  \"reason\": \"为什么选择这个动作（简短说明）\",")
+        appendLine("  \"category\": \"问题分类标签（可选，如'技术能力'/'行为面试'等）\"")
+        appendLine("}")
+        appendLine("```")
         appendLine()
-        appendLine("⚠️ 注意：开场白时只用 [QUESTION]，不需要 [FEEDBACK]。")
-        appendLine("⚠️ 最后一题结束时用 [FEEDBACK] 给出结束语 + [END] 标记。")
+        appendLine("⚠️ 开场白时 action 为 \"next_question\"，content 包含自我介绍和第一个问题。")
+        appendLine("⚠️ 结束面试时 action 为 \"end_interview\"，content 包含总结评语。")
     }
 
     /**
-     * 构建论文答辩 Prompt。
-     */
-    private fun buildDefensePrompt(config: InterviewConfig): String = buildString {
-        appendLine("你是一位资深的学术答辩委员会主席，正在进行一场论文答辩。")
-        appendLine()
-
-        if (config.position.isNotBlank()) {
-            appendLine("【论文题目/研究方向】${config.position}")
-        }
-        appendLine("【答辩难度】${config.difficulty.label}")
-        appendLine("【问题数量】${config.questionCount} 个")
-        appendLine()
-
-        if (config.materials.isNotBlank()) {
-            appendLine("【论文/研究材料】")
-            appendLine(config.materials)
-            appendLine()
-        }
-
-        appendLine("═══════════════════════════════════════")
-        appendLine("【答辩规则】")
-        appendLine("1. 你是答辩委员会主席，语气严谨、专业、学术化")
-        appendLine("2. 质疑性提问：挑战论文的假设、方法和结论")
-        appendLine("3. 每次只提一个问题，深入且具体")
-        appendLine("4. 关注研究方法合理性、数据充分性、结论可靠性")
-        appendLine("5. 对不充分回答要追问，但保持学术礼貌")
-        appendLine()
-
-        appendLine("【问题类型分布】")
-        appendLine("- 方法论质疑：\"你的研究方法和XX相比有什么优势？\"")
-        appendLine("- 数据质疑：\"数据量是否充足？如何保证可靠性？\"")
-        appendLine("- 理论基础：\"这个结论的理论依据是什么？\"")
-        appendLine("- 创新性：\"这项研究的核心创新点在哪里？\"")
-        appendLine("- 局限性：\"你认为研究的局限性是什么？\"")
-        appendLine()
-
-        appendLine("【输出格式】")
-        appendLine("[FEEDBACK] 学术评价（1-2句，严谨客观）")
-        appendLine("[QUESTION] 下一个质疑性问题")
-        appendLine("注意：开场白先说明答辩规则，然后用 [QUESTION] 提出第一个问题。")
-    }
-
-    /**
-     * 构建自定义场景 Prompt。
-     */
-    private fun buildScenarioPrompt(config: InterviewConfig): String = buildString {
-        appendLine("你是一位专业的面试官，正在根据用户设定的场景进行模拟面试。")
-        appendLine()
-        appendLine("【场景说明】${config.customInstructions.ifBlank { "通用面试场景" }}")
-        appendLine("【难度】${config.difficulty.label}")
-        appendLine("【问题数】${config.questionCount} 个")
-        appendLine()
-
-        if (config.materials.isNotBlank()) {
-            appendLine("【候选人背景材料】")
-            appendLine(config.materials)
-            appendLine()
-        }
-
-        appendLine("请根据上述场景设定，扮演专业面试官进行面试。遵循标准面试流程和规范。")
-        appendLine("输出格式：[FEEDBACK] 过渡语 [QUESTION] 问题内容")
-    }
-
-    // ==================== Persona 2: 教练 ====================
-
-    /**
-     * 构建教练 System Prompt。
+     * 构建教练 System Prompt（开放式评估）。
      *
-     * 教练角色关注候选人的表现质量，
-     * 提供建设性的实时反馈但不干扰面试进程。
+     * 教练反馈的评估维度不再是固定的4项，
+     * 而是由 LLM 根据 config.evalDimensions 或场景自行决定。
      */
-    fun buildCoachPrompt(): String = buildString {
-        appendLine("你是一位专业的面试教练，正在观察一场面试并给出实时反馈。")
+    fun buildCoachPrompt(config: InterviewConfig): String = buildString {
+        appendLine("你是一位专业的对话教练，正在观察一场对话并给出实时反馈。")
         appendLine()
+
         appendLine("【职责】")
-        appendLine("分析候选人的回答质量，从以下几个维度给出客观评价：")
-        appendLine()
-        appendLine("1. **逻辑结构** (0-10分)")
-        appendLine("   - 是否有条理地组织答案")
-        appendLine("   - 是否有清晰的开头-主体-结尾")
-        appendLine("   - 论点是否有支撑")
-        appendLine()
-        appendLine("2. **表达清晰度** (0-10分)")
-        appendLine("   - 语言是否简洁明了")
-        appendLine("   - 是否避免冗余和重复")
-        appendLine("   - 专业术语使用是否恰当")
-        appendLine()
-        appendLine("3. **自信度** (0-10分)")
-        appendLine("   - 语气是否坚定")
-        appendLine("   - 是否避免过多不确定词汇（如\"可能\"、\"大概\"）")
-        appendLine("   - 对自己经验的表述是否自信")
-        appendLine()
-        appendLine("4. **STAR法则使用**")
-        appendLine("   - Situation（情境）是否交代清楚")
-        appendLine("   - Task（任务）是否明确")
-        appendLine("   - Action（行动）是否具体且有主导性")
-        appendLine("   - Result（结果）是否量化或有影响力")
+        appendLine("分析参与者当前回合的表现质量，从多个维度给出客观评价和改进建议。")
+
+        // 如果用户指定了评估维度
+        if (!config.evalDimensions.isNullOrEmpty()) {
+            appendLine()
+            appendLine("【重点评估维度】")
+            config.evalDimensions.forEachIndexed { index, dim ->
+                appendLine("${index + 1}. $dim")
+            }
+            appendLine("(请主要围绕以上维度进行评分和反馈)")
+        } else {
+            appendLine()
+            appendLine("【评估方式】")
+            appendLine("根据当前对话场景的特点，自主决定应该关注哪些评估维度。")
+            appendLine("例如：求职面试可关注逻辑/表达/专业性；口语考试可关注流利度/语法/词汇；答辩可关注方法论/创新性等。")
+        }
+
         appendLine()
         appendLine("【输出格式】（严格 JSON）：")
         appendLine("```json")
         appendLine("{")
-        appendLine("  \"logicScore\": 7,")
-        appendLine("  \"clarityScore\": 8,")
-        appendLine("  \"confidenceScore\": 6,")
-        appendLine("  \"starUsage\": \"使用了STAR但Result部分不够量化\",")
-        appendLine("  \"quickFeedback\": \"整体结构清晰，建议多用数据支撑观点\",")
-        appendLine("  \"detailedFeedback\": \"详细的改进建议...\"")
+        appendLine("  \"scores\": {")
+        appendLine("    \"维度名称\": 分数(0-10),")
+        appendLine("    \"...\": \"...\"")
+        appendLine("  },")
+        appendLine("  \"quickFeedback\": \"快速反馈（1-2句话，面向参与者）\",")
+        appendLine("  \"detailedFeedback\": \"详细反馈建议（具体、可操作、建设性）\"")
         appendLine("}")
         appendLine("```")
         appendLine()
         appendLine("【重要】feedback 要建设性、具体、可操作，避免空泛的好话或打击。")
     }
 
-    // ==================== Persona 3: 评估者 ====================
-
     /**
-     * 构建评估者 System Prompt（用于最终报告生成）。
+     * 构建评估者 System Prompt（用于最终报告生成，开放式）。
+     *
+     * 评估维度、权重、判定阈值均由 LLM 根据场景动态决定，
+     * 不再预设固定的6维度体系。
      */
-    fun buildEvaluatorPrompt(): String = buildString {
-        appendLine("你是一位专业的面试评估专家，拥有15年以上的招聘和人才评估经验。")
+    fun buildEvaluatorPrompt(config: InterviewConfig): String = buildString {
+        appendLine("你是一位专业的对话评估专家，拥有丰富的评估经验。")
         appendLine()
-        appendLine("请根据提供的完整面试对话记录，从多个维度对候选人进行全面评估。")
+
+        appendLine("【任务】")
+        appendLine("根据提供的完整对话记录，对参与者进行全面评估并生成结构化报告。")
         appendLine()
-        appendLine("【评估维度】")
-        appendLine()
-        appendLine("1. **专业知识** (权重25%)")
-        appendLine("   - 技术能力/领域知识掌握程度")
-        appendLine("   - 回答的准确性和深度")
-        appendLine("   - 对前沿技术的了解")
-        appendLine()
-        appendLine("2. **沟通表达** (权重20%)")
-        appendLine("   - 语言表达的流畅性和逻辑性")
-        appendLine("   - 倾听和理解能力")
-        appendLine("   - 回答的针对性")
-        appendLine()
-        appendLine("3. **逻辑思维** (权重20%)")
-        appendLine("   - 分析问题的思路")
-        appendLine("   - 结构化思考能力")
-        appendLine("   - 应对追问的反应速度和质量")
-        appendLine()
-        appendLine("4. **问题解决** (权重15%)")
-        appendLine("   - 描述解决方案的能力")
-        appendLine("   - 是否考虑边界情况和trade-off")
-        appendLine("   - 创新性思维")
-        appendLine()
-        appendLine("5. **文化匹配** (权重10%)")
-        appendLine("   - 价值观与岗位/公司的契合度")
-        appendLine("   - 团队协作意识")
-        appendLine("   - 学习成长态度")
-        appendLine()
-        appendLine("6. **压力应对** (权重10%)")
-        appendLine("   - 面对难题时的反应")
-        appendLine("   - 是否保持冷静和专业")
-        appendLine("   - 承认不足时的态度")
-        appendLine()
-        appendLine("【判定标准】")
-        appendLine("- **PASS（通过）**: 总分≥75，核心维度无低于6分项")
-        appendLine("- **CONDITIONAL_PASS（有条件通过）**: 总分60-74，或存在1-2个薄弱维度")
-        appendLine("- **FAIL（未通过）**: 总分<60，或存在多个严重短板")
+
+        // 场景信息
+        appendLine("【对话场景】")
+        appendLine("- 类型：${config.type.label}")
+        appendLine("- 场景描述：${config.getEffectiveScenarioDescription()}")
+        if (config.company.isNotBlank()) appendLine("- 公司/机构：${config.company}")
+        if (config.position.isNotBlank()) appendLine("- 岗位/主题：${config.position}")
+
+        // 评估维度指导
+        if (!config.evalDimensions.isNullOrEmpty()) {
+            appendLine()
+            appendLine("【用户指定的评估维度（必须覆盖）】")
+            config.evalDimensions.forEach { appendLine("- $it") }
+        } else {
+            appendLine()
+            appendLine("【评估维度】")
+            appendLine("请根据对话场景的特点，自主确定合适的评估维度（通常3-8个）。")
+            appendLine("每个维度应具有明确的评估标准和区分度。")
+        }
+
+        // 判定标准
+        if (config.verdictThresholds != null) {
+            appendLine()
+            appendLine("【判定标准（用户指定）】")
+            appendLine("- PASS（通过）：总分 ≥ ${config.verdictThresholds.passScore}")
+            appendLine("- CONDITIONAL_PASS（有条件通过）：${config.verdictThresholds.conditionalPassScore} ≤ 总分 < ${config.verdictThresholds.passScore}")
+            appendLine("- FAIL（未通过）：总分 < ${config.verdictThresholds.conditionalPassScore}")
+        } else {
+            appendLine()
+            appendLine("【判定标准】")
+            appendLine("请根据场景特点自主设定合理的判定阈值，并在报告中说明。")
+            appendLine("一般而言：PASS 表示表现优秀，CONDITIONAL_PASS 表示基本合格但有明显短板，FAIL 表示未达到要求。")
+        }
+
         appendLine()
         appendLine("【输出格式】（严格 JSON）：")
         appendLine("```json")
         appendLine("{")
-        appendLine("  \"overallScore\": 78,")
-        appendLine("  \"verdict\": \"PASS\",")
+        appendLine("  \"overallScore\": 总分(0-100),")
+        appendLine("  \"verdict\": \"PASS\" | \"CONDITIONAL_PASS\" | \"FAIL\",")
         appendLine("  \"summary\": \"总体评价（2-3句话）\",")
-        appendLine("  \"strengths\": [\"优势1\", \"优势2\", ...],")
-        appendLine("  \"weaknesses\": [\"不足1\", \"不足2\", ...],")
-        appendLine("  \"recommendations\": [\"建议1\", \"建议2\", ...],")
+        appendLine("  \"strengths\": [\"优势1\", \"优势2\"],")
+        appendLine("  \"weaknesses\": [\"不足1\", \"不足2\"],")
+        appendLine("  \"recommendations\": [\"建议1\", \"建议2\"],")
         appendLine("  \"dimensions\": [")
         appendLine("    {")
-        appendLine("      \"name\": \"专业知识\",")
-        appendLine("      \"score\": 8,")
-        appendLine("      \"feedback\": \"维度反馈\",")
+        appendLine("      \"name\": \"维度名称\",")
+        appendLine("      \"score\": 得分(0-10),")
+        appendLine("      \"feedback\": \"维度反馈（具体说明得分理由）\",")
         appendLine("      \"highlights\": [\"亮点1\"],")
         appendLine("      \"improvements\": [\"改进点1\"]")
         appendLine("    }")
@@ -302,10 +271,13 @@ object InterviewAgent {
         appendLine("```")
     }
 
-    // ==================== 核心业务方法 ====================
+    // ==================== 业务方法（接口不变，内部实现改变） ====================
 
     /**
      * 分析用户提交的材料（简历/毕设/作品集），生成面试策略。
+     *
+     * 改动：分析 prompt 统一化，让 LLM 根据场景自行决定分析重点，
+     * 不再硬编码"求职简历"/"论文材料"的分类逻辑。
      *
      * @param llmClient LLM 客户端
      * @param materials 用户提交的材料文本
@@ -320,28 +292,28 @@ object InterviewAgent {
         DebugLog.i(TAG, "开始分析材料: ${materials.length} 字符")
 
         val analysisPrompt = buildString {
-            appendLine("请分析以下${when (interviewType) {
-                InterviewType.JOB_INTERVIEW -> "求职简历"
-                InterviewType.THESIS_DEFENSE -> "论文/研究材料"
-                InterviewType.SCENARIO -> "背景材料"
-                else -> "材料"
-            }}，提取关键信息并为面试官提供建议。")
+            appendLine("请分析以下材料，提取关键信息并为后续对话提供建议。")
+            appendLine()
+            appendLine("【对话类型】${interviewType.label}")
+            if (interviewType == InterviewType.CUSTOM && interviewType.label.isNotBlank()) {
+                appendLine("【场景说明】${interviewType.label}")
+            }
             appendLine()
             appendLine("【材料内容】")
             appendLine(materials)
             appendLine()
-            appendLine("请输出以下结构的分析结果（JSON 格式）：")
+            appendLine("请根据材料特点和对话场景，自主决定分析的重点方向，然后输出以下结构的分析结果（JSON 格式）：")
             appendLine("{")
             appendLine("  \"keyPoints\": [\"关键点1\", \"关键点2\", ...],")
             appendLine("  \"suggestedQuestions\": [\"建议提问方向1\", ...],")
             appendLine("  \"riskAreas\": [\"可能被深挖的风险点1\", ...],")
-            appendLine("  \"interviewStrategy\": \"面试策略建议（一段话）\"")
+            appendLine("  \"interviewStrategy\": \"策略建议（一段话，针对此场景）\"")
             appendLine("}")
         }
 
         val response = callLlm(
             llmClient = llmClient,
-            systemPrompt = "你是一位资深HR/学术导师，擅长从简历/材料中快速识别关键信息和潜在风险。",
+            systemPrompt = "你是一位资深的材料分析师，擅长从各类文档中快速识别关键信息、亮点和潜在风险点，并根据不同场景提供针对性的策略建议。",
             userMessage = analysisPrompt,
         )
 
@@ -350,6 +322,9 @@ object InterviewAgent {
 
     /**
      * 生成第一个问题（面试开场白 + 第一题）。
+     *
+     * 改动：使用统一的 [buildUnifiedPrompt]，开场白也由 LLM 自由发挥，
+     * 不再为每种类型写死不同的开场白模板。
      *
      * @param llmClient LLM 客户端
      * @param config 面试配置
@@ -363,41 +338,37 @@ object InterviewAgent {
     ): String {
         DebugLog.i(TAG, "生成第一个问题")
 
-        val systemPrompt = buildInterviewerPrompt(config)
+        val systemPrompt = buildUnifiedPrompt(config)
 
         val introPrompt = buildString {
-            appendLine("请开始面试。")
-            when (config.type) {
-                InterviewType.JOB_INTERVIEW -> {
-                    appendLine("首先简短自我介绍（作为面试官），说明面试流程（约${config.questionCount}个问题），然后提出第一个面试问题。")
-                    appendLine("自我介绍控制在2-3句话，专业但不失亲和。")
-                }
-                InterviewType.THESIS_DEFENSE -> {
-                    appendLine("首先作为答辩委员会主席介绍答辩流程和规则，然后提出第一个质询性问题。")
-                    appendLine("语气要正式、严谨。")
-                }
-                InterviewType.SCENARIO -> {
-                    appendLine("根据设定的场景开始面试，先做简要说明，然后提出第一个问题。")
-                }
-            }
+            appendLine("请开始这场对话。")
+            appendLine("首先做简短的角色介绍和流程说明，然后提出第一个问题。")
+            appendLine("介绍控制在2-3句话，自然地过渡到第一个问题。")
         }
 
-        return callLlm(
+        val response = callLlm(
             llmClient = llmClient,
             systemPrompt = systemPrompt,
             userMessage = introPrompt,
             history = contextToMessages(context),
         )
+
+        // 从 JSON 响应中提取 content 字段
+        return extractContentFromJsonResponse(response)
     }
 
     /**
      * 处理候选人回答 → 生成追问或下一题。
+     *
+     * 改动：LLM 通过 JSON action 字段自主决定 FollowUp / NextQuestion / EndInterview，
+     * 不再依赖 [FEEDBACK][QUESTION][END] 标记解析。
      *
      * @param llmClient LLM 客户端
      * @param config 面试配置
      * @param answer 候选人回答文本
      * @param currentQuestion 当前问题
      * @param history 完整对话历史
+     * @param currentQuestionIndex 当前问题索引
      * @return 下一步动作（FollowUp / NextQuestion / EndInterview）
      */
     suspend fun processAnswer(
@@ -410,26 +381,26 @@ object InterviewAgent {
     ): NextAction {
         DebugLog.i(TAG, "处理回答 #$currentQuestionIndex: '${answer.take(50)}...'")
 
-        val systemPrompt = buildInterviewerPrompt(config)
+        val systemPrompt = buildUnifiedPrompt(config)
         val isLastQuestion = currentQuestionIndex >= config.questionCount - 1
 
         val followUpPrompt = buildString {
-            appendLine("【候选人第 ${currentQuestionIndex + 1} 个回答】")
+            appendLine("【参与者第 ${currentQuestionIndex + 1} 个回答】")
             appendLine(answer)
             appendLine()
-            appendLine("当前问题是第 ${currentQuestionIndex + 1}/${config.questionCount} 题")
+            appendLine("当前进度：第 ${currentQuestionIndex + 1}/${config.questionCount} 题")
 
             if (isLastQuestion) {
                 appendLine()
-                appendLine("⚠️ 这是最后一个问题！")
-                appendLine("请对候选人的整个面试表现给出总结性评价（简短、客观），然后宣布面试结束。")
-                appendLine("用 [FEEDBACK] 给出结束评语，用 [END] 标记结束。不要再提问。")
+                appendLine("⚠️ 这已是计划中的最后一个问题。")
+                appendLine("如果你认为已经获得了足够的信息来做出评估，可以选择结束对话（action: end_interview）。")
+                appendLine("如果认为还需要更多信息，可以继续提问（action: next_question 或 follow_up）。")
             } else {
                 appendLine()
-                appendLine("请根据候选人的回答质量决定下一步：")
-                appendLine("- 如果回答不完整或模糊 → 追问（FollowUp）")
-                appendLine("- 如果回答完整且质量好 → 进入下一题（NextQuestion），适当提高难度")
-                appendLine("- 保持问题之间的连贯性和渐进性")
+                appendLine("请根据回答质量和对话进展，自主决定下一步动作：")
+                appendLine("- 回答不完整或模糊 → follow_up（追问）")
+                appendLine("- 回答完整且质量好 → next_question（下一题）")
+                appendLine("- 已获得足够信息 → end_interview（结束）")
             }
         }
 
@@ -440,38 +411,41 @@ object InterviewAgent {
             history = contextToMessages(history),
         )
 
-        return parseNextAction(response, isLastQuestion)
+        return parseNextActionFromJson(response)
     }
 
     /**
      * 生成教练反馈（每轮回答后调用）。
      *
+     * 改动：教练反馈的评估维度也由 LLM 根据 config 决定，
+     * 不再固定为 logic/clarity/confidence/star 四项。
+     *
      * @param llmClient LLM 客户端
      * @param question 当前问题
      * @param answer 候选人回答
+     * @param config 面试配置（用于获取 evalDimensions 等参数）
      * @return 教练反馈对象
      */
     suspend fun generateCoachFeedback(
         llmClient: LlmClient,
         question: DialogueTurn,
         answer: DialogueTurn,
+        config: InterviewConfig = InterviewConfig(),
     ): CoachFeedback? {
         DebugLog.d(TAG, "生成教练反馈")
 
         try {
             val coachPrompt = buildString {
-                appendLine("【面试官问题】")
-                appendLine(question.content)
+                appendLine("【上一轮对话】")
+                appendLine("问：${question.content}")
+                appendLine("答：${answer.content}")
                 appendLine()
-                appendLine("【候选人回答】")
-                appendLine(answer.content)
-                appendLine()
-                appendLine("请根据上述问答，按照System Prompt中的格式输出教练反馈JSON。")
+                appendLine("请按照 System Prompt 中的格式输出教练反馈 JSON。")
             }
 
             val response = callLlm(
                 llmClient = llmClient,
-                systemPrompt = buildCoachPrompt(),
+                systemPrompt = buildCoachPrompt(config),
                 userMessage = coachPrompt,
             )
 
@@ -484,6 +458,9 @@ object InterviewAgent {
 
     /**
      * 生成最终评估报告。
+     *
+     * 改动：评估维度、权重、阈值全部由 LLM 动态决定，
+     * 不再使用固定的6维度体系和 PASS≥75 阈值。
      *
      * @param llmClient LLM 客户端
      * @param config 面试配置
@@ -503,19 +480,20 @@ object InterviewAgent {
         } else 0L
 
         val reportPrompt = buildString {
-            appendLine("请根据以下完整面试对话记录，生成结构化的面试评估报告。")
+            appendLine("请根据以下完整对话记录，生成结构化的评估报告。")
             appendLine()
-            appendLine("【面试信息】")
-            appendLine("- 类型: ${config.type.label}")
-            appendLine("- 公司/机构: ${config.company.ifBlank { "未指定" }}")
-            appendLine("- 岗位/方向: ${config.position.ifBlank { "未指定" }}")
-            appendLine("- 难度: ${config.difficulty.label}")
-            appendLine("- 总问题数: ${fullTranscript.filter { it.role == "interviewer" }.size}")
-            appendLine("- 面试时长: ${durationSeconds} 秒")
+            appendLine("【对话信息】")
+            appendLine("- 场景：${config.getEffectiveScenarioDescription()}")
+            appendLine("- 类型：${config.type.label}")
+            if (config.company.isNotBlank()) appendLine("- 公司/机构：${config.company}")
+            if (config.position.isNotBlank()) appendLine("- 岗位/主题：${config.position}")
+            appendLine("- 总轮次：${fullTranscript.filter { it.role == "interviewer" }.size}")
+            appendLine("- 时长：${durationSeconds} 秒")
             appendLine()
             appendLine("【对话记录】")
             fullTranscript.forEachIndexed { index, turn ->
-                appendLine("${index + 1}. [${turn.role}] ${turn.content.take(200)}${if (turn.content.length > 200) "..." else ""}")
+                val roleLabel = if (turn.role == "interviewer") "面试官" else "参与者"
+                appendLine("${index + 1}. [$roleLabel] ${turn.content.take(200)}${if (turn.content.length > 200) "..." else ""}")
             }
             appendLine()
             appendLine("请严格按照 Evaluator System Prompt 中的 JSON 格式输出报告。")
@@ -523,7 +501,7 @@ object InterviewAgent {
 
         val response = callLlm(
             llmClient = llmClient,
-            systemPrompt = buildEvaluatorPrompt(),
+            systemPrompt = buildEvaluatorPrompt(config),
             userMessage = reportPrompt,
             history = contextToMessages(fullTranscript),
         )
@@ -574,69 +552,46 @@ object InterviewAgent {
     }
 
     /**
-     * 解析 NextAction（从 LLM 响应中提取）。
+     * 从 JSON 响应中解析 NextAction。
+     *
+     * 新版解析逻辑：基于 JSON 的 action 字段，而非旧的 tag 标记系统。
      */
-    private fun parseNextAction(response: String, isLastQuestion: Boolean): NextAction {
-        val feedback = extractTag(response, "[FEEDBACK]")
-        val question = extractTag(response, "[QUESTION]")
-        val endMarker = response.contains("[END]")
+    private fun parseNextActionFromJson(response: String): NextAction {
+        return try {
+            val jsonStr = extractJsonFromResponse(response)
+            val json = org.json.JSONObject(jsonStr)
 
-        return when {
-            isLastQuestion || endMarker -> {
-                val closingText = if (question.isBlank()) {
-                    response.replace("[FEEDBACK]", "").replace("[END]", "").trim()
-                } else {
-                    feedback
-                }
-                NextAction.EndInterview(closingText.ifBlank { "面试已结束，感谢您的参与。" })
+            val action = json.optString("action", "next_question")
+            val content = json.optString("content", "")
+            val reason = json.optString("reason", "")
+            val category = json.optString("category", "综合考察")
+
+            when (action.lowercase()) {
+                "follow_up" -> NextAction.FollowUp(content.ifBlank { response.trim() }, reason)
+                "end_interview" -> NextAction.EndInterview(content.ifBlank { "对话已结束，感谢您的参与。" })
+                else -> NextAction.NextQuestion(content.ifBlank { response.trim() }, category)
             }
-            question.isNotBlank() && feedback.isNotBlank() -> {
-                // 有追问标记（通过 feedback 内容判断是否是追问）
-                if (feedback.contains("追问") || feedback.contains("补充") || feedback.contains("具体")) {
-                    NextAction.FollowUp(question, feedback)
-                } else {
-                    NextAction.NextQuestion(question, inferCategory(question))
-                }
-            }
-            question.isNotBlank() -> {
-                NextAction.NextQuestion(question, inferCategory(question))
-            }
-            else -> {
-                // 兜底：将整个响应作为下一题
-                NextAction.NextQuestion(response.trim(), "综合")
-            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "JSON 解析失败，使用兜底逻辑: ${e.message}")
+            // 兜底：将整个响应作为下一题
+            NextAction.NextQuestion(response.trim(), "综合考察")
         }
     }
 
     /**
-     * 推断问题分类。
+     * 从 JSON 响应中提取 content 字段文本。
+     * 用于 generateFirstQuestion 等只需要纯文本的场景。
      */
-    private fun inferCategory(question: String): String = when {
-        question.contains("描述") || question.contains("经历") || question.contains("一次") -> "行为面试"
-        question.contains("技术") || question.contains("设计") || question.contains("架构") || question.contains("算法") -> "技术能力"
-        question.contains("如果") || question.contains("遇到") || question.contains("怎么处理") -> "情境应对"
-        question.contains("为什么") || question.contains("原因") || question.contains("考虑") -> "思维深度"
-        question.contains("项目") || question.contains("产品") -> "项目经验"
-        else -> "综合考察"
-    }
-
-    /**
-     * 提取标记内容。
-     */
-    private fun extractTag(text: String, tag: String): String {
-        val tagIndex = text.indexOf(tag)
-        if (tagIndex < 0) return ""
-
-        val afterTag = text.substring(tagIndex + tag.length).trim()
-        val nextTags = listOf("[FEEDBACK]", "[QUESTION]", "[END]")
-        var endIndex = afterTag.length
-        for (pattern in nextTags) {
-            val idx = afterTag.indexOf(pattern)
-            if (idx in 1 until endIndex) {
-                endIndex = idx
-            }
+    private fun extractContentFromJsonResponse(response: String): String {
+        return try {
+            val jsonStr = extractJsonFromResponse(response)
+            val json = org.json.JSONObject(jsonStr)
+            val content = json.optString("content", "")
+            content.ifBlank { response.trim() }
+        } catch (e: Exception) {
+            DebugLog.d(TAG, "JSON content 提取失败，返回原始响应: ${e.message}")
+            response.trim()
         }
-        return afterTag.substring(0, endIndex).trim()
     }
 
     /**
@@ -671,18 +626,26 @@ object InterviewAgent {
     }
 
     /**
-     * 解析教练反馈。
+     * 解析教练反馈（新版：支持开放式评分维度）。
      */
     private fun parseCoachFeedback(response: String): CoachFeedback? {
         return try {
             val jsonStr = extractJsonFromResponse(response)
             val json = org.json.JSONObject(jsonStr)
 
+            // 解析开放的 scores Map
+            val scores = mutableMapOf<String, Float>()
+            val scoresObj = json.optJSONObject("scores")
+            if (scoresObj != null) {
+                val keys = scoresObj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    scores[key] = scoresObj.optDouble(key, 0.0).toFloat()
+                }
+            }
+
             CoachFeedback(
-                logicScore = json.optFloat("logicScore", 5f),
-                clarityScore = json.optFloat("clarityScore", 5f),
-                confidenceScore = json.optFloat("confidenceScore", 5f),
-                starUsage = json.optString("starUsage", ""),
+                scores = scores,
                 quickFeedback = json.optString("quickFeedback", ""),
                 detailedFeedback = json.optString("detailedFeedback", ""),
             )
