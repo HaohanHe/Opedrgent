@@ -139,12 +139,25 @@ fun RecordingCard(
                         color = TextDark,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
+                    // 录音状态指示文字
                     Text(
-                        text = fileName,
-                        fontSize = 12.sp,
-                        color = TextGrey,
-                        maxLines = 1,
+                        text = when (recordingState) {
+                            RecordingState.RECORDING -> "● 正在录音..."
+                            RecordingState.PAUSED → "⏸ 已暂停"
+                            else -> fileName
+                        },
+                        fontSize = if (recordingState == RecordingState.RECORDING) 13.sp else 12.sp,
+                        color = if (recordingState == RecordingState.RECORDING) Color(0xFFE53935) else TextGrey,
+                        fontWeight = if (recordingState == RecordingState.RECORDING) FontWeight.Medium else FontWeight.Normal,
                     )
+                    if (recordingState != RecordingState.RECORDING) {
+                        Text(
+                            text = fileName,
+                            fontSize = 11.sp,
+                            color = TextGrey.copy(alpha = 0.7f),
+                            maxLines = 1,
+                        )
+                    }
                 }
 
                 // Close button
@@ -196,19 +209,19 @@ fun RecordingCard(
 
                     Spacer(Modifier.width(24.dp))
 
-                    // Stop button
+                    // Stop button — 使用方块图标，红色背景突出显示
                     Surface(
                         onClick = onStop,
                         shape = CircleShape,
-                        color = AccentBlue,
+                        color = Color(0xFFE53935),  // 红色：醒目的停止按钮
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MusicNote,
-                                contentDescription = "完成",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                            // 方块停止图标（比 MusicNote 更语义化）
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(Color.White, RoundedCornerShape(3.dp)),
                             )
                         }
                     }
@@ -232,19 +245,18 @@ fun RecordingCard(
 
                     Spacer(Modifier.width(24.dp))
 
-                    // Stop button (same)
+                    // Stop button (红色，与录音中一致)
                     Surface(
                         onClick = onStop,
                         shape = CircleShape,
-                        color = AccentBlue,
+                        color = Color(0xFFE53935),
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MusicNote,
-                                contentDescription = "完成",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(Color.White, RoundedCornerShape(3.dp)),
                             )
                         }
                     }

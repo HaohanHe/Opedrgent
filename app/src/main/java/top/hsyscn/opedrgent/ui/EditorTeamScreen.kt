@@ -168,30 +168,42 @@ fun EditorTeamScreen(
         rerunningStepIndex = -1
         service.resetCancel()
 
-        val result = service.planAndExecute(
-            userInput = pipelineInput,
-            targetPlatform = selectedPlatform,
-            styleReference = styleReference,
-            onPlanReady = { plan ->
-                // 规划完成
-                isPlanning = false
-                currentPlan = plan
-                planReasoning = plan.reasoning
-            },
-            onStepComplete = { roleInstance, output ->
-                currentStepIndex = pipelineResults.size
-                pipelineResults = pipelineResults + EditorResult(
-                    role = roleInstance,  // 注意：role 现在是 RoleInstance
-                    output = output,
-                )
-            },
-        )
+        try {
+            val result = service.planAndExecute(
+                userInput = pipelineInput,
+                targetPlatform = selectedPlatform,
+                styleReference = styleReference,
+                onPlanReady = { plan ->
+                    // 规划完成
+                    isPlanning = false
+                    currentPlan = plan
+                    planReasoning = plan.reasoning
+                },
+                onStepComplete = { roleInstance, output ->
+                    currentStepIndex = pipelineResults.size
+                    pipelineResults = pipelineResults + EditorResult(
+                        role = roleInstance,  // 注意：role 现在是 RoleInstance
+                        output = output,
+                    )
+                },
+            )
 
-        pipelineResults = result.steps
-        finalOutput = result.finalOutput
-        totalDuration = result.totalDurationMs
-        isRunningPipeline = false
-        isPlanning = false
+            // 正常完成时更新结果（取消时不会走到这里）
+            if (!service.isCancelled()) {
+                pipelineResults = result.steps
+                finalOutput = result.finalOutput
+                totalDuration = result.totalDurationMs
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            DebugLog.w("EditorTeamScreen: 流水线执行被用户取消")
+            showSnackbar("已停止执行")
+        } catch (e: Exception) {
+            DebugLog.e("EditorTeamScreen: 流水线执行异常: ${e.message}", e)
+            showSnackbar("执行异常: ${e.message}")
+        } finally {
+            isRunningPipeline = false
+            isPlanning = false
+        }
     }
 
     // 重新执行某一步
@@ -460,8 +472,14 @@ private fun PipelineModeContent(
                         horizontalArrangement = Arrangement.End,
                     ) {
                         if (isRunning) {
-                            OutlinedButton(
-                                onClick = onStopPipeline,
+                        OutlinedButton(
+                            onClick = {
+                                service.cancel()
+                                // 立即更新 UI 状态（不等待协程结束）
+                                isRunningPipeline = false
+                                isPlanning = false
+                                showSnackbar("正在停止...")
+                            },
                                 shape = RoundedCornerShape(20.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = Color(0xFFFFEBEE),
