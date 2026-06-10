@@ -65,7 +65,7 @@ class HippocampusMemory(
     companion object {
         private const val TAG = "HippocampusMemory"
         /** 快照间隔：每 N 轮做一次关键信息快照 */
-        private const val SNAPSHOT_INTERVAL = 3
+        const val SNAPSHOT_INTERVAL = 3
         /** 关键词提取最大数量 */
         private const val MAX_KEYWORDS = 8
         /** 最大关键话题数量 */
@@ -176,7 +176,8 @@ class HippocampusMemory(
      */
     private fun extractKeywords(text: String, maxCount: Int): List<String> {
         // 简单分词：按中文常见分隔符切分
-        val words = text.split(Regex("[\\s\\n\\r、，。！？；：""''（）【】《》/|\\\\]"))
+        val delimiterRegex = "[\\s\\n\\r、，。！？；：\"\"''（）【】《》/|\\\\]".toRegex()
+        val words = text.split(delimiterRegex)
             .filter { it.length >= 2 }  // 至少2个字符
             .map { it.trim() }
             .filter { it.isNotEmpty() }

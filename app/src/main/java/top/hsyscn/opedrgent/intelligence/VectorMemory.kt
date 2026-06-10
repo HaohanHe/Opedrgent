@@ -135,7 +135,7 @@ sealed class Filter {
         }
         is Range -> when (key) {
             "importance" -> payload.importance in min..max
-            else -> (payload.metadata[key] as? Number)?.toFloat() in min..max
+            else -> (payload.metadata[key] as? Number)?.toFloat()?.let { it in min..max } ?: false
         }
         is Contains -> when (key) {
             "title" -> payload.title.contains(substring)
@@ -327,7 +327,9 @@ class VectorMemory(
      */
     suspend fun deleteCollection(collection: String): Int = mutex.withLock {
         val ids = collections[collection]?.toSet() ?: emptySet()
-        val count = store.removeAll { it.id in ids || it.collection == collection }.size
+        val beforeSize = store.size
+        store.removeAll { it.id in ids || it.collection == collection }
+        val count = beforeSize - store.size
         collections.remove(collection)
 
         // 同步从持久化层删除集合（如果启用）
@@ -415,7 +417,7 @@ class VectorMemory(
         val queryVec = vectorize(query)
         val lowerQuery = query.lowercase()
 
-        val results = store.filter { filter.matches(it.payload) }.mapNotNull { mv ->
+        store.filter { filter.matches(it.payload) }.mapNotNull { mv ->
             // 向量分数
             val vecScore = cosineSimilarity(queryVec, mv.vector)
 
@@ -515,7 +517,7 @@ class VectorMemory(
     private fun hashToken(token: String, mod: Int): Int {
         var h = token.hashCode()
         h = h xor (h ushr 16)
-        h = h.times(0x85ebca6b)
+        h = h * 0x85ebca6b.toInt()
         h = h xor (h ushr 13)
         h = ((h and 0x7fffffff) % mod)
         return h

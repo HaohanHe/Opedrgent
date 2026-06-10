@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -332,6 +333,12 @@ fun EditorTeamScreen(
                         val chooser = android.content.Intent.createChooser(sendIntent, "分享文章")
                         context.startActivity(chooser)
                     },
+                    onCancel = {
+                        service.cancel()
+                        isRunningPipeline = false
+                        isPlanning = false
+                    },
+                    onShowSnackbar = { msg -> showSnackbar(msg) },
                     modifier = Modifier.weight(1f),
                 )
 
@@ -416,6 +423,8 @@ private fun PipelineModeContent(
     onCopyText: (String) -> Unit,
     onSaveToNote: () -> Unit = {},
     onShare: () -> Unit = {},
+    onCancel: (() -> Unit)? = null,
+    onShowSnackbar: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -1300,7 +1309,7 @@ private fun RoleConsultView(
                             onClick = onRun,
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(role.color),
+                                containerColor = Color(role.displayColor),
                             ),
                             enabled = text.isNotBlank(),
                         ) {

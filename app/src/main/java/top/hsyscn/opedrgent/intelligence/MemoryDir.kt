@@ -155,7 +155,7 @@ class MemoryDir {
     ): List<MemoryEntry> = mutex.withLock {
         store.values
             .filter { prefix.isEmpty() || it.path.startsWith(prefix) }
-            .sortedWith(compareBy(sortBy.comparator))
+            .sortedWith(sortBy.comparator)
             .reversed()
             .take(limit)
     }
@@ -506,7 +506,7 @@ object MemoryAge {
      */
     fun ageDays(timestampMs: Long): Double {
         val ageMs = System.currentTimeMillis() - timestampMs
-        return (ageMs.toFloat() / MS_PER_DAY).coerceAtLeast(0.0).toDouble()
+        return (ageMs.toDouble() / MS_PER_DAY).coerceAtLeast(0.0)
     }
 
     /**

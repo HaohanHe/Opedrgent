@@ -379,6 +379,29 @@ class VoiceConversationEngine(
         stopFullDuplex()
     }
 
+    /**
+     * 切换用户静音状态（全双工通话控制）。
+     *
+     * @param muted true = 静音用户（关闭麦克风），false = 取消静音
+     */
+    fun muteUser(muted: Boolean) {
+        duplexEngine.muteUser(muted)
+    }
+
+    /**
+     * 静音用户。
+     */
+    fun muteUser() {
+        duplexEngine.muteUser(true)
+    }
+
+    /**
+     * 取消用户静音。
+     */
+    fun unmuteUser() {
+        duplexEngine.muteUser(false)
+    }
+
     // ==================== 公共查询方法 ====================
 
     /**
@@ -606,7 +629,7 @@ class VoiceConversationEngine(
                         when (state) {
                             is StreamingRecognitionState.Recognizing -> {
                                 // 实时识别结果（partial）
-                                onPartialText(state.text)
+                                onPartialText(state.partialText)
                             }
                             is StreamingRecognitionState.FinalResult -> {
                                 // 最终识别结果
@@ -681,7 +704,7 @@ class VoiceConversationEngine(
                     .collect { state ->
                         when (state) {
                             is StreamingRecognitionState.Recognizing -> {
-                                onResult(state.text)
+                                onResult(state.partialText)
                             }
                             is StreamingRecognitionState.FinalResult -> {
                                 onResult(state.text)

@@ -80,11 +80,6 @@ interface AgentFeature {
 
     /** 是否启用 */
     var enabled: Boolean
-        get() = _enabled
-        set(value) { _enabled = value }
-
-    // 内部实现
-    private var _enabled: Boolean = true
 
     /**
      * 在 Agent 执行前调用。
@@ -127,6 +122,11 @@ abstract class BaseAgentFeature(
     override val description: String,
     override val priority: Int = 100,
 ) : AgentFeature {
+
+    private var _enabled: Boolean = true
+    override var enabled: Boolean
+        get() = _enabled
+        set(value) { _enabled = value }
 
     override suspend fun beforeExecute(context: AgentContext): FeatureResult = FeatureResult.CONTINUE
     override suspend fun afterExecute(context: AgentContext, result: Any?, error: Throwable?): FeatureResult = FeatureResult.CONTINUE

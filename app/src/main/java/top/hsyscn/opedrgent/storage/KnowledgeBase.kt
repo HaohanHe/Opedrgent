@@ -11,6 +11,8 @@ import top.hsyscn.opedrgent.pdf.OcrEngine
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.UUID
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 // ============================================================
 // SQLite 数据库（原生实现，与 NoteDatabase 模式一致）
@@ -166,11 +168,11 @@ class KnowledgeBase(private val context: Context) {
         coverColor: String? = null,
     ): Boolean = withContext(Dispatchers.IO) {
         val values = android.content.ContentValues()
-        name?.let { put(KB_NAME, it) }
-        description?.let { put(KB_DESC, it) }
-        visibility?.let { put(KB_VISIBILITY, it.name) }
-        coverColor?.let { put(KB_COVER_COLOR, it) }
-        put(KB_UPDATED_AT, System.currentTimeMillis())
+        name?.let { values.put(KB_NAME, it) }
+        description?.let { values.put(KB_DESC, it) }
+        visibility?.let { values.put(KB_VISIBILITY, it.name) }
+        coverColor?.let { values.put(KB_COVER_COLOR, it) }
+        values.put(KB_UPDATED_AT, System.currentTimeMillis())
         db.update(TABLE_KB, values, "$KB_ID=?", arrayOf(id)) > 0
     }
 
@@ -306,7 +308,7 @@ class KnowledgeBase(private val context: Context) {
         saveDocument(doc)
 
         DebugLog.i(TAG, "文件添加成功: ${doc.title} (${doc.fileType}, ${content.length}字)")
-        KbAddResult.success(doc)
+        return KbAddResult.success(doc)
     }
 
     private fun saveDocument(doc: KbDocument) {
@@ -319,7 +321,7 @@ class KnowledgeBase(private val context: Context) {
             put(DOC_FILE_SIZE, doc.fileSizeBytes)
             put(DOC_CONTENT_LENGTH, doc.contentLength)
             put(DOC_CONTENT, doc.content)
-            put(DOC_TAGS, kotlinx.serialization.json.encodeToString(listOf<String>::class.java.serializer(), doc.tags))
+            put(DOC_TAGS, Json.encodeToString(doc.tags))
             put(DOC_SOURCE_URI, doc.sourceUri)
             put(DOC_ADDED_AT, doc.addedAtMs)
         })
@@ -439,7 +441,7 @@ class KnowledgeBase(private val context: Context) {
     private fun cursorToDoc(c: Cursor): KbDocument {
         val tagsJson = c.getString(c.getColumnIndexOrThrow(DOC_TAGS))
         val tags: List<String> = try {
-            kotlinx.serialization.json.decodeFromString<List<String>>(tagsJson)
+            Json.decodeFromString<List<String>>(tagsJson)
         } catch (_: Exception) { emptyList() }
 
         return KbDocument(

@@ -6,14 +6,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -46,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -119,18 +124,17 @@ fun ImportFileScreen(
                 }
 
                 // 创建笔记
-                val noteId = vm.createNoteFromText(
+                vm.createNoteFromText(
                     title = fileName,
                     content = content,
                     type = noteType
                 )
 
-                importedNoteId = noteId
                 snackbarHostState.showSnackbar("导入成功")
 
                 // 延迟一下让用户看到成功提示，然后跳转
                 kotlinx.coroutines.delay(500)
-                onImportSuccess(noteId)
+                onImportSuccess(-1)
 
             } catch (e: Exception) {
                 importError = "导入失败: ${e.message}"
@@ -299,7 +303,7 @@ fun ImportFileScreen(
  */
 @Composable
 private fun ImportFileTypeCard(
-    icon: android.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     description: String,
     onClick: () -> Unit,
@@ -340,8 +344,10 @@ private fun getFileName(context: Context, uri: android.net.Uri): String {
     if (uri.scheme == "content") {
         val cursor = context.contentResolver.query(uri, null, null, null, null)
         cursor?.use {
-            if (it.moveToFirst()) val columnIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (columnIndex >= 0) result = it.getString(columnIndex)
+            if (it.moveToFirst()) {
+                val columnIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (columnIndex >= 0) result = it.getString(columnIndex)
+            }
         }
     }
     if (result.isBlank()) {

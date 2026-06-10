@@ -77,13 +77,13 @@ class PushNotificationHelper(private val context: Context) {
             )
             is Recommendation.ActionSuggestion -> {
                 val actionDesc = when (rec.actionType) {
-                    SuggestedAction.SPROUT_LATEST_NOTE → "让 AI 帮你深度分析这条笔记"
-                    SuggestedAction.REVIEW_WEEKLY → "回顾本周的思考和收获"
-                    SuggestedAction.ORGANIZE_NOTES → "将笔记归类到知识库"
-                    SuggestedAction.TRY_EDITOR_TEAM → "体验点评/拷问/润色技能"
-                    SuggestedAction.BACKUP_DATA → "导出备份你的数据"
-                    SuggestedAction.SET_REMINDER → "设置定时提醒不错过重要事项"
-                    SuggestedAction.CONNECT_KB → "关联知识库文档增强 AI 能力"
+                    SuggestedAction.SPROUT_LATEST_NOTE -> "让 AI 帮你深度分析这条笔记"
+                    SuggestedAction.REVIEW_WEEKLY -> "回顾本周的思考和收获"
+                    SuggestedAction.ORGANIZE_NOTES -> "将笔记归类到知识库"
+                    SuggestedAction.TRY_EDITOR_TEAM -> "体验点评/拷问/润色技能"
+                    SuggestedAction.BACKUP_DATA -> "导出备份你的数据"
+                    SuggestedAction.SET_REMINDER -> "设置定时提醒不错过重要事项"
+                    SuggestedAction.CONNECT_KB -> "关联知识库文档增强 AI 能力"
                 }
                 FormattedRecommendation(
                     title = rec.title,
