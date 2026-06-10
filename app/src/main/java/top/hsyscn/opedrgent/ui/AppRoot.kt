@@ -277,6 +277,10 @@ fun AppRoot(
                     },
                 )
                 "knowledge" -> KnowledgeBaseScreen(vm = vm, onBack = { subScreen = null })
+                "interview" -> InterviewScreen(
+                    vm = vm,
+                    onBack = { subScreen = null },
+                )
                 // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
                 "import" -> ImportFileScreen(
                     vm = vm,
