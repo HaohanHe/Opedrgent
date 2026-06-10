@@ -147,6 +147,23 @@ class VoiceConversationEngine(
      */
     private var waitingForUserInput = false
 
+    /**
+     * 当前对话轮次计数器（用于海马体漂移检测）。
+     */
+    @Volatile
+    private var turnCounter: Int = 0
+
+    /**
+     * AI 上一轮回复（用于海马体漂移检测）。
+     */
+    @Volatile
+    private var lastAiResponse: String = ""
+
+    /**
+     * 海马体记忆系统实例（可选，用于注意力管理）。
+     */
+    private var hippo: HippocampusMemory? = null
+
     // ==================== 公开 API：全双工模式（推荐）====================
 
     /**
@@ -166,6 +183,8 @@ class VoiceConversationEngine(
      * @param onStateChange 全双工状态变化回调（可绑定 Compose UI）
      * @param onBargeIn 用户打断 AI 时的回调
      * @param getAiResponse LLM 调用接口，传入用户输入返回 AI 回复
+     * @param interviewConfig 可选的面试配置（用于自动创建海马体实例）
+     * @param hippo 可选的海马体实例（如果提供，将启用注意力管理）
      */
     suspend fun startFullDuplex(
         scenario: TtsScenario = DEFAULT_TTS_SCENARIO,
@@ -175,6 +194,8 @@ class VoiceConversationEngine(
         onStateChange: (FullDuplexAudioEngine.DuplexState) -> Unit,
         onBargeIn: () -> Unit = {},
         getAiResponse: suspend (userInput: String?) -> String,
+        interviewConfig: InterviewConfig? = null,
+        hippo: HippocampusMemory? = null,
     ) {
         if (!conversationActive.compareAndSet(false, true)) {
             DebugLog.w(TAG, "对话已在进行中")
@@ -182,6 +203,20 @@ class VoiceConversationEngine(
         }
 
         DebugLog.i(TAG, "🚀 开始全双工语音对话 [场景：${scenario.label}]")
+
+        // 初始化海马体（如果提供了配置或实例）
+        this.hippo = hippo
+        if (this.hippo == null && interviewConfig != null) {
+            DebugLog.i(TAG, "自动创建海马体实例")
+            this.hippo = InterviewAgent.createSession(
+                sessionId = "voice_${System.currentTimeMillis()}",
+                config = interviewConfig,
+            )
+        }
+
+        // 重置轮次计数器
+        turnCounter = 0
+        lastAiResponse = ""
 
         try {
             // 步骤1：初始化 ASR 管理器
@@ -262,6 +297,17 @@ class VoiceConversationEngine(
         }
 
         DebugLog.i(TAG, "⏹️ 停止全双工对话")
+
+        // 输出海马体漂移报告（如果有）
+        hippo?.let { h ->
+            val report = h.getDriftReport()
+            DebugLog.i(TAG, "📊 海马体漂移报告:\n${report.summary}")
+        }
+
+        // 清理海马体
+        hippo = null
+        turnCounter = 0
+        lastAiResponse = ""
 
         // 停止 TTS
         ttsJob?.cancel()
@@ -351,6 +397,20 @@ class VoiceConversationEngine(
      * 获取当前全双工状态（新版 API）。
      */
     fun getCurrentDuplexState(): FullDuplexAudioEngine.DuplexState = duplexEngine.state
+
+    /**
+     * 获取当前海马体实例（如果已启用）。
+     *
+     * @return 海马体实例，如果未启用则返回 null
+     */
+    fun getHippocampus(): HippocampusMemory? = hippo
+
+    /**
+     * 获取海马体漂移报告（对话结束后调用）。
+     *
+     * @return 漂移报告，如果未启用海马体则返回 null
+     */
+    fun getDriftReport(): HippocampusMemory.DriftReport? = hippo?.getDriftReport()
 
     // ==================== 内部实现 ====================
 
@@ -446,9 +506,22 @@ class VoiceConversationEngine(
                 latestUserText = recognizedText
                 waitingForUserInput = false
 
+                // 在 LLM 调用前注入海马体注意力上下文
+                val aiInputForLlm = if (this.hippo != null && recognizedText.isNotBlank()) {
+                    val attentionCtx = this.hippo!!.prepareTurnContext(
+                        turnIndex = turnCounter,
+                        userMessage = recognizedText,
+                        lastAiResponse = lastAiResponse,
+                    )
+                    // 将注意力上下文拼接到用户输入前面（作为系统提示）
+                    if (attentionCtx.isNotBlank()) "[系统提醒]\n$attentionCtx\n\n[用户输入]\n$recognizedText" else recognizedText
+                } else {
+                    recognizedText
+                }
+
                 // 调用 LLM 生成回复
                 val aiResponse = withContext(Dispatchers.IO) {
-                    getAiResponse(recognizedText)
+                    getAiResponse(aiInputForLlm)
                 }
 
                 if (!conversationActive.get() || aiResponse.isBlank()) {
@@ -460,6 +533,18 @@ class VoiceConversationEngine(
                 }
 
                 DebugLog.i(TAG, "🤖 AI 回复: '${aiResponse.take(100)}'")
+
+                // 记录海马体漂移检测
+                this.hippo?.detectDrift(turnCounter, recognizedText, aiResponse)
+
+                // 更新轮次计数器和上一轮回复
+                turnCounter++
+                lastAiResponse = aiResponse
+
+                // 定期更新关键信息快照
+                if (turnCounter > 0 && turnCounter % HippocampusMemory.SNAPSHOT_INTERVAL == 0) {
+                    this.hippo?.updateCriticalSnapshot(turnCounter, "第${turnCounter}轮语音对话完成")
+                }
 
                 // 通知 UI：AI 的回复文字
                 onAiSpeak(aiResponse)
