@@ -100,6 +100,8 @@ fun HomeDashboardScreen(
     onOpenEditorTeam: () -> Unit = {},
     onNavigateToRecording: () -> Unit = {},
     onNavigateToKnowledge: () -> Unit = {},
+    // 面试模式入口回调
+    onNavigateToInterview: () -> Unit = {},
 ) {
     // AI 助手输入框状态
     var aiInputText by remember { mutableStateOf("") }
@@ -139,6 +141,7 @@ fun HomeDashboardScreen(
                 onOpenEditorTeam = onOpenEditorTeam,
                 onNavigateToRecording = onNavigateToRecording,
                 onNavigateToKnowledge = onNavigateToKnowledge,
+                onNavigateToInterview = onNavigateToInterview,
             )
         }
     }
@@ -667,8 +670,20 @@ private fun buildRecommendations(
     onOpenEditorTeam: () -> Unit,
     onNavigateToRecording: () -> Unit,
     onNavigateToKnowledge: () -> Unit,
+    onNavigateToInterview: () -> Unit,
 ): List<RecommendationItem> {
     val recommendations = mutableListOf<RecommendationItem>()
+
+    // 0. AI 面试模拟（始终展示，作为核心功能入口）
+    recommendations.add(
+        RecommendationItem(
+            icon = Icons.Default.Mic,
+            title = "AI 面试模拟",
+            description = "语音通话 · 动态角色 · 多维评估",
+            onClick = onNavigateToInterview,
+            gradientColors = listOf(Color(0xFF6a11cb), Color(0xFF2575fc)),
+        )
+    )
 
     // a. AI 编辑团推荐（优先级最高）
     if (!hasUsedEditorTeam) {
@@ -710,8 +725,15 @@ private fun buildRecommendations(
     }
 
     // d. 如果以上条件都不满足，返回默认推荐（轮播展示所有推荐）
-    if (recommendations.isEmpty()) {
+    if (recommendations.size <= 1) {  // 只有面试卡片时补充更多
         return listOf(
+            RecommendationItem(
+                icon = Icons.Default.Mic,
+                title = "AI 面试模拟",
+                description = "语音通话 · 动态角色 · 多维评估",
+                onClick = onNavigateToInterview,
+                gradientColors = listOf(Color(0xFF6a11cb), Color(0xFF2575fc)),
+            ),
             RecommendationItem(
                 icon = Icons.Default.AutoAwesome,
                 title = "试试 AI 编辑团",

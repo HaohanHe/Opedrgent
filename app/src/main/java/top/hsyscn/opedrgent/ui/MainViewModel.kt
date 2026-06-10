@@ -89,6 +89,7 @@ import top.hsyscn.opedrgent.interview.InterviewType
 import top.hsyscn.opedrgent.interview.DialogueTurn
 import top.hsyscn.opedrgent.interview.CoachFeedback
 import top.hsyscn.opedrgent.interview.VoiceConversationEngine
+import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
@@ -4407,6 +4408,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val coachFeedback: CoachFeedback? = null,
         val analysisResult: AnalysisResult? = null,
         val error: String? = null,
+        // 全双工通话状态
+        val duplexState: FullDuplexAudioEngine.DuplexState? = null,
+        val isMuted: Boolean = false,
+        val bargeInDetected: Boolean = false,
     )
 
     private val _interviewState = MutableStateFlow(InterviewUiState())
@@ -4700,6 +4705,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun stopInterviewSpeaking() {
         tts.stop()
         _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+    }
+
+    /**
+     * 切换面试模式静音状态（全双工通话控制）。
+     *
+     * 调用 FullDuplexAudioEngine.muteUser() / unmuteUser()
+     * 同时更新 UI 状态中的 isMuted 字段
+     */
+    fun toggleInterviewMute() {
+        val currentState = _interviewState.value
+        val newMuted = !currentState.isMuted
+
+        // 通过语音引擎切换静音
+        voiceEngine?.let { engine ->
+            // VoiceConversationEngine 内部应封装对 FullDuplexAudioEngine 的静音调用
+            runCatching {
+                if (newMuted) {
+                    engine.muteUser()
+                } else {
+                    engine.unmuteUser()
+                }
+            }
+        }
+
+        // 更新 UI 状态
+        _interviewState.value = currentState.copy(
+            isMuted = newMuted,
+            duplexState = if (newMuted) FullDuplexAudioEngine.DuplexState.MUTED else currentState.duplexState,
+        )
+    }
+
+    /**
+     * 更新全双工通话状态（由语音引擎回调触发）。
+     */
+    fun updateDuplexState(state: FullDuplexAudioEngine.DuplexState) {
+        _interviewState.value = _interviewState.value.copy(duplexState = state)
+    }
+
+    /**
+     * 标记插话事件（BargeIn）发生/消失。
+     */
+    fun setBargeInDetected(detected: Boolean) {
+        _interviewState.value = _interviewState.value.copy(bargeInDetected = detected)
     }
 
     /**

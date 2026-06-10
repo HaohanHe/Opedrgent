@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
@@ -102,6 +103,7 @@ import top.hsyscn.opedrgent.interview.CoachFeedback
 import top.hsyscn.opedrgent.interview.AnalysisResult
 import top.hsyscn.opedrgent.interview.Verdict
 import top.hsyscn.opedrgent.interview.EvaluationDimension
+import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.CardWhite
@@ -714,7 +716,10 @@ private fun InterviewPreparingScreen(
 // ==================== 面试进行界面 ====================
 
 /**
- * 面试进行中界面 — 对话区域、输入区、进度条、计时器。
+ * 面试进行中界面 — 全双工通话模式。
+ *
+ * 底部操作栏包含：静音按钮 / 通话时长 / 题目进度 / 结束按钮
+ * 实时状态文字根据 DuplexState 切换，插话时显示闪烁提示
  */
 @Composable
 private fun InterviewSessionScreen(
@@ -728,10 +733,27 @@ private fun InterviewSessionScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // 输入状态
+    // 全双工状态
+    val duplexState = interviewState.duplexState
+    val isMuted = interviewState.isMuted
+
+    // 输入状态（文字备选模式）
     var inputText by rememberSaveable { mutableStateOf("") }
-    var useVoice by rememberSaveable { mutableStateOf(false) }
+    var showTextInput by rememberSaveable { mutableStateOf(false) }
     var showEndDialog by rememberSaveable { mutableStateOf(false) }
+
+    // 插话指示器闪烁状态
+    val infiniteTransition = rememberInfiniteTransition(label = "bargein_blink")
+    val bargeInAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            tween(400),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "bargein_alpha",
+    )
+    val showBargeInIndicator = duplexState != null && interviewState.bargeInDetected
 
     // 自动滚动到底部
     LaunchedEffect(messages.size) {
@@ -835,29 +857,41 @@ private fun InterviewSessionScreen(
                 }
             }
 
-            // ── 输入区域 ──
-            InterviewInputBar(
-                inputText = inputText,
-                onInputChange = { inputText = it },
-                isListening = interviewState.isListening,
-                isSpeaking = interviewState.isSpeaking,
-                useVoice = useVoice,
-                onToggleVoiceMode = { useVoice = !useVoice },
-                onSendText = {
-                    if (inputText.isNotBlank()) {
-                        vm.sendInterviewAnswer(inputText.trim())
-                        inputText = ""
-                    }
-                },
-                onToggleVoiceInput = {
-                    if (interviewState.isListening) {
-                        vm.stopInterviewListening()
-                    } else {
-                        vm.startInterviewListening()
-                    }
-                },
-                onStopSpeaking = { vm.stopInterviewSpeaking() },
+            // ── 全双工状态指示条 ──
+            DuplexStatusBar(
+                duplexState = duplexState,
+                isMuted = isMuted,
+                bargeInDetected = showBargeInIndicator,
+                bargeInAlpha = bargeInAlpha,
             )
+
+            // ── 全双工控制面板（底部操作栏）──
+            if (showTextInput) {
+                // 文字输入备选模式
+                DuplexTextInputBar(
+                    inputText = inputText,
+                    onInputChange = { inputText = it },
+                    onSend = {
+                        if (inputText.isNotBlank()) {
+                            vm.sendInterviewAnswer(inputText.trim())
+                            inputText = ""
+                        }
+                    },
+                    onCloseTextInput = { showTextInput = false },
+                )
+            } else {
+                // 默认全双工控制面板
+                DuplexControlPanel(
+                    isMuted = isMuted,
+                    elapsedSeconds = interviewState.elapsedSeconds,
+                    questionCount = interviewState.questionCount,
+                    totalQuestions = config?.questionCount ?: 8,
+                    duplexState = duplexState,
+                    onToggleMute = { vm.toggleInterviewMute() },
+                    onEnd = { showEndDialog = true },
+                    onShowTextInput = { showTextInput = true },
+                )
+            }
         }
     }
 
@@ -1301,6 +1335,242 @@ private fun VoiceInputArea(
                 fontSize = 12.sp,
                 color = if (isListening) Color(0xFFE53935) else TextGrey,
             )
+        }
+    }
+}
+
+// ── 全双工状态指示条 ──
+
+/**
+ * 根据全双工引擎状态显示实时状态文字。
+ * 插话（BargeIn）发生时闪烁提示。
+ */
+@Composable
+private fun DuplexStatusBar(
+    duplexState: FullDuplexAudioEngine.DuplexState?,
+    isMuted: Boolean,
+    bargeInDetected: Boolean,
+    bargeInAlpha: Float,
+) {
+    val statusText = when {
+        bargeInDetected -> "🗣️ 您打断了 AI"
+        isMuted -> "🔇 已静音"
+        duplexState == null -> "📡 连接中..."
+        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> "AI 说话中..."
+        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> "正在听您说..."
+        duplexState == FullDuplexAudioEngine.DuplexState.CONNECTED -> "✅ 已连接"
+        duplexState == FullDuplexAudioEngine.DuplexState.IDLE -> "⏸️ 待机中"
+        duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> "🔇 已静音"
+        else -> ""
+    }
+
+    val statusColor = when {
+        bargeInDetected -> Color(0xFFFF9800) // 橙色闪烁
+        isMuted || duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> Color(0xFFE53935)
+        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> AccentBlue
+        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> Color(0xFF4CAF50)
+        else -> TextGrey
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = statusText,
+            fontSize = 12.sp,
+            color = statusColor.copy(alpha = if (bargeInDetected) bargeInAlpha else 1f),
+            fontWeight = if (bargeInDetected) FontWeight.Bold else FontWeight.Normal,
+        )
+    }
+}
+
+// ── 全双工控制面板（主模式） ──
+
+/**
+ * 全双工通话底部控制面板：
+ * [静音按钮]  [通话时长 / 题目进度]  [结束按钮]
+ */
+@Composable
+private fun DuplexControlPanel(
+    isMuted: Boolean,
+    elapsedSeconds: Int,
+    questionCount: Int,
+    totalQuestions: Int,
+    duplexState: FullDuplexAudioEngine.DuplexState?,
+    onToggleMute: () -> Unit,
+    onEnd: () -> Unit,
+    onShowTextInput: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // 第一行：静音 | 时长/进度 | 结束
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                // ── 静音按钮 ──
+                FilledTonalButton(
+                    onClick = onToggleMute,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (isMuted) Color(0xFFE53935) else Color(0xFFF5F5F5),
+                        contentColor = if (isMuted) Color.White else TextDark,
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = if (isMuted) "取消静音" : "静音",
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isMuted) "已静音" else "静音",
+                        fontSize = 12.sp,
+                    )
+                }
+
+                // ── 通话时长 + 进度 ──
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // 格式化时长 MM:SS / 总时长
+                    val minutes = elapsedSeconds / 60
+                    val seconds = elapsedSeconds % 60
+                    Text(
+                        text = String.format(Locale.getDefault(), "%02d:%02d / --:--", minutes, seconds),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    )
+                    // 题目进度
+                    Text(
+                        text = "第 $questionCount / $totalQuestions 题",
+                        fontSize = 11.sp,
+                        color = TextGrey,
+                    )
+                }
+
+                // ── 结束按钮 ──
+                FilledTonalButton(
+                    onClick = onEnd,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFFFFEBEE),
+                        contentColor = Color(0xFFE53935),
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "结束面试",
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("结束", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 第二行：切换到文字输入备选
+            TextButton(
+                onClick = onShowTextInput,
+                modifier = Modifier.padding(vertical = 0.dp),
+            ) {
+                Text(
+                    "改用文字输入 →",
+                    fontSize = 12.sp,
+                    color = TextGrey,
+                )
+            }
+        }
+    }
+}
+
+// ── 文字输入备选栏 ──
+
+/**
+ * 当用户不想用语音时，展示精简的文字输入面板。
+ */
+@Composable
+private fun DuplexTextInputBar(
+    inputText: String,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onCloseTextInput: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            // 关闭文字输入提示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onCloseTextInput) {
+                    Text("← 返回语音模式", fontSize = 12.sp, color = AccentBlue)
+                }
+            }
+
+            // 文字输入行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = onInputChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("输入你的回答...", fontSize = 14.sp) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color(0xFFE4E4E4),
+                        focusedBorderColor = AccentBlue,
+                    ),
+                    maxLines = 4,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = onSend,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(AccentBlue),
+                    enabled = inputText.isNotBlank(),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "发送",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }
