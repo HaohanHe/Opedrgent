@@ -389,6 +389,10 @@ fun AppRoot(
                             onNavigateToKnowledge = {
                                 subScreen = "knowledge"
                             },
+                            // 面试模式导航回调
+                            onNavigateToInterview = {
+                                subScreen = "interview"
+                            },
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
