@@ -112,7 +112,7 @@ class MimoTtsTool(
             DebugLog.i("mimo_tts: success! file=${outputFile.absolutePath}, size=${result.audioData.size} bytes")
 
             val outputText = buildString {
-                appendLine("✅ MiMo TTS语音合成成功")
+                appendLine("[成功] MiMo TTS语音合成成功")
                 appendLine("- 模式：${when(modelId) {"mimo-v2.5-tts" -> "预置音色" "mimo-v2.5-tts-voicedesign" -> "音色设计" else -> "音色克隆"}}")
                 appendLine("- 文件：${outputFile.name} (${String.format("%.1f", result.audioData.size / 1024.0 / 1024.0)} MB)")
                 appendLine("- 时长：约${durationSec}秒 | 模型：${result.modelUsed} | 音色：${result.voiceUsed}")

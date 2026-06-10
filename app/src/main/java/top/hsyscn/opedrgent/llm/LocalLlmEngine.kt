@@ -203,7 +203,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 )
                 currentConfig = config
 
-                DebugLog.i(TAG, "✅ Model loaded successfully: ${modelInfo.displayName} (${String.format("%.1f", fileSizeMb)}MB)")
+                DebugLog.i(TAG, "Model loaded successfully: ${modelInfo.displayName} (${String.format("%.1f", fileSizeMb)}MB)")
                 true
             }
         } catch (e: CancellationException) {
@@ -213,7 +213,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: Exception) {
             val errorMsg = e.message ?: "Unknown error"
             val causeMsg = e.cause?.message?.let { " (cause: $it)" } ?: ""
-            DebugLog.e(TAG, "❌ Failed to load model: $errorMsg$causeMsg", e)
+            DebugLog.e(TAG, "Failed to load model: $errorMsg$causeMsg", e)
             e.stackTrace.take(8).forEach { trace ->
                 DebugLog.e(TAG, "    at $trace")
             }

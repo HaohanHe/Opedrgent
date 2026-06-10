@@ -110,7 +110,7 @@ class InsightSproutTool(
             engine.sprout(effectiveText, sproutConfig)
         } catch (e: Exception) {
             DebugLog.e("insight_sprout: engine execution failed - ${e.message}", e)
-            return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n💡 提示：发芽过程涉及 4 阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
+            return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n提示：发芽过程涉及 4 阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
         }
 
         if (result.markdownReport.isBlank() && result.seeds.isEmpty() && result.insights.isEmpty()) {
@@ -209,7 +209,7 @@ class InsightSproutTool(
         val phasesCompleted = result.completedPhases.size
         val totalPhases = 4
 
-        sb.appendLine("🌱 **知识发芽完成**")
+        sb.appendLine("**知识发芽完成**")
         sb.appendLine()
         sb.appendLine("已完成 **$phasesCompleted/$totalPhases** 阶段的处理，以下是您的发芽报告：")
         sb.appendLine()
@@ -232,12 +232,12 @@ class InsightSproutTool(
             qualityScore >= 50 -> "一般"
             else -> "较差"
         }
-        sb.appendLine("📊 **质量评分**: ${qualityScore.toInt()}/100 ($grade)")
+        sb.appendLine("**质量评分**: ${qualityScore.toInt()}/100 ($grade)")
         sb.appendLine()
         sb.appendLine("⏱️ **处理耗时**: ${formatDuration(processingTimeMs)}")
         sb.appendLine()
 
-        sb.appendLine("💡 **后续建议**:")
+        sb.appendLine("**后续建议**:")
         if (preferredDomains.isEmpty()) {
             sb.appendLine("- 对某个领域感兴趣？可以指定 `--domains=\"心理学,哲学\"` 深化分析")
         }
@@ -253,7 +253,7 @@ class InsightSproutTool(
     private fun formatCachedResult(report: String, qualityScore: Float, fromCache: Boolean): String {
         if (!fromCache) return report
         val prefix = """
-            |🌱 **知识发芽完成**（缓存命中）
+            |**知识发芽完成**（缓存命中）
             |
             |> ⚡ 本次结果来自近期缓存，相同文本无需重复分析
             |
@@ -264,14 +264,14 @@ class InsightSproutTool(
             |
             |---
             |
-            |📊 **质量评分**: ${qualityScore.toInt()}/100 | 🔄 *缓存读取*
+            |**质量评分**: ${qualityScore.toInt()}/100 | *缓存读取*
         """.trimMargin()
         return "$prefix$report$suffix"
     }
 
     private fun appendFallbackReport(sb: StringBuilder, result: top.hsyscn.opedrgent.insight.SproutResult) {
         if (result.seeds.isNotEmpty()) {
-            sb.appendLine("## 🌱 种子概念")
+            sb.appendLine("## 种子概念")
             sb.appendLine()
             result.seeds.forEachIndexed { i, seed ->
                 sb.appendLine("${i + 1}. **${seed.concept}**: ${seed.description}")
@@ -280,7 +280,7 @@ class InsightSproutTool(
         }
 
         if (result.connections.isNotEmpty()) {
-            sb.appendLine("## 🔗 跨领域联结")
+            sb.appendLine("## 跨领域联结")
             sb.appendLine()
             result.connections.forEach { conn ->
                 sb.appendLine("- **${conn.domain}**: ${conn.analogyOrCase}")
@@ -290,7 +290,7 @@ class InsightSproutTool(
         }
 
         if (result.insights.isNotEmpty()) {
-            sb.appendLine("## ✨ Aha 洞察")
+            sb.appendLine("## Aha 洞察")
             sb.appendLine()
             result.insights.forEach { insight ->
                 sb.appendLine("> 「${insight.content}」")
@@ -299,7 +299,7 @@ class InsightSproutTool(
         }
 
         if (result.quotes.isNotEmpty()) {
-            sb.appendLine("## 💡 金句回响")
+            sb.appendLine("## 金句回响")
             sb.appendLine()
             result.quotes.forEach { quote ->
                 sb.appendLine("> 「${quote.originalQuote}」——*${quote.author}*《${quote.source}》")

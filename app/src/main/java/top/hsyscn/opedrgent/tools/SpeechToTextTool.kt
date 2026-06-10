@@ -289,14 +289,14 @@ class SpeechToTextTool(
         }
 
         return buildString {
-            appendLine("✅ 转录完成")
+            appendLine("[完成] 转录完成")
             appendLine()
 
-            appendLine("📄 **转录文本**:")
+            appendLine("**转录文本**:")
             appendLine(result.text)
             appendLine()
 
-            appendLine("📊 **统计信息**:")
+            appendLine("**统计信息**:")
             appendLine("- 时长: $durationStr")
             appendLine("- 字数: ${String.format("%,d", charCount)} 字符")
             appendLine("- 引擎: ${formatEngineName(result.engineType)}${if (result.modelUsed.isNotBlank()) " (${result.modelUsed})" else ""}")
@@ -306,7 +306,7 @@ class SpeechToTextTool(
 
             if (result.segments.size > 1) {
                 appendLine()
-                appendLine("📑 **分段详情**（共 ${result.segments.size} 段）:")
+                appendLine("**分段详情**（共 ${result.segments.size} 段）:")
                 result.segments.forEachIndexed { idx, seg ->
                     val startFmt = AudioProcessor.formatDuration(seg.startTimeMs)
                     val endFmt = AudioProcessor.formatDuration(seg.endTimeMs)
@@ -316,7 +316,7 @@ class SpeechToTextTool(
             }
 
             appendLine()
-            appendLine("💡 **操作建议**:")
+            appendLine("**操作建议**:")
             appendLine("- 点击「复制」可复制全文")
             appendLine("- 点击「发送给 AI 分析」可让 LLM 总结要点、提取关键信息")
             appendLine("- 如需导出，可请求 AI 将内容整理为 Markdown 或其他格式")

@@ -639,7 +639,7 @@ private fun InterviewPreparingScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(
-                            text = "📋 材料分析结果",
+                            text = "材料分析结果",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = TextDark,
@@ -667,7 +667,7 @@ private fun InterviewPreparingScreen(
                         if (analysisResult.suggestedQuestions.isNotEmpty()) {
                             HorizontalDivider(color = Color(0xFFF0F0F0))
                             Text(
-                                text = "💡 建议关注方向",
+                                text = "建议关注方向",
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp,
                                 color = AccentBlue,
@@ -686,7 +686,7 @@ private fun InterviewPreparingScreen(
                         if (analysisResult.riskAreas.isNotEmpty()) {
                             HorizontalDivider(color = Color(0xFFF0F0F0))
                             Text(
-                                text = "⚠️ 可能被深挖的点",
+                                text = "可能被深挖的点",
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp,
                                 color = Color(0xFFF57C00),
@@ -950,7 +950,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("✨ ", fontSize = 14.sp)
+                Text(" ", fontSize = 14.sp)
                 Text(
                     text = feedback.quickFeedback.ifBlank { "教练建议" },
                     fontWeight = FontWeight.Medium,
@@ -985,7 +985,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                     // STAR 法则说明
                     if (feedback.starUsage.isNotBlank()) {
                         Text(
-                            text = "📌 STAR法则: ${feedback.starUsage}",
+                            text = "STAR法则: ${feedback.starUsage}",
                             fontSize = 12.sp,
                             color = TextDark.copy(alpha = 0.7f),
                         )
@@ -1353,14 +1353,14 @@ private fun DuplexStatusBar(
     bargeInAlpha: Float,
 ) {
     val statusText = when {
-        bargeInDetected -> "🗣️ 您打断了 AI"
-        isMuted -> "🔇 已静音"
-        duplexState == null -> "📡 连接中..."
+        bargeInDetected -> "您打断了 AI"
+        isMuted -> "已静音"
+        duplexState == null -> "连接中..."
         duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> "AI 说话中..."
         duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> "正在听您说..."
-        duplexState == FullDuplexAudioEngine.DuplexState.CONNECTED -> "✅ 已连接"
-        duplexState == FullDuplexAudioEngine.DuplexState.IDLE -> "⏸️ 待机中"
-        duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> "🔇 已静音"
+        duplexState == FullDuplexAudioEngine.DuplexState.CONNECTED -> "已连接"
+        duplexState == FullDuplexAudioEngine.DuplexState.IDLE -> "待机中"
+        duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> "已静音"
         else -> ""
     }
 
@@ -1669,7 +1669,7 @@ private fun InterviewReportScreen(
                 if (report.strengths.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "✅ 优势",
+                            title = "优势",
                             iconColor = Color(0xFF2E7D32),
                             items = report.strengths,
                         )
@@ -1680,7 +1680,7 @@ private fun InterviewReportScreen(
                 if (report.weaknesses.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "⚠️ 待改进",
+                            title = "待改进",
                             iconColor = Color(0xFFE53935),
                             items = report.weaknesses,
                         )
@@ -1691,7 +1691,7 @@ private fun InterviewReportScreen(
                 if (report.recommendations.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "💡 改进建议",
+                            title = "改进建议",
                             iconColor = AccentBlue,
                             items = report.recommendations,
                         )
@@ -1766,9 +1766,9 @@ private fun ScoreCard(report: InterviewReport) {
     }
 
     val verdictLabel = when (report.verdict) {
-        Verdict.PASS -> "通过 ✅"
-        Verdict.CONDITIONAL_PASS -> "有条件通过 ⚠️"
-        Verdict.FAIL -> "未通过 ❌"
+        Verdict.PASS -> "通过"
+        Verdict.CONDITIONAL_PASS -> "有条件通过"
+        Verdict.FAIL -> "未通过"
     }
 
     Card(
@@ -1856,7 +1856,7 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "📊 各维度评分",
+                text = "各维度评分",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
                 color = TextDark,
@@ -2002,7 +2002,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "📝 完整对话记录 (${transcript.size} 条)",
+                    text = "完整对话记录 (${transcript.size} 条)",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                     color = TextDark,
@@ -2028,7 +2028,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                             verticalAlignment = Alignment.Top,
                         ) {
                             Text(
-                                text = if (turn.role == "interviewer") "👤 " else "🗣️ ",
+                                text = if (turn.role == "interviewer") "  " else "  ",
                                 fontSize = 13.sp,
                             )
                             Column(modifier = Modifier.weight(1f)) {

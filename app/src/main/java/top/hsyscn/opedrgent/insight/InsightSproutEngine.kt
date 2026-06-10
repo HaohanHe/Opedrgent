@@ -737,7 +737,7 @@ class InsightSproutEngine(
     private fun starRating(score: Float): String {
         val fullStars = (score * 5).toInt().coerceIn(0, 5)
         val emptyStars = 5 - fullStars
-        return "★".repeat(fullStars) + "☆".repeat(emptyStars)
+        return "[*]".repeat(fullStars) + "[ ]".repeat(emptyStars)
     }
 
     private fun releaseLargeStrings(vararg strings: String?) {

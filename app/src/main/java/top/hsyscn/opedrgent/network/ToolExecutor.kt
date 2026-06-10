@@ -117,13 +117,13 @@ class ToolExecutor(
 
             return@withContext when (permissionDecision.behavior) {
                 top.hsyscn.opedrgent.security.PermissionBehavior.DENY -> {
-                    emptyResult(started, "⛔ 安全策略拒绝: ${permissionDecision.reason}")
+                    emptyResult(started, "[拒绝] 安全策略拒绝: ${permissionDecision.reason}")
                 }
                 top.hsyscn.opedrgent.security.PermissionBehavior.ASK -> {
-                    emptyResult(started, "🔐 需要用户授权: ${permissionDecision.reason}\n请确认是否允许执行此操作？")
+                    emptyResult(started, "[授权] 需要用户授权: ${permissionDecision.reason}\n请确认是否允许执行此操作？")
                 }
                 else -> {
-                    emptyResult(started, "❓ 权限检查失败: ${permissionDecision.reason}")
+                    emptyResult(started, "[注意] 权限检查失败: ${permissionDecision.reason}")
                 }
             }
         }
@@ -131,7 +131,7 @@ class ToolExecutor(
         // ★ 风险日志记录（高风险操作额外记录）
         if (permissionDecision.riskLevel.score >= top.hsyscn.opedrgent.security.RiskLevel.MEDIUM.score) {
             DebugLog.w(
-                "ToolExecutor: ⚠️ 执行${permissionDecision.riskLevel.description}操作: ${started.tool}"
+                "ToolExecutor: [警告] 执行${permissionDecision.riskLevel.description}操作: ${started.tool}"
             )
         }
 
@@ -580,7 +580,7 @@ class ToolExecutor(
             "深度研究摘要生成失败：${e.message}\n\n=== 原始材料 ===\n${combinedSource.take(3000)}"
         }
 
-        val warningsText = if (warnings.isNotEmpty()) "\n\n⚠ 以下来源抓取失败已跳过：\n${warnings.joinToString("\n")}" else ""
+        val warningsText = if (warnings.isNotEmpty()) "\n\n[警告] 以下来源抓取失败已跳过：\n${warnings.joinToString("\n")}" else ""
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary + warningsText, endTime = System.currentTimeMillis())))
     }
@@ -729,7 +729,7 @@ class ToolExecutor(
             DebugLog.i("mimo_tts: success! file=${outputFile.absolutePath}, size=${result.audioData.size} bytes")
 
             val outputText = buildString {
-                appendLine("✅ MiMo TTS语音合成成功")
+                appendLine("[成功] MiMo TTS语音合成成功")
                 appendLine("- 文件：${outputFile.name} (${String.format("%.1f", result.audioData.size / 1024.0 / 1024.0)} MB)")
                 appendLine("- 时长：约${durationSec}秒 | 模型：${result.modelUsed} | 音色：${result.voiceUsed}")
                 if (overallStyle != null) appendLine("- 风格：$overallStyle")

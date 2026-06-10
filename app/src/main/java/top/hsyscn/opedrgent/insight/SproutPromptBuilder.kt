@@ -156,7 +156,7 @@ $domainHint## 任务
     fun buildFinalMarkdownReport(result: SproutResult): String {
         val sb = StringBuilder()
 
-        sb.appendLine("🌱 **种子**")
+        sb.appendLine("**种子**")
         sb.appendLine()
         result.seeds.forEachIndexed { index, seed ->
             sb.appendLine("${index + 1}. **${seed.concept}**：${seed.description}")
@@ -168,7 +168,7 @@ $domainHint## 任务
 
         sb.appendLine("---")
         sb.appendLine()
-        sb.appendLine("✨ **Aha 瞬间**")
+        sb.appendLine("**Aha 瞬间**")
         sb.appendLine()
         result.insights.forEachIndexed { index, insight ->
             sb.appendLine("> ${insight.content}")
@@ -180,7 +180,7 @@ $domainHint## 任务
 
         sb.appendLine("---")
         sb.appendLine()
-        sb.appendLine("🔗 **跨领域联结**")
+        sb.appendLine("**跨领域联结**")
         sb.appendLine()
         result.connections.forEachIndexed { index, conn ->
             sb.appendLine("**${conn.domain}**：${conn.analogyOrCase}")
@@ -190,7 +190,7 @@ $domainHint## 任务
 
         sb.appendLine("---")
         sb.appendLine()
-        sb.appendLine("💡 **金句回响**")
+        sb.appendLine("**金句回响**")
         sb.appendLine()
         result.quotes.forEach { quote ->
             sb.appendLine("> 「${quote.originalQuote}」——*${quote.author}《${quote.source}》*")

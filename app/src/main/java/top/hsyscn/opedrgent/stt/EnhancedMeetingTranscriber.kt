@@ -124,7 +124,7 @@ class EnhancedMeetingTranscriber(
         var error: String? = null
 
         try {
-            log.add("🎙️ 开始增强型会议转写")
+            log.add("[开始] 增强型会议转写")
             log.add("   文件: ${audioFile.name} (${audioFile.length() / 1024}KB)")
 
             // 1. 验证文件
@@ -135,14 +135,14 @@ class EnhancedMeetingTranscriber(
                 throw IllegalArgumentException("音频文件为空")
             }
 
-            log.add("✅ 文件验证通过")
+            log.add("[成功] 文件验证通过")
 
             // 2. 执行转写（优先使用 MeetingTranscriber，失败时降级到 AsrManager）
             transcriptResult = performTranscription(audioFile, enableDiarization, log)
 
             if (transcriptResult?.error != null) {
                 error = "转写失败: ${transcriptResult!!.error}"
-                log.add("❌ $error")
+                log.add("[错误] $error")
                 return@withContext EnhancedTranscriptResult(
                     transcriptResult = transcriptResult!!,
                     isSuccess = false,
@@ -152,7 +152,7 @@ class EnhancedMeetingTranscriber(
                 )
             }
 
-            log.add("✅ 转写完成: ${transcriptResult!!.fullText.length} 字符, ${transcriptResult!!.segments.size} 段")
+            log.add("[完成] 转写完成: ${transcriptResult!!.fullText.length} 字符, ${transcriptResult!!.segments.size} 段")
 
             // 3. 自动保存（如果启用）
             if (autoSave) {
@@ -166,20 +166,20 @@ class EnhancedMeetingTranscriber(
                 noteId = transcriptBridge.saveTranscriptResult(transcriptResult!!, displayName)
                 
                 if (noteId != null) {
-                    log.add("💾 已保存到笔记系统: ID=$noteId")
+                    log.add("[保存] 已保存到笔记系统: ID=$noteId")
                     
                     // 推断记忆路径（与 MeetingTranscriptBridge 保持一致）
                     memoryPath = inferMemoryPath(displayName)
                     if (memoryBridge != null) {
-                        log.add("🧠 已写入记忆系统: $memoryPath")
+                        log.add("[记忆] 已写入记忆系统: $memoryPath")
                     }
                 } else {
-                    log.add("⚠️ 保存到笔记系统失败（非致命）")
+                    log.add("[警告] 保存到笔记系统失败（非致命）")
                 }
             }
 
             val durationMs = System.currentTimeMillis() - startTimeMs
-            log.add("✨ 总耗时: ${durationMs}ms")
+            log.add("[耗时] 总耗时: ${durationMs}ms")
 
             EnhancedTranscriptResult(
                 transcriptResult = transcriptResult!!,
@@ -191,7 +191,7 @@ class EnhancedMeetingTranscriber(
             )
         } catch (e: Exception) {
             error = e.message
-            log.add("❌ 异常: $error")
+            log.add("[异常] 异常: $error")
             
             DebugLog.e(TAG, "转写过程异常", e)
             
@@ -233,26 +233,26 @@ class EnhancedMeetingTranscriber(
         return try {
             // 尝试使用 MeetingTranscriber（高质量模式）
             if (enableDiarization && meetingTranscriber == null) {
-                log.add("🔄 初始化 MeetingTranscriber...")
+                log.add("[初始化] 初始化 MeetingTranscriber...")
                 initMeetingTranscriber(log)
             }
 
             if (enableDiarization && meetingTranscriber != null) {
-                log.add("📝 使用 MeetingTranscriber（带说话人分离）")
+                log.add("[转写] 使用 MeetingTranscriber（带说话人分离）")
                 transcribeWithMeetingTranscriber(audioFile, log)
             } else {
-                log.add("📝 使用 AsrManager（标准模式）")
+                log.add("[转写] 使用 AsrManager（标准模式）")
                 transcribeWithAsrManager(audioFile, log)
             }
         } catch (e: Exception) {
             // MeetingTranscriber 失败，降级到 AsrManager
-            log.add("⚠️ MeetingTranscriber 失败: ${e.message}")
-            log.add("🔄 降级到 AsrManager...")
+            log.add("[警告] MeetingTranscriber 失败: ${e.message}")
+            log.add("[降级] 降级到 AsrManager...")
             
             try {
                 transcribeWithAsrManager(audioFile, log)
             } catch (e2: Exception) {
-                log.add("❌ AsrManager 也失败: ${e2.message}")
+                log.add("[错误] AsrManager 也失败: ${e2.message}")
                 MeetingTranscriptResult(error = "转写失败: ${e2.message}")
             }
         }
@@ -277,20 +277,20 @@ class EnhancedMeetingTranscriber(
                     meetingTranscriber = MeetingTranscriber(context).also { transcriber ->
                         val initialized = transcriber.initialize(modelDir, enableDiarization = true)
                         if (initialized) {
-                            log.add("✅ MeetingTranscriber 初始化成功")
+                            log.add("[成功] MeetingTranscriber 初始化成功")
                         } else {
-                            log.add("⚠️ MeetingTranscriber 初始化失败，将使用标准模式")
+                            log.add("[警告] MeetingTranscriber 初始化失败，将使用标准模式")
                             meetingTranscriber = null
                         }
                     }
                 } else {
-                    log.add("⚠️ 模型未下载，无法初始化 MeetingTranscriber")
+                    log.add("[警告] 模型未下载，无法初始化 MeetingTranscriber")
                 }
             } else {
-                log.add("ℹ️ 当前引擎不是 SherpaOnnxEngine，跳过 MeetingTranscriber")
+                log.add("[信息] 当前引擎不是 SherpaOnnxEngine，跳过 MeetingTranscriber")
             }
         } catch (e: Exception) {
-            log.add("⚠️ 初始化 MeetingTranscriber 异常: ${e.message}")
+            log.add("[警告] 初始化 MeetingTranscriber 异常: ${e.message}")
             meetingTranscriber = null
         }
     }
@@ -306,7 +306,7 @@ class EnhancedMeetingTranscriber(
         val result = transcriber.transcribe(audioFile)
 
         return if (result.error != null) {
-            log.add("❌ MeetingTranscriber 转写错误: ${result.error}")
+            log.add("[错误] MeetingTranscriber 转写错误: ${result.error}")
             MeetingTranscriptResult(error = result.error)
         } else {
             // 转换 TranscriptionResult → MeetingTranscriptResult
@@ -337,7 +337,7 @@ class EnhancedMeetingTranscriber(
         val result = asrManager.transcribeFile(audioFile.absolutePath)
 
         return if (result.text.isBlank()) {
-            log.add("⚠️ 转写结果为空")
+            log.add("[警告] 转写结果为空")
             MeetingTranscriptResult(
                 segments = emptyList(),
                 fullText = "",

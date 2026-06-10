@@ -77,7 +77,7 @@ fun NoteSproutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("🌱 发芽报告") },
+                title = { Text("发芽报告") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -277,7 +277,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
 @Composable
 private fun SeedBlock(seed: String) {
     Row(Modifier.padding(start = 4.dp)) {
-        Text(text = "🌱 ", fontSize = 14.sp)
+        Text(text = "  ", fontSize = 14.sp)
         Text(
             text = seed,
             style = MaterialTheme.typography.bodyMedium,
@@ -328,7 +328,7 @@ private fun QuoteBlock(text: String) {
 @Composable
 private fun AhaBlock(moment: String, importance: Int) {
     Row(Modifier.padding(start = 4.dp)) {
-        Text(text = "💡 ", fontSize = 15.sp)
+        Text(text = "  ", fontSize = 15.sp)
         Column(Modifier.weight(1f)) {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 repeat(importance) { Text("●", color = Color(0xFFFFA000), fontSize = 10.sp) }
@@ -356,7 +356,7 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
 
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("✅ 行动建议", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("行动建议", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = AccentBlue)
         }
         if (items.isNotEmpty()) {
@@ -385,7 +385,7 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
 @Composable
 private fun ConceptsSection(concepts: List<String>) {
     Column {
-        Text("🏷️ 相关概念", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("相关概念", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         // 简化：用 Column + Row 模拟流式布局，避免自定义 Layout 的复杂度
         var rowContent by remember { mutableStateOf(listOf<String>()) }
@@ -414,7 +414,7 @@ private fun SproutLoadingView() {
         val scale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.25f,
             animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s")
         Box(Modifier.size(80.dp).scale(scale).background(Color(0xFF4CAF50).copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
-            Text("🌱", fontSize = 40.sp)
+            Text("*", fontSize = 40.sp)
         }
         Spacer(Modifier.height(24.dp))
         Text("正在发芽...", style = MaterialTheme.typography.titleMedium)
@@ -435,7 +435,7 @@ private fun SproutErrorView(message: String, onRetry: () -> Unit) {
 @Composable
 private fun SproutEmptyView(onGenerate: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("🌱", fontSize = 64.sp); Spacer(Modifier.height(16.dp))
+        Text("*", fontSize = 64.sp); Spacer(Modifier.height(16.dp))
         Text("还没有发芽报告", style = MaterialTheme.typography.titleMedium)
         Text("让 AI 帮你深度分析这篇笔记", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("开始发芽") }
