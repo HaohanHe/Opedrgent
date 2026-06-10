@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心情仪表盘</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+            color: #333;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        h1 {
+            text-align: center;
+            font-size: 20px;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 20px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 12px;
+            border-radius: 12px;
+            background: #f8f9fa;
+            min-width: 80px;
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 11px; color: #888; margin-top: 2px; }
+
+        /* 心情条形图 */
+        .chart-bar-container { margin-bottom: 12px; }
+        .chart-bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .chart-bar-date {
+            width: 70px;
+            font-size: 11px;
+            color: #666;
+            flex-shrink: 0;
+        }
+        .chart-bar-outer {
+            flex: 1;
+            height: 20px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0 8px;
+        }
+        .chart-bar-inner {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 6px;
+            min-width: 24px;
+        }
+        .chart-bar-score {
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .chart-bar-emoji { font-size: 14px; width: 28px; text-align: center; flex-shrink: 0; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .empty-emoji { font-size: 48px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+<div class="container" id="app">
+    <h1>📊 心情仪表盘</h1>
+    <p class="subtitle" id="subtitle">加载中...</p>
+
+    <div id="content"></div>
+</div>
+
+<script>
+    // 从 URL 参数解析数据
+    const params = new URLSearchParams(window.location.search);
+    const rawData = params.get('data');
+
+    if (!rawData) {
+        document.getElementById('subtitle').textContent = '暂无数据';
+        document.getElementById('content').innerHTML = '<div class="empty-state"><div class="empty-emoji">📋</div><p>没有心情记录数据</p></div>';
+    } else {
+        // 解码并渲染
+        try {
+            const entries = rawData.split('&').map(item => {
+                const parts = item.split('|');
+                return {
+                    date: parts[0] || '',
+                    score: parseInt(parts[1], 10) || 5,
+                    comment: decodeURIComponent(parts[2] || ''),
+                };
+            }).filter(e => e.date);
+
+            renderDashboard(entries);
+        } catch (e) {
+            document.getElementById('content').innerHTML = `<div class="empty-state"><p>数据解析失败: ${e.message}</p></div>`;
+        }
+    }
+
+    function renderDashboard(entries) {
+        const scores = entries.map(e => e.score);
+        const avg = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '-';
+        const max = scores.length > 0 ? Math.max(...scores) : '-';
+        const min = scores.length > 0 ? Math.min(...scores) : '-';
+
+        // 更新副标题
+        document.getElementById('subtitle').textContent =
+            `共 ${entries.length} 条记录 · 最近更新 ${entries[entries.length - 1]?.date || '-'}`;
+
+        // 统计卡片
+        let html = `
+            <div class="stat-row">
+                <div class="stat-card">
+                    <div class="stat-value">${avg}</div>
+                    <div class="stat-label">平均分</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color:#4CAF50">${max}</div>
+                    <div class="stat-label">最高</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color:#FF9800">${min}</div>
+                    <div class="stat-label">最低</div>
+                </div>
+            </div>
+        `;
+
+        // 条形图（从旧到新排列）
+        const sortedEntries = [...entries].reverse();
+
+        sortedEntries.forEach(entry => {
+            const pct = entry.score * 10; // 0-100%
+            const color = getBarColor(entry.score);
+            const emoji = getScoreEmoji(entry.score);
+
+            html += `
+                <div class="chart-bar-container">
+                    <div class="chart-bar-row">
+                        <span class="chart-bar-date">${formatDate(entry.date)}</span>
+                        <div class="chart-bar-outer">
+                            <div class="chart-bar-inner" style="width:${pct}%;background:${color}">
+                                <span class="chart-bar-score">${entry.score}</span>
+                            </div>
+                        </div>
+                        <span class="chart-bar-emoji">${emoji}</span>
+                    </div>
+                    ${entry.comment ? `<div style="font-size:10px;color:#999;margin-left:78px;margin-bottom:4px;">${entry.comment}</div>` : ''}
+                </div>
+            `;
+        });
+
+        document.getElementById('content').innerHTML = html;
+    }
+
+    function formatDate(dateStr) {
+        // 将 YYYY-MM-DD 转为更友好的格式
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+        }
+        return dateStr;
+    }
+
+    function getBarColor(score) {
+        if (score <= 3) return '#ef5350';   // 红色
+        if (score <= 5) return '#ff9800';   // 橙色
+        if (score <= 7) return '#ffee58';   // 浅黄
+        if (score <= 9) return '#9ccc65';   // 浅绿
+        return '#4CAF50';                 // 绿色
+    }
+
+    function getScoreEmoji(score) {
+        if (score <= 2) return '😢';
+        if (score <= 4) return '😔';
+        if (score <= 6) return '😐';
+        if (score <= 8) return '😊';
+        return '🤩';
+    }
+</script>
+</body>
+</html>
