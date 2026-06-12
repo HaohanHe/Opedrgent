@@ -45,13 +45,13 @@ class InsightSproutEngine(
 
         val effectiveContext = when {
             userContext != null -> userContext
-            config.useContext -> "[用户上下文待注入]"
+            config.useContext -> ""
             else -> null
         }
 
         // Phase 1: 种子提取
         var phase1Result: String? = null
-        runCatchingWithRecovery("Phase1-种子提取", config.maxPhaseTimeoutSeconds.toLong()) {
+        runCatchingWithRecovery("Phase1-种子提取", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
             val prompt = SproutPromptBuilder.buildPhase1Prompt(
                 inputText = inputText,
                 context = effectiveContext,
@@ -67,7 +67,7 @@ class InsightSproutEngine(
 
         // Phase 2: 跨领域关联
         var phase2Result: String? = null
-        runCatchingWithRecovery("Phase2-跨领域关联", config.maxPhaseTimeoutSeconds.toLong()) {
+        runCatchingWithRecovery("Phase2-跨领域关联", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
             val prompt = SproutPromptBuilder.buildPhase2Prompt(
                 seedsJson = phase1Result ?: "[]",
                 previousContext = allContext.toString(),
@@ -83,7 +83,7 @@ class InsightSproutEngine(
 
         // Phase 3: Aha 洞察生成
         var phase3Result: String? = null
-        runCatchingWithRecovery("Phase3-Aha洞察", config.maxPhaseTimeoutSeconds.toLong()) {
+        runCatchingWithRecovery("Phase3-Aha洞察", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
             val prompt = SproutPromptBuilder.buildPhase3Prompt(
                 seedsAndConnections = "${phase1Result ?: ""}\n${phase2Result ?: ""}",
                 previousContext = allContext.toString(),
@@ -99,7 +99,7 @@ class InsightSproutEngine(
 
         // Phase 4: 金句回响
         var phase4Result: String? = null
-        runCatchingWithRecovery("Phase4-金句回响", config.maxPhaseTimeoutSeconds.toLong()) {
+        runCatchingWithRecovery("Phase4-金句回响", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
             val prompt = SproutPromptBuilder.buildPhase4Prompt(
                 allPreviousContext = allContext.toString(),
                 preferredDomains = config.preferredDomains.ifEmpty { null },

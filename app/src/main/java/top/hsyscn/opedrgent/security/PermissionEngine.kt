@@ -68,7 +68,7 @@ data class PermissionRequest(
     val mcpServerName: String? = null,
 )
 
-class PermissionEngine(private val mode: PermissionMode = PermissionMode.YOLO) {
+class PermissionEngine(private var mode: PermissionMode = PermissionMode.YOLO) {
 
     private val rules = mutableListOf<PermissionRule>()
     private val denialTracker = DenialTracker()
@@ -201,6 +201,7 @@ class PermissionEngine(private val mode: PermissionMode = PermissionMode.YOLO) {
     }
 
     fun setMode(newMode: PermissionMode) {
+        mode = newMode
         DebugLog.i("PermissionEngine: mode changed to ${newMode.title}")
     }
 
@@ -213,6 +214,18 @@ class PermissionEngine(private val mode: PermissionMode = PermissionMode.YOLO) {
         if (rv.command != null && request.toolName == "shell_command") {
             val cmd = request.arguments["command"] ?: ""
             if (!cmd.contains(rv.command, ignoreCase = true)) return false
+        }
+
+        // 检查 path 匹配
+        if (rv.path != null) {
+            val reqPath = request.arguments["path"] ?: request.arguments["url"] ?: ""
+            if (!reqPath.contains(rv.path, ignoreCase = true)) return false
+        }
+
+        // 检查 host 匹配
+        if (rv.host != null) {
+            val reqUrl = request.arguments["url"] ?: request.arguments["host"] ?: ""
+            if (!reqUrl.contains(rv.host, ignoreCase = true)) return false
         }
 
         return true

@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -132,7 +132,15 @@ fun HomeDashboardScreen(
             todayNoteCount = notes.count { it.createdAt >= todayStart }
             totalNoteCount = notes.size.toLong()
             recentNotes = notes.take(5)
-            knowledgeDocCount = notes.count { it.type == top.hsyscn.opedrgent.note.NoteType.TEXT }  // TODO: 使用合适的笔记类型替代 KNOWLEDGE
+            knowledgeDocCount = notes.count { it.type == top.hsyscn.opedrgent.note.NoteType.TEXT }
+
+            // 根据实际数据更新推荐条件
+            val recordingTypes = setOf(
+                top.hsyscn.opedrgent.note.NoteType.ASR,
+                top.hsyscn.opedrgent.note.NoteType.MEETING,
+                top.hsyscn.opedrgent.note.NoteType.AUDIO,
+            )
+            hasTodayRecording = notes.any { it.type in recordingTypes && it.createdAt >= todayStart }
 
             // 根据条件动态生成推荐列表
             recommendations = buildRecommendations(
@@ -147,106 +155,110 @@ fun HomeDashboardScreen(
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(BgGray)
             .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // ========== 1. 顶部问候语（BuddySystem 动态生成） ==========
-        GreetingHeader(buddy = buddy)
+        item {
+            GreetingHeader(buddy = buddy)
+        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        item { Spacer(modifier = Modifier.height(20.dp)) }
 
-        // ========== 2. AI 助手快捷入口 ==========
-        AiAssistantCard(
-            inputText = aiInputText,
-            onInputChange = { aiInputText = it },
-            onSend = {
-                if (aiInputText.isNotBlank()) {
-                    vm.sendUserMessage(aiInputText)
-                    aiInputText = ""
-                    onNavigateToAi()
-                }
-            },
-            onTap = onNavigateToAi,
-        )
+        item {
+            AiAssistantCard(
+                inputText = aiInputText,
+                onInputChange = { aiInputText = it },
+                onSend = {
+                    if (aiInputText.isNotBlank()) {
+                        vm.sendUserMessage(aiInputText)
+                        aiInputText = ""
+                        onNavigateToAi()
+                    }
+                },
+                onTap = onNavigateToAi,
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // ========== 3. 今日统计卡片 ==========
-        StatsRow(
-            todayCount = todayNoteCount,
-            totalCount = totalNoteCount.toInt(),
-            aiSessionCount = vm.sessionCount,
-            onStatClick = { statType ->
-                when (statType) {
-                    "notes" -> onNavigateToNotes()
-                    "knowledge" -> onNavigateToKnowledge()
-                    "ai" -> onNavigateToAi()
-                }
-            },
-        )
+        item {
+            StatsRow(
+                todayCount = todayNoteCount,
+                totalCount = totalNoteCount.toInt(),
+                aiSessionCount = vm.sessionCount,
+                onStatClick = { statType ->
+                    when (statType) {
+                        "notes" -> onNavigateToNotes()
+                        "knowledge" -> onNavigateToKnowledge()
+                        "ai" -> onNavigateToAi()
+                    }
+                },
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // ========== 3.5 智能推荐卡片区域 ==========
         if (recommendations.isNotEmpty()) {
-            RecommendationSection(recommendations = recommendations)
+            item {
+                RecommendationSection(recommendations = recommendations)
+            }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // ========== 4. 快捷操作按钮行 ==========
-        QuickActionsRow(
-            onNewNote = onNewNote,
-            onVoiceRecord = { onOpenSubScreen("meeting") },
-            onImportFile = { onOpenSubScreen("import") },
-            onSproutAnalysis = { onOpenSubScreen("notes") },
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // ========== 5. 最近笔记列表 ==========
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "最近笔记",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark,
-            )
-            Text(
-                text = "查看全部",
-                fontSize = 14.sp,
-                color = AccentBlue,
-                modifier = Modifier.clickable { onNavigateToNotes() },
+        item {
+            QuickActionsRow(
+                onNewNote = onNewNote,
+                onVoiceRecord = { onOpenSubScreen("meeting") },
+                onImportFile = { onOpenSubScreen("import") },
+                onSproutAnalysis = { onOpenSubScreen("notes") },
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        item { Spacer(modifier = Modifier.height(20.dp)) }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "最近笔记",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark,
+                )
+                Text(
+                    text = "查看全部",
+                    fontSize = 14.sp,
+                    color = AccentBlue,
+                    modifier = Modifier.clickable { onNavigateToNotes() },
+                )
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(12.dp)) }
 
         if (recentNotes.isEmpty()) {
-            EmptyRecentNotes(onNewNote = onNewNote, onNavigateToAi = onNavigateToAi)
+            item {
+                EmptyRecentNotes(onNewNote = onNewNote, onNavigateToAi = onNavigateToAi)
+            }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(recentNotes, key = { it.id }) { note ->
-                    RecentNoteItem(
-                        note = note,
-                        onClick = { onNoteClick(note.id) },
-                    )
-                }
-                item {
-                    Spacer(modifier = Modifier.height(100.dp))
-                }
+            items(recentNotes, key = { it.id }) { note ->
+                RecentNoteItem(
+                    note = note,
+                    onClick = { onNoteClick(note.id) },
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }
@@ -442,17 +454,20 @@ private fun StatsRow(
     todayCount: Int,
     totalCount: Int,
     aiSessionCount: Int = 0,
-    onStatClick: (String) -> Unit = {},  // 新增：统计卡片点击回调
+    onStatClick: (String) -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd, onClick = { onStatClick("notes") })
-        StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome, onClick = { onStatClick("knowledge") })
-        StatCard(title = "AI 对话", value = "$aiSessionCount 次", icon = Icons.Default.ChatBubble, onClick = { onStatClick("ai") })
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val cardWidth = (maxWidth - 20.dp) / 3
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd, modifier = Modifier.width(cardWidth), onClick = { onStatClick("notes") })
+            StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome, modifier = Modifier.width(cardWidth), onClick = { onStatClick("knowledge") })
+            StatCard(title = "AI 对话", value = "$aiSessionCount 次", icon = Icons.Default.ChatBubble, modifier = Modifier.width(cardWidth), onClick = { onStatClick("ai") })
+        }
     }
 }
 
@@ -461,15 +476,15 @@ private fun StatCard(
     title: String,
     value: String,
     icon: ImageVector,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier
-            .weight(1f)
-            .clickable(onClick = onClick),  // 新增：卡片可点击
+        modifier = modifier
+            .clickable(onClick = onClick),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -496,7 +511,7 @@ private fun StatCard(
 
 /** 快捷操作按钮行 */
 @Composable
-private fun QuickActionsRow(
+fun QuickActionsRow(
     onNewNote: () -> Unit,
     onVoiceRecord: () -> Unit,
     onImportFile: () -> Unit,
@@ -514,7 +529,7 @@ private fun QuickActionsRow(
 }
 
 @Composable
-private fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
+fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable(onClick = onClick),
@@ -523,8 +538,7 @@ private fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Uni
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(CardWhite)
-                .clickable(onClick = onClick),
+                .background(CardWhite),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = label, tint = AccentBlue, modifier = Modifier.size(22.dp))
@@ -536,7 +550,7 @@ private fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Uni
 
 /** 最近笔记条目 */
 @Composable
-private fun RecentNoteItem(note: Note, onClick: () -> Unit) {
+fun RecentNoteItem(note: Note, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -592,7 +606,7 @@ private fun RecentNoteItem(note: Note, onClick: () -> Unit) {
 
 /** 空最近笔记状态（含 AI 对话引导） */
 @Composable
-private fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
+fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -664,7 +678,7 @@ data class RecommendationItem(
  * 3. 知识库推荐（如果知识库文档 < 3 篇）
  * 4. 默认推荐（以上条件都不满足时，轮播展示所有推荐）
  */
-private fun buildRecommendations(
+fun buildRecommendations(
     hasUsedEditorTeam: Boolean,
     hasTodayRecording: Boolean,
     knowledgeDocCount: Int,
@@ -764,12 +778,12 @@ private fun buildRecommendations(
 
 /** 推荐卡片区域容器（水平滑动展示） */
 @Composable
-private fun RecommendationSection(recommendations: List<RecommendationItem>) {
+fun RecommendationSection(recommendations: List<RecommendationItem>) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(recommendations, key = { it.title }) { recommendation ->
+        items(recommendations.size) { index -> val recommendation = recommendations[index]
             RecommendationCard(item = recommendation)
         }
     }
@@ -777,7 +791,7 @@ private fun RecommendationSection(recommendations: List<RecommendationItem>) {
 
 /** 单个推荐卡片（Material3 Card + 渐变背景） */
 @Composable
-private fun RecommendationCard(item: RecommendationItem) {
+fun RecommendationCard(item: RecommendationItem) {
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -855,7 +869,7 @@ private fun RecommendationCard(item: RecommendationItem) {
 }
 
 /** 格式化笔记时间显示 */
-private fun formatNoteTime(timestamp: Long): String {
+internal fun formatNoteTime(timestamp: Long): String {
     val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA)
     return sdf.format(java.util.Date(timestamp))
 }

@@ -107,7 +107,7 @@ class MimoTtsTool(
             outputFile.parentFile?.mkdirs()
             outputFile.writeBytes(result.audioData)
 
-            val durationSec = result.audioData.size / (24000 * 2)
+            val durationSec = result.audioData.size.toDouble() / (24000 * 2)
 
             DebugLog.i("mimo_tts: success! file=${outputFile.absolutePath}, size=${result.audioData.size} bytes")
 

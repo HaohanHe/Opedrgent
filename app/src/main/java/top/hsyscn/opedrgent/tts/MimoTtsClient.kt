@@ -110,11 +110,14 @@ object MimoTtsClient {
                 )
             }
 
-            if (request.text.length > MAX_TEXT_LENGTH) {
+            val truncatedText = if (request.text.length > MAX_TEXT_LENGTH) {
                 DebugLog.w("MimoTts: text exceeds ${MAX_TEXT_LENGTH} chars, truncating")
+                request.text.take(MAX_TEXT_LENGTH)
+            } else {
+                request.text
             }
 
-            val messages = buildMessages(request)
+            val messages = buildMessages(request.copy(text = truncatedText))
             val audioConfig = buildAudioConfig(request)
 
             val json = JSONObject()

@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
+
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
@@ -105,9 +105,20 @@ fun ImportFileScreen(
                 importedFileName = fileName
 
                 // 读取文件内容
-                val content = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    inputStream.bufferedReader().readText()
-                } ?: ""
+                val mimeType = context.contentResolver.getType(uri)
+                val isBinary = mimeType?.startsWith("image/") == true || mimeType == "application/pdf"
+
+                val content = if (isBinary) {
+                    // 二进制文件：读取字节数组并转为 Base64，避免乱码
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes != null) {
+                        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    } else ""
+                } else {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().readText()
+                    } ?: ""
+                }
 
                 if (content.isBlank()) {
                     importError = "文件内容为空"
@@ -116,7 +127,6 @@ fun ImportFileScreen(
                 }
 
                 // 根据文件类型确定笔记类型
-                val mimeType = context.contentResolver.getType(uri)
                 val noteType = when {
                     mimeType?.startsWith("image/") == true -> NoteType.IMAGE
                     mimeType == "application/pdf" -> NoteType.PDF
