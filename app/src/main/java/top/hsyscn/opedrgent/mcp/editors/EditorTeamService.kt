@@ -29,10 +29,10 @@ data class EditorResult(
 /** 流水线最终结果 */
 data class PipelineResult(
     val steps: List<EditorResult>,
-    finalOutput: String,
-    plan: ExecutionPlan,
-    totalTokensUsed: Int,
-    totalDurationMs: Long,
+    val finalOutput: String,
+    val plan: ExecutionPlan,
+    val totalTokensUsed: Int,
+    val totalDurationMs: Long,
 )
 
 enum class OutputPlatform(
@@ -61,14 +61,16 @@ class EditorTeamService(
     private val llmClient: LlmClient = LlmClient(),
 ) {
 
-    private var isCancelled = false
+    var isCancelled = false
+        private set
 
     // ==================== FeaturePipeline（拦截器链）====================
 
     /** 编辑团执行流水线，预装成本追踪 Feature */
     private val pipeline = FeaturePipeline.standard().also { pl ->
-        // 成本追踪：记录每次 LLM 调用的 token 消耗
-        pl.install(CostTrackerFeature())
+        kotlinx.coroutines.runBlocking {
+            pl.install(CostTrackerFeature())
+        }
     }
 
     /** 获取 Pipeline（供外部查询状态或安装额外 Feature） */
@@ -484,7 +486,7 @@ ${condition.description.ifBlank { condition.expression }}
     ): ExecutionPlan {
         val config = apiSettings.getApiConfig()
         if (config == null) {
-            return ExecutionPlan(emptyList(), error = "未配置 API Key")
+            return ExecutionPlan(emptyList(), reasoning = "未配置 API Key")
         }
 
         // 构建可用角色列表供 LLM 参考
@@ -732,7 +734,10 @@ $userInput"""
         return EditorRole.allRoles.minByOrNull {
             levenshteinDistance(name.lowercase(), it.displayName.lowercase()) +
             levenshteinDistance(alias.lowercase(), it.alias.lowercase())
-        }.takeIf { dist(name, it.displayName) < 5 || dist(alias, it.alias) < 3 }
+        }?.takeIf { role ->
+            levenshteinDistance(name.lowercase(), role.displayName.lowercase()) < 5 ||
+            levenshteinDistance(alias.lowercase(), role.alias.lowercase()) < 3
+        }
     }
 
     /** 为动态角色选一个合适的图标 */

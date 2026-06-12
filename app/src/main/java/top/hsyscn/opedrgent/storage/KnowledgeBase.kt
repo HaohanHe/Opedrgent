@@ -234,33 +234,7 @@ class KnowledgeBase(private val context: Context) {
         return list
     }
 
-    fun searchDocuments(query: String, kbId: String? = null): List<KbDocument> {
-        if (query.isBlank()) return emptyList()
 
-        val lowerQuery = query.lowercase()
-        val terms = lowerQuery.split("\\s+".toRegex()).filter { it.length > 1 }
-
-        val docs = if (kbId != null) getDocumentsByKnowledgeBase(kbId) else getAllDocuments()
-
-        return docs
-            .map { doc ->
-                val contentLower = doc.content.lowercase()
-                val titleLower = doc.title.lowercase()
-                var score = 0f
-                for (term in terms) {
-                    var count = 0
-                    var idx = contentLower.indexOf(term)
-                    while (idx >= 0) { count++; idx = contentLower.indexOf(term, idx + term.length) }
-                    idx = titleLower.indexOf(term)
-                    while (idx >= 0) { count += 2; idx = titleLower.indexOf(term, idx + term.length) }
-                    score += count * term.length.toFloat()
-                }
-                doc to score
-            }
-            .filter { it.second > 0f }
-            .sortedByDescending { it.second }
-            .map { it.first }
-    }
 
     fun deleteDocument(documentId: String): Boolean {
         return db.delete(TABLE_DOCS, "$DOC_ID=?", arrayOf(documentId)) > 0

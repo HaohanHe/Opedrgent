@@ -139,7 +139,7 @@ class UserBehaviorTracker(private val context: Context) {
 
         writableDb.execSQL(
             "INSERT OR IGNORE INTO ${BehaviorDatabase.TABLE_BEHAVIOR} (${BehaviorDatabase.COL_ID}, ${BehaviorDatabase.COL_EVENT}, ${BehaviorDatabase.COL_TIMESTAMP}, ${BehaviorDatabase.COL_METADATA}) VALUES (?, ?, ?, ?)",
-            arrayOf(record.id, record.name, record.timestamp, metaJson),
+            arrayOf<String?>(record.id, record.event.name, record.timestamp.toString(), metaJson),
         )
 
         // 更新今日活跃标记
@@ -149,8 +149,13 @@ class UserBehaviorTracker(private val context: Context) {
         // 更新最后活跃时间
         prefs.edit().putLong("last_active", System.currentTimeMillis()).apply()
 
-        // 定期清理超过 30 天的旧记录
-        cleanupOldRecords()
+        // 定期清理超过 30 天的旧记录（每天最多执行一次）
+        val lastCleanup = prefs.getLong("last_cleanup_time", 0L)
+        val now = System.currentTimeMillis()
+        if (now - lastCleanup > 24L * 3600_000) {
+            prefs.edit().putLong("last_cleanup_time", now).apply()
+            cleanupOldRecords()
+        }
     }
 
     /**
@@ -215,6 +220,26 @@ class UserBehaviorTracker(private val context: Context) {
             var count = 0
             while (c.moveToNext()) count++
             count
+        }
+    }
+
+    /**
+     * 统计过去 N 天内有多少天有活跃记录。
+     */
+    fun countActiveDaysSince(days: Int): Int {
+        val since = System.currentTimeMillis() - days.toLong() * 24 * 3600_000
+        val readableDb = database.readableDatabase
+        val cursor = readableDb.query(
+            BehaviorDatabase.TABLE_BEHAVIOR,
+            arrayOf("DISTINCT strftime('%Y-%m-%d', ${BehaviorDatabase.COL_TIMESTAMP} / 1000, 'unixepoch', 'localtime')"),
+            "${BehaviorDatabase.COL_TIMESTAMP} >= ?",
+            arrayOf(since.toString()),
+            null, null, null,
+        )
+        return useCursor(cursor) { c ->
+            var count = 0
+            while (c.moveToNext()) count++
+            count.coerceAtMost(days)
         }
     }
 

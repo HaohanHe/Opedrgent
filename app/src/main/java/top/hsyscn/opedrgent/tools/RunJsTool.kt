@@ -57,7 +57,7 @@ class RunJsTool(
      */
     private suspend fun execute(toolPart: ToolPart): ToolResult {
         val input = toolPart.state.input
-        DebugLog.i("RunJsTool: 执行 JS Skill — input=${input.take(200)}")
+        DebugLog.i("RunJsTool: 执行 JS Skill — input=${input.toString().take(200)}")
 
         return try {
             // 解析 LLM 传入的参数
@@ -158,8 +158,11 @@ class RunJsTool(
         // 先从已导入/内置的所有 Skill 中查找
         val allSkills = skillLoader.loadAllSkills()
         return allSkills.find { skill ->
-            // 有明确 localScriptsPath 的 Skill
-            if (skill.localScriptsPath != null) return@find true
+            // 有明确 localScriptsPath 的 Skill，需验证脚本文件确实存在
+            if (skill.localScriptsPath != null) {
+                val scriptFile = java.io.File(skill.localScriptsPath, scriptName)
+                return@find scriptFile.exists()
+            }
 
             // 内置 Skill：检查 assets 路径下是否存在 scripts 目录
             if (skill.isBuiltIn) {
