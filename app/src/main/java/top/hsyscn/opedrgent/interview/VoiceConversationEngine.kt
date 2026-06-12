@@ -128,6 +128,7 @@ class VoiceConversationEngine(
      * 当前 ASR 流式识别 Job。
      */
     private var asrJob: Job? = null
+    private var asrProcessingJob: Job? = null
 
     /**
      * 当前 TTS 播放 Job。
@@ -162,6 +163,7 @@ class VoiceConversationEngine(
     /**
      * 海马体记忆系统实例（可选，用于注意力管理）。
      */
+    @Volatile
     private var hippo: HippocampusMemory? = null
 
     // ==================== 公开 API：全双工模式（推荐）====================
@@ -205,10 +207,10 @@ class VoiceConversationEngine(
         DebugLog.i(TAG, "开始全双工语音对话 [场景：${scenario.label}]")
 
         // 初始化海马体（如果提供了配置或实例）
-        this.hippo = hippo
-        if (this.hippo == null && interviewConfig != null) {
+        this@VoiceConversationEngine.hippo = hippo
+        if (this@VoiceConversationEngine.hippo == null && interviewConfig != null) {
             DebugLog.i(TAG, "自动创建海马体实例")
-            this.hippo = InterviewAgent.createSession(
+            this@VoiceConversationEngine.hippo = InterviewAgent.createSession(
                 sessionId = "voice_${System.currentTimeMillis()}",
                 config = interviewConfig,
             )
@@ -313,6 +315,10 @@ class VoiceConversationEngine(
         ttsJob?.cancel()
         ttsJob = null
         ttsPlayer.stop()
+
+        // 停止 ASR 处理协程
+        asrProcessingJob?.cancel()
+        asrProcessingJob = null
 
         // 停止 ASR
         stopListening()
@@ -509,7 +515,7 @@ class VoiceConversationEngine(
         onLegacyStateChange(ConversationState.PROCESSING)
 
         // 启动 ASR 识别协程
-        CoroutineScope(Dispatchers.IO).launch {
+        asrProcessingJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 // 使用流式 ASR 识别
                 val recognizedText = recognizePcmData(pcmData, onPartialUserText)
@@ -530,8 +536,9 @@ class VoiceConversationEngine(
                 waitingForUserInput = false
 
                 // 在 LLM 调用前注入海马体注意力上下文
-                val aiInputForLlm = if (this.hippo != null && recognizedText.isNotBlank()) {
-                    val attentionCtx = this.hippo!!.prepareTurnContext(
+                val h = this@VoiceConversationEngine.hippo
+                val aiInputForLlm = if (h != null && recognizedText.isNotBlank()) {
+                    val attentionCtx = h.prepareTurnContext(
                         turnIndex = turnCounter,
                         userMessage = recognizedText,
                         lastAiResponse = lastAiResponse,
@@ -558,7 +565,7 @@ class VoiceConversationEngine(
                 DebugLog.i(TAG, "AI 回复: '${aiResponse.take(100)}'")
 
                 // 记录海马体漂移检测
-                this.hippo?.detectDrift(turnCounter, recognizedText, aiResponse)
+                this@VoiceConversationEngine.hippo?.detectDrift(turnCounter, recognizedText, aiResponse)
 
                 // 更新轮次计数器和上一轮回复
                 turnCounter++
@@ -566,7 +573,7 @@ class VoiceConversationEngine(
 
                 // 定期更新关键信息快照
                 if (turnCounter > 0 && turnCounter % HippocampusMemory.SNAPSHOT_INTERVAL == 0) {
-                    this.hippo?.updateCriticalSnapshot(turnCounter, "第${turnCounter}轮语音对话完成")
+                    this@VoiceConversationEngine.hippo?.updateCriticalSnapshot(turnCounter, "第${turnCounter}轮语音对话完成")
                 }
 
                 // 通知 UI：AI 的回复文字
@@ -619,7 +626,7 @@ class VoiceConversationEngine(
             // TODO: 集成离线 PCM 识别接口（如 Whisper API 或本地模型）
             var finalResult = ""
 
-            asrJob = launch {
+            asrJob = CoroutineScope(Dispatchers.IO).launch {
                 val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
                 flow
                     .catch { e ->
@@ -649,9 +656,8 @@ class VoiceConversationEngine(
                     }
             }
 
-            // 等待一小段时间让 ASR 返回结果
-            // 注意：实际实现中应该有更完善的结果等待机制
-            delay(2000L)
+            // 等待 ASR 返回最终结果（VAD 检测到静默后 ASR 会自动出结果，这里给一个上限超时）
+            delay(1500L)
 
             asrJob?.cancel()
             asrJob = null

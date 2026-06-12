@@ -6,6 +6,7 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.LlmClient
+import top.hsyscn.opedrgent.network.SearchConfig
 import top.hsyscn.opedrgent.network.SearchResult
 import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.ToolResult
@@ -50,7 +51,7 @@ class DeepResearchTool(
         var usedWv = false
 
         if (useProviderSearch) {
-            results = runCatching { searcher.search(query, limit = 8) }.getOrNull()
+            results = runCatching { searcher.searchAsync(query, config = SearchConfig(), limit = 8) }.getOrNull()
         }
 
         if (results.isNullOrEmpty()) {

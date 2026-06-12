@@ -125,7 +125,7 @@ class WebSearchTool(
         }
 
         DebugLog.i("web_search: query='$query'")
-        val searchResults = searcher.search(query, buildSearchConfig(), limit = 5)
+        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 5)
 
         val sourceLabel = if (searchResults.isNotEmpty()) {
             val first = searchResults.first()

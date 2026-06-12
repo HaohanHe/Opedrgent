@@ -233,7 +233,7 @@ class RecommendationEngine(
 
         val totalNotes = behaviorTracker.getEventCount(BehaviorEvent.NOTE_CREATED, sinceHours = 24 * 7)
         val totalAiChats = behaviorTracker.getEventCount(BehaviorEvent.AI_MESSAGE_SENT, sinceHours = 24 * 7)
-        val activeDays = behaviorTracker.getActiveHoursToday().coerceAtMost(7) // 近似值
+        val activeDays = behaviorTracker.countActiveDaysSince(7)
 
         // 获取热门标签
         val topTags = try {

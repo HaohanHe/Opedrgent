@@ -65,6 +65,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -92,8 +93,10 @@ import top.hsyscn.opedrgent.mcp.editors.EditorRole
 import top.hsyscn.opedrgent.mcp.editors.EditorTeamService
 import top.hsyscn.opedrgent.mcp.editors.ExecutionPlan
 import top.hsyscn.opedrgent.mcp.editors.OutputPlatform
+import top.hsyscn.opedrgent.mcp.editors.PlanStep
 import top.hsyscn.opedrgent.mcp.editors.RoleInstance
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.CardWhite
@@ -190,7 +193,7 @@ fun EditorTeamScreen(
             )
 
             // 正常完成时更新结果（取消时不会走到这里）
-            if (!service.isCancelled()) {
+            if (!service.isCancelled) {
                 pipelineResults = result.steps
                 finalOutput = result.finalOutput
                 totalDuration = result.totalDurationMs
@@ -483,11 +486,8 @@ private fun PipelineModeContent(
                         if (isRunning) {
                         OutlinedButton(
                             onClick = {
-                                service.cancel()
-                                // 立即更新 UI 状态（不等待协程结束）
-                                isRunningPipeline = false
-                                isPlanning = false
-                                showSnackbar("正在停止...")
+                                onCancel?.invoke()
+                                onShowSnackbar?.invoke("正在停止...")
                             },
                                 shape = RoundedCornerShape(20.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
@@ -710,7 +710,7 @@ private fun FreeModeContent(
             result = freeModeResult,
             isRunning = isRunningFree,
             onRun = { onRunConsult(selectedRole) },
-            onCopy = { onCopyText },
+            onCopy = { onCopyText(freeModeResult?.output ?: "") },
             onBack = onBackToGrid,
             modifier = modifier.padding(horizontal = 12.dp),
         )

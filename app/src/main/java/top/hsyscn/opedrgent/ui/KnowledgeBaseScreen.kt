@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -309,9 +310,11 @@ fun KnowledgeBaseScreen(
                 onFilterChange = { filterType = it },
                 isLoading = isLoading,
                 onDelete = { docId ->
-                    knowledgeBase.deleteDocument(docId)
-                    refreshDocuments(knowledgeBase, selectedKbId!!) { documents = it }
-                    refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
+                    scope.launch {
+                        knowledgeBase.deleteDocument(docId)
+                        refreshDocuments(knowledgeBase, selectedKbId!!) { documents = it }
+                        refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
+                    }
                 },
                 onDocClick = { doc ->
                     // TODO: 后续接入 AI 检索问答 / 内容预览
@@ -864,10 +867,14 @@ private fun formatFileSize(bytes: Long): String = when {
     else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
 }
 
-private fun refreshDocuments(kb: KnowledgeBase, kbId: String, onUpdate: (List<KbDocument>) -> Unit) {
-    onUpdate(kb.getDocumentsByKnowledgeBase(kbId))
+private suspend fun refreshDocuments(kb: KnowledgeBase, kbId: String, onUpdate: (List<KbDocument>) -> Unit) {
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        onUpdate(kb.getDocumentsByKnowledgeBase(kbId))
+    }
 }
 
-private fun refreshKnowledgeBases(kb: KnowledgeBase, onUpdate: (List<KnowledgeBaseInfo>) -> Unit) {
-    onUpdate(kb.getAllKnowledgeBases())
+private suspend fun refreshKnowledgeBases(kb: KnowledgeBase, onUpdate: (List<KnowledgeBaseInfo>) -> Unit) {
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        onUpdate(kb.getAllKnowledgeBases())
+    }
 }
