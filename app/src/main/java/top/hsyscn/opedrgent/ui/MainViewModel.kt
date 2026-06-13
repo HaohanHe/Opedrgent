@@ -770,7 +770,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 appendLine("---")
                 appendLine("标题: ${note.title}")
                 appendLine("内容:")
-                appendLine(note.content.take(3000))
+                appendLine(note.content)
                 appendLine("---")
             }
 
