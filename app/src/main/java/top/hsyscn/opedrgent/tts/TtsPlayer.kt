@@ -56,6 +56,7 @@ class TtsPlayer(
         pitch: Float,
         mimoVoice: String = "冰糖",
         downloadOnly: Boolean = false,
+        forceLocal: Boolean = false,
     ) {
         val t = text.trim()
         if (t.isEmpty() || t == "null") return
@@ -68,8 +69,8 @@ class TtsPlayer(
         lastPitch = pitch
         lastMimoVoice = mimoVoice
 
-        val useMimo = apiSettings.isTtsMimoEnabled()
-        if (useMimo && apiSettings.hasApiKey()) {
+        val useMimo = !forceLocal && apiSettings.isTtsMimoEnabled() && apiSettings.hasApiKey()
+        if (useMimo) {
             speakWithMimo(t, mimoVoice, downloadOnly)
         } else {
             // 下载模式只对 MiMO 有效，Android TTS 不支持下载

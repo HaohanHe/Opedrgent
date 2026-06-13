@@ -807,6 +807,7 @@ class VoiceConversationEngine(
                     rate = scenario.defaultRate,
                     pitch = scenario.defaultPitch,
                     mimoVoice = voiceId,
+                    forceLocal = true,
                 )
 
                 DebugLog.d(TAG, "AI 说话完成")
