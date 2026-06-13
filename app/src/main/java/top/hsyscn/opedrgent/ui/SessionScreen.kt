@@ -28,10 +28,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -92,8 +94,8 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
-import top.hsyscn.opedrgent.stt.SttProgressState
-import top.hsyscn.opedrgent.stt.SttUiState
+import top.hsyscn.opedrgent.ui.SttProgressState
+import top.hsyscn.opedrgent.ui.SttUiState
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BarBg
 import top.hsyscn.opedrgent.ui.theme.BgGray
@@ -212,7 +214,8 @@ fun SessionScreen(
     Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
         var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(modifier = Modifier.fillMaxWidth().fillMaxHeight().widthIn(max = 720.dp)) {
         // Top bar
         Row(
             modifier = Modifier
@@ -569,6 +572,7 @@ fun SessionScreen(
         }
 
         // More options bottom sheet (at Box level, as overlay)
+        } // inner centered Box
         if (showMoreOptionsSheet) {
                 ModalBottomSheet(
                     onDismissRequest = { showMoreOptionsSheet = false },

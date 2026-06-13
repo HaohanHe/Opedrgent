@@ -208,13 +208,6 @@ fun RecordingTab(
         }
     }
 
-    // 自动启动录音
-    LaunchedEffect(Unit) {
-        if (recordingState == null) {
-            startRecording()
-        }
-    }
-
     // Save to note dialog
     if (showSaveDialog) {
         var noteTitle by remember { mutableStateOf("") }
@@ -543,8 +536,6 @@ fun RecordingTab(
                                     Button(
                                         onClick = {
                                             vm.sendUserMessage("请帮我总结以下会议内容：\n\n${result.fullText}")
-                                            onNavigateToNotes()
-                                            // 切换到 AI Tab
                                             scope.launch { snackbar.showSnackbar("已发送给 AI 总结") }
                                         },
                                         shape = RoundedCornerShape(12.dp),

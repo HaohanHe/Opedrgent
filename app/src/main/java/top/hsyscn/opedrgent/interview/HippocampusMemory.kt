@@ -121,7 +121,7 @@ class HippocampusMemory(
             "与面试/答辩无关的个人话题",
         )
 
-        goalAnchor = GoalAnchor(
+        val anchor = GoalAnchor(
             primaryGoal = primaryGoal,
             keyTopics = keyTopics,
             forbiddenTopics = forbiddenTopics,
@@ -131,8 +131,9 @@ class HippocampusMemory(
                 "给出有价值的反馈或评估",
             ),
         )
-        DebugLog.i(TAG, "目标已锚定: ${goalAnchor!!.primaryGoal}")
-        return goalAnchor!!
+        goalAnchor = anchor
+        DebugLog.i(TAG, "目标已锚定: ${anchor.primaryGoal}")
+        return anchor
     }
 
     /**

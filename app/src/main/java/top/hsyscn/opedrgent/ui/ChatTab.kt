@@ -1,13 +1,25 @@
 package top.hsyscn.opedrgent.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+
+private val SessionListWidth = 320.dp
 
 /**
  * AI 对话 Tab。
- * 封装会话列表 + 会话聊天界面，管理 selectedSessionId 状态。
+ * 竖屏：会话列表 ↔ 聊天界面 切换。
+ * 横屏：左侧会话列表 + 右侧聊天界面 主-从布局。
  */
 @Composable
 fun ChatTab(
@@ -16,26 +28,69 @@ fun ChatTab(
     onSessionSelected: (String) -> Unit,
     onSessionDeselected: () -> Unit,
     onOpenSubScreen: (String) -> Unit,
+    isLandscape: Boolean = false,
 ) {
-    val state by vm.state.collectAsStateCompat()
-
     LaunchedEffect(selectedSessionId) {
         selectedSessionId?.let { vm.openSession(it) }
     }
 
-    if (selectedSessionId == null) {
-        SessionsScreen(
-            vm = vm,
-            onSelectSession = { id -> onSessionSelected(id) },
-            onSearch = { /* 搜索已在搜索框内 */ },
-        )
+    if (isLandscape) {
+        // 横屏：主-从布局
+        Row(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .width(SessionListWidth)
+                    .fillMaxHeight(),
+            ) {
+                SessionsScreen(
+                    vm = vm,
+                    onSelectSession = { id -> onSessionSelected(id) },
+                    onSearch = { },
+                )
+            }
+            VerticalDivider(
+                thickness = 1.dp,
+                color = Color(0xFFE0E0E0),
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                if (selectedSessionId != null) {
+                    SessionScreen(
+                        vm = vm,
+                        sessionId = selectedSessionId,
+                        onOpenSettings = { },
+                        onOpenSubScreen = onOpenSubScreen,
+                        onBack = { onSessionDeselected() },
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("选择一个会话开始对话", color = Color.Gray)
+                    }
+                }
+            }
+        }
     } else {
-        SessionScreen(
-            vm = vm,
-            sessionId = selectedSessionId,
-            onOpenSettings = { /* 设置通过 Tab Bar 切换 */ },
-            onOpenSubScreen = onOpenSubScreen,
-            onBack = { onSessionDeselected() },
-        )
+        // 竖屏：切换模式
+        if (selectedSessionId == null) {
+            SessionsScreen(
+                vm = vm,
+                onSelectSession = { id -> onSessionSelected(id) },
+                onSearch = { },
+            )
+        } else {
+            SessionScreen(
+                vm = vm,
+                sessionId = selectedSessionId,
+                onOpenSettings = { },
+                onOpenSubScreen = onOpenSubScreen,
+                onBack = { onSessionDeselected() },
+            )
+        }
     }
 }

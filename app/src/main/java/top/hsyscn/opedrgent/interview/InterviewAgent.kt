@@ -328,6 +328,7 @@ object InterviewAgent {
      */
     suspend fun analyzeMaterials(
         llmClient: LlmClient,
+        config: ApiConfig,
         materials: String,
         interviewType: InterviewType,
     ): AnalysisResult {
@@ -337,8 +338,8 @@ object InterviewAgent {
             appendLine("请分析以下材料，提取关键信息并为后续对话提供建议。")
             appendLine()
             appendLine("【对话类型】${interviewType.label}")
-            if (interviewType == InterviewType.CUSTOM && interviewType.label.isNotBlank()) {
-                appendLine("【场景说明】${interviewType.label}")
+            if (interviewType == InterviewType.CUSTOM) {
+                appendLine("【场景说明】自定义场景")
             }
             appendLine()
             appendLine("【材料内容】")
@@ -355,6 +356,7 @@ object InterviewAgent {
 
         val response = callLlm(
             llmClient = llmClient,
+            config = config,
             systemPrompt = "你是一位资深的材料分析师，擅长从各类文档中快速识别关键信息、亮点和潜在风险点，并根据不同场景提供针对性的策略建议。",
             userMessage = analysisPrompt,
         )
@@ -375,6 +377,7 @@ object InterviewAgent {
      */
     suspend fun generateFirstQuestion(
         llmClient: LlmClient,
+        apiConfig: ApiConfig,
         config: InterviewConfig,
         context: List<DialogueTurn> = emptyList(),
     ): String {
@@ -382,20 +385,34 @@ object InterviewAgent {
 
         val systemPrompt = buildUnifiedPrompt(config)
 
-        val introPrompt = buildString {
-            appendLine("请开始这场对话。")
-            appendLine("首先做简短的角色介绍和流程说明，然后提出第一个问题。")
-            appendLine("介绍控制在2-3句话，自然地过渡到第一个问题。")
+        val needsInfo = config.company.isBlank() && config.position.isBlank()
+
+        val introPrompt = if (needsInfo) {
+            buildString {
+                appendLine("请开始这场对话。")
+                appendLine("你还不知道参与者的具体需求（公司/岗位/课题等），请先做简短自我介绍，")
+                appendLine("然后自然地询问参与者想要模拟什么场景。比如：")
+                appendLine("- 求职面试：询问目标公司和岗位")
+                appendLine("- 论文答辩：询问论文题目和研究方向")
+                appendLine("- 其他场景：询问具体需求")
+                appendLine("语气自然亲切，不要太正式。等参与者回复后再开始正式提问。")
+            }
+        } else {
+            buildString {
+                appendLine("请开始这场对话。")
+                appendLine("首先做简短的角色介绍和流程说明，然后提出第一个问题。")
+                appendLine("介绍控制在2-3句话，自然地过渡到第一个问题。")
+            }
         }
 
         val response = callLlm(
             llmClient = llmClient,
+            config = apiConfig,
             systemPrompt = systemPrompt,
             userMessage = introPrompt,
             history = contextToMessages(context),
         )
 
-        // 从 JSON 响应中提取 content 字段
         return extractContentFromJsonResponse(response)
     }
 
@@ -415,6 +432,7 @@ object InterviewAgent {
      */
     suspend fun processAnswer(
         llmClient: LlmClient,
+        apiConfig: ApiConfig,
         config: InterviewConfig,
         answer: String,
         currentQuestion: DialogueTurn,
@@ -448,6 +466,7 @@ object InterviewAgent {
 
         val response = callLlm(
             llmClient = llmClient,
+            config = apiConfig,
             systemPrompt = systemPrompt,
             userMessage = followUpPrompt,
             history = contextToMessages(history),
@@ -475,6 +494,7 @@ object InterviewAgent {
      */
     suspend fun processAnswerWithAttention(
         llmClient: LlmClient,
+        apiConfig: ApiConfig,
         config: InterviewConfig,
         answer: String,
         currentQuestion: DialogueTurn,
@@ -530,6 +550,7 @@ object InterviewAgent {
         // 4. 调用 LLM
         val response = callLlmWithMessages(
             llmClient = llmClient,
+            config = apiConfig,
             systemPrompt = systemPrompt,
             messages = messages,
         )
@@ -551,16 +572,13 @@ object InterviewAgent {
      */
     private suspend fun callLlmWithMessages(
         llmClient: LlmClient,
+        config: ApiConfig,
         systemPrompt: String,
         messages: List<ChatMessage>,
     ): String {
         return try {
             llmClient.chatCompletions(
-                config = ApiConfig(
-                    baseUrl = "",  // 将由外部注入
-                    apiKey = "",
-                    model = "",
-                ),
+                config = config,
                 system = systemPrompt,
                 messages = messages,
             )
@@ -584,6 +602,7 @@ object InterviewAgent {
      */
     suspend fun generateCoachFeedback(
         llmClient: LlmClient,
+        apiConfig: ApiConfig,
         question: DialogueTurn,
         answer: DialogueTurn,
         config: InterviewConfig = InterviewConfig(),
@@ -601,6 +620,7 @@ object InterviewAgent {
 
             val response = callLlm(
                 llmClient = llmClient,
+                config = apiConfig,
                 systemPrompt = buildCoachPrompt(config),
                 userMessage = coachPrompt,
             )
@@ -625,6 +645,7 @@ object InterviewAgent {
      */
     suspend fun generateReport(
         llmClient: LlmClient,
+        apiConfig: ApiConfig,
         config: InterviewConfig,
         fullTranscript: List<DialogueTurn>,
     ): InterviewReport {
@@ -657,6 +678,7 @@ object InterviewAgent {
 
         val response = callLlm(
             llmClient = llmClient,
+            config = apiConfig,
             systemPrompt = buildEvaluatorPrompt(config),
             userMessage = reportPrompt,
             history = contextToMessages(fullTranscript),
@@ -672,6 +694,7 @@ object InterviewAgent {
      */
     private suspend fun callLlm(
         llmClient: LlmClient,
+        config: ApiConfig,
         systemPrompt: String,
         userMessage: String,
         history: List<ChatMessage> = emptyList(),
@@ -681,11 +704,7 @@ object InterviewAgent {
             allMessages.add(ChatMessage(role = Role.USER, content = userMessage))
 
             llmClient.chatCompletions(
-                config = ApiConfig(
-                    baseUrl = "",  // 将由外部注入
-                    apiKey = "",
-                    model = "",
-                ),
+                config = config,
                 system = systemPrompt,
                 messages = allMessages,
             )

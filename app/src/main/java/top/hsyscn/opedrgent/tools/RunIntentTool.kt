@@ -48,7 +48,7 @@ class RunIntentTool(
      */
     private suspend fun execute(toolPart: ToolPart): ToolResult {
         val input = toolPart.state.input
-        DebugLog.i("RunIntentTool: 执行 Native Intent — input=${input.take(200)}")
+        DebugLog.i("RunIntentTool: 执行 Native Intent — input=${input.toString().take(200)}")
 
         return try {
             val args = JSONObject(input)

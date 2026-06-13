@@ -521,6 +521,14 @@ class ResearchStore(context: Context) {
                         obj.put("reasoning", part.reasoning)
                         obj.put("phase", part.phase)
                     }
+                    is MessagePart.AudioClip -> {
+                        obj.put("type", "AudioClip")
+                        obj.put("filePath", part.filePath)
+                        obj.put("transcript", part.transcript)
+                    }
+                    else -> {
+                        obj.put("type", "Unknown")
+                    }
                 }
                 put(obj)
             }

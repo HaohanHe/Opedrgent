@@ -679,7 +679,7 @@ private fun NoteCard(
 
                 // 时间
                 Text(
-                    text = formatNoteTime(note.updatedAt),
+                    text = noteListFormatTime(note.updatedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -840,7 +840,7 @@ private fun EmptyNoteState(onNewNote: () -> Unit) {
 
 // ==================== 工具函数 ====================
 
-private fun formatNoteTime(timestamp: Long): String {
+private fun noteListFormatTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
     return sdf.format(Date(timestamp))
 }

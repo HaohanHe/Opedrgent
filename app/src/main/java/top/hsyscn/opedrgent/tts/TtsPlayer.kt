@@ -8,6 +8,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.settings.ApiConfig
@@ -144,7 +145,9 @@ class TtsPlayer(
                     isSpeaking = false
                     isPaused = false
                 } else {
-                    playPcmAudio(pcmBytes)
+                    withContext(Dispatchers.IO) {
+                        playPcmAudio(pcmBytes)
+                    }
                 }
             } catch (e: Exception) {
                 DebugLog.e("MimoTts speak error: ${e.message}", e)

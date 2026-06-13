@@ -600,6 +600,87 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
     }
 
+    /**
+     * 非流式对话，返回完整结果（含 tool_calls）。
+     * 供 MultiAgentOrchestrator 等需要工具调用循环的场景使用。
+     */
+    fun chatCompletionsWithTools(
+        config: ApiConfig,
+        system: String,
+        messages: List<ChatMessage>,
+        tools: List<ToolDefinition> = emptyList(),
+    ): StreamResult {
+        val url = buildUrl(config.baseUrl, "/chat/completions")
+        DebugLog.i("chatCompletionsWithTools → $url model=${config.model} msgs=${messages.size} tools=${tools.size}")
+
+        val json = JSONObject().apply {
+            put("model", config.model)
+            put("messages", JSONArray().apply {
+                put(JSONObject().put("role", "system").put("content", system))
+                messages.forEach { m ->
+                    if (m.toolCallId != null) {
+                        put(JSONObject().apply {
+                            put("role", "tool")
+                            put("tool_call_id", m.toolCallId)
+                            put("content", m.content)
+                        })
+                    } else if (m.apiToolCallsJson != null) {
+                        put(JSONObject().apply {
+                            put("role", "assistant")
+                            put("content", m.content.ifEmpty { "" })
+                            put("tool_calls", JSONArray(m.apiToolCallsJson))
+                        })
+                    } else {
+                        put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
+                    }
+                }
+            })
+            if (tools.isNotEmpty()) {
+                put("tools", JSONArray().apply {
+                    tools.forEach { put(toolToJson(it)) }
+                })
+                if (!isDeepSeek(config.model)) {
+                    put("tool_choice", "auto")
+                }
+            }
+        }
+
+        val req = buildRequest(url, json.toString(), config.apiKey)
+        http.newCall(req).execute().use { resp ->
+            val raw = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                val msg = runCatching {
+                    JSONObject(raw).optJSONObject("error")?.optString("message")
+                }.getOrNull()
+                throw IllegalStateException(msg?.takeIf { it.isNotBlank() } ?: "请求失败: HTTP ${resp.code}")
+            }
+            val root = JSONObject(raw)
+            val choice = root.getJSONArray("choices").getJSONObject(0)
+            val message = choice.getJSONObject("message")
+            val content = message.optString("content", "")
+            val toolCalls = mutableListOf<CompletedToolCall>()
+            if (message.has("tool_calls")) {
+                val arr = message.getJSONArray("tool_calls")
+                for (i in 0 until arr.length()) {
+                    val tc = arr.getJSONObject(i)
+                    val fn = tc.getJSONObject("function")
+                    toolCalls.add(CompletedToolCall(
+                        id = tc.optString("id", "call_$i"),
+                        name = fn.optString("name", ""),
+                        arguments = fn.optString("arguments", "{}"),
+                    ))
+                }
+            }
+            val result = StreamResult(
+                content = content.trim(),
+                toolCalls = toolCalls,
+                finishReason = choice.optString("finish_reason", null),
+            )
+            DebugLog.i("chatCompletionsWithTools ← content=${content.length} chars toolCalls=${toolCalls.size}")
+            return result
+        }
+    }
+
     fun visionChat(
         config: ApiConfig,
         system: String,

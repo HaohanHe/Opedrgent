@@ -60,7 +60,7 @@ class CuratorService(
     private val stateFile: File = File(context.filesDir, CURATOR_STATE_FILE)
     private val usageFile: File = File(context.filesDir, "skill_usage.json")
     private var state = loadState()
-    private var usageRecords = loadUsageRecords()
+    private var usageRecords: MutableMap<String, SkillUsageRecord> = loadUsageRecords().toMutableMap()
 
     // ── 空闲触发入口（非 cron） ──
     suspend fun maybeRunCurator(): CuratorResult {

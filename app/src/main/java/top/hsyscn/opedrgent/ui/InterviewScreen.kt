@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -161,22 +162,13 @@ fun InterviewScreen(
 // ==================== 设置界面 ====================
 
 /**
- * 面试设置界面 — 选择模式、填写信息、配置难度。
+ * 面试设置界面 — 选择模式后直接开始对话，LLM通过对话收集信息。
  */
 @Composable
 private fun InterviewSetupScreen(
     onStart: (InterviewConfig) -> Unit,
     onBack: () -> Unit,
 ) {
-    var selectedType by remember { mutableStateOf<InterviewType?>(null) }
-    var companyName by rememberSaveable { mutableStateOf("") }
-    var position by rememberSaveable { mutableStateOf("") }
-    var materials by rememberSaveable { mutableStateOf("") }
-    var customInstructions by rememberSaveable { mutableStateOf("") }
-    var difficulty by remember { mutableFloatStateOf(5f) }
-    var maxQuestions by remember { mutableIntStateOf(8) }
-    var enableCoach by rememberSaveable { mutableStateOf(true) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -193,313 +185,81 @@ private fun InterviewSetupScreen(
         },
         containerColor = BgGray,
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .imePadding(),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                horizontal = 16.dp,
-                vertical = 12.dp,
-            ),
         ) {
-            // ── 模式选择 ──
-            item {
-                Text(
-                    text = "选择面试模式",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = TextDark,
+            Text(
+                text = "选择面试模式，直接开始对话",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                color = TextDark,
+            )
+
+            Text(
+                text = "AI会通过对话了解你的需求，无需提前填写信息",
+                fontSize = 13.sp,
+                color = TextGrey,
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ModeSelectionCard(
+                    icon = Icons.Default.Work,
+                    title = "求职面试",
+                    description = "模拟真实面试\n根据公司/岗位定制",
+                    isSelected = false,
+                    onClick = { onStart(InterviewConfig(type = InterviewType.JOB_INTERVIEW)) },
+                    modifier = Modifier.weight(1f),
+                )
+                ModeSelectionCard(
+                    icon = Icons.Default.School,
+                    title = "论文答辩",
+                    description = "模拟学术答辩\n挑战研究方法与结论",
+                    isSelected = false,
+                    onClick = { onStart(InterviewConfig(type = InterviewType.THESIS_DEFENSE)) },
+                    modifier = Modifier.weight(1f),
                 )
             }
 
-            item {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    // 求职面试卡片
-                    ModeSelectionCard(
-                        icon = Icons.Default.Work,
-                        title = "求职面试",
-                        description = "模拟真实面试\n根据公司/岗位定制",
-                        isSelected = selectedType == InterviewType.JOB_INTERVIEW,
-                        onClick = { selectedType = InterviewType.JOB_INTERVIEW },
-                        modifier = Modifier.weight(1f),
-                    )
-                    // 论文答辩卡片
-                    ModeSelectionCard(
-                        icon = Icons.Default.School,
-                        title = "论文答辩",
-                        description = "模拟学术答辩\n挑战研究方法与结论",
-                        isSelected = selectedType == InterviewType.THESIS_DEFENSE,
-                        onClick = { selectedType = InterviewType.THESIS_DEFENSE },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            // ── 基本信息 ──
-            item {
-                Text(
-                    text = "基本信息",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = TextDark,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            item {
-                OutlinedTextField(
-                    value = companyName,
-                    onValueChange = { companyName = it },
-                    label = {
-                        Text(
-                            if (selectedType == InterviewType.THESIS_DEFENSE)
-                                "学校/机构（可选）"
-                            else
-                                "公司名称（可选）"
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(11.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFE4E4E4),
-                        focusedBorderColor = AccentBlue,
-                    ),
-                )
-            }
-
-            item {
-                OutlinedTextField(
-                    value = position,
-                    onValueChange = { position = it },
-                    label = {
-                        Text(
-                            if (selectedType == InterviewType.THESIS_DEFENSE)
-                                "论文题目/研究方向"
-                            else
-                                "岗位名称"
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(11.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFE4E4E4),
-                        focusedBorderColor = AccentBlue,
-                    ),
-                )
-            }
-
-            // ── 补充材料 ──
-            item {
-                Text(
-                    text = "补充材料（可选）",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = TextDark,
-                )
-            }
-
-            item {
-                OutlinedTextField(
-                    value = materials,
-                    onValueChange = { materials = it },
-                    label = {
-                        Text(
-                            if (selectedType == InterviewType.THESIS_DEFENSE)
-                                "论文摘要/研究内容/简历"
-                            else
-                                "简历内容"
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 100.dp),
-                    shape = RoundedCornerShape(11.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFE4E4E4),
-                        focusedBorderColor = AccentBlue,
-                    ),
-                )
-            }
-
-            item {
-                OutlinedTextField(
-                    value = customInstructions,
-                    onValueChange = { customInstructions = it },
-                    label = { Text("自定义要求（可选）") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 80.dp),
-                    shape = RoundedCornerShape(11.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFE4E4E4),
-                        focusedBorderColor = AccentBlue,
-                    ),
-                )
-            }
-
-            // ── 难度设置 ──
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = "难度等级",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
-                            color = TextDark,
-                        )
-                        Text(
-                            text = "${difficultyToInt(difficulty)}/10",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = AccentBlue,
-                        )
-                    }
-                    Slider(
-                        value = difficulty,
-                        onValueChange = { difficulty = it },
-                        valueRange = 1f..10f,
-                        steps = 8,
-                        colors = SliderDefaults.colors(
-                            thumbColor = AccentBlue,
-                            activeTrackColor = AccentBlue,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text("简单", fontSize = 12.sp, color = TextGrey)
-                        Text("困难", fontSize = 12.sp, color = TextGrey)
-                    }
-                }
-            }
-
-            // ── 题目数量 ──
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+            // 自定义场景入口
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = CardWhite),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "问题数量",
+                        text = "其他场景",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = TextDark,
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { if (maxQuestions > 3) maxQuestions-- },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
-                        }
-                        Text(
-                            text = "$maxQuestions",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = AccentBlue,
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                        )
-                        IconButton(
-                            onClick = { if (maxQuestions < 15) maxQuestions++ },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
-                        }
-                    }
-                }
-            }
-
-            // ── 教练反馈开关 ──
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "启用教练反馈",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
-                            color = TextDark,
-                        )
-                        Text(
-                            text = "每轮回答后显示改进建议",
-                            fontSize = 13.sp,
-                            color = TextGrey,
-                        )
-                    }
-                    // 开关（简化版）
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp, 28.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (enableCoach) AccentBlue else Color.Gray.copy(alpha = 0.3f))
-                            .clickable { enableCoach = !enableCoach },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        // 开关指示器
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                                .padding(2.dp),
-                        )
-                    }
-                }
-            }
-
-            // ── 开始按钮 ──
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val config = InterviewConfig(
-                            type = selectedType ?: InterviewType.JOB_INTERVIEW,
-                            company = companyName.trim(),
-                            position = position.trim(),
-                            difficulty = difficultyFromInt(difficultyToInt(difficulty)),
-                            questionCount = maxQuestions,
-                            materials = if (materials.trim().isNotBlank()) listOf(MaterialEntry(content = materials.trim())) else emptyList(),
-                            customInstructions = customInstructions.trim(),
-                            enableCoach = enableCoach,
-                        )
-                        onStart(config)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentBlue,
-                        contentColor = Color.White,
-                    ),
-                    enabled = selectedType != null,
-                ) {
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "开始面试",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        text = "投资路演、英语口语、销售谈判... 任何对话场景都可以",
+                        fontSize = 13.sp,
+                        color = TextGrey,
                     )
-                )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { onStart(InterviewConfig(type = InterviewType.CUSTOM)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentBlue,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text("开始自定义场景", fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
-
-            // 底部留白
-            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }
@@ -662,7 +422,7 @@ private fun InterviewPreparingScreen(
                                     color = TextDark,
                                     lineHeight = 18.sp,
                                 )
-                            })
+                            }
                         }
 
                         // 建议提问方向
@@ -681,7 +441,7 @@ private fun InterviewPreparingScreen(
                                     color = TextDark,
                                     lineHeight = 18.sp,
                                 )
-                            })
+                            }
                         }
 
                         // 风险点
@@ -700,7 +460,7 @@ private fun InterviewPreparingScreen(
                                     color = TextDark,
                                     lineHeight = 18.sp,
                                 )
-                            })
+                            }
                         }
                     }
                 }
@@ -1052,11 +812,12 @@ private fun InterviewBubble(message: DialogueTurn) {
         }
 
         // 问题分类标签
-        if (isInterviewer && message.questionCategory != null && message.questionCategory != "追问" && message.questionCategory != "结束") {
+        val category = message.questionCategory
+        if (isInterviewer && category != null && category != "追问" && category != "结束") {
             Column {
                 // 分类标签
                 Text(
-                    text = message.questionCategory!!,
+                    text = category,
                     fontSize = 10.sp,
                     color = Color.White,
                     modifier = Modifier
@@ -1080,7 +841,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                     )
                 )
                 .background(
-                    if (isInterviewer) CardWhite else Brush.linearGradient(
+                    if (isInterviewer) androidx.compose.ui.graphics.SolidColor(CardWhite) else Brush.linearGradient(
                         colors = listOf(UserBubbleStart, UserBubbleStart)
                     )
                 )
@@ -1438,7 +1199,7 @@ private fun DuplexControlPanel(
                 ) {
                     Icon(
                         imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = if (isMuted) "取消静音" : "静音",
+                        contentDescription = if (isMuted) "取消静音" else "静音",
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -2025,7 +1786,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                         .fillMaxWidth()
                         .heightIn(max = 300.dp),
                 ) {
-                    items(transcript, key = it.timestamp.toString() + it.role) { turn ->
+                    items(transcript, key = { it.timestamp.toString() + it.role }) { turn ->
                         Row(
                             modifier = Modifier.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.Top,

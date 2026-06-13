@@ -78,9 +78,6 @@ import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
-import top.hsyscn.opedrgent.security.ApprovalPolicy
-import top.hsyscn.opedrgent.security.TrustLevel
-
 @Composable
 fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, showBackButton: Boolean = true) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
@@ -102,9 +99,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
     var showMemoryWarning by remember { mutableStateOf<String?>(null) }
-    // AI 安全策略：从全局单例读取当前信任级别
-    val approvalPolicy = remember { ApprovalPolicy.getInstance() }
-    var selectedTrustLevel by rememberSaveable { mutableStateOf(approvalPolicy.trustLevel) }
     val context = LocalContext.current
     val localEngine = remember { LocalLlmEngine.getInstance(context) }
     val downloadManager = remember { ModelDownloadManager(context) }
@@ -262,91 +256,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            }
-
-            HorizontalDivider()
-
-            // ==================== AI 安全策略（ApprovalPolicy）====================
-            Text("AI 安全策略", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // 标题行：盾牌图标 + 说明
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "信任级别", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(text = "控制 AI 工具调用的审批严格程度", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                        }
-                    }
-
-                    // TrustLevel 切换器：使用 FilterChip 组（与现有 STT/TTS 引擎选择风格一致）
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // 完全信任 → YOLO
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            FilterChip(
-                                selected = selectedTrustLevel == TrustLevel.YOLO,
-                                onClick = {
-                                    selectedTrustLevel = TrustLevel.YOLO
-                                    approvalPolicy.setTrustLevel(TrustLevel.YOLO)
-                                    scope.launch { snackbar.showSnackbar("已切换为「完全信任」模式：所有操作自动通过") }
-                                },
-                                label = { Text("完全信任", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(20.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("所有操作自动通过，无需确认", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                        }
-
-                        // 需要审核 → NORMAL
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            FilterChip(
-                                selected = selectedTrustLevel == TrustLevel.NORMAL,
-                                onClick = {
-                                    selectedTrustLevel = TrustLevel.NORMAL
-                                    approvalPolicy.setTrustLevel(TrustLevel.NORMAL)
-                                    scope.launch { snackbar.showSnackbar("已切换为「需要审核」模式：危险操作需确认") }
-                                },
-                                label = { Text("需要审核", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(20.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("危险操作需用户确认后执行", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                        }
-
-                        // 锁定模式 → STRICT + PARANOID 合并为"锁定"
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            FilterChip(
-                                selected = selectedTrustLevel == TrustLevel.STRICT || selectedTrustLevel == TrustLevel.PARANOID,
-                                onClick = {
-                                    selectedTrustLevel = TrustLevel.PARANOID
-                                    approvalPolicy.setTrustLevel(TrustLevel.PARANOID)
-                                    scope.launch { snackbar.showSnackbar("已切换为「锁定」模式：仅允许安全操作") }
-                                },
-                                label = { Text("锁定模式", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(20.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("仅允许安全操作，其余均需确认或拒绝", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                        }
-                    }
-
-                    // 当前选中状态的简要说明
-                    val levelDesc = when (selectedTrustLevel) {
-                        TrustLevel.YOLO -> "当前为完全信任模式，所有操作将自动执行"
-                        TrustLevel.NORMAL -> "当前为正常确认模式，平衡安全与便利"
-                        TrustLevel.STRICT -> "当前为严格模式，大部分操作需要确认"
-                        TrustLevel.PARANOID -> "当前为偏执模式，几乎所有操作都需要确认"
-                    }
-                    Text(text = levelDesc, style = MaterialTheme.typography.bodySmall, color = Color(0xFFE65100))
-                }
             }
 
             HorizontalDivider()

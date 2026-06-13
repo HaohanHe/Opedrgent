@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.mcp.editors
 
+import top.hsyscn.opedrgent.utils.DebugLog
+
 /**
  * 编辑角色 — 预设模板库。
  *
@@ -278,7 +280,7 @@ data class ExecutionPlan(
 
 // ==================== 编辑斯距离 =====================
 
-private fun levenshteinDistance(a: String, b: String): Int {
+internal fun levenshteinDistance(a: String, b: String): Int {
     val dp = Array(a.length + 1) { IntArray(b.length + 1) }
     for (i in dp.indices) dp[i][0] = i
     for (j in dp[0].indices) dp[0][j] = j
@@ -287,7 +289,7 @@ private fun levenshteinDistance(a: String, b: String): Int {
             dp[i + 1][j + 1] = minOf(
                 dp[i][j + 1] + 1,
                 dp[i + 1][j] + 1,
-                dp[i][j] + if (a[i] == j[j]) 0 else 1
+                dp[i][j] + if (a[i] == b[j]) 0 else 1
             )
         }
     }

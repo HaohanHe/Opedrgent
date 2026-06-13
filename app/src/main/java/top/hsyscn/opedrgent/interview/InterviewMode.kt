@@ -345,7 +345,7 @@ data class InterviewConfig(
     fun getEffectiveScenarioDescription(): String {
         return when {
             scenarioDescription.isNotBlank() -> scenarioDescription
-            type == InterviewType.CUSTOM && type.label.isNotBlank() -> type.label
+            type == InterviewType.CUSTOM -> "自定义场景"
             type == InterviewType.JOB_INTERVIEW ->
                 "${position.ifBlank { "某岗位" }}求职面试@${company.ifBlank { "某公司" }}"
             type == InterviewType.THESIS_DEFENSE ->

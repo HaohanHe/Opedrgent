@@ -49,11 +49,11 @@ class PushNotificationHelper(private val context: Context) {
         )
 
         private val TYPE_ICONS = mapOf(
-            RecommendationType.RELATED_NOTE to "",
-            RecommendationType.ACTION_SUGGESTION to "",
-            RecommendationType.CONTEXTUAL_TIP to "",
-            RecommendationType.DAILY_REVIEW to "",
-            RecommendationType.WEEKLY_REPORT to "",
+            RecommendationType.RELATED_NOTE to "[笔记]",
+            RecommendationType.ACTION_SUGGESTION to "[行动]",
+            RecommendationType.CONTEXTUAL_TIP to "[提示]",
+            RecommendationType.DAILY_REVIEW to "[日报]",
+            RecommendationType.WEEKLY_REPORT to "[周报]",
         )
     }
 
@@ -94,6 +94,13 @@ class PushNotificationHelper(private val context: Context) {
                 )
             }
             is Recommendation.ContextualTip -> FormattedRecommendation(
+                title = rec.title,
+                body = rec.description,
+                icon = icon,
+                color = color,
+                actionLabel = rec.actionText,
+            )
+            else -> FormattedRecommendation(
                 title = rec.title,
                 body = rec.description,
                 icon = icon,
