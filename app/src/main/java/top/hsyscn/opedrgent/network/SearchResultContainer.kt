@@ -182,23 +182,45 @@ class SearchResultContainer {
     
     /**
      * 设置查询关键词并预处理
+     *
+     * 改进点：对中文查询自动提取bigram（二元组）作为补充关键词，
+     * 解决中文无空格分词导致关键词匹配率低的问题。
+     * 例如："AI面试技巧" -> {"AI面试", "面试技巧", "AI面试技巧"}
      */
     fun setQueryKeywords(query: String) {
-        queryKeywords = query.lowercase()
+        val baseKeywords = query.lowercase()
             .split(Regex("[\\s\\p{Punct}]+"))
             .filter { it.length > 1 && it !in Bm25Config.STOP_WORDS }
-            .toSet()
-        
-        // 计算查询词频率（用于IDF）
+            .toMutableList()
+
+        // 对每个token，如果是纯中文序列且长度>=3，提取bigram补充关键词
+        val cjkPattern = Regex("[\\u4e00-\\u9fa5]+")
+        val bigrams = mutableSetOf<String>()
+        for (token in baseKeywords) {
+            val cjkMatch = cjkPattern.find(token)
+            if (cjkMatch != null && cjkMatch.value.length >= 3) {
+                val cjk = cjkMatch.value
+                for (i in 0 until cjk.length - 1) {
+                    bigrams.add(cjk.substring(i, i + 2))
+                }
+            }
+        }
+        // 去掉太短的原始关键词，加入bigram
+        val allKeywords = baseKeywords.filter { it.length > 1 }.toMutableSet()
+        allKeywords.addAll(bigrams.filter { it !in Bm25Config.STOP_WORDS })
+
+        queryKeywords = allKeywords
+
         queryKeywordFreq = mutableMapOf<String, Int>().apply {
             queryKeywords.forEach { keyword ->
                 put(keyword, (this[keyword] ?: 0) + 1)
             }
         }
-        
+
         DebugLog.d(
             "SearchResultContainer: query keywords=${queryKeywords.size}, " +
-            "sample=${queryKeywords.take(3)}"
+            "base=${baseKeywords.size}, bigrams=${bigrams.size}, " +
+            "sample=${queryKeywords.take(5)}"
         )
     }
 
@@ -599,21 +621,33 @@ class SearchResultContainer {
      *
      * 过滤规则：
      * 1. 垃圾域名黑名单过滤
-     * 2. 标题关键词匹配检查（至少匹配1个查询词）
+     * 2. 标题/摘要关键词匹配检查（至少匹配1个查询词，支持双向子串匹配）
      * 3. BM25分数阈值过滤（低于阈值视为不相关）
+     *
+     * 改进点：
+     * - 关键词匹配改为双向子串包含检查（keyword in text 或 text in keyword）
+     * - 当所有结果都被过滤时，保留得分最高的minResults条，避免返回空结果
      */
-    fun filterRelevantResults(minKeywordMatch: Int = 1, minBm25Score: Double = 0.5): FilterResult {
+    fun filterRelevantResults(
+        minKeywordMatch: Int = 1,
+        minBm25Score: Double = 0.5,
+        minResults: Int = 2
+    ): FilterResult {
         val beforeCount = mergedMap.size
         var spamFiltered = 0
         var keywordFiltered = 0
         var bm25Filtered = 0
+
+        // 暂存被关键词/BM25过滤的结果，用于安全网恢复
+        val keywordFilteredResults = mutableMapOf<String, MergedResult>()
+        val bm25FilteredResults = mutableMapOf<String, MergedResult>()
 
         val iterator = mergedMap.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
             val result = entry.value
 
-            // 规则1：垃圾域名过滤
+            // 规则1：垃圾域名过滤（不保留，确定是垃圾）
             try {
                 val host = java.net.URL(result.url).host.lowercase()
                 if (SPAM_DOMAINS.any { host.endsWith(it) || host == it }) {
@@ -624,15 +658,18 @@ class SearchResultContainer {
                 }
             } catch (e: Exception) {}
 
-            // 规则2：关键词匹配检查（如果有查询词）
+            // 规则2：关键词匹配检查（改进版：双向子串匹配）
             if (queryKeywords.isNotEmpty()) {
                 val titleLower = result.title.lowercase()
                 val snippetLower = (result.snippet ?: "").lowercase()
                 val matchCount = queryKeywords.count { keyword ->
-                    titleLower.contains(keyword) || snippetLower.contains(keyword)
+                    // 双向子串匹配：keyword包含在文本中，或文本包含在keyword中
+                    titleLower.contains(keyword) || snippetLower.contains(keyword) ||
+                    keyword.contains(titleLower) || keyword.contains(snippetLower)
                 }
-                
+
                 if (matchCount < minKeywordMatch) {
+                    keywordFilteredResults[entry.key] = result
                     iterator.remove()
                     keywordFiltered++
                     DebugLog.d(
@@ -645,6 +682,7 @@ class SearchResultContainer {
 
             // 规则3：BM25分数阈值过滤
             if (result.bm25Score < minBm25Score && queryKeywords.isNotEmpty()) {
+                bm25FilteredResults[entry.key] = result
                 iterator.remove()
                 bm25Filtered++
                 DebugLog.d(
@@ -654,8 +692,39 @@ class SearchResultContainer {
             }
         }
 
+        // 安全网：如果过滤后剩余结果不足minResults条，恢复得分最高的被过滤结果
+        val currentSize = mergedMap.size
+        if (currentSize < minResults && beforeCount > 0) {
+            val need = minResults - currentSize
+            // 优先从关键词过滤的结果中恢复（比BM25过滤的更相关）
+            val restored = keywordFilteredResults.entries
+                .sortedByDescending { it.value.score }
+                .take(need)
+            for ((key, result) in restored) {
+                mergedMap[key] = result
+                keywordFiltered--  // 修正计数
+            }
+            // 仍然不足，从BM25过滤的结果中恢复
+            val stillNeed = minResults - mergedMap.size
+            if (stillNeed > 0) {
+                val restoredBm25 = bm25FilteredResults.entries
+                    .sortedByDescending { it.value.score }
+                    .take(stillNeed)
+                for ((key, result) in restoredBm25) {
+                    mergedMap[key] = result
+                    bm25Filtered--  // 修正计数
+                }
+            }
+            if (mergedMap.size > currentSize) {
+                DebugLog.w(
+                    "SearchResultContainer: safety net restored ${mergedMap.size - currentSize} " +
+                    "results (was $currentSize, now ${mergedMap.size})"
+                )
+            }
+        }
+
         val afterCount = mergedMap.size
-        
+
         return FilterResult(
             beforeCount = beforeCount,
             afterCount = afterCount,
@@ -665,7 +734,7 @@ class SearchResultContainer {
         ).also { result ->
             if (result.totalFiltered > 0) {
                 DebugLog.i(
-                    "SearchResultContainer filter: ${result.beforeCount} → ${result.afterCount} " +
+                    "SearchResultContainer filter: ${result.beforeCount} -> ${result.afterCount} " +
                     "(spam=${result.spamFiltered}, keyword=${result.keywordFiltered}, bm25=${result.bm25Filtered})"
                 )
             }

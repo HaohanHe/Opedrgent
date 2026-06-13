@@ -8,6 +8,7 @@ data class SttResult(
     val processingTimeMs: Long = 0,
     val engineType: EngineType = EngineType.SHERPA_ONNX,
     val modelUsed: String = "",
+    val error: String? = null,
 )
 
 data class SttSegment(

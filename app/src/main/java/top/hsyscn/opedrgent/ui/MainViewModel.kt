@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.Call
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
@@ -154,6 +155,7 @@ data class UiState(
     val contextTokenCount: Int = 0,
     val contextCompressionEnabled: Boolean = true,
     val debugModeEnabled: Boolean = false,
+    val searchScope: top.hsyscn.opedrgent.ui.components.SearchScope = top.hsyscn.opedrgent.ui.components.SearchScope.ALL,
 )
 
 data class EvolutionSuggestion(
@@ -386,6 +388,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         var accumulatedReasoning: String = "",
         var finalContent: String = "",
         var finalReasoning: String = "",
+        // 缓存每轮工具执行结果，用于按正确顺序添加消息
+        val toolExecCache: MutableMap<String, top.hsyscn.opedrgent.network.ToolResult> = mutableMapOf(),
+        // 海马体记忆上下文（"我的笔记"搜索结果）
+        var memoryContext: String = "",
     )
 
     /** runLoop() 返回值 —— 供 runModel() 后处理使用 */
@@ -656,7 +662,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 // 构建对话上下文
                 val session = store.getSession(sessionId)
-                val context = session?.messages?.takeLast(5)?.joinToString("\n") { "${it.role}: ${it.textContent.take(200)}" } ?: ""
+                val chatContext = session?.messages?.takeLast(5)?.joinToString("\n") { "${it.role}: ${it.textContent.take(200)}" } ?: ""
+
+                // --- "我的笔记"搜索：海马体记忆注入到 Swarm 上下文（WEB_ONLY 模式跳过） ---
+                val memoryContext = buildString {
+                    val scope = _state.value.searchScope
+                    if (scope == top.hsyscn.opedrgent.ui.components.SearchScope.WEB_ONLY) return@buildString
+                    hippocampus?.let { hip ->
+                        if (userText.isNotBlank()) {
+                            val results = hip.query(userText.take(50), limit = 5)
+                            if (results.isNotEmpty()) {
+                                append("\n[用户的历史记忆 - 相关条目]\n")
+                                results.forEach { item ->
+                                    append("- [${item.sourceType.label}] ${item.title}: ${item.summary.take(200)}\n")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val context = if (memoryContext.isNotBlank()) "$chatContext\n$memoryContext" else chatContext
 
                 val apiConfig = apiSettings.getApiConfig() ?: return@launch
                 val result = agentSwarm.execute(
@@ -1388,10 +1413,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
                 } else 16000
 
+                // --- "我的笔记"搜索：从海马体索引中检索相关记忆（WEB_ONLY 模式跳过） ---
+                val memoryContext = buildString {
+                    val scope = _state.value.searchScope
+                    if (scope == top.hsyscn.opedrgent.ui.components.SearchScope.WEB_ONLY) return@buildString
+                    hippocampus?.let { hip ->
+                        val session = store.getSession(sessionId)
+                        // 取用户最后一条消息作为搜索关键词
+                        val lastUserMsg = session?.messages?.lastOrNull { it.role == Role.USER }
+                            ?.textContent?.take(50) ?: ""
+                        if (lastUserMsg.isNotBlank()) {
+                            val results = hip.query(lastUserMsg, limit = 5)
+                            if (results.isNotEmpty()) {
+                                append("\n[用户的历史记忆 - 与当前问题相关的条目]\n")
+                                results.forEach { item ->
+                                    append("- [${item.sourceType.label}] ${item.title}: ${item.summary.take(200)} (${item.ageDays}天前)\n")
+                                }
+                            }
+                        }
+                    }
+                }
+
                 val ctx = LoopContext(
                     sessionId = sessionId,
                     config = config,
                     maxContextTokens = maxContextTokens,
+                    memoryContext = memoryContext,
                 )
 
                 val loopResult = runLoop(ctx)
@@ -1593,9 +1640,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val allMessages = session.messages + ctx.toolMessages
         val compressed = ContextCompressor.compress(allMessages, system, ctx.maxContextTokens)
-        val compressedSystem = if (compressed.summary != null) {
-            "$system\n\n${compressed.summary}"
-        } else system
+        val compressedSystem = buildString {
+            append(if (compressed.summary != null) "$system\n\n${compressed.summary}" else system)
+            // 注入"我的笔记"海马体记忆上下文
+            if (ctx.memoryContext.isNotBlank()) {
+                append("\n\n")
+                append(ctx.memoryContext)
+            }
+        }
         val messages = compressed.messages
 
         DebugLog.d("executeOneRound: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
@@ -1762,7 +1814,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                             _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
 
-                            val answers = _questionResponse.first()
+                            val answers = withTimeout(120_000L) {  // 2 分钟超时保护
+                                _questionResponse.first()
+                            }
                             _questionRequest.value = null
 
                             val resultAnswers = answers.mapIndexed { idx, ans ->
@@ -1778,6 +1832,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
                             // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
+                        } catch (e: CancellationException) {
+                            // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
+                            _questionRequest.value = null
+                            throw e  // 重新抛出以保持结构化并发
                         } catch (e: Exception) {
                             DebugLog.e("ask_question error: ${e.message}", e)
                             _questionRequest.value = null
@@ -1818,7 +1876,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                             _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
 
-                            val selectedOption = _confirmationResponse.first()
+                            val selectedOption = withTimeout(120_000L) {  // 2 分钟超时保护
+                                _confirmationResponse.first()
+                            }
                             _confirmationRequest.value = null
                             val confirmed = selectedOption != null
                             val actualOption = if (selectedOption == "__confirmed__") null else selectedOption
@@ -1842,6 +1902,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
                             // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
+                        } catch (e: CancellationException) {
+                            // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
+                            _confirmationRequest.value = null
+                            throw e  // 重新抛出以保持结构化并发
                         } catch (e: Exception) {
                             DebugLog.e("ask_confirmation error: ${e.message}", e)
                             _confirmationRequest.value = null
@@ -1880,6 +1944,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val execResult = withContext(Dispatchers.IO) {
                         toolExecutor.execute(tp, ctx.config, system, useProviderSearch = isProviderWebSearchEnabled())
                     }
+                    // 缓存执行结果，稍后按正确顺序统一添加到 toolMessages
+                    ctx.toolExecCache[tc.id] = execResult
 
                     // ToolCallGuardrail: 记录调用结果
                     val action = guardrail.record(
@@ -1951,35 +2017,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         execResult.toolPart.state.output != null -> execResult.toolPart.state.output
                         else -> "工具执行完成"
                     }
-                    ctx.toolMessages.add(ChatMessage(
-                            role = Role.USER,
-                            content = "$toolOutput$sourceTags",
-                            createdAt = System.currentTimeMillis(),
-                            toolCallId = tc.id,
-                        ))
+                    // 不在此处添加 ctx.toolMessages，由下方统一按正确顺序添加
                 }
             }
         }
 
-        refreshSessions()
-
-        val searchCount = result.toolCalls.count { it.name == "web_search" }
-        val fetchCount = result.toolCalls.count { it.name == "read_url" }
-        if (searchCount > 0) {
-            state.advanceTo(ResearchPhase(
-                name = "搜索完成",
-                searchesCompleted = state.completedSearches.size + searchCount,
-                lastToolName = "web_search",
-            ))
-        } else if (fetchCount > 0) {
-            state.advanceTo(ResearchPhase(
-                name = "读取完成",
-                pagesFetched = state.fetchedUrls.size + fetchCount,
-                lastToolName = "read_url",
-            ))
-        }
-        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
-
+        // 关键：必须先添加 assistant 消息（带 tool_calls），再添加 tool result 消息
+        // LLM API 要求的消息顺序：[assistant(tool_calls), tool(result), assistant(tool_calls), ...]
         if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
             val tcJsonArr = org.json.JSONArray()
             result.toolCalls.forEach { tc ->
@@ -2003,6 +2047,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } else emptyList(),
             ))
         }
+
+        // 现在添加所有 tool result 消息（在 assistant 之后）
+        for (tc in result.toolCalls) {
+            val execResult = ctx.toolExecCache[tc.id] ?: continue
+            val taggedSources = execResult.addedSources.mapNotNull { url ->
+                if (url.isBlank()) return@mapNotNull null
+                ctx.sourceTagIdx++
+                "S${ctx.sourceTagIdx}"
+            }
+            val sourceTags = if (taggedSources.isNotEmpty()) {
+                "\n[来源: ${taggedSources.joinToString(" ")}]"
+            } else ""
+            val toolOutput = when {
+                execResult.toolPart.state.status == ToolStateType.ERROR -> {
+                    "[工具执行失败: ${execResult.toolPart.state.error?.take(100)}]"
+                }
+                execResult.toolPart.state.output != null -> execResult.toolPart.state.output
+                else -> "工具执行完成"
+            }
+            ctx.toolMessages.add(ChatMessage(
+                role = Role.USER,
+                content = "$toolOutput$sourceTags",
+                createdAt = System.currentTimeMillis(),
+                toolCallId = tc.id,
+            ))
+        }
+
+        refreshSessions()
+
+        val searchCount = result.toolCalls.count { it.name == "web_search" }
+        val fetchCount = result.toolCalls.count { it.name == "read_url" }
+        if (searchCount > 0) {
+            state.advanceTo(ResearchPhase(
+                name = "搜索完成",
+                searchesCompleted = state.completedSearches.size + searchCount,
+                lastToolName = "web_search",
+            ))
+        } else if (fetchCount > 0) {
+            state.advanceTo(ResearchPhase(
+                name = "读取完成",
+                pagesFetched = state.fetchedUrls.size + fetchCount,
+                lastToolName = "read_url",
+            ))
+        }
+        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
 
         return LoopOutcome.Continue
     }
@@ -2482,6 +2571,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveDeepResearch(enabled: Boolean) {
         apiSettings.saveDeepResearch(enabled)
         _state.value = _state.value.copy(deepResearchEnabled = enabled)
+    }
+
+    fun setSearchScope(scope: top.hsyscn.opedrgent.ui.components.SearchScope) {
+        _state.value = _state.value.copy(searchScope = scope)
     }
 
     private suspend fun runLocalModel(sessionId: String) {

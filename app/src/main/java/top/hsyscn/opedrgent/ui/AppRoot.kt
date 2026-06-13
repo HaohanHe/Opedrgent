@@ -199,6 +199,7 @@ fun AppRoot(
         BackHandler {
             subScreen = when {
                 subScreen?.startsWith("noteEditor_") == true -> "notes"
+                subScreen?.startsWith("noteReader_") == true -> "notes"
                 subScreen?.startsWith("noteShare_") == true -> "notes"
                 subScreen?.startsWith("noteSprout_") == true -> "notes"
                 subScreen == "noteGraph" -> "notes"
@@ -363,7 +364,7 @@ fun AppRoot(
                 "notes" -> NoteListScreen(
                     repository = vm.noteRepository,
                     folderRepository = vm.folderRepository,
-                    onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onNoteClick = { noteId -> subScreen = "noteReader_$noteId" },
                     onNewNote = { subScreen = "noteEditor_new" },
                     onBack = { subScreen = null },
                     onShareNote = { noteId -> subScreen = "noteShare_$noteId" },
@@ -384,7 +385,7 @@ fun AppRoot(
                 )
                 "noteGraph" -> NoteGraphScreen(
                     repository = vm.noteRepository,
-                    onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onNoteClick = { noteId -> subScreen = "noteReader_$noteId" },
                     onBack = { subScreen = "notes" },
                 )
                 // 统一 NoteEditor 路由：从 subScreen 解析 initialType（替代原来6个重复分支）
@@ -425,7 +426,7 @@ fun AppRoot(
                             repository = vm.noteRepository,
                             folderRepository = vm.folderRepository,
                             onNewNote = { subScreen = "noteEditor_new" },
-                            onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onNoteClick = { noteId -> subScreen = "noteReader_$noteId" },
                             onSendToChat = { noteId ->
                                 vm.sendNoteToChat(noteId)
                                 selectedTab = MainTab.AI
@@ -461,7 +462,7 @@ fun AppRoot(
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
                             folderRepository = vm.folderRepository,
-                            onNoteClick = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onNoteClick = { noteId -> subScreen = "noteReader_$noteId" },
                             onNewNote = { subScreen = "noteEditor_new" },
                             onBack = {},
                             onShareNote = { noteId -> subScreen = "noteShare_$noteId" },
@@ -507,6 +508,32 @@ fun AppRoot(
                 }
                 else -> {
                     when {
+                        subScreen?.startsWith("noteReader_") == true -> {
+                            val noteIdStr = subScreen!!.removePrefix("noteReader_")
+                            val noteId = noteIdStr.toLongOrNull()
+                            if (noteId != null) {
+                                NoteEditorScreen(
+                                    repository = vm.noteRepository,
+                                    noteId = noteId,
+                                    forceReadOnly = true,
+                                    onBack = { subScreen = "notes" },
+                                    onEdit = { subScreen = "noteEditor_$noteId" },
+                                    onSendToChat = { id ->
+                                        vm.sendNoteToChat(id)
+                                        subScreen = "chat"
+                                    },
+                                    onSendWithSkill = { id, skill ->
+                                        vm.sendNoteWithSkill(id, skill)
+                                        subScreen = "noteSprout_$id"
+                                    },
+                                    onOpenEditorTeam = { content ->
+                                        editorTeamInitialInput = content
+                                        subScreen = "editorTeam"
+                                    },
+                                    onSaved = { id -> subScreen = "noteReader_$id" },
+                                )
+                            }
+                        }
                         subScreen?.startsWith("noteEditor_") == true -> {
                             val noteIdStr = subScreen!!.removePrefix("noteEditor_")
                             val noteId = noteIdStr.toLongOrNull()

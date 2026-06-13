@@ -23,6 +23,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -56,6 +58,8 @@ fun NoteEditorScreen(
     onSendWithSkill: (Long, String) -> Unit = { _, _ -> },
     onOpenEditorTeam: (String) -> Unit = { _ -> },
     onBack: () -> Unit,
+    forceReadOnly: Boolean = false,
+    onEdit: () -> Unit = {},  // 阅读模式专用：点击编辑时跳转到编辑器
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -69,6 +73,12 @@ fun NoteEditorScreen(
     var isPreviewMode by remember { mutableStateOf(false) }
     var showFormatToolbar by remember { mutableStateOf(true) }
     var showAiMenu by remember { mutableStateOf(false) }
+
+    // 阅读模式专用状态
+    var showReaderMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
     // 未保存更改追踪：记录上次保存时的内容快照
     var lastSavedContentSnapshot by remember { mutableStateOf(initialContent) }
@@ -146,75 +156,284 @@ fun NoteEditorScreen(
 
     val wordCount = content.text.length
     val focusManager = LocalFocusManager.current
+    val displayTitle = title.ifBlank { content.text.take(30).replace("\n", " ").ifBlank { "无标题" } }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(if (noteId == null) "新建笔记" else "编辑笔记") },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        // 检测是否有未保存的更改
-                        val hasUnsavedChanges = content.text != lastSavedContentSnapshot &&
-                            content.text.isNotBlank() &&
-                            content.text != initialContent
-                        if (hasUnsavedChanges) {
-                            showUnsavedDialog = true
-                        } else {
-                            scope.launch { save() }
-                            onBack()
+    if (forceReadOnly) {
+        // ════════════════════════════════════════
+        // 阅读模式（只读展示）
+        // ════════════════════════════════════════
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            displayTitle,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                         }
-                    }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
-                },
-                actions = {
-                    // 预览/编辑模式切换
-                    IconButton(onClick = { isPreviewMode = !isPreviewMode }) {
-                        Icon(
-                            if (isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
-                            if (isPreviewMode) "编辑" else "预览",
-                            tint = AccentBlue,
+                    },
+                    actions = {
+                        IconButton(onClick = { showReaderMenu = true }) {
+                            Icon(Icons.Default.MoreVert, "更多操作")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                // 标签只读展示
+                if (tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        tags.forEach { tag ->
+                            Surface(
+                                color = Color(0xFFE67E22).copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Text(
+                                    tag,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE67E22),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                // 内容区域：Markdown 渲染
+                MarkdownPreview(
+                    content = content.text,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+
+                // 元信息行
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    tonalElevation = 2.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(noteType.icon(), null, tint = noteType.color(), modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(noteType.displayName(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        Spacer(Modifier.width(12.dp))
+                        Text("$wordCount 字", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        if (lastSavedAt != null) {
+                            Text(
+                                "保存于 ${formatTimeAgo(lastSavedAt!!)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                    }
+                }
+
+                // 底部操作栏
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        // 编辑按钮
+                        ReaderActionButton(
+                            icon = Icons.Default.Edit,
+                            label = "编辑",
+                            onClick = { if (onEdit != {}) onEdit() else onBack() },
+                        )
+                        // 讨论按钮
+                        ReaderActionButton(
+                            icon = Icons.Default.ChatBubbleOutline,
+                            label = "讨论",
+                            onClick = { onSendToChat(noteId ?: return@ReaderActionButton) },
+                        )
+                        // 发芽按钮
+                        ReaderActionButton(
+                            icon = Icons.Default.AutoAwesome,
+                            label = "发芽",
+                            onClick = { onSendWithSkill(noteId ?: return@ReaderActionButton, "insight_sprout") },
                         )
                     }
-                    
-                    // 格式化工具栏切换
-                    IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
-                        Icon(Icons.Default.FormatBold, "格式化", tint = AccentBlue)
-                    }
+                }
+            }
+        }
 
-                    // AI 操作按钮（只在编辑已有笔记时显示）
-                    if (noteId != null) {
-                        IconButton(onClick = { showAiMenu = true }) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = AccentBlue)
-                        }
-                    }
-                    
-                    TextButton(
-                        onClick = { scope.launch { save(showGraphInfo = true) } },
-                        enabled = !isSaving && content.text.isNotBlank(),
-                    ) {
-                        if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AccentBlue)
-                        else Text("保存", fontWeight = FontWeight.SemiBold, color = AccentBlue)
-                    }
-
-                    // 在聊天中讨论按钮
-                    if (noteId != null) {
-                        TextButton(
-                            onClick = {
-                                scope.launch { save() }
-                                onSendToChat(noteId)
-                            },
-                            enabled = content.text.isNotBlank(),
-                        ) {
-                            Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
-                            Spacer(Modifier.width(4.dp))
-                            Text("讨论", fontWeight = FontWeight.SemiBold, color = AccentBlue)
-                        }
+        // 三点菜单
+        DropdownMenu(
+            expanded = showReaderMenu,
+            onDismissRequest = { showReaderMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("编辑") },
+                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                onClick = {
+                    showReaderMenu = false
+                    if (onEdit != {}) onEdit() else onBack()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("发芽分析") },
+                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
+                onClick = {
+                    showReaderMenu = false
+                    onSendWithSkill(noteId ?: return@DropdownMenuItem, "insight_sprout")
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("在对话中讨论") },
+                leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, null) },
+                onClick = {
+                    showReaderMenu = false
+                    onSendToChat(noteId ?: return@DropdownMenuItem)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("分享") },
+                leadingIcon = { Icon(Icons.Default.Share, null) },
+                onClick = {
+                    showReaderMenu = false
+                    // 复制内容到剪贴板作为简易分享
+                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(content.text))
+                    scope.launch {
+                        snackbarHostState.showSnackbar("已复制到剪贴板", duration = SnackbarDuration.Short)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
-        },
-    ) { padding ->
+            DropdownMenuItem(
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    showReaderMenu = false
+                    showDeleteDialog = true
+                },
+            )
+        }
+
+        // 删除确认对话框
+        if (showDeleteDialog && noteId != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("删除笔记") },
+                text = { Text("确定要删除这条笔记吗？此操作不可撤销。") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteDialog = false
+                            scope.launch { repository.deleteNote(noteId) }
+                            onBack()
+                        },
+                    ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
+                },
+            )
+        }
+    } else {
+        // ════════════════════════════════════════
+        // 编辑模式（原有逻辑不变）
+        // ════════════════════════════════════════
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text(if (noteId == null) "新建笔记" else "编辑笔记") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            // 检测是否有未保存的更改
+                            val hasUnsavedChanges = content.text != lastSavedContentSnapshot &&
+                                content.text.isNotBlank() &&
+                                content.text != initialContent
+                            if (hasUnsavedChanges) {
+                                showUnsavedDialog = true
+                            } else {
+                                scope.launch { save() }
+                                onBack()
+                            }
+                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                    },
+                    actions = {
+                        // 预览/编辑模式切换
+                        IconButton(onClick = { isPreviewMode = !isPreviewMode }) {
+                            Icon(
+                                if (isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
+                                if (isPreviewMode) "编辑" else "预览",
+                                tint = AccentBlue,
+                            )
+                        }
+
+                        // 格式化工具栏切换
+                        IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
+                            Icon(Icons.Default.FormatBold, "格式化", tint = AccentBlue)
+                        }
+
+                        // AI 操作按钮（只在编辑已有笔记时显示）
+                        if (noteId != null) {
+                            IconButton(onClick = { showAiMenu = true }) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = AccentBlue)
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { scope.launch { save(showGraphInfo = true) } },
+                            enabled = !isSaving && content.text.isNotBlank(),
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AccentBlue)
+                            else Text("保存", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                        }
+
+                        // 在聊天中讨论按钮
+                        if (noteId != null) {
+                            TextButton(
+                                onClick = {
+                                    scope.launch { save() }
+                                    onSendToChat(noteId)
+                                },
+                                enabled = content.text.isNotBlank(),
+                            ) {
+                                Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
+                                Spacer(Modifier.width(4.dp))
+                                Text("讨论", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            },
+        ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -408,9 +627,10 @@ fun NoteEditorScreen(
                 }
             }
         }
+        }  // end else (编辑模式)
     }
 
-    // AI 操作弹窗
+    // AI 操作弹窗（编辑模式专用）
     if (showAiMenu && noteId != null) {
         AlertDialog(
             onDismissRequest = { showAiMenu = false },
@@ -625,5 +845,32 @@ private fun formatTimeAgo(timestamp: Long): String {
         diff < 3600_000L -> "${diff / 60_000}分钟前"
         diff < 86400_000L -> "${diff / 3600_000}小时前"
         else -> "${diff / 86400_000}天前"
+    }
+}
+
+/** 阅读模式底部操作按钮 */
+@Composable
+private fun ReaderActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = AccentBlue.copy(alpha = 0.1f),
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = AccentBlue,
+                modifier = Modifier.padding(10.dp).size(22.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

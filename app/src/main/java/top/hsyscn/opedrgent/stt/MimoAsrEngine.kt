@@ -469,27 +469,18 @@ class MimoAsrEngine(
 
         val apiKey = apiSettings.getApiKey()!!
 
-        // 构造请求体：OpenAI 兼容格式 + input_audio 多模态内容
-        // 注意：MiMO API 的 input_audio 格式为 {"type": "input_audio", "input_audio": {"data": "..."}}
+        // 构造请求体：纯音频 ASR 请求（MiMO ASR 网关要求不含 text prompt）
         val jsonBody = JSONObject().apply {
             put("model", MODEL_ID)
             put("max_tokens", 2048)
             put("temperature", 0.1)
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
-                    put("role", "system")
-                    put("content", "你是一个专业的语音转文字助手。请将用户提供的音频内容准确逐字转录为纯文本。保留原始语言和标点符号。只输出转录文本，不要添加任何解释、标题或额外内容。")
-                })
-                put(JSONObject().apply {
                     put("role", "user")
                     put("content", JSONArray().apply {
                         put(JSONObject().apply {
                             put("type", "input_audio")
                             put("input_audio", JSONObject().put("data", "data:audio/wav;base64,$base64Audio"))
-                        })
-                        put(JSONObject().apply {
-                            put("type", "text")
-                            put("text", "请转录这段音频的内容。")
                         })
                     })
                 })
@@ -570,6 +561,7 @@ class MimoAsrEngine(
             processingTimeMs = durationMs,
             engineType = EngineType.MIMO_ASR,
             modelUsed = MODEL_ID,
+            error = if (text.isEmpty() && errorMsg != null) errorMsg else null,
         )
     }
 
@@ -661,10 +653,6 @@ class MimoAsrEngine(
             put("max_tokens", 1024)
             put("temperature", 0.1f)
             put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "system")
-                    put("content", "你是语音转文字引擎。准确转录音频中的语音内容，只输出纯文本，不加任何解释。")
-                })
                 put(JSONObject().apply {
                     put("role", "user")
                     put("content", JSONArray().apply {
