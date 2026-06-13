@@ -398,6 +398,7 @@ class FullDuplexAudioEngine(
                     rate = scenario.defaultRate,
                     pitch = scenario.defaultPitch,
                     mimoVoice = voiceId,
+                    forceLocal = true,
                 )
             }
 
