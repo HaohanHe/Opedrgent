@@ -1733,13 +1733,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
-
-                            ctx.toolMessages.add(ChatMessage(
-                                role = Role.USER,
-                                content = org.json.JSONObject(mapOf("answers" to resultAnswers)).toString(),
-                                createdAt = System.currentTimeMillis(),
-                                toolCallId = tc.id,
-                            ))
+                            // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
                         } catch (e: Exception) {
                             DebugLog.e("ask_question error: ${e.message}", e)
                             _questionRequest.value = null
@@ -1803,13 +1797,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
-
-                            ctx.toolMessages.add(ChatMessage(
-                                role = Role.USER,
-                                content = resultMap,
-                                createdAt = System.currentTimeMillis(),
-                                toolCallId = tc.id,
-                            ))
+                            // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
                         } catch (e: Exception) {
                             DebugLog.e("ask_confirmation error: ${e.message}", e)
                             _confirmationRequest.value = null
