@@ -53,6 +53,24 @@ class WebSearchTool(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 
+    /**
+     * 智能截取：按段落边界截取，保留完整句子
+     */
+    private fun smartTruncate(text: String, maxLen: Int): String {
+        if (text.length <= maxLen) return text
+        val truncated = text.take(maxLen)
+        // 尝试在段落边界截断
+        val lastParagraph = truncated.lastIndexOf("\n\n")
+        if (lastParagraph > maxLen * 0.6) return truncated.substring(0, lastParagraph)
+        // 尝试在句子边界截断
+        val lastSentence = maxOf(truncated.lastIndexOf("。"), truncated.lastIndexOf(". "), truncated.lastIndexOf("！"), truncated.lastIndexOf("？"))
+        if (lastSentence > maxLen * 0.5) return truncated.substring(0, lastSentence + 1)
+        // 最后在空格处截断
+        val lastSpace = truncated.lastIndexOf(' ')
+        if (lastSpace > maxLen * 0.7) return truncated.substring(0, lastSpace)
+        return truncated
+    }
+
     private suspend fun translateQueryToEnglish(query: String, config: ApiConfig): String {
         val cached = translationCache[query]
         if (cached != null) {
@@ -125,7 +143,7 @@ class WebSearchTool(
         }
 
         DebugLog.i("web_search: query='$query'")
-        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 5)
+        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 3)
 
         val sourceLabel = if (searchResults.isNotEmpty()) {
             val first = searchResults.first()
@@ -152,7 +170,7 @@ class WebSearchTool(
             }
         }
 
-        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 3).coerceIn(1, 5)
+        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 1).coerceIn(1, 3)
         val fetchedResults = mutableListOf<String>()
         val fetchedSources = mutableListOf<String>()
         val toFetch = searchResults.take(maxFetch)
@@ -160,32 +178,19 @@ class WebSearchTool(
         coroutineScope {
             val deferreds = toFetch.map { result ->
                 async(Dispatchers.IO) {
+                    // 优先用 Jina Reader 抓取正文，失败则用摘要
                     val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
                     if (jinaResult != null && jinaResult.text.length > 100) {
                         val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
-                        val content = sanitized.content.take(4000)
+                        val content = smartTruncate(sanitized.content, 4000)
                         val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(jinaResult.title).let { if (it.isBlank()) result.title else it }
                         return@async Pair("\n--- 来源：${safeTitle} (${result.url}) ---\n$content\n", result.url)
                     }
 
-                    val fetched = runCatching { fetcher.fetchUrl(result.url) }.getOrNull()
-                    if (fetched != null && fetched.text.length > 50) {
-                        val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = result.url)
-                        val content = sanitized.content.take(4000)
-                        val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(fetched.title).let { if (it.isBlank()) result.url else it }
-                        return@async Pair("\n--- 来源：${safeTitle} ---\n$content\n", result.url)
-                    }
-
-                    val wvFetched = runCatching { getWebViewAgent().fetchUrl(result.url, timeoutMs = 20000L) }.getOrNull()
-                    if (wvFetched != null && wvFetched.text.length > 50) {
-                        val wvContent = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = result.url).content.take(4000)
-                        val wvSafeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(wvFetched.title).let { if (it.isBlank()) "未知来源" else it }
-                        return@async Pair("\n--- 来源（WebView降级）：$wvSafeTitle ---\n$wvContent\n", result.url)
-                    }
-
+                    // Jina 失败，用搜索摘要
                     if (result.snippet != null && result.snippet.isNotBlank()) {
-                        val effectiveSnippet = result.snippet.take(1500)
-                        return@async Pair("\n--- 来源：${result.title} (${result.url}) ---\n${effectiveSnippet}\n--- 注：仅获取到摘要，未能抓取正文 ---\n", result.url)
+                        val effectiveSnippet = smartTruncate(result.snippet, 1500)
+                        return@async Pair("\n--- 来源：${result.title} (${result.url}) ---\n${effectiveSnippet}\n", result.url)
                     }
 
                     null

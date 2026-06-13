@@ -294,7 +294,7 @@ object ContextCompressor {
 
         val tldrPrompt = """你是一个专业的对话摘要生成器。请将以下对话历史转换为结构化的 TLDR (Too Long; Didn't Read) 格式。
 
-## 对话历史 (${\turns.size} 轮)
+        ## 对话历史 (${turns.size} 轮)
 $turnsSummary
 
 ## 输出要求

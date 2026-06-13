@@ -143,7 +143,7 @@ fun RecordingCard(
                     Text(
                         text = when (recordingState) {
                             RecordingState.RECORDING -> "● 正在录音..."
-                            RecordingState.PAUSED → "⏸ 已暂停"
+                            RecordingState.PAUSED -> "⏸ 已暂停"
                             else -> fileName
                         },
                         fontSize = if (recordingState == RecordingState.RECORDING) 13.sp else 12.sp,

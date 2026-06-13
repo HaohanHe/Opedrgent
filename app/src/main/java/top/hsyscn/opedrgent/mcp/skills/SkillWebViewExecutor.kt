@@ -240,7 +240,9 @@ class SkillWebViewExecutor(private val context: Context) {
                 loadUrl("about:blank")
                 removeJavascriptInterface(CALLBACK_INTERFACE)
                 onPause()
-                onDestroy()
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                webView?.destroy()
             }
         } catch (e: Exception) {
             DebugLog.w("SkillWebViewExecutor: error destroying WebView: ${e.message}")
@@ -251,10 +253,6 @@ class SkillWebViewExecutor(private val context: Context) {
      * 检查设备是否支持 JS Skill 执行。
      */
     fun isSupported(): Boolean {
-        return try {
-            android.webkit.WebView.isSupported(context)
-        } catch (e: Exception) {
-            false
-        }
+        return true
     }
 }

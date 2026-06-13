@@ -74,7 +74,6 @@ import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.intelligence.TokenBudgetMonitor
-import top.hsyscn.opedrgent.security.FailClosedValidator
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
 import top.hsyscn.opedrgent.ui.components.QuestionRequest
@@ -179,18 +178,6 @@ data class CalendarSuggestion(
     val raw: String,
 )
 
-data class ToolPermissionRequest(
-    val toolName: String,
-    val toolDescription: String,
-    val paramsJson: String,
-    val requestId: String = java.util.UUID.randomUUID().toString(),
-)
-
-data class ToolPermissionResponse(
-    val requestId: String,
-    val allowed: Boolean,
-)
-
 private data class StreamResult(
     val content: String = "",
     val reasoning: String = "",
@@ -251,9 +238,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
     val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
-    // Gallery Skill 系统加载器（用于 run_js 工具执行 JS Skill）
-    private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
@@ -272,28 +256,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 每日回顾数据 */
     val dailyReview: StateFlow<DailyReview?> = _dailyReview.asStateFlow()
     
-    // Skills registry and prompt cache
-    private val skillRegistry = top.hsyscn.opedrgent.mcp.skills.SkillRegistry.getInstance().apply {
-        setIndexFile(java.io.File(app.filesDir, "skills_index.json"))
-    }
-
     // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
-    private val curatorService = CuratorService(skillRegistry, app)
+    private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
+    private val insightSproutEngine = InsightSproutEngine { prompt ->
+        val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+        LlmClient().chatCompletions(
+            config = apiConfig,
+            system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
+            messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
+        )
+    }
+    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine)
+    private val agentSwarm = top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor)
+    private val curatorService = CuratorService(skillLoader, app)
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
 
     /** AI 对话会话总数（供首页统计卡片使用） */
     val sessionCount: Int get() = _state.value.sessions.size
-
-    private val _toolPermissionRequest = MutableStateFlow<ToolPermissionRequest?>(null)
-    val toolPermissionRequest: StateFlow<ToolPermissionRequest?> = _toolPermissionRequest
-
-    private val _toolPermissionResponse = MutableSharedFlow<ToolPermissionResponse>(replay = 1)
-
-    fun respondToToolPermission(requestId: String, allowed: Boolean) {
-        _toolPermissionResponse.tryEmit(ToolPermissionResponse(requestId, allowed))
-    }
 
     private val _questionRequest = MutableStateFlow<QuestionRequest?>(null)
     val questionRequest: StateFlow<QuestionRequest?> = _questionRequest
@@ -455,11 +436,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // 主动推送引擎：记录应用打开事件
         behaviorTracker.track(BehaviorEvent.APP_OPENED)
 
-        // Load built-in skills
-        top.hsyscn.opedrgent.mcp.skills.BuiltinSkillLoader.loadBuiltinSkills(skillRegistry)
-        // Initialize skill prompt cache
-        top.hsyscn.opedrgent.mcp.skills.SkillPromptCache.initialize(app.cacheDir)
-
         // Curator: 启动时非阻塞检查是否需要运行维护（空闲触发）
         viewModelScope.launch(Dispatchers.IO) {
             val result = curatorService.maybeRunCurator()
@@ -488,7 +464,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshSessions() {
         val sessions = store.listSessions()
         sessionCache.clear()
-        sessions.forEach { sessionCache[it.id] = store.getSession(it.id)!! }
+        sessions.forEach { summary ->
+            val session = store.getSession(summary.id)
+            if (session != null) sessionCache[summary.id] = session
+        }
         _state.value = _state.value.copy(sessions = sessions)
     }
 
@@ -668,20 +647,77 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (text.isBlank()) return
         DebugLog.i("sendUserMessage: ${text.take(100)}")
 
-        val finalText = if (_state.value.deepResearchEnabled) {
-            buildString {
-                appendLine("请先将以下研究主题拆解为 3-5 个关键词/子问题，分别联网检索，最后综合回答。")
-                appendLine()
-                appendLine("用户问题：$text")
-            }
-        } else {
-            text.trim()
-        }
+        val finalText = text.trim()
 
         store.addMessage(sessionId, Role.USER, finalText)
         _state.value = _state.value.copy(current = store.getSession(sessionId))
         refreshSessions()
-        runModel(sessionId)
+
+        if (_state.value.deepResearchEnabled) {
+            runSwarm(sessionId, text)
+        } else {
+            runModel(sessionId)
+        }
+    }
+
+    /**
+     * AgentSwarm 模式：LLM 自主调度多子 Agent 完成复杂任务
+     */
+    private fun runSwarm(sessionId: String, userText: String) {
+        _state.value = _state.value.copy(
+            isStreaming = true,
+            streamingText = "正在启动多Agent协作...",
+            streamingSessionId = sessionId,
+            streamingToolParts = emptyList(),
+            streamingPhase = "",
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 构建对话上下文
+                val session = store.getSession(sessionId)
+                val context = session?.messages?.takeLast(5)?.joinToString("\n") { "${it.role}: ${it.textContent.take(200)}" } ?: ""
+
+                val apiConfig = apiSettings.getApiConfig() ?: return@launch
+                val result = agentSwarm.execute(
+                    request = userText,
+                    context = context,
+                    apiConfig = apiConfig,
+                    onProgress = { progress ->
+                        _state.value = _state.value.copy(streamingText = progress)
+                    },
+                )
+
+                val answer = if (result.agentOutputs.size > 1) {
+                    buildString {
+                        append(result.finalAnswer)
+                        appendLine("\n\n---\n**多Agent协作详情** (${result.agentOutputs.size}个Agent, 耗时${result.processingTimeMs}ms)")
+                        for (output in result.agentOutputs) {
+                            appendLine("- **${output.agentName}**: ${output.content.take(80)}...")
+                        }
+                    }
+                } else {
+                    result.finalAnswer
+                }
+
+                store.addMessage(sessionId, Role.ASSISTANT, answer)
+
+                _state.value = _state.value.copy(
+                    current = store.getSession(sessionId),
+                    isStreaming = false,
+                    streamingText = "",
+                )
+                refreshSessions()
+            } catch (e: Exception) {
+                DebugLog.e("runSwarm", "AgentSwarm 失败: ${e.message}", e)
+                store.addMessage(sessionId, Role.ASSISTANT, "多Agent执行失败: ${e.message}")
+                _state.value = _state.value.copy(
+                    current = store.getSession(sessionId),
+                    isStreaming = false,
+                    streamingText = "",
+                )
+            }
+        }
     }
 
     /**
@@ -1665,39 +1701,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ctx.allToolParts.addAll(pendingToolParts)
         _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
 
-        // FAIL-CLOSED 参数校验：在执行前检查所有工具调用的安全性
-        val rejectedToolIndices = mutableSetOf<Int>()
-        for ((idx, tc) in result.toolCalls.withIndex()) {
-            val parsedArgs: Map<String, String> = runCatching {
-                org.json.JSONObject(tc.arguments).let { json ->
-                    json.keys().asSequence().associateWith { json.opt(it).toString() }
-                }
-            }.getOrDefault(emptyMap())
-            val (passed, errorMsg) = FailClosedValidator.validateToolInputStringParams(tc.name, parsedArgs)
-            if (!passed) {
-                DebugLog.w("executeOneRound: FailClosedValidator 拒绝 tool=${tc.name} — $errorMsg")
-                val errorTp = pendingToolParts[idx].copy(state = pendingToolParts[idx].state.copy(
-                    status = ToolStateType.ERROR,
-                    error = "安全校验失败: $errorMsg",
-                ))
-                synchronized(ctx.allToolParts) {
-                    val pos = ctx.allToolParts.indexOfFirst { it.id == pendingToolParts[idx].id }
-                    if (pos >= 0) ctx.allToolParts[pos] = errorTp
-                }
-                ctx.toolMessages.add(ChatMessage(
-                    role = Role.USER,
-                    content = "[安全校验拒绝] $errorMsg",
-                    createdAt = System.currentTimeMillis(),
-                    toolCallId = tc.id,
-                ))
-                rejectedToolIndices.add(idx)
-            }
-        }
+        val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
 
         coroutineScope {
             result.toolCalls.forEachIndexed { idx, tc ->
-                // 跳过被 FAIL-CLOSED 校验拒绝的工具调用
-                if (idx in rejectedToolIndices) return@forEachIndexed
 
                 async(Dispatchers.IO) {
                     if (cancelled.get()) return@async
@@ -1866,8 +1873,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         return@async
                     }
 
+                    // ToolCallGuardrail: 检查是否陷入死循环
+                    val lastRecord = guardrail.getHistory().lastOrNull()
+                    if (lastRecord != null && lastRecord.toolName == tp.tool && !lastRecord.success) {
+                        val consecutiveFails = guardrail.getHistory().takeLastWhile { it.toolName == tp.tool && !it.success }.size
+                        if (consecutiveFails >= 3) {
+                            DebugLog.w("ToolCallGuardrail: 工具 '${tp.tool}' 连续失败 ${consecutiveFails} 次，跳过执行")
+                            val blockedTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.ERROR,
+                                error = "工具调用保护: ${tp.tool} 连续失败过多，已自动跳过",
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = blockedTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            return@async
+                        }
+                    }
+
                     val execResult = withContext(Dispatchers.IO) {
                         toolExecutor.execute(tp, ctx.config, system, useProviderSearch = isProviderWebSearchEnabled())
+                    }
+
+                    // ToolCallGuardrail: 记录调用结果
+                    val action = guardrail.record(
+                        toolName = tp.tool,
+                        args = tp.state.input.toString(),
+                        result = execResult.toolPart.state.output ?: "",
+                        success = execResult.toolPart.state.status != ToolStateType.ERROR,
+                    )
+                    when (action) {
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT -> {
+                            DebugLog.w("ToolCallGuardrail: HALT — 工具调用死循环检测，终止 Agent 循环")
+                            _state.value = _state.value.copy(
+                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到重复失败，已自动停止。",
+                            )
+                        }
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
+                            DebugLog.w("ToolCallGuardrail: BLOCK — 工具调用无进展")
+                        }
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
+                            DebugLog.w("ToolCallGuardrail: WARN — 工具 '${tp.tool}' 连续失败")
+                        }
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.ALLOW -> { }
                     }
 
                     val doneTp = execResult.toolPart
@@ -3467,31 +3516,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return t.take(max) + "…"
     }
 
-    private suspend fun executeWithPermission(
-        toolName: String,
-        desc: String,
-        params: String,
-        actualExecute: suspend () -> ToolResult,
-    ): ToolResult? {
-        val request = ToolPermissionRequest(
-            toolName = toolName,
-            toolDescription = desc,
-            paramsJson = params,
-        )
-        _toolPermissionRequest.emit(request)
-
-        try {
-            val response = _toolPermissionResponse.first { it.requestId == request.requestId }
-            return if (response.allowed) {
-                actualExecute()
-            } else {
-                null
-            }
-        } finally {
-            _toolPermissionRequest.emit(null)
-        }
-    }
-
     private fun setLoading(v: Boolean) {
         _state.value = _state.value.copy(loading = v)
     }
@@ -4446,6 +4470,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun startInterview(config: InterviewConfig) {
         viewModelScope.launch {
+            val apiConfig = apiSettings.getApiConfig() ?: return@launch
             try {
                 // 重置状态
                 interviewTranscript.clear()
@@ -4463,6 +4488,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val analysisResult = withContext(Dispatchers.IO) {
                         InterviewAgent.analyzeMaterials(
                             llmClient = llm,
+                            config = apiConfig,
                             materials = config.getMaterialsText(),
                             interviewType = config.type,
                         )
@@ -4479,6 +4505,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val firstQuestion = withContext(Dispatchers.IO) {
                     InterviewAgent.generateFirstQuestion(
                         llmClient = llm,
+                        apiConfig = apiConfig,
                         config = config,
                     )
                 }
@@ -4519,6 +4546,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val currentState = _interviewState.value
             if (currentState.phase != InterviewPhase.IN_PROGRESS || currentState.config == null) return@launch
+            val apiConfig = apiSettings.getApiConfig() ?: return@launch
 
             try {
                 // 记录候选人回答
@@ -4544,6 +4572,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val nextAction = withContext(Dispatchers.IO) {
                     InterviewAgent.processAnswer(
                         llmClient = llm,
+                        apiConfig = apiConfig,
                         config = currentState.config,
                         answer = answer,
                         currentQuestion = lastInterviewerMessage,
@@ -4581,7 +4610,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         )
                         interviewTranscript.add(endTurn)
 
-                        generateFinalReport(currentState.config)
+                        generateFinalReport(currentState.config, apiConfig)
                         return@launch
                     }
                 }
@@ -4591,6 +4620,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val coachFb = withContext(Dispatchers.IO) {
                         InterviewAgent.generateCoachFeedback(
                             llmClient = llm,
+                            apiConfig = apiConfig,
                             question = lastInterviewerMessage,
                             answer = answerTurn,
                         )
@@ -4625,21 +4655,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val currentState = _interviewState.value
             if (currentState.config == null) return@launch
+            val apiConfig = apiSettings.getApiConfig() ?: return@launch
 
-            generateFinalReport(currentState.config)
+            generateFinalReport(currentState.config, apiConfig)
         }
     }
 
     /**
      * 生成最终评估报告。
      */
-    private suspend fun generateFinalReport(config: InterviewConfig) {
+    private suspend fun generateFinalReport(config: InterviewConfig, apiConfig: top.hsyscn.opedrgent.settings.ApiConfig) {
         _interviewState.value = _interviewState.value.copy(phase = InterviewPhase.EVALUATING)
 
         try {
             val report = withContext(Dispatchers.IO) {
                 InterviewAgent.generateReport(
                     llmClient = llm,
+                    apiConfig = apiConfig,
                     config = config,
                     fullTranscript = interviewTranscript.toList(),
                 )

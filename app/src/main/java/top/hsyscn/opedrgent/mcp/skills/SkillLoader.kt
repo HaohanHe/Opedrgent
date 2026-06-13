@@ -14,7 +14,7 @@ import java.io.InputStream
  * 技能加载器 — 管理所有技能的生命周期
  *
  * 职责：
- * - 加载内置技能（assets/skills/*.md）
+ * - 加载内置技能（assets/skills 下的 .md 文件）
  * - 加载用户导入的技能（本地 / 远程 URL）
  * - 启用/禁用/删除技能
  * - 管理 API Key 等 Secret
@@ -70,17 +70,30 @@ class SkillLoader(private val context: Context) {
      */
     private fun loadBuiltinSkills(): List<StandardSkillDefinition> {
         return try {
-            val fileList = context.assets.list(ASSETS_SKILLS_DIR)
-                ?.filter { it.endsWith(".md") }
-                ?: emptyList()
+            val allEntries = context.assets.list(ASSETS_SKILLS_DIR)?.toList() ?: emptyList()
+            val mdFiles = allEntries.filter { it.endsWith(".md") }
+            val subDirs = allEntries.filter { !it.endsWith(".md") }
 
-            DebugLog.i("$TAG: 发现 ${fileList.size} 个内置技能文件")
+            val results = mutableListOf<StandardSkillDefinition>()
 
-            fileList.mapNotNull { fileName ->
-                loadBuiltinSkill(fileName)
-            }.also {
-                DebugLog.i("$TAG: 成功加载 ${it.size} 个内置技能")
+            for (fileName in mdFiles) {
+                loadBuiltinSkill(fileName)?.let { results.add(it) }
             }
+
+            for (dirName in subDirs) {
+                try {
+                    val subEntries = context.assets.list("$ASSETS_SKILLS_DIR/$dirName")?.toList() ?: emptyList()
+                    val skillMd = subEntries.firstOrNull { it.equals("SKILL.md", ignoreCase = true) }
+                    if (skillMd != null) {
+                        loadBuiltinSkillFromSubdir(dirName, skillMd)?.let { results.add(it) }
+                    }
+                } catch (e: Exception) {
+                    DebugLog.w("$TAG: 加载子目录技能失败 '$dirName' — ${e.message}")
+                }
+            }
+
+            DebugLog.i("$TAG: 成功加载 ${results.size} 个内置技能")
+            results
         } catch (e: Exception) {
             DebugLog.e("$TAG: 加载内置技能失败 — ${e.message}")
             emptyList()
@@ -93,15 +106,35 @@ class SkillLoader(private val context: Context) {
     private fun loadBuiltinSkill(fileName: String): StandardSkillDefinition? {
         return try {
             val content = context.assets.open("$ASSETS_SKILLS_DIR/$fileName")
-                .use(InputStream::readText)
+                .use { it.bufferedReader(Charsets.UTF_8).readText() }
 
-            SkillParser.parseSkillMd(
+            parseSkillMd(
                 content = content,
                 sourceType = SkillSourceType.BUILTIN,
                 sourcePath = "assets://$ASSETS_SKILLS_DIR/$fileName",
-            ).getOrThrow().copy(isBuiltIn = true)
+            )?.copy(isBuiltIn = true)
         } catch (e: Exception) {
             DebugLog.w("$TAG: 加载内置技能 '$fileName' 失败 — ${e.message}")
+            null
+        }
+    }
+
+    private fun loadBuiltinSkillFromSubdir(dirName: String, skillMd: String): StandardSkillDefinition? {
+        return try {
+            val content = context.assets.open("$ASSETS_SKILLS_DIR/$dirName/$skillMd")
+                .use { it.bufferedReader(Charsets.UTF_8).readText() }
+
+            val scriptsPath = "skills/$dirName/scripts"
+            parseSkillMd(
+                content = content,
+                sourceType = SkillSourceType.BUILTIN,
+                sourcePath = "assets://$ASSETS_SKILLS_DIR/$dirName/$skillMd",
+            )?.copy(
+                isBuiltIn = true,
+                localScriptsPath = scriptsPath,
+            )
+        } catch (e: Exception) {
+            DebugLog.w("$TAG: 加载子目录内置技能 '$dirName/$skillMd' 失败 — ${e.message}")
             null
         }
     }
@@ -114,19 +147,12 @@ class SkillLoader(private val context: Context) {
     suspend fun importFromUrl(url: String): Result<StandardSkillDefinition> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val definition = SkillParser.loadFromUrl(url).getOrThrow()
+                @Suppress("DEPRECATION") val urlObj = java.net.URL(url)
+                val content = urlObj.openStream().bufferedReader(Charsets.UTF_8).readText()
+                val definition = parseSkillMd(content, SkillSourceType.REMOTE_URL, url)
+                    ?: throw IllegalArgumentException("无法解析技能文件")
 
-                // 验证
-                val errors = SkillParser.validate(definition)
-                if (errors.isNotEmpty()) {
-                    throw IllegalArgumentException(
-                        "技能验证失败：\n${errors.joinToString("\n")}"
-                    )
-                }
-
-                // 保存到本地
                 saveImportedSkill(definition)
-
                 DebugLog.i("$TAG: 从 URL 导入成功 — ${definition.skillName}")
                 definition
             }.onFailure { e ->
@@ -144,21 +170,9 @@ class SkillLoader(private val context: Context) {
                     stream.bufferedReader(Charsets.UTF_8).readText()
                 } ?: throw IllegalArgumentException("无法读取文件")
 
-                val definition = SkillParser.parseSkillMd(
-                    content = content,
-                    sourceType = SkillSourceType.LOCAL_IMPORT,
-                    sourcePath = uri.toString(),
-                ).getOrThrow()
+                val definition = parseSkillMd(content, SkillSourceType.LOCAL_IMPORT, uri.toString())
+                    ?: throw IllegalArgumentException("无法解析技能文件")
 
-                // 验证
-                val errors = SkillParser.validate(definition)
-                if (errors.isNotEmpty()) {
-                    throw IllegalArgumentException(
-                        "技能验证失败：\n${errors.joinToString("\n")}"
-                    )
-                }
-
-                // 保存到本地
                 saveImportedSkill(definition)
 
                 DebugLog.i("$TAG: 从文件导入成功 — ${definition.skillName}")
@@ -174,7 +188,7 @@ class SkillLoader(private val context: Context) {
     private fun saveImportedSkill(definition: StandardSkillDefinition) {
         try {
             // 保存 SKILL.md 原文
-            val mdContent = SkillParser.serializeToMd(definition)
+            val mdContent = serializeToMd(definition)
             val file = File(importedSkillsDir, "${definition.skillName}.md")
             file.writeText(mdContent, Charsets.UTF_8)
 
@@ -211,7 +225,7 @@ class SkillLoader(private val context: Context) {
 
             runCatching {
                 val content = file.readText(Charsets.UTF_8)
-                SkillParser.parseSkillMd(content, entry.sourceType, entry.sourcePath).getOrThrow()
+                parseSkillMd(content, entry.sourceType, entry.sourcePath)
             }.getOrElse { e ->
                 DebugLog.w("$TAG: 解析导入技能 '${entry.skillName}' 失败 — ${e.message}")
                 null
@@ -243,7 +257,7 @@ class SkillLoader(private val context: Context) {
     fun deleteSkill(skillName: String): Boolean {
         val allSkills = runCatching {
             kotlinx.coroutines.runBlocking { loadAllSkills() }
-        }.getOrNull ?: return false
+        }.getOrNull() ?: return false
 
         val target = allSkills.find { it.skillName == skillName } ?: return false
 
@@ -313,7 +327,7 @@ class SkillLoader(private val context: Context) {
     fun buildSkillsSystemPrompt(): String {
         val skills = runCatching {
             kotlinx.coroutines.runBlocking { getEnabledSkills() }
-        }.getOrNull ?: return ""
+        }.getOrNull() ?: return ""
 
         if (skills.isEmpty()) return ""
 
@@ -405,6 +419,81 @@ class SkillLoader(private val context: Context) {
             skill.metadata.name.lowercase().contains(lowerQuery) ||
                 skill.metadata.description.lowercase().contains(lowerQuery) ||
                 skill.metadata.tags.any { it.lowercase().contains(lowerQuery) }
+        }
+    }
+
+    /**
+     * 解析 SKILL.md 格式的技能定义
+     */
+    private fun parseSkillMd(content: String, sourceType: SkillSourceType, sourcePath: String): StandardSkillDefinition? {
+        return try {
+            val frontmatter = mutableMapOf<String, String>()
+            val body: String
+            val lines = content.lines()
+
+            if (lines.firstOrNull()?.trim() == "---") {
+                val endIndex = lines.drop(1).indexOfFirst { it.trim() == "---" }
+                if (endIndex >= 0) {
+                    lines.drop(1).take(endIndex).forEach { line ->
+                        val colonIdx = line.indexOf(':')
+                        if (colonIdx > 0) {
+                            frontmatter[line.substring(0, colonIdx).trim()] =
+                                line.substring(colonIdx + 1).trim().removeSurrounding("\"").removeSurrounding("'")
+                        }
+                    }
+                    body = lines.drop(endIndex + 2).joinToString("\n").trim()
+                } else {
+                    body = content
+                }
+            } else {
+                body = content
+            }
+
+            val name = frontmatter["name"] ?: return null
+            val description = frontmatter["description"] ?: ""
+            val tags = frontmatter["tags"]?.split(",")?.map { it.trim() } ?: emptyList()
+            val category = frontmatter["category"]?.let { catName ->
+                SkillCategory.entries.find { it.name.equals(catName, ignoreCase = true) }
+            } ?: SkillCategory.GENERAL
+
+            StandardSkillDefinition(
+                metadata = SkillMetadata(
+                    name = name,
+                    description = description,
+                    version = frontmatter["version"] ?: "1.0.0",
+                    author = frontmatter["author"] ?: "",
+                    tags = tags,
+                    category = category,
+                    requireSecret = frontmatter["require-secret"]?.toBooleanStrictOrNull() ?: false,
+                    homepage = frontmatter["homepage"] ?: "",
+                ),
+                instructions = body,
+                sourceType = sourceType,
+                sourcePath = sourcePath,
+            )
+        } catch (e: Exception) {
+            DebugLog.w("$TAG: parseSkillMd 失败 — ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 序列化技能定义为 SKILL.md 格式
+     */
+    private fun serializeToMd(definition: StandardSkillDefinition): String {
+        return buildString {
+            appendLine("---")
+            appendLine("name: ${definition.metadata.name}")
+            appendLine("description: ${definition.metadata.description}")
+            appendLine("version: ${definition.metadata.version}")
+            if (definition.metadata.author.isNotEmpty()) appendLine("author: ${definition.metadata.author}")
+            if (definition.metadata.tags.isNotEmpty()) appendLine("tags: ${definition.metadata.tags.joinToString(", ")}")
+            appendLine("category: ${definition.metadata.category.name.lowercase()}")
+            if (definition.metadata.requireSecret) appendLine("require-secret: true")
+            if (definition.metadata.homepage.isNotEmpty()) appendLine("homepage: ${definition.metadata.homepage}")
+            appendLine("---")
+            appendLine()
+            append(definition.instructions)
         }
     }
 

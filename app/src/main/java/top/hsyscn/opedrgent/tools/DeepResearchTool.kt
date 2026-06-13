@@ -36,6 +36,21 @@ class DeepResearchTool(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 
+    /**
+     * 智能截取：按段落/句子边界截取，保留完整信息
+     */
+    private fun smartTruncate(text: String, maxLen: Int): String {
+        if (text.length <= maxLen) return text
+        val truncated = text.take(maxLen)
+        val lastParagraph = truncated.lastIndexOf("\n\n")
+        if (lastParagraph > maxLen * 0.6) return truncated.substring(0, lastParagraph)
+        val lastSentence = maxOf(truncated.lastIndexOf("。"), truncated.lastIndexOf(". "), truncated.lastIndexOf("！"), truncated.lastIndexOf("？"))
+        if (lastSentence > maxLen * 0.5) return truncated.substring(0, lastSentence + 1)
+        val lastSpace = truncated.lastIndexOf(' ')
+        if (lastSpace > maxLen * 0.7) return truncated.substring(0, lastSpace)
+        return truncated
+    }
+
     @Tool("deep_research")
     @ToolDescription("进行深度研究：多轮搜索并整合结果，生成结构化的研究报告。参数中 query 或 topic 为必填。")
     suspend fun executeDeepResearch(
@@ -65,39 +80,18 @@ class DeepResearchTool(
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "深度研究完成，但未找到相关结果。", endTime = System.currentTimeMillis())))
         }
 
-        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 5).coerceIn(1, 8)
+        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 3).coerceIn(1, 5)
         val fetchedTexts = mutableListOf<String>()
-        val warnings = mutableListOf<String>()
 
         results.take(maxFetch).forEach { result ->
-            if (usedWv) {
-                runCatching { getWebViewAgent().fetchUrl(result.url) }.onSuccess { wvFetched ->
-                    if (wvFetched != null) {
-                        val sanitized = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = result.url)
-                        fetchedTexts.add("\n来源：${wvFetched.title} (${result.url})\n${sanitized.content.take(5000)}\n")
-                    }
-                }.onFailure { e -> warnings.add("跳过：${result.url}（${e.message}）") }
-            } else {
-                val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
-                if (jinaResult != null && jinaResult.text.length > 100) {
-                    val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
-                    val title = jinaResult.title.takeIf { it.isNotBlank() } ?: result.title
-                    fetchedTexts.add("\n来源：$title (${result.url})\n${sanitized.content.take(5000)}\n")
-                    return@forEach
-                }
-
-                runCatching { fetcher.fetchUrl(result.url) }.onSuccess { fetched ->
-                    val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = result.url)
-                    val title = fetched.title?.takeIf { it.isNotBlank() } ?: result.url
-                    fetchedTexts.add("\n来源：$title (${result.url})\n${sanitized.content.take(5000)}\n")
-                }.onFailure { e ->
-                    DebugLog.w("deep_research fetch failed: ${result.url}, trying WebView")
-                    runCatching { getWebViewAgent().fetchUrl(result.url) }.onSuccess { wvFetched ->
-                        if (wvFetched != null) {
-                            fetchedTexts.add("\n来源（WebView降级）：${wvFetched.title} (${result.url})\n${PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = result.url).content.take(5000)}\n")
-                        }
-                    }.onFailure { e2 -> warnings.add("跳过：${result.url}（fetch:${e.message} wv:${e2.message}）") }
-                }
+            // 用 Jina Reader 抓取正文，失败则用摘要
+            val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
+            if (jinaResult != null && jinaResult.text.length > 100) {
+                val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
+                val title = jinaResult.title.takeIf { it.isNotBlank() } ?: result.title
+                fetchedTexts.add("\n来源：$title (${result.url})\n${smartTruncate(sanitized.content, 5000)}\n")
+            } else if (result.snippet != null && result.snippet.isNotBlank()) {
+                fetchedTexts.add("\n来源：${result.title} (${result.url})\n${smartTruncate(result.snippet, 2000)}\n")
             }
         }
 
@@ -112,18 +106,16 @@ class DeepResearchTool(
             appendLine("- 标注可信度评估")
             appendLine()
             appendLine("=== 来源材料 ===")
-            appendLine(combinedSource.take(15000))
+            appendLine(smartTruncate(combinedSource, 20000))
         }
 
         val summary = try {
             llm.chatCompletions(config = config, system = systemPrompt, messages = listOf(ChatMessage(role = Role.USER, content = summaryPrompt, createdAt = System.currentTimeMillis())))
         } catch (e: Exception) {
-            "深度研究摘要生成失败：${e.message}\n\n=== 原始材料 ===\n${combinedSource.take(3000)}"
+            "深度研究摘要生成失败：${e.message}\n\n=== 原始材料 ===\n${smartTruncate(combinedSource, 5000)}"
         }
 
-        val warningsText = if (warnings.isNotEmpty()) "\n\n[警告] 以下来源抓取失败已跳过：\n${warnings.joinToString("\n")}" else ""
-
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary + warningsText, endTime = System.currentTimeMillis())))
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary, endTime = System.currentTimeMillis())))
     }
 
     override fun getTools(): Map<String, ToolBinding> {

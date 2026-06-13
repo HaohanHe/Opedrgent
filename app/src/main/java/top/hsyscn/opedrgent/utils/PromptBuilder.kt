@@ -23,9 +23,7 @@ object PromptBuilder {
     }
     
     private fun buildSkillsSection(): String {
-        // Build skills index from SkillPromptCache
-        val skillRegistry = top.hsyscn.opedrgent.mcp.skills.SkillRegistry.getInstance()
-        return top.hsyscn.opedrgent.mcp.skills.SkillPromptCache.buildSkillsPrompt(skillRegistry)
+        return ""
     }
 
     fun buildDynamicPrompt(

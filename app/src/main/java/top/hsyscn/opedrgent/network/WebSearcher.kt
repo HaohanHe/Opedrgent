@@ -1171,38 +1171,52 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             .header("X-Subscription-Token", apiKey)
             .build()
 
-        return http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                DebugLog.w("WebSearcher Brave failed: HTTP ${resp.code}")
-                return emptyList()
-            }
-            val body = resp.body?.string().orEmpty()
-            if (body.isBlank()) return emptyList()
-
-            try {
-                val json = org.json.JSONObject(body)
-                val results = json.optJSONObject("web")?.optJSONArray("results") ?: return emptyList()
-                val out = ArrayList<SearchResult>()
-                for (i in 0 until results.length()) {
-                    if (out.size >= limit) break
-                    val item = results.getJSONObject(i)
-                    val title = item.optString("title", "").trim()
-                    val href = item.optString("url", "").trim()
-                    val snippet = item.optString("description", "").trim().ifBlank { null }
-                    if (href.isBlank() || title.isBlank()) continue
-                    out.add(SearchResult(
-                        title = StringUtils.sanitizeJsonNull(title),
-                        url = href,
-                        snippet = snippet?.let { StringUtils.sanitizeJsonNull(it) },
-                        sourceEngines = setOf("brave")
-                    ))
+        return try {
+            http.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    DebugLog.w("WebSearcher Brave failed: HTTP ${resp.code}")
+                    return@use emptyList()
                 }
-                DebugLog.i("WebSearcher Brave: ${out.size} results")
-                out
-            } catch (e: Exception) {
-                DebugLog.w("WebSearcher Brave parse error: ${e.message}")
-                emptyList()
+                val body = resp.body?.string().orEmpty()
+                if (body.isBlank()) return@use emptyList()
+
+                try {
+                    val json = org.json.JSONObject(body)
+                    val results = json.optJSONObject("web")?.optJSONArray("results") ?: return@use emptyList()
+                    val out = ArrayList<SearchResult>()
+                    for (i in 0 until results.length()) {
+                        if (out.size >= limit) break
+                        val item = results.getJSONObject(i)
+                        val title = item.optString("title", "").trim()
+                        val href = item.optString("url", "").trim()
+                        val snippet = item.optString("description", "").trim().ifBlank { null }
+                        if (href.isBlank() || title.isBlank()) continue
+                        out.add(SearchResult(
+                            title = StringUtils.sanitizeJsonNull(title),
+                            url = href,
+                            snippet = snippet?.let { StringUtils.sanitizeJsonNull(it) },
+                            sourceEngines = setOf("brave")
+                        ))
+                    }
+                    DebugLog.i("WebSearcher Brave: ${out.size} results")
+                    out
+                } catch (e: Exception) {
+                    DebugLog.w("WebSearcher Brave parse error: ${e.message}")
+                    emptyList()
+                }
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            DebugLog.e("WebSearcher Brave timeout: ${e.message}")
+            emptyList()
+        } catch (e: javax.net.ssl.SSLException) {
+            DebugLog.e("WebSearcher Brave SSL error: ${e.message}")
+            emptyList()
+        } catch (e: java.net.UnknownHostException) {
+            DebugLog.e("WebSearcher Brave DNS error: ${e.message}")
+            emptyList()
+        } catch (e: Exception) {
+            DebugLog.e("WebSearcher Brave error: ${e.javaClass.simpleName} - ${e.message}")
+            emptyList()
         }
     }
 
@@ -1804,7 +1818,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         hybridRankingEngine.initialize(query)
 
         val isZh = containsChinese(query)
-        val q = if (isZh) query else "$query site:zh.wikipedia.org OR site:en.wikipedia.org"
+        val q = query
 
         val container = SearchResultContainer()
         container.setQueryKeywords(query)

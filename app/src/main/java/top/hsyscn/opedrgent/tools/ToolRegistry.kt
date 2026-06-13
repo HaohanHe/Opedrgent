@@ -115,7 +115,7 @@ class ToolRegistry {
                 if (result is ToolResult) result
                 else ToolResult(toolPart = top.hsyscn.opedrgent.model.ToolPart(tool = "error", state = top.hsyscn.opedrgent.model.ToolState(status = top.hsyscn.opedrgent.model.ToolStateType.COMPLETED)), openUrl = null)
             } catch (e: Exception) {
-                ToolResult(toolPart = top.hsyscn.opedrgent.model.ToolPart(tool = "error", state = top.hsyscn.opedrgent.model.ToolState(status = top.hsyscn.opedrgent.model.ToolStateType.ERROR)), openUrl = null)
+                ToolResult(toolPart = top.hsyscn.opedrgent.model.ToolPart(tool = "error", state = top.hsyscn.opedrgent.model.ToolState(status = top.hsyscn.opedrgent.model.ToolStateType.ERROR, error = e.message ?: "Unknown error")), openUrl = null)
             } catch (e: Throwable) {
                 throw e
             }

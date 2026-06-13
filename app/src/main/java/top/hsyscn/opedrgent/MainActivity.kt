@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
-import top.hsyscn.opedrgent.security.ApprovalPolicy
 import top.hsyscn.opedrgent.ui.AppRoot
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 
@@ -16,7 +15,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ApprovalPolicy.init(this)
         enableEdgeToEdge()
         pendingShareText.value = extractSharedText(intent)
         pendingAction.value = extractAction(intent)
