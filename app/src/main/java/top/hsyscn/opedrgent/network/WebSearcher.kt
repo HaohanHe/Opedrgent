@@ -12,12 +12,15 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.jsoup.Jsoup
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.StringUtils
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.URLEncoder
 import java.net.URLDecoder
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import okhttp3.Dns
 
 data class SearchResult(
     val title: String,
@@ -50,7 +53,7 @@ val DEFAULT_ENGINE_CONFIGS: Map<String, EngineConfig> = mapOf(
     "sogou" to EngineConfig("sogou", weight = 0.9, timeoutSec = 6),
     "360" to EngineConfig("360", weight = 0.8, timeoutSec = 5),
     "yandex" to EngineConfig("yandex", weight = 0.7, timeoutSec = 8),
-    "jina" to EngineConfig("jina", weight = 1.1, timeoutSec = 10),
+    "jina" to EngineConfig("jina", weight = 1.1, timeoutSec = 8),
     "brave" to EngineConfig("brave", weight = 1.1, timeoutSec = 10),
     "tavily" to EngineConfig("tavily", weight = 1.0, timeoutSec = 10),
     "searxng" to EngineConfig("searxng", weight = 1.4, timeoutSec = 12),
@@ -99,6 +102,26 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     
     private val searchCache = LinkedHashMap<String, CacheEntry<List<SearchResult>>>(MAX_CACHE_SIZE, 0.75f, true)  // access-order
     private val vqdCache = LinkedHashMap<String, CacheEntry<String>>(MAX_VQD_CACHE_SIZE, 0.75f, true)
+
+    // IPv4优先的DNS策略（解决Jina等CDN在Android设备上IPv6超时问题）
+    private val ipv4PreferredDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val addresses = Dns.SYSTEM.lookup(hostname)
+            // 优先返回IPv4地址，避免IPv6连接超时
+            return addresses.sortedBy { if (it is Inet6Address) 1 else 0 }
+        }
+    }
+
+    // Jina专用客户端：IPv4优先 + 较短超时（避免IPv6超时拖慢整体搜索）
+    private val jinaClient by lazy {
+        http.newBuilder()
+            .dns(ipv4PreferredDns)
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val geocodingClient by lazy {
         OkHttpClient.Builder()
@@ -605,6 +628,16 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     return@use emptyList()
                 }
 
+                // 百度安全验证检测：返回HTML而非JSON时，标记引擎为CAPTCHA不可用
+                val trimmed = body.trimStart()
+                if (trimmed.startsWith("<") || body.contains("百度安全验证") ||
+                    body.contains("passport.baidu.com") || body.contains("verify/wappass.baidu.com")) {
+                    DebugLog.e("WebSearcher Baidu JSON: security verification detected, " +
+                        "body preview=${body.take(200)}")
+                    EngineStatusManager.handleError("baidu", Exception("CAPTCHA: security verification"))
+                    return@use emptyList()
+                }
+
                 try {
                     val json = org.json.JSONObject(body)
                     
@@ -729,6 +762,13 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     return@use emptyList()
                 }
                 val body = resp.body?.string().orEmpty()
+                // 百度安全验证检测：HTML模式下同样可能遇到
+                if (body.contains("百度安全验证") || body.contains("passport.baidu.com") ||
+                    body.contains("verify/wappass.baidu.com")) {
+                    DebugLog.e("WebSearcher Baidu HTML: security verification detected")
+                    EngineStatusManager.handleError("baidu", Exception("CAPTCHA: security verification"))
+                    return@use emptyList()
+                }
                 val doc = Jsoup.parse(body)
 
                 val items = doc.select("div.result.c-container, div[tpl], div.c-result")
@@ -1056,12 +1096,12 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     fun searchJina(query: String, limit: Int = 5, apiKey: String? = null): List<SearchResult> {
         val url = "https://s.jina.ai/search"
-        
+
         val jsonBody = org.json.JSONObject()
             .put("q", query)
             .put("count", limit)
             .toString()
-        
+
         DebugLog.i("WebSearcher Jina Search: $query")
 
         val reqBuilder = Request.Builder()
@@ -1074,8 +1114,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         }
         val req = reqBuilder.post(jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
 
+        // 使用IPv4优先的专用客户端，避免Android设备IPv6连接CDN超时
         return try {
-            http.newCall(req).execute().use { resp ->
+            jinaClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
                     val errorBody = resp.body?.string().orEmpty()
                     DebugLog.w("WebSearcher Jina Search failed: HTTP ${resp.code} - $errorBody")
@@ -1721,7 +1762,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             .header("X-No-Cache", "true")
             .build()
 
-        return http.newCall(req).execute().use { resp ->
+        // 使用IPv4优先的专用客户端，避免Android设备IPv6连接CDN超时
+        return jinaClient.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) {
                 DebugLog.w("WebSearcher Jina failed: HTTP ${resp.code}")
                 return null
@@ -1897,7 +1939,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
         val filterResult = container.filterRelevantResults(
             minKeywordMatch = 1,
-            minBm25Score = 0.3
+            minBm25Score = 0.1,   // 放宽BM25阈值，避免中文短查询被过度过滤
+            minResults = 2         // 至少保留2条结果，安全网
         )
 
         var finalResults = container.getSortedResults(limit.coerceAtMost(30))
