@@ -260,9 +260,14 @@ object AudioProcessor {
             var dataOffset = -1L
             var dataSize = 0
 
+            // 已消费字节数：RIFF header (12) + 后续 chunk 数据
+            var bytesRead = 12L
+
             while (true) {
                 val chunkId = dis.readInt()
                 val chunkSize = dis.readInt() and 0xFFFFFFFFL.toInt()
+                bytesRead += 8 // chunk header (id + size)
+
                 when (chunkId) {
                     0x666D7420 -> {
                         val audioFormat = dis.readShort().toInt() and 0xFFFF
@@ -272,25 +277,27 @@ object AudioProcessor {
                         dis.readShort()
                         bitsPerSample = dis.readShort().toInt() and 0xFFFF
 
+                        var fmtBytesRead = 16
                         if (audioFormat == WAVE_FORMAT_EXTENSIBLE && chunkSize >= 40) {
                             dis.readShort()
                             bitsPerSample = dis.readShort().toInt() and 0xFFFF
                             dis.skipBytes(8)
+                            fmtBytesRead = 28
                         }
 
-                        val remaining = chunkSize - 16
-                        if (remaining > 0) dis.skipBytes(remaining.coerceAtMost(remaining))
+                        val remaining = chunkSize - fmtBytesRead
+                        if (remaining > 0) dis.skipBytes(remaining)
+                        bytesRead += chunkSize
                     }
                     0x64617461 -> {
-                        dataOffset = (dis as java.io.InputStream).let { ins ->
-                            val totalRead = 12 + 8 + chunkSize + 8
-                            totalRead - chunkSize
-                        }.toLong()
+                        // dataOffset = 当前文件位置 = data chunk header 之后
+                        dataOffset = bytesRead
                         dataSize = chunkSize
                         break
                     }
                     else -> {
-                        if (chunkSize > 0) dis.skipBytes(chunkSize.coerceAtMost(chunkSize))
+                        if (chunkSize > 0) dis.skipBytes(chunkSize)
+                        bytesRead += chunkSize
                     }
                 }
             }
@@ -334,9 +341,10 @@ object AudioProcessor {
 
         return try {
             FileInputStream(filePath).use { fis ->
-                val header = parseWavHeader(fis) ?: run {
-                    DebugLog.w(TAG, "readWavFile: WAV header 解析失败")
-                    return null
+                val header = parseWavHeader(fis)
+                if (header == null) {
+                    DebugLog.w(TAG, "readWavFile: WAV header 解析失败，尝试跳过 header 读取原始 PCM")
+                    return readRawPcmFallback(file)
                 }
 
                 val expectedBytes = header.dataSize
@@ -381,6 +389,50 @@ object AudioProcessor {
     }
 
     // ==================== 格式转换工具 ====================
+
+    /**
+     * WAV header 解析失败时的 fallback：跳过 header 直接读取原始 PCM 数据。
+     *
+     * 假设：标准 WAV header 为 44 字节，音频格式为 16kHz mono 16bit。
+     * 适用于 header 损坏但 PCM 数据完整的场景。
+     */
+    private fun readRawPcmFallback(file: File): Pair<ShortArray, AudioMetadata>? {
+        val fileSize = file.length()
+        // 标准 WAV header 44 字节；如果文件太小则无法解析
+        val headerSize = if (fileSize > 44) 44 else if (fileSize > 12) 12 else 0
+        val dataSize = (fileSize - headerSize).toInt()
+        if (dataSize <= 0) {
+            DebugLog.w(TAG, "readRawPcmFallback: 无可用 PCM 数据 (fileSize=$fileSize, headerSize=$headerSize)")
+            return null
+        }
+
+        return try {
+            val bytes = file.readBytes()
+            val sampleCount = dataSize / 2
+            if (sampleCount <= 0) return null
+
+            val shortSamples = ShortArray(sampleCount)
+            ByteBuffer.wrap(bytes, headerSize, dataSize)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .asShortBuffer()
+                .get(shortSamples)
+
+            val metadata = AudioMetadata(
+                durationMs = if (TARGET_SAMPLE_RATE > 0) (sampleCount.toLong() * 1000L / TARGET_SAMPLE_RATE) else 0L,
+                sampleRate = TARGET_SAMPLE_RATE,
+                channels = TARGET_CHANNELS,
+                bitDepth = TARGET_BIT_DEPTH,
+                format = "audio/wav",
+                fileSizeBytes = fileSize,
+            )
+
+            DebugLog.i(TAG, "readRawPcmFallback 成功: 跳过 ${headerSize}B header, ${sampleCount} samples, ${metadata.durationMs}ms")
+            Pair(shortSamples, metadata)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "readRawPcmFallback 失败: ${e.message}", e)
+            null
+        }
+    }
 
     /**
      * 将 ShortArray (PCM 16bit 有符号整数) 转换为 FloatArray (归一化 [-1.0, 1.0])。
@@ -576,7 +628,11 @@ object AudioProcessor {
                         dos.writeInt(0x61746164)
                         dos.writeInt(pcmDataSize)
 
-                        for (s in shortData) dos.writeShort(s.toInt())
+                        for (s in shortData) {
+                            // 小端序写入：WAV 格式要求 PCM 数据为 little-endian
+                            dos.writeByte(s.toInt() and 0xFF)
+                            dos.writeByte((s.toInt() shr 8) and 0xFF)
+                        }
                     }
                 }
             }

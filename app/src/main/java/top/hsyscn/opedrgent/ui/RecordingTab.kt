@@ -353,8 +353,11 @@ fun RecordingTab(
                                 transcriptResult = transcribeWithAsrManager(wavFile, vm.asrManager)
                                 DebugLog.i("RecordingTab", "转写完成: text=${transcriptResult?.fullText?.length ?: 0}字, error=${transcriptResult?.error}")
 
-                                // 快速笔记模式：转写完成后自动保存，无需用户手动操作
+                                // 转写失败时向用户反馈错误信息
                                 val transcriptText = transcriptResult?.fullText ?: ""
+                                if (transcriptText.isBlank() && transcriptResult?.error != null) {
+                                    snackbar.showSnackbar(transcriptResult!!.error!!)
+                                }
                                 if (selectedMode == 0 && transcriptText.isNotBlank()) {
                                     try {
                                         val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" }
@@ -736,6 +739,12 @@ private suspend fun transcribeWithAsrManager(
 ): MeetingTranscriptResult {
     return try {
         val result = asrManager.transcribeFile(wavFile.absolutePath)
+        // 转写为空且有底层错误时，将错误信息传递给调用方
+        val error = if (result.text.isEmpty() && result.error != null) {
+            DebugLog.w("RecordingTab", "转写为空且有错误: ${result.error}")
+            "转写失败: ${result.error}"
+        } else null
+
         MeetingTranscriptResult(
             segments = result.segments.map { seg ->
                 MeetingSegment(
@@ -749,6 +758,7 @@ private suspend fun transcribeWithAsrManager(
             durationMs = result.durationMs,
             hasDiarization = false,
             speakers = setOf("Speaker_0"),
+            error = error,
         )
     } catch (e: Exception) {
         DebugLog.e("RecordingTab", "转录失败: ${e.message}", e)

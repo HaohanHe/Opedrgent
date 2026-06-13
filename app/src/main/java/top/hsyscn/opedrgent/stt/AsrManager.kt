@@ -168,10 +168,35 @@ class AsrManager(
         val keyPrefix = apiSettings.getApiKey()?.take(6)
         DebugLog.i(TAG, "createEngine: sttEngine=$sttEngine, hasApiKey=$hasKey, forceLocal=$forceLocal")
 
-        // 强制本地模式：跳过 MiMO，直接使用 Sherpa-ONNX
+        // 强制本地模式：优先 Sherpa-ONNX，本地不可用时降级到在线引擎（安全降级）
         if (forceLocal) {
-            DebugLog.i(TAG, "forceLocal=true，跳过 MiMO ASR，使用本地引擎")
-            return fallbackToLocalEngine("forceLocal 模式")
+            DebugLog.i(TAG, "forceLocal=true，优先使用本地引擎")
+            // 先尝试本地引擎
+            return try {
+                createLocalEngine()
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "本地引擎不可用 (${e.message})，安全降级到在线引擎")
+                // 本地不可用且有 API Key → 降级到在线
+                if (hasKey) {
+                    try {
+                        val mimoEngine = MimoAsrEngine(context, apiSettings)
+                        if (mimoEngine.initialize()) {
+                            DebugLog.i(TAG, "降级到 MiMO 在线引擎成功")
+                            return mimoEngine
+                        }
+                    } catch (ex: Exception) {
+                        DebugLog.w(TAG, "MiMO 降级也失败: ${ex.message}")
+                    }
+                }
+                // 全部不可用
+                val errorMsg = buildString {
+                    append("所有语音识别引擎均不可用：\n")
+                    append("1. Sherpa-ONNX 本地引擎: ${e.message}\n")
+                    append("2. MiMO 在线引擎: ${if (hasKey) "有 Key 但初始化失败" else "无 API Key"}\n")
+                    append("\n建议操作：在设置页下载本地识别模型 (PARAFORMER)")
+                }
+                throw IllegalStateException(errorMsg)
+            }
         }
 
         // 场景1：用户选择 MiMO 且有 API Key → 尝试创建 MiMO 引擎

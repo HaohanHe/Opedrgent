@@ -108,6 +108,8 @@ import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 import top.hsyscn.opedrgent.ui.components.InputMode
 import top.hsyscn.opedrgent.ui.components.InputModeBar
+import top.hsyscn.opedrgent.ui.components.SearchScopeChips
+import top.hsyscn.opedrgent.ui.components.SearchScope
 import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
 import top.hsyscn.opedrgent.ui.components.MessageBodyError
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
@@ -404,6 +406,13 @@ fun SessionScreen(
                 currentMode = inputMode,
                 onModeChange = { inputMode = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+
+            // Search scope chips
+            SearchScopeChips(
+                currentScope = state.searchScope,
+                onScopeChange = { vm.setSearchScope(it) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
             )
 
             // Input bar
