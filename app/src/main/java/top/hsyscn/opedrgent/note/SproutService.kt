@@ -118,13 +118,12 @@ class SproutService(private val apiSettings: ApiSettings) {
             val apiKey = apiSettings.getApiKey()
                 ?: return@withContext Result.failure(IllegalStateException("API Key 未设置"))
 
-            val baseUrl = apiSettings.getBaseUrl()?.removeSuffix("/")
-                ?: "https://api.xiaomimimo.com"
+            val baseUrl = apiSettings.getBaseUrl().removeSuffix("/")
 
             val jsonBody = JSONObject().apply {
                 put("model", modelId)
-                put("max_tokens", 4096)  // 叙事式需要更多 token
-                put("temperature", 0.4f)   // 稍高一点增加创造性
+                put("max_tokens", 4096)
+                put("temperature", 0.4)
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
@@ -137,8 +136,14 @@ class SproutService(private val apiSettings: ApiSettings) {
                 })
             }
 
+            val url = if (baseUrl.endsWith("/v1") || baseUrl.endsWith("/v2") || baseUrl.endsWith("/v3")) {
+                "$baseUrl/chat/completions"
+            } else {
+                "$baseUrl/v1/chat/completions"
+            }
+
             val request = Request.Builder()
-                .url("$baseUrl/v1/chat/completions")
+                .url(url)
                 .header("Authorization", "Bearer $apiKey")
                 .header("Content-Type", "application/json")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
@@ -146,7 +151,7 @@ class SproutService(private val apiSettings: ApiSettings) {
 
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    val error = "HTTP ${response.code}: ${response.body?.string()}"
+                    val error = "HTTP ${response.code}"
                     DebugLog.e(TAG, "发芽请求失败: $error")
                     return@withContext Result.failure(RuntimeException(error))
                 }
