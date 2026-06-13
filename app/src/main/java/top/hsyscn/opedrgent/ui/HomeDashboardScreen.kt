@@ -69,7 +69,6 @@ import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
-import top.hsyscn.opedrgent.intelligence.BuddySystem
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,7 +89,6 @@ fun HomeDashboardScreen(
     vm: MainViewModel,
     repository: NoteRepository,
     folderRepository: FolderRepository,
-    buddy: BuddySystem = remember { BuddySystem() },
     onNewNote: () -> Unit,
     onNoteClick: (Long) -> Unit,
     onSendToChat: (Long) -> Unit = {},
@@ -172,7 +170,7 @@ fun HomeDashboardScreen(
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
         item {
-            GreetingHeader(buddy = buddy)
+            GreetingHeader()
         }
 
         item { Spacer(modifier = Modifier.height(20.dp)) }
@@ -274,10 +272,10 @@ fun HomeDashboardScreen(
 
 // ==================== 子组件 ====================
 
-/** 顶部问候语（BuddySystem 动态生成） */
+/** 顶部问候语 */
 @Composable
-private fun GreetingHeader(buddy: BuddySystem) {
-    val greeting = buddy.generateGreeting()
+private fun GreetingHeader() {
+    val greeting = rememberGreeting()
     val dateStr = SimpleDateFormat("M月d日 E", Locale.CHINA).format(Date())
 
     Column {

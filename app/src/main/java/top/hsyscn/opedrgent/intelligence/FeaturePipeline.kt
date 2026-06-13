@@ -269,63 +269,6 @@ class PipelineAbortedException(val featureName: String) : RuntimeException("Pipe
 // ==================== 内置 Feature 实现 ====================
 
 /**
- * 内存写入 Feature — 自动将重要交互写入 MemoryDir。
- */
-class MemoryWriterFeature : BaseAgentFeature(
-    name = "memory_writer",
-    displayName = "记忆写入",
-    description = "自动将对话中的重要信息写入 MemoryDir",
-    priority = 300,
-) {
-    private lateinit var memoryDir: MemoryDir
-
-    fun init(memoryDir: MemoryDir) {
-        this.memoryDir = memoryDir
-    }
-
-    override suspend fun afterExecute(context: AgentContext, result: Any?, error: Throwable?): FeatureResult {
-        if (!::memoryDir.isInitialized) return FeatureResult.CONTINUE
-
-        // 自动记录用户输入作为对话记忆
-        if (context.userInput.length > 10) {
-            memoryDir.write(
-                path = "conversations/${context.sessionId.takeLast(8)}",
-                content = "用户: ${context.userInput.take(500)}",
-                importance = 0.3f,
-                tags = setOf("conversation", "user-input"),
-            )
-        }
-        return FeatureResult.CONTINUE
-    }
-}
-
-/**
- * 伙伴情绪 Feature — 根据交互更新 Buddy 情绪。
- */
-class BuddyMoodFeature : BaseAgentFeature(
-    name = "buddy_mood",
-    displayName = "伙伴情绪",
-    description = "根据交互结果更新 AI 伙伴的情绪状态",
-    priority = 400,
-) {
-    private lateinit var buddy: BuddySystem
-
-    fun init(buddy: BuddySystem) {
-        this.buddy = buddy
-    }
-
-    override suspend fun afterExecute(context: AgentContext, result: Any?, error: Throwable?): FeatureResult {
-        if (!::buddy.isInitialized) return FeatureResult.CONTINUE
-
-        buddy.recordInteraction(
-            topic = context.userInput.take(20),
-            positive = (error == null),
-        )
-        return FeatureResult.CONTINUE
-    }
-}
-
-/**
  * 成本追踪 Feature — 追踪 Token 使用量和估算成本。
  */
 class CostTrackerFeature : BaseAgentFeature(

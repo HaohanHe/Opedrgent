@@ -1,0 +1,623 @@
+﻿Starting a Gradle Daemon, 2 incompatible and 4 stopped Daemons could not be reused, use --status for details
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:compileDebugKotlin
+.\gradlew : e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgen
+t/intelligence/PushNotificationHelper.kt:70:16 'when' expression must be exhaus
+tive. Add an 'else' branch.
+所在位置 行:1 字符: 86
++ ... dio\jbr"; cd d:\OpATA\Opedrgent; .\gradlew assembleDebug 2>&1 | Out-F ...
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///D:/O... 'else' branch. 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/intelligen
+ce/UserBehaviorTracker.kt:142:13 Type argument for reified type parameter 'T' w
+as inferred to the intersection of ['Comparable<*>' & 'Serializable']. Reificat
+ion of an intersection type results in the common supertype being used. This ma
+y lead to subtle issues and an explicit type argument is encouraged.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/intelligen
+ce/UserBehaviorTracker.kt:142:39 Unresolved reference 'name'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:533:46 Unresolved reference 'hippo'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:534:45 Unresolved reference 'hippo'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:534:53 Unresolved reference 'prepareTurnContext'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:561:22 Unresolved reference 'hippo'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:569:26 Unresolved reference 'hippo'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/interview/
+VoiceConversationEngine.kt:622:22 Unresolved reference. None of the following c
+andidates is applicable because of a receiver type mismatch:
+fun CoroutineScope.launch(context: CoroutineContext = ..., start: CoroutineStar
+t = ..., block: suspend CoroutineScope.() -> Unit): Job
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorRole.kt:290:41 No 'get' operator method providing array access.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorRole.kt:326:9 Unresolved reference 'DebugLog'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:32:5 Primary constructor of data class must only have pr
+operty ('val' / 'var') parameters.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:33:5 Primary constructor of data class must only have pr
+operty ('val' / 'var') parameters.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:34:5 Primary constructor of data class must only have pr
+operty ('val' / 'var') parameters.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:35:5 Primary constructor of data class must only have pr
+operty ('val' / 'var') parameters.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:71:12 Suspend function 'suspend fun install(feature: Age
+ntFeature): Unit' can only be called from a coroutine or another suspend functi
+on.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:487:47 No parameter with name 'error' found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:733:13 Cannot access 'fun levenshteinDistance(a: String,
+ b: String): Int': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:734:13 Cannot access 'fun levenshteinDistance(a: String,
+ b: String): Int': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:735:20 Cannot access 'fun dist(a: String, b: String): In
+t': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:735:33 Only safe (?.) or non-null asserted (!!.) calls a
+re allowed on a nullable receiver of type 'EditorRole?'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:735:54 Cannot access 'fun dist(a: String, b: String): In
+t': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamService.kt:735:68 Only safe (?.) or non-null asserted (!!.) calls a
+re allowed on a nullable receiver of type 'EditorRole?'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:7:40 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:35:30 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:75:45 Unresolved reference 'getEnabledSkills'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:148:41 Unresolved reference 'getSkillById'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:155:28 Unresolved reference 'isEnabled'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:164:67 Argument type mismatch: actual type is 'Any'
+, but 'StandardSkillDefinition' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:204:41 Unresolved reference 'getEnabledSkills'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:207:48 Cannot infer type for value parameter 'skill
+'. Specify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:211:27 Unresolved reference 'metadata'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:214:27 Unresolved reference 'metadata'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:217:41 Unresolved reference 'metadata'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:217:63 Cannot infer type for value parameter 'tag'.
+ Specify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:223:63 Unresolved reference 'metadata'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:225:17 Cannot infer type for type parameter 'A'. Sp
+ecify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:227:23 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:228:35 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:230:20 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:232:51 Unresolved reference 'size'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/editor
+s/EditorTeamSkillAdapter.kt:232:92 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:23:30 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:109:37 Unresolved reference 'loadAllSkills'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:115:23 Method 'iterator()' is ambiguous for this expression.
+ Applicable candidates:
+fun <T> Enumeration<T>.iterator(): Iterator<T>
+fun <T> Iterator<T>.iterator(): Iterator<T>
+fun <K, V> Map<out K, V>.iterator(): Iterator<Map.Entry<K, V>>
+fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry
+<K, V>>
+fun CharSequence.iterator(): CharIterator
+fun BufferedInputStream.iterator(): ByteIterator
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:132:33 Unresolved reference 'setSkillEnabled'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:147:59 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:167:21 No 'set' operator method providing array access.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:182:21 No 'set' operator method providing array access.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:199:25 No 'set' operator method providing array access.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/CuratorService.kt:305:57 Unresolved reference 'buildSkillsSystemPrompt'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/GalleryBridge.kt:409:13 'when' expression must be exhaustive. Add the 'TEXT', 
+'HTML', 'IMAGE', 'WEBVIEW' branches or an 'else' branch.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/GalleryBridge.kt:410:31 Unresolved reference 'ResultType'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/GalleryBridge.kt:413:31 Unresolved reference 'ResultType'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/GalleryBridge.kt:416:31 Unresolved reference 'ResultType'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/GalleryBridge.kt:421:31 Unresolved reference 'ResultType'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillCurator.kt:28:30 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillCurator.kt:94:35 Unresolved reference 'getSkillById'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillDefinition.kt:42:12 Redeclaration:
+enum class SkillCategory : Enum<SkillCategory>
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillLoader.kt:427:1 Syntax error: Unclosed comment.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillModelUnifier.kt:176:22 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillModelUnifier.kt:199:44 Unresolved reference 'getSkillById'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillModelUnifier.kt:240:16 'when' expression must be exhaustive. Add the 'WRI
+TING', 'PRODUCTIVITY', 'CREATIVE', 'DEVELOPMENT' branches or an 'else' branch.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillModelUnifier.kt:277:22 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillSystem.kt:74:12 Redeclaration:
+enum class SkillCategory : Enum<SkillCategory>
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillWebViewExecutor.kt:243:17 Unresolved reference 'onDestroy'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/skills
+/SkillWebViewExecutor.kt:255:36 Unresolved reference 'isSupported'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/tools/
+ToolRegistry.kt:116:33 Unresolved reference 'T'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/tools/
+ToolRegistry.kt:269:17 Only safe (?.) or non-null asserted (!!.) calls are allo
+wed on a nullable receiver of type 'Tool<*, *>?'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/mcp/tools/
+ToolRegistry.kt:269:26 Receiver type 'Tool<*, *>?' contains star projection whi
+ch prohibits the use of 'suspend fun execute(args: TArgs): ToolResult<TResult>'
+.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/network/To
+olExecutor.kt:31:40 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/network/To
+olExecutor.kt:48:30 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/network/To
+olExecutor.kt:132:42 Unresolved reference 'score'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/network/To
+olExecutor.kt:132:91 Unresolved reference 'MEDIUM'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/network/To
+olExecutor.kt:134:70 Unresolved reference 'description'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/security/A
+pprovalPolicy.kt:197:34 Argument type mismatch: actual type is 'RegexOption', b
+ut 'Pattern' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/stt/Meetin
+gTranscriptBridge.kt:72:17 No parameter with name 'category' found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/stt/Meetin
+gTranscriptBridge.kt:73:17 No parameter with name 'tags' found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/stt/Meetin
+gTranscriptBridge.kt:77:17 No parameter with name 'metadata' found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/stt/Meetin
+gTranscriptBridge.kt:182:29 Unresolved reference 'segments'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunI
+ntentTool.kt:51:69 Unresolved reference 'take'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:7:40 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:32:30 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:60:60 Unresolved reference 'take'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:79:29 Unresolved reference 'getSecret'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:159:37 Unresolved reference 'loadAllSkills'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:160:33 Cannot infer type for value parameter 'skill'. Specify it expli
+citly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:162:23 Unresolved reference 'localScriptsPath'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:165:23 Unresolved reference 'isBuiltIn'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/tools/RunJ
+sTool.kt:167:48 Unresolved reference 'skillName'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:193:17 Unresolved reference 'not' for operator '!'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:193:26 Expression 'isCancelled' of type 'Boolean' cannot be invoke
+d as a function. Function 'invoke()' is not found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:195:38 Unresolved reference 'finalOutput'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:196:40 Unresolved reference 'totalDurationMs'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:199:13 Unresolved reference 'DebugLog'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:202:13 Unresolved reference 'DebugLog'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:281:26 Unresolved reference 'TopAppBarDefaults'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:486:33 Unresolved reference 'service'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:488:33 Unresolved reference 'isRunningPipeline'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:489:33 'val' cannot be reassigned.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:490:33 Unresolved reference 'showSnackbar'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:554:29 Argument type mismatch: actual type is 'List<PlanStep> & Li
+st<PlanStep>', but 'List<ERROR CLASS: Symbol not found for PlanStep>' was expec
+ted.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:760:17 Unresolved reference 'PlanStep'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:780:23 Cannot infer type for type parameter 'T'. Specify it explic
+itly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:780:23 Unresolved reference. None of the following candidates is a
+pplicable because of a receiver type mismatch:
+fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit): Unit
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:780:47 Cannot infer type for type parameter 'T'. Specify it explic
+itly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:781:45 Unresolved reference 'role'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:797:39 Cannot infer type for type parameter 'T'. Specify it explic
+itly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/EditorT
+eamScreen.kt:797:39 Unresolved reference. None of the following candidates is a
+pplicable because of a receiver type mismatch:
+val <T> List<T>.lastIndex: Int
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/HomeDas
+hboardScreen.kt:22:43 Cannot access 'val RowColumnParentData?.weight: Float': i
+t is internal in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/HomeDas
+hboardScreen.kt:471:14 Expression 'weight' of type 'Float' cannot be invoked as
+ a function. Function 'invoke()' is not found.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/ImportF
+ileScreen.kt:17:43 Cannot access 'val RowColumnParentData?.weight: Float': it i
+s internal in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:136:37 Unresolved reference 'InterviewPreparingScreen'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:141:38 Unresolved reference 'InterviewSessionScreen'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:149:37 Unresolved reference 'InterviewReportScreen'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:223:21 Unresolved reference 'ModeSelectionCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:232:21 Unresolved reference 'ModeSelectionCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:361:39 Unresolved reference 'difficultyToInt'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:475:42 Unresolved reference 'difficultyFromInt'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:475:60 Unresolved reference 'difficultyToInt'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:498:17 Syntax error: Expecting an element.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:502:13 'fun item(key: Any? = ..., contentType: Any? = ..., content:
+ ComposableFunction1<LazyItemScope, Unit>): Unit' cannot be called in this cont
+ext with an implicit receiver. Use an explicit receiver if necessary.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:508:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:511:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:521:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:589:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:665:30 Syntax error: Unexpected tokens (use ';' to separate express
+ions on the same line).
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:684:30 Syntax error: Unexpected tokens (use ';' to separate express
+ions on the same line).
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:703:30 Syntax error: Unexpected tokens (use ';' to separate express
+ions on the same line).
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:727:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:799:21 Unresolved reference 'InterviewTimer'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:843:21 Unresolved reference 'InterviewBubble'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:850:25 Unresolved reference 'CoachFeedbackCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:857:25 Unresolved reference 'ThinkingIndicator'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:863:13 Unresolved reference 'DuplexStatusBar'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:873:17 Unresolved reference 'DuplexTextInputBar'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:875:51 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:886:17 Unresolved reference 'DuplexControlPanel'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:936:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:982:25 Unresolved reference 'ScoreBadge'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:983:25 Unresolved reference 'ScoreBadge'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:984:25 Unresolved reference 'ScoreBadge'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1014:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1033:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1073:18 Unresolved reference 'widthIn'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1082:18 None of the following candidates is applicable:
+
+fun Modifier.background(color: Color, shape: Shape = ...): Modifier:
+  Argument type mismatch: actual type is 'Any', but 'Color' was expected.
+
+fun Modifier.background(brush: Brush, shape: Shape = ..., alpha: Float = ...): 
+Modifier:
+  Argument type mismatch: actual type is 'Any', but 'Brush' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1120:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1168:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1259:17 Unresolved reference 'VoiceInputArea'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1306:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1352:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1401:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1441:46 'if' must have both main and 'else' branches when used as a
+n expression.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1441:66 Syntax error: Expecting ')'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1441:68 Syntax error: Unexpected tokens (use ';' to separate expres
+sions on the same line).
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1442:25 Unresolved reference 'modifier'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1442:56 Syntax error: Unexpected tokens (use ';' to separate expres
+sions on the same line).
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1443:21 Syntax error: Expecting an element.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1516:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1584:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1602:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1654:21 Unresolved reference 'ScoreCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1660:25 Unresolved reference 'SummaryCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1667:25 Unresolved reference 'DimensionsChart'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1674:25 Unresolved reference 'EvaluationSection'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1685:25 Unresolved reference 'EvaluationSection'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1696:25 Unresolved reference 'EvaluationSection'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1707:25 Unresolved reference 'TranscriptViewer'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1764:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1825:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1853:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1870:17 Unresolved reference 'DimensionBar'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1880:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1938:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:1991:1 Modifier 'private' is not applicable to 'local function'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2028:27 Argument type mismatch: actual type is 'List<DialogueTurn>'
+, but 'Int' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2028:45 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2028:45 Argument type mismatch: actual type is 'String', but 'Funct
+ion1<Int, Any>?' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2028:71 Unresolved reference 'it'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2034:49 Unresolved reference 'role'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2039:53 Unresolved reference 'role'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2042:54 Unresolved reference 'role'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2045:49 Unresolved reference 'content'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2052:29 Operator '!=' cannot be applied to 'Int' and 'DialogueTurn'
+.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Intervi
+ewScreen.kt:2060:2 Syntax error: Expecting '}'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Knowled
+geBaseScreen.kt:581:49 Unresolved reference 'CircleShape'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/MainVie
+wModel.kt:121:40 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/MainVie
+wModel.kt:255:63 Unresolved reference 'SkillLoader'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Session
+Screen.kt:95:33 Unresolved reference 'SttProgressState'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Session
+Screen.kt:96:33 Unresolved reference 'SttUiState'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Session
+Screen.kt:105:43 Unresolved reference 'AIMessageCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/Session
+Screen.kt:302:43 Unresolved reference 'AIMessageCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/ChatComponents.kt:81:17 Unresolved reference 'AudioClipPlayerCard'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/ChatComponents.kt:230:32 Cannot access 'fun formatDuration(millis: Long): S
+tring': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/ChatComponents.kt:236:37 Cannot access 'fun formatDuration(millis: Long): S
+tring': it is private in file.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/ChatComponents.kt:254:1 Modifier 'private' is not applicable to 'local func
+tion'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:101:26 Cannot infer type for type parameter 'T'. Spec
+ify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:102:9 None of the following candidates is applicable:
+
+constructor<T>(initialValue: T): AnchoredDraggableState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No parameter with name 'positionalThreshold' found.
+  No parameter with name 'velocityThreshold' found.
+
+
+> Task :app:compileDebugKotlin FAILED
+constructor<T>(initialValue: T, anchors: DraggableAnchors<T>): AnchoredDraggabl
+eState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No parameter with name 'positionalThreshold' found.
+  No parameter with name 'velocityThreshold' found.
+  No value passed for parameter 'anchors'.
+
+constructor<T>(initialValue: T, confirmValueChange: (T) -> Boolean): AnchoredDr
+aggableState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No parameter with name 'positionalThreshold' found.
+  No parameter with name 'velocityThreshold' found.
+  No value passed for parameter 'confirmValueChange'.
+
+constructor<T>(initialValue: T, anchors: DraggableAnchors<T>, confirmValueChang
+e: (T) -> Boolean = ...): AnchoredDraggableState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No parameter with name 'positionalThreshold' found.
+  No parameter with name 'velocityThreshold' found.
+  No value passed for parameter 'anchors'.
+
+fun <T> AnchoredDraggableState(initialValue: T, positionalThreshold: (Float) ->
+ Float, velocityThreshold: () -> Float, snapAnimationSpec: AnimationSpec<Float>
+, decayAnimationSpec: DecayAnimationSpec<Float>, confirmValueChange: (T) -> Boo
+lean = ...): AnchoredDraggableState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No value passed for parameter 'snapAnimationSpec'.
+  No value passed for parameter 'decayAnimationSpec'.
+
+fun <T> AnchoredDraggableState(initialValue: T, anchors: DraggableAnchors<T>, p
+ositionalThreshold: (Float) -> Float, velocityThreshold: () -> Float, snapAnima
+tionSpec: AnimationSpec<Float>, decayAnimationSpec: DecayAnimationSpec<Float>, 
+confirmValueChange: (T) -> Boolean = ...): AnchoredDraggableState<T>:
+  No parameter with name 'anchorsBuilder' found.
+  No value passed for parameter 'anchors'.
+  No value passed for parameter 'snapAnimationSpec'.
+  No value passed for parameter 'decayAnimationSpec'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:105:17 Cannot infer type for type parameter 'T'. Spec
+ify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:106:21 Unresolved reference 'anchorPosition'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:107:21 Unresolved reference 'anchorPosition'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:110:37 Cannot infer type for value parameter 'distanc
+e'. Specify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:116:35 Unresolved reference 'currentValue'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:117:28 Unresolved reference 'currentValue'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:123:23 Argument type mismatch: actual type is 'Modifi
+er', but 'Float' was expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:123:38 Function invocation 'offset(...)' expected.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:143:22 Cannot infer type for type parameter 'T'. Spec
+ify it explicitly.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecommendationCard.kt:166:52 None of the following candidates is applicable
+:
+
+fun Modifier.padding(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp 
+= ...): Modifier:
+  No parameter with name 'vertical' found.
+
+fun Modifier.padding(horizontal: Dp = ..., vertical: Dp = ...): Modifier:
+  No parameter with name 'end' found.
+
+fun Modifier.padding(all: Dp): Modifier:
+  No parameter with name 'vertical' found.
+  No parameter with name 'end' found.
+  No value passed for parameter 'all'.
+
+fun Modifier.padding(paddingValues: PaddingValues): Modifier:
+  No parameter with name 'vertical' found.
+  No parameter with name 'end' found.
+  No value passed for parameter 'paddingValues'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/ui/compone
+nts/RecordingCard.kt:146:51 Syntax error: Expecting '->'.
+e: file:///D:/OpATA/Opedrgent/app/src/main/java/top/hsyscn/opedrgent/utils/Cont
+extCompressor.kt:297:12 Syntax error: Expecting an expression.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.Gradle
+CompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 29s
+30 actionable tasks: 1 executed, 29 up-to-date
