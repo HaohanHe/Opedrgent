@@ -17,6 +17,7 @@ import top.hsyscn.opedrgent.tools.ReadUrlTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
 import top.hsyscn.opedrgent.tools.RunIntentTool
 import top.hsyscn.opedrgent.tools.RunJsTool
+import top.hsyscn.opedrgent.tools.RunCalendarTool
 import top.hsyscn.opedrgent.tools.SpeechToTextTool
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
@@ -60,6 +61,8 @@ class ToolExecutor(
             register(RunJsTool(context, skillLoader))
         }
         register(RunIntentTool(context))
+        // 日历直接读写工具（通过 ContentProvider 操作系统日历）
+        register(RunCalendarTool(context))
         if (insightSproutEngine != null) {
             register(InsightSproutTool(insightSproutEngine))
         }

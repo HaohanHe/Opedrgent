@@ -79,6 +79,7 @@ import top.hsyscn.opedrgent.stt.MeetingSegment
 import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
 import top.hsyscn.opedrgent.ui.components.RecordingCard
 import top.hsyscn.opedrgent.ui.components.RecordingState
+import top.hsyscn.opedrgent.storage.NotificationHelper
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.TextDark
@@ -127,6 +128,8 @@ fun RecordingTab(
     var isProcessing by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var savedToNote by remember { mutableStateOf(false) }
+    var autoSaved by remember { mutableStateOf(false) }          // 是否已自动保存
+    var autoSavedNoteId by remember { mutableStateOf(0L) }      // 自动保存的笔记 ID
 
     val audioRecord = remember { mutableStateOf<AudioRecord?>(null) }
     val tempFilePath = remember { mutableStateOf<String?>(null) }
@@ -143,6 +146,8 @@ fun RecordingTab(
         amplitude = 0f
         transcriptResult = null
         savedToNote = false
+        autoSaved = false
+        autoSavedNoteId = 0L
 
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -232,10 +237,12 @@ fun RecordingTab(
                     val title = noteTitle.ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" }
                     val text = transcriptResult?.fullText ?: ""
                     if (text.isNotBlank()) {
-                        vm.createNoteFromText(title, text, NoteType.MEETING)
-                        savedToNote = true
-                        showSaveDialog = false
-                        scope.launch { snackbar.showSnackbar("已保存为笔记") }
+                        scope.launch {
+                            vm.createNoteFromText(title, text, NoteType.MEETING)
+                            savedToNote = true
+                            showSaveDialog = false
+                            snackbar.showSnackbar("已保存为笔记")
+                        }
                     }
                 }) { Text("保存") }
             },
@@ -345,6 +352,27 @@ fun RecordingTab(
                                 DebugLog.i("RecordingTab", "开始转写, 引擎类型=${vm.asrManager.getCurrentEngineName()}")
                                 transcriptResult = transcribeWithAsrManager(wavFile, vm.asrManager)
                                 DebugLog.i("RecordingTab", "转写完成: text=${transcriptResult?.fullText?.length ?: 0}字, error=${transcriptResult?.error}")
+
+                                // 快速笔记模式：转写完成后自动保存，无需用户手动操作
+                                val transcriptText = transcriptResult?.fullText ?: ""
+                                if (selectedMode == 0 && transcriptText.isNotBlank()) {
+                                    try {
+                                        val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" }
+                                        val noteId = vm.createNoteFromText(autoTitle, transcriptText, NoteType.MEETING)
+                                        autoSaved = true
+                                        autoSavedNoteId = noteId
+                                        savedToNote = true
+                                        NotificationHelper.showAutoSaveNote(
+                                            context = context,
+                                            noteId = noteId,
+                                            title = autoTitle,
+                                            preview = transcriptText,
+                                        )
+                                        DebugLog.i("RecordingTab", "自动保存笔记成功, id=$noteId")
+                                    } catch (e: Exception) {
+                                        DebugLog.e("RecordingTab", "自动保存失败: ${e.message}", e)
+                                    }
+                                }
 
                                 wavFile.delete()
                                 File(pcmPath).delete()
@@ -458,16 +486,17 @@ fun RecordingTab(
                             // Title bar
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = if (autoSaved) Icons.Default.CheckCircle else Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = AccentBlue,
+                                    tint = if (autoSaved) Color(0xFF4CAF50) else AccentBlue,
                                     modifier = Modifier.size(20.dp),
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "转录结果",
+                                    text = if (autoSaved) "已自动保存" else "转录结果",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
+                                    color = if (autoSaved) Color(0xFF4CAF50) else TextDark,
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
@@ -475,6 +504,30 @@ fun RecordingTab(
                                     color = TextGrey,
                                     fontSize = 12.sp,
                                 )
+                            }
+
+                            // 自动保存成功提示
+                            if (autoSaved) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "笔记已自动保存，可直接编辑或继续录音",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF4CAF50),
+                                    )
+                                }
                             }
 
                             Spacer(Modifier.height(12.dp))
@@ -513,26 +566,34 @@ fun RecordingTab(
                                 }
 
                                 if (selectedMode == 0) {
-                                    // 快速笔记模式：保存为笔记
-                                    Button(
-                                        onClick = {
-                                            if (!savedToNote) {
-                                                showSaveDialog = true
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (savedToNote) Color(0xFF4CAF50) else AccentBlue,
-                                        ),
-                                        modifier = Modifier.weight(1f).height(44.dp),
-                                        enabled = !savedToNote,
-                                    ) {
-                                        Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(if (savedToNote) "已保存" else "保存笔记", fontWeight = FontWeight.Medium)
+                                    // 快速笔记模式：自动保存后显示"编辑"，未保存时显示"保存"
+                                    if (autoSaved) {
+                                        // 已自动保存 -> 编辑按钮，点击跳转到笔记页
+                                        Button(
+                                            onClick = { onNavigateToNotes() },
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                                            modifier = Modifier.weight(1f).height(44.dp),
+                                        ) {
+                                            Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("编辑", fontWeight = FontWeight.Medium)
+                                        }
+                                    } else {
+                                        // 未自动保存（异常路径）-> 仍显示保存按钮
+                                        Button(
+                                            onClick = { showSaveDialog = true },
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                                            modifier = Modifier.weight(1f).height(44.dp),
+                                        ) {
+                                            Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("保存笔记", fontWeight = FontWeight.Medium)
+                                        }
                                     }
                                 } else {
-                                    // 会议录音模式：AI 总结
+                                    // 会议录音模式：AI 总结（不变）
                                     Button(
                                         onClick = {
                                             vm.sendUserMessage("请帮我总结以下会议内容：\n\n${result.fullText}")
@@ -549,20 +610,61 @@ fun RecordingTab(
                                 }
                             }
 
-                            // 继续录音按钮
-                            Spacer(Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    transcriptResult = null
-                                    savedToNote = false
-                                    startRecording()
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().height(44.dp),
-                            ) {
-                                Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("继续录音", fontWeight = FontWeight.Medium)
+                            // 自动保存后的操作行：丢弃 + 继续录音
+                            if (autoSaved && selectedMode == 0) {
+                                Spacer(Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            // 丢弃/撤销自动保存的笔记
+                                            scope.launch {
+                                                vm.deleteNote(autoSavedNoteId)
+                                                autoSaved = false
+                                                autoSavedNoteId = 0L
+                                                savedToNote = false
+                                                snackbar.showSnackbar("已撤销保存")
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f).height(44.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE57373)),
+                                    ) {
+                                        Text("撤销保存", fontWeight = FontWeight.Medium)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            transcriptResult = null
+                                            savedToNote = false
+                                            autoSaved = false
+                                            autoSavedNoteId = 0L
+                                            startRecording()
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f).height(44.dp),
+                                    ) {
+                                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("继续录音", fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            } else {
+                                // 继续录音按钮（非自动保存状态）
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        transcriptResult = null
+                                        savedToNote = false
+                                        autoSaved = false
+                                        autoSavedNoteId = 0L
+                                        startRecording()
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                                ) {
+                                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("继续录音", fontWeight = FontWeight.Medium)
+                                }
                             }
                         }
                     }

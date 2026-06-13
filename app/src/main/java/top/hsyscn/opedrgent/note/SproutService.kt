@@ -1,6 +1,10 @@
 package top.hsyscn.opedrgent.note
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -12,6 +16,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
 
@@ -36,7 +41,7 @@ import java.util.concurrent.TimeUnit
  * - v1: 结构化 JSON（SproutReport）— 机器友好，人类读起来枯燥
  * - v2: 叙事式文章（SproutArticle）— 人类友好，像在读杂志专栏
  */
-class SproutService(private val apiSettings: ApiSettings) {
+class SproutService(private val apiSettings: ApiSettings, private val hippocampus: HippocampusIndex? = null) {
 
     companion object {
         private const val TAG = "SproutService"
@@ -116,6 +121,22 @@ class SproutService(private val apiSettings: ApiSettings) {
     ): Result<SproutArticle> = withContext(Dispatchers.IO) {
         try {
             var prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
+
+            // 从内容提取关键词用于全局搜索
+            val searchKeywords = noteContent.take(200)
+                .split(Regex("[\\s,，。、；：！？\\n]+"))
+                .filter { it.length >= 2 }
+                .take(3)
+            val globalContext = if (hippocampus != null && searchKeywords.isNotEmpty()) {
+                searchKeywords.flatMap { hippocampus.query(it, 3) }
+                    .distinctBy { it.id }
+                    .take(5)
+                    .joinToString("\n---\n") { "[${it.sourceType.label}] ${it.title}: ${it.summary.take(300)}" }
+            } else ""
+
+            if (globalContext.isNotBlank()) {
+                prompt += "\n\n## 全局知识库参考\n$globalContext"
+            }
 
             if (otherNotesContext.isNotBlank()) {
                 prompt += "\n\n## 你的其他笔记（用于交叉引用和串联）\n$otherNotesContext"
@@ -205,6 +226,28 @@ class SproutService(private val apiSettings: ApiSettings) {
             kotlinx.coroutines.delay(500)
         }
         return results
+    }
+
+    /**
+     * 批量发芽 — 对多篇笔记并发执行发芽分析
+     * 并发数限制为 2（控制 token 消耗）
+     */
+    suspend fun sproutBatch(
+        notes: List<Note>,
+        otherNotesContext: String = "",
+    ): List<Result<SproutArticle>> {
+        if (notes.isEmpty()) return emptyList()
+        return coroutineScope {
+            notes.map<Note, Deferred<Result<SproutArticle>>> { note ->
+                async<Result<SproutArticle>> {
+                    try {
+                        sprout(note.content, otherNotesContext)
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                }
+            }.awaitAll()
+        }
     }
 
     // ==================== 解析器 ====================
