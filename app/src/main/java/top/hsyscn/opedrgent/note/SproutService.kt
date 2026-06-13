@@ -105,15 +105,22 @@ class SproutService(private val apiSettings: ApiSettings) {
      * 为笔记生成叙事式发芽报告。
      *
      * @param noteContent 笔记内容
+     * @param otherNotesContext 其他笔记的摘要，用于交叉引用
      * @param modelId 使用的模型 ID
      * @return [SproutArticle] 叙事式发芽报告
      */
     suspend fun sprout(
         noteContent: String,
+        otherNotesContext: String = "",
         modelId: String = apiSettings.getModel() ?: DEFAULT_MODEL,
     ): Result<SproutArticle> = withContext(Dispatchers.IO) {
         try {
-            val prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
+            var prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
+
+            if (otherNotesContext.isNotBlank()) {
+                prompt += "\n\n## 你的其他笔记（用于交叉引用和串联）\n$otherNotesContext"
+            }
+            prompt += "\n\n## 重要：联网搜索验证\n在分析过程中，请主动使用联网搜索工具验证关键事实、查找相关案例和数据。搜索至少2个关键词，但不超过3次搜索。"
 
             val apiKey = apiSettings.getApiKey()
                 ?: return@withContext Result.failure(IllegalStateException("API Key 未设置"))
