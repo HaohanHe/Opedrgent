@@ -27,11 +27,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.note.ArticleSection
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.SproutArticle
 import top.hsyscn.opedrgent.note.SproutService
+import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import java.text.SimpleDateFormat
 import java.util.*
@@ -62,7 +64,11 @@ fun NoteSproutScreen(
             isGenerating = true
             errorMessage = null
             try {
-                sproutService.sprout(note.content).fold(
+                // 获取其他笔记作为上下文
+                val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try { repository.getRecentNotesContext(5) } catch (e: Exception) { "" }
+                }
+                sproutService.sprout(note.content, otherNotesContext).fold(
                     onSuccess = { newArticle ->
                         article = newArticle
                         note.setSproutArticle(newArticle)
@@ -259,7 +265,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
                 Spacer(Modifier.height(16.dp))
             }
 
-            ArticleBody(body = section.body)
+            MarkdownText(text = section.body, maxChars = 2000)
 
             Spacer(Modifier.height(16.dp))
 
