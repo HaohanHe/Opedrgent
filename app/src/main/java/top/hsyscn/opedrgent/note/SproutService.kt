@@ -40,7 +40,7 @@ class SproutService(private val apiSettings: ApiSettings) {
 
     companion object {
         private const val TAG = "SproutService"
-        private const val DEFAULT_MODEL = "mimo-v2-flash"
+        private const val DEFAULT_MODEL = "mimo-v2.5"
 
         /**
          * 叙事式发芽提示词 — 产出 SproutArticle 格式
