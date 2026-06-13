@@ -1,0 +1,11 @@
+- [ ] HippocampusIndex 类已创建，基于 SQLite，支持 CRUD 和关键词搜索
+- [ ] IndexedItem 数据类包含 sourceType/sourceId/title/summary/keywords/createdAt/updatedAt
+- [ ] NoteRepository 笔记变更后自动同步到 HippocampusIndex
+- [ ] MainViewModel AI 对话完成后自动同步到 HippocampusIndex
+- [ ] RecordingTab 录音转写完成后自动同步到 HippocampusIndex
+- [ ] SproutService 发芽报告生成后自动同步到 HippocampusIndex
+- [ ] SproutService 使用 HippocampusIndex.query() 替代 getRecentNotesContext()
+- [ ] HippocampusScreen 管理界面已创建，支持搜索和类型筛选
+- [ ] SettingsScreen 中有"海马体记忆"入口
+- [ ] AppRoot 中海马体路由已添加
+- [ ] 编译通过

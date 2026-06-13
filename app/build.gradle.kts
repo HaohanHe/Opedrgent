@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.commons.compress)
     // Sherpa-ONNX: 高性能离线语音识别框架 (Apache 2.0, via JitPack)
     implementation(libs.sherpa.onnx)
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

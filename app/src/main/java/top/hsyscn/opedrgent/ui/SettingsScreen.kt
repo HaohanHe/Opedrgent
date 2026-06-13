@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,9 +27,12 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.DeveloperBoard
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -77,9 +81,10 @@ import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, showBackButton: Boolean = true) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -305,6 +310,38 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     Icon(Icons.Default.ArrowForward, contentDescription = "进入")
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+
+            // 无感伙伴模式入口
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onInvisiblePartner() },
+                shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp), tint = BubbleBlue)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("无感伙伴模式", fontWeight = FontWeight.SemiBold)
+                        Text("录音自动保存 / 智能发芽 / 每日收获", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = "进入")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // [降级] 海马体入口已移至底部"高级选项"折叠区，不再在一级设置列表显示
+            // 原入口保留在页面底部的 advancedOptions 区域，深层路由 AppRoot.hipposcampus 仍可用
 
             HorizontalDivider()
 
@@ -692,6 +729,60 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
                             Spacer(Modifier.width(4.dp))
                             Text("保存参数", fontSize = 11.sp, color = BubbleBlue)
+                        }
+                    }
+                }
+            }
+Spacer(Modifier.height(12.dp))
+
+            // ── 高级选项（折叠区）──
+            // 海马体等实验性功能入口降级至此，普通用户不显示，高级用户可展开访问
+            var showAdvanced by rememberSaveable { mutableStateOf(false) }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ),
+                onClick = { showAdvanced = !showAdvanced },
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("高级选项", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextGrey, modifier = Modifier.weight(1f))
+                    Icon(
+                        imageVector = if (showAdvanced) Icons.Default.ArrowDropDown else Icons.Default.ArrowForward,
+                        contentDescription = if (showAdvanced) "收起" else "展开",
+                        modifier = Modifier.size(18.dp),
+                        tint = TextGrey,
+                    )
+                }
+                androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 海马体记忆入口（降级后仅在此折叠区内可见）
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = toHippocampus,
+                            shape = RoundedCornerShape(9.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("海马体索引", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("共 ${hippocampus?.count() ?: 0} 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                                }
+                                Icon(Icons.Default.ArrowForward, contentDescription = "进入", modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                 }

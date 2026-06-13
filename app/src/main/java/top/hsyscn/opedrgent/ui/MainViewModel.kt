@@ -54,6 +54,9 @@ import top.hsyscn.opedrgent.network.WebResearchMode
 import top.hsyscn.opedrgent.network.WebResearchRequest
 import top.hsyscn.opedrgent.network.WebResearchRouter
 import top.hsyscn.opedrgent.network.MapTileFetcher
+import top.hsyscn.opedrgent.storage.HippocampusIndex
+import top.hsyscn.opedrgent.storage.SproutReportRecord
+import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.env.EnvironmentProvider
 import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
@@ -65,6 +68,7 @@ import top.hsyscn.opedrgent.storage.ResearchStore
 import top.hsyscn.opedrgent.storage.SkillsStore
 import top.hsyscn.opedrgent.pdf.PdfProcessor
 import top.hsyscn.opedrgent.docx.DocxProcessor
+import top.hsyscn.opedrgent.storage.WarmFeedbackService
 import top.hsyscn.opedrgent.utils.PromptSafety
 import top.hsyscn.opedrgent.utils.PromptBlocks
 import top.hsyscn.opedrgent.utils.PromptBuilder
@@ -237,6 +241,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
 
+    /** Global hippocampus index — set by AppRoot after creation */
+    var hippocampus: HippocampusIndex? = null
+        set(value) {
+            field = value
+            noteRepository.hippocampus = value
+        }
+
+    /** Sprout report persistence store */
+    val sproutReportStore = SproutReportStore(getApplication())
+
+    /** 温暖点评服务 -- 笔记保存后异步生成点评 */
+    val warmFeedbackService by lazy { WarmFeedbackService({ apiSettings }, hippocampus) }
+
     // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
     private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
     private val insightSproutEngine = InsightSproutEngine { prompt ->
@@ -322,6 +339,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _isConverting = MutableStateFlow(false)
     val isConverting: StateFlow<Boolean> = _isConverting.asStateFlow()
+
+    // ==================== 温暖点评状态 ====================
+
+    private val _warmFeedbackState = MutableStateFlow<String?>(null)
+    val warmFeedbackState: StateFlow<String?> = _warmFeedbackState.asStateFlow()
+
+    /** 清除点评状态，供 UI 层在展示后调用 */
+    fun clearWarmFeedback() { _warmFeedbackState.value = null }
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
@@ -657,6 +682,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 store.addMessage(sessionId, Role.ASSISTANT, answer)
 
+                // Index conversation into hippocampus
+                val idxSession = store.getSession(sessionId)
+                if (idxSession != null && idxSession.messages.size >= 2) {
+                    val lastMsg = idxSession.messages.lastOrNull { it.role == Role.ASSISTANT }?.content ?: answer
+                    hippocampus?.upsertConversation(idxSession.id, idxSession.title, lastMsg)
+                }
+
                 _state.value = _state.value.copy(
                     current = store.getSession(sessionId),
                     isStreaming = false,
@@ -793,12 +825,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             sourceType = top.hsyscn.opedrgent.note.SourceType.AI_GENERATED,
         )
         viewModelScope.launch {
-            noteRepository.saveNote(note)
+            val id = noteRepository.saveNote(note)
+            hippocampus?.upsertNote(id, note.title, note.content)
+            // 笔记保存成功后异步生成温暖点评
+            launch(Dispatchers.IO) {
+                warmFeedbackService.generateFeedback(note.content).onSuccess { feedback ->
+                    _warmFeedbackState.value = feedback
+                }
+            }
         }
     }
 
-    /** 从文本创建笔记（录音转写 / AI 回复等场景） */
-    fun createNoteFromText(title: String, content: String, type: NoteType = NoteType.TEXT) {
+    /** 从文本创建笔记（录音转写 / AI 回复等场景），返回保存后的笔记 ID */
+    suspend fun createNoteFromText(title: String, content: String, type: NoteType = NoteType.TEXT): Long {
         val note = Note(
             title = title,
             content = content,
@@ -814,9 +853,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             },
             wordCount = content.length,
         )
-        viewModelScope.launch {
-            noteRepository.saveNote(note)
-        }
+        val id = noteRepository.saveNote(note)
+        hippocampus?.upsertNote(id, note.title, note.content)
+        return id
+    }
+
+    /** 删除笔记（软删除，同步清理关联索引） */
+    suspend fun deleteNote(id: Long) {
+        noteRepository.deleteNote(id)
     }
 
     /** 获取笔记的上下文（用于 AI 对话时引用） */
@@ -2543,6 +2587,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 store.addMessage(sessionId, Role.ASSISTANT, accumulatedText, parts = localParts)
 
+                // Index conversation into hippocampus
+                val session = store.getSession(sessionId)
+                if (session != null && session.messages.size >= 2) {
+                    hippocampus?.upsertConversation(session.id, session.title, accumulatedText)
+                }
+
                 if (compressed.needsCompression && !preCheck.isCritical) {
                     DebugLog.i("runLocalModel: 上下文使用 ${String.format("%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
                     _state.value = _state.value.copy(contextCompressionEnabled = true)
@@ -3562,6 +3612,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }.ifEmpty { "（空响应）" }
                 store.addMessage(sessionId, Role.ASSISTANT, assistant)
+
+                // Index conversation into hippocampus
+                val idxSession = store.getSession(sessionId)
+                if (idxSession != null && idxSession.messages.size >= 2) {
+                    hippocampus?.upsertConversation(idxSession.id, idxSession.title, assistant)
+                }
+
                 _state.value = _state.value.copy(current = store.getSession(sessionId), error = null)
                 refreshSessions()
             } catch (e: Exception) {
@@ -4256,6 +4313,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 sproutCache[cacheKey] = result
                 _sproutHistory.value = listOf(result) + _sproutHistory.value.take(49)
+
+                // Index sprout result into global hippocampus
+                val sproutTitle = trimmedText.take(50).replace("\n", " ")
+                hippocampus?.upsertSprout(cacheKey, sproutTitle, result.markdownReport)
+
+                // Persist sprout report to database (restart-safe)
+                try {
+                    sproutReportStore.insert(SproutReportRecord(
+                        sourceNoteId = 0,  // independent sprout (not from a specific note)
+                        sourceTitle = sproutTitle,
+                        markdownReport = result.markdownReport,
+                        summary = result.seeds.joinToString("; ") { "${it.concept}: ${it.description.take(100)}" },
+                        modelUsed = "insight-engine",
+                        createdAt = System.currentTimeMillis(),
+                        wordCount = result.markdownReport.length,
+                    ))
+                } catch (_: Exception) { /* non-critical: persistence failure should not block UI */ }
 
                 DebugLog.i("Sprout: 发芽完成 phases=${result.completedPhases.size}/4 quality=$qualityScore time=${result.processingTimeMs}ms seeds=${result.seeds.size} insights=${result.insights.size}")
             } catch (e: kotlinx.coroutines.CancellationException) {
