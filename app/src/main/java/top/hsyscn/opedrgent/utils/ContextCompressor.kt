@@ -156,8 +156,19 @@ object ContextCompressor {
         } else null
 
         // 4. 工具输出剪枝（对保留轮中的消息进行剪枝）
-        val prunedKeep = keepTurnsList.flatMap { turn ->
+        var prunedKeep = keepTurnsList.flatMap { turn ->
             turn.map { msg -> pruneToolOutput(msg) }
+        }
+
+        // 4b. 单条消息长度限制：防止一条超长消息撑爆上下文
+        val perMessageLimit = (maxTokens / 4).coerceAtLeast(1000)
+        prunedKeep = prunedKeep.map { msg ->
+            val msgTokens = estimateTokens(msg.textContent)
+            if (msgTokens > perMessageLimit) {
+                val maxChars = perMessageLimit * 4 // 粗略: 1 token ~ 4 chars
+                val truncated = msg.textContent.take(maxChars) + "\n\n[内容过长，已截断]"
+                msg.copy(content = truncated, parts = listOf(MessagePart.Text(content = truncated)))
+            } else msg
         }
 
         // 5. 构建结果
