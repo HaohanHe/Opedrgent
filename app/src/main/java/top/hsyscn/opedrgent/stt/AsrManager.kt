@@ -27,6 +27,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 class AsrManager(
     private val context: Context,
     private val apiSettings: ApiSettings,
+    private val forceLocal: Boolean = false,
 ) {
     companion object {
         private const val TAG = "AsrManager"
@@ -165,7 +166,13 @@ class AsrManager(
         val sttEngine = apiSettings.getSttEngine()
         val hasKey = apiSettings.hasApiKey()
         val keyPrefix = apiSettings.getApiKey()?.take(6)
-        DebugLog.i(TAG, "createEngine: sttEngine=$sttEngine, hasApiKey=$hasKey, keyPrefix=${keyPrefix}...")
+        DebugLog.i(TAG, "createEngine: sttEngine=$sttEngine, hasApiKey=$hasKey, forceLocal=$forceLocal")
+
+        // 强制本地模式：跳过 MiMO，直接使用 Sherpa-ONNX
+        if (forceLocal) {
+            DebugLog.i(TAG, "forceLocal=true，跳过 MiMO ASR，使用本地引擎")
+            return fallbackToLocalEngine("forceLocal 模式")
+        }
 
         // 场景1：用户选择 MiMO 且有 API Key → 尝试创建 MiMO 引擎
         if (sttEngine == "mimo" && hasKey) {
