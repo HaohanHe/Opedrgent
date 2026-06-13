@@ -167,6 +167,7 @@ import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
 import top.hsyscn.opedrgent.note.NoteType
+import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import java.io.File
@@ -188,6 +189,11 @@ fun AppRoot(
     var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
     var editorTeamInitialInput by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    val hippocampus = remember { HippocampusIndex(context) }
+
+    // Inject hippocampus index into MainViewModel
+    LaunchedEffect(Unit) { vm.hippocampus = hippocampus }
 
     if (subScreen != null) {
         BackHandler {
@@ -322,6 +328,7 @@ fun AppRoot(
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when (subScreen) {
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
+                "hippocampus" -> HippocampusScreen(hippocampus = hippocampus, onBack = { subScreen = null })
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
                 "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
                 "meeting" -> MeetingRecordScreen(
@@ -492,6 +499,8 @@ fun AppRoot(
                             toAutomations = { subScreen = "automations" },
                             toMemory = { subScreen = "memory" },
                             toNotes = { subScreen = "notes" },
+                            toHippocampus = { subScreen = "hippocampus" },
+                            hippocampus = hippocampus,
                             showBackButton = false,
                         )
                     }
@@ -554,7 +563,8 @@ fun AppRoot(
                                     NoteSproutScreen(
                                         note = note,
                                         repository = vm.noteRepository,
-                                        sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings),
+                                        sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings, hippocampus),
+                                        sproutReportStore = vm.sproutReportStore,
                                         onBack = { subScreen = "notes" },
                                         onEditNote = { subScreen = "noteEditor_$noteId" },
                                     )

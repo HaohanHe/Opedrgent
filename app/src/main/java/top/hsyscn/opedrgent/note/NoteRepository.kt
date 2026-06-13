@@ -4,7 +4,9 @@ import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.MemoryStore
+import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
 
 /**
  * 笔记仓库：统一数据访问层。
@@ -21,6 +23,9 @@ class NoteRepository(
 
     private val database = NoteDatabase.getInstance(context)
     private val dao = NoteDao(database)
+
+    /** 海马体索引（延迟注入，由 MainViewModel 设置） */
+    var hippocampus: HippocampusIndex? = null
 
     /** 知识图谱引擎（懒加载，首次访问时初始化） */
     val knowledgeGraph: KnowledgeGraph by lazy { KnowledgeGraph(context) }
@@ -98,6 +103,8 @@ class NoteRepository(
         knowledgeGraph.removeNote(id.toString())
         // 同步清理笔记记忆
         memoryStore?.removeNoteMemory(id)
+        // 同步清理海马体索引
+        hippocampus?.deleteBySource(HippoSourceType.NOTE, id.toString())
         _changeTrigger.value = System.currentTimeMillis()
     }
 

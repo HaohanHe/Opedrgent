@@ -1,5 +1,11 @@
 package top.hsyscn.opedrgent.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -20,6 +26,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,8 +42,11 @@ import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.SproutArticle
 import top.hsyscn.opedrgent.note.SproutService
+import top.hsyscn.opedrgent.storage.SproutReportRecord
+import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,24 +59,36 @@ fun NoteSproutScreen(
     note: Note,
     repository: NoteRepository,
     sproutService: SproutService,
+    sproutReportStore: SproutReportStore? = null,
     onBack: () -> Unit,
     onEditNote: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
 
     var article by remember { mutableStateOf(note.getSproutArticle()) }
     var isGenerating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var completedActions by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    // 历史发芽报告列表（从数据库加载）
+    var historyReports by remember { mutableStateOf<List<SproutReportRecord>>(emptyList()) }
 
-    // 首次进入自动触发发芽
+    // 加载历史发芽记录
     LaunchedEffect(note.id) {
-        if (article == null && !isGenerating) {
+        if (sproutReportStore != null) {
+            historyReports = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try { sproutReportStore.getByNoteId(note.id) } catch (_: Exception) { emptyList() }
+            }
+        }
+    }
+
+    // 首次进入自动触发发芽（如果没有历史记录且没有当前文章）
+    LaunchedEffect(note.id) {
+        if (article == null && !isGenerating && historyReports.isEmpty()) {
             isGenerating = true
             errorMessage = null
             try {
-                // 获取其他笔记作为上下文
                 val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try { repository.getRecentNotesContext(5) } catch (e: Exception) { "" }
                 }
@@ -73,12 +97,17 @@ fun NoteSproutScreen(
                         article = newArticle
                         note.setSproutArticle(newArticle)
                         repository.saveNote(note)
+                        // 持久化到发芽报告库
+                        persistSprout(scope, sproutReportStore, note.id, note.title, newArticle)
                     },
                     onFailure = { e -> errorMessage = e.message ?: "生成失败" },
                 )
             } finally { isGenerating = false }
         }
     }
+
+    var showMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     Scaffold(
         topBar = {
@@ -90,21 +119,77 @@ fun NoteSproutScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        scope.launch {
-                            isGenerating = true; errorMessage = null
-                            try {
-                                sproutService.sprout(note.content).fold(
-                                    onSuccess = { article = it; note.setSproutArticle(it); repository.saveNote(note) },
-                                    onFailure = { e -> errorMessage = e.message ?: "生成失败" },
-                                )
-                            } finally { isGenerating = false }
+                    // 阅读模式：操作全部收进三点菜单
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, "更多操作")
                         }
-                    }, enabled = !isGenerating) {
-                        Icon(Icons.Default.Refresh, "重新发芽",
-                            modifier = if (isGenerating) Modifier.scale(0.8f) else Modifier)
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("重新发芽") },
+                                onClick = {
+                                    showMenu = false
+                                    doSprout(scope, sproutService, note, repository, sproutReportStore,
+                                        onSuccess = { article = it },
+                                        onFailure = { e -> errorMessage = e },
+                                        onDone = {})
+                                },
+                                leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                                enabled = !isGenerating,
+                            )
+                            DropdownMenuItem(
+                                text = { Text("编辑笔记") },
+                                onClick = { showMenu = false; onEditNote() },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("复制报告") },
+                                onClick = {
+                                    showMenu = false
+                                    val reportText = article?.toMarkdown() ?: ""
+                                    if (reportText.isNotEmpty()) {
+                                        clipboardManager.setText(AnnotatedString(reportText))
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                enabled = article != null,
+                            )
+                            DropdownMenuItem(
+                                text = { Text("添加标签") },
+                                onClick = {
+                                    Toast.makeText(context, "标签功能开发中", Toast.LENGTH_SHORT).show()
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.Label, null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("复制全文") },
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val text = article?.toMarkdownText() ?: ""
+                                    ClipData.newPlainText("发芽报告", text).let { clipboard.setPrimaryClip(it) }
+                                    Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("导出 Markdown") },
+                                onClick = {
+                                    val text = article?.toMarkdownText() ?: ""
+                                    val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
+                                    val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                    File(dir, fileName).writeText(text)
+                                    Toast.makeText(context, "已导出到下载目录", Toast.LENGTH_SHORT).show()
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.FileDownload, null) },
+                            )
+                        }
                     }
-                    IconButton(onClick = onEditNote) { Icon(Icons.Default.Edit, "编辑笔记") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
@@ -114,15 +199,10 @@ fun NoteSproutScreen(
             when {
                 isGenerating && article == null -> SproutLoadingView()
                 errorMessage != null && article == null -> SproutErrorView(message = errorMessage!!, onRetry = {
-                    scope.launch {
-                        isGenerating = true; errorMessage = null
-                        try {
-                            sproutService.sprout(note.content).fold(
-                                onSuccess = { article = it; note.setSproutArticle(it); repository.saveNote(note) },
-                                onFailure = { e -> errorMessage = e.message ?: "生成失败" },
-                            )
-                        } finally { isGenerating = false }
-                    }
+                    doSprout(scope, sproutService, note, repository, sproutReportStore,
+                        onSuccess = { article = it },
+                        onFailure = { e -> errorMessage = e },
+                        onDone = { isGenerating = false })
                 })
                 article != null -> SproutArticleContent(
                     article = article!!,
@@ -130,17 +210,23 @@ fun NoteSproutScreen(
                     onActionToggle = { i -> completedActions = if (i in completedActions) completedActions - i else completedActions + i },
                     isRefreshing = isGenerating,
                     scrollState = scrollState,
+                    note = note,
+                    repository = repository,
+                    sproutService = sproutService,
+                    sproutReportStore = sproutReportStore,
+                    onResprout = { seedContent ->
+                        // 以当前发芽结果为种子，重新触发发芽
+                        doSprout(scope, sproutService, note, repository, sproutReportStore,
+                            onSuccess = { article = it },
+                            onFailure = { e -> errorMessage = e },
+                            onDone = {})
+                    },
                 )
                 else -> SproutEmptyView(onGenerate = {
-                    scope.launch {
-                        isGenerating = true; errorMessage = null
-                        try {
-                            sproutService.sprout(note.content).fold(
-                                onSuccess = { article = it; note.setSproutArticle(it); repository.saveNote(note) },
-                                onFailure = { e -> errorMessage = e.message ?: "生成失败" },
-                            )
-                        } finally { isGenerating = false }
-                    }
+                    doSprout(scope, sproutService, note, repository, sproutReportStore,
+                        onSuccess = { article = it },
+                        onFailure = { e -> errorMessage = e },
+                        onDone = { isGenerating = false })
                 })
             }
         }
@@ -156,7 +242,14 @@ private fun SproutArticleContent(
     onActionToggle: (Int) -> Unit,
     isRefreshing: Boolean,
     scrollState: androidx.compose.foundation.ScrollState,
+    note: Note,
+    repository: NoteRepository,
+    sproutService: SproutService,
+    sproutReportStore: SproutReportStore?,
+    onResprout: (String) -> Unit,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val dateFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
 
     Column(
@@ -184,6 +277,60 @@ private fun SproutArticleContent(
 
         AnimatedVisibility(visible = isRefreshing) {
             LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color(0xFF4CAF50))
+        }
+
+        // 底部操作栏：仅在发芽报告存在时显示
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+        ) {
+            // 追加笔记
+            FilledTonalButton(
+                onClick = {
+                    val reportText = article.toPlainText()
+                    scope.launch {
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            repository.quickCreate(reportText)
+                        }
+                        Toast.makeText(context, "已追加为新笔记", Toast.LENGTH_SHORT).show()
+                    }
+                },
+            ) {
+                Icon(Icons.Default.NoteAdd, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("追加笔记")
+            }
+
+            // 分享
+            OutlinedButton(
+                onClick = {
+                    val shareText = article.toShareText()
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, shareText)
+                        putExtra(Intent.EXTRA_SUBJECT, "发芽报告")
+                    }
+                    context.startActivity(Intent.createChooser(intent, "分享"))
+                },
+            ) {
+                Icon(Icons.Default.Share, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("分享")
+            }
+
+            // 基于此再发芽
+            OutlinedButton(
+                onClick = {
+                    val seedContent = article.toPlainText()
+                    onResprout(seedContent)
+                },
+            ) {
+                Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("再发芽")
+            }
         }
 
         Spacer(Modifier.height(48.dp))
@@ -447,3 +594,107 @@ private fun SproutEmptyView(onGenerate: () -> Unit) {
         Spacer(Modifier.height(24.dp)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("开始发芽") }
     }
 }
+
+// ==================== 发芽辅助函数 ====================
+
+/**
+ * 统一执行发芽操作：调用 API -> 保存笔记 -> 持久化报告 -> 回调
+ */
+private fun doSprout(
+    scope: kotlinx.coroutines.CoroutineScope,
+    service: SproutService,
+    note: Note,
+    repository: NoteRepository,
+    store: SproutReportStore?,
+    onSuccess: (SproutArticle) -> Unit,
+    onFailure: (String) -> Unit,
+    onDone: () -> Unit,
+) {
+    scope.launch {
+        // Use a local flag since onDone might not set isGenerating
+        try {
+            service.sprout(note.content).fold(
+                onSuccess = { article ->
+                    note.setSproutArticle(article)
+                    repository.saveNote(note)
+                    persistSprout(scope, store, note.id, note.title, article)
+                    onSuccess(article)
+                },
+                onFailure = { e -> onFailure(e.message ?: "生成失败") },
+            )
+        } finally { onDone() }
+    }
+}
+
+/**
+ * 将发芽结果持久化到 SproutReportStore（非阻塞）
+ */
+private fun persistSprout(
+    scope: kotlinx.coroutines.CoroutineScope,
+    store: SproutReportStore?,
+    noteId: Long,
+    noteTitle: String,
+    article: SproutArticle,
+) {
+    if (store == null) return
+    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            store.insert(SproutReportRecord(
+                sourceNoteId = noteId,
+                sourceTitle = noteTitle,
+                markdownReport = article.toMarkdown(),
+                summary = article.summary,
+                modelUsed = article.modelUsed,
+                createdAt = article.generatedAt,
+                wordCount = article.markdownReport().length,
+            ))
+        }
+    }
+}
+
+/** 将 SproutArticle 转为纯 Markdown 文本（用于存储） */
+private fun SproutArticle.toMarkdown(): String = buildString {
+    appendLine("# 发芽报告")
+    appendLine()
+    if (summary.isNotEmpty()) appendLine("> $summary").appendLine()
+    articles.forEachIndexed { idx, section ->
+        appendLine("## ${section.title}")
+        if (section.seed.isNotEmpty()) appendLine("*${section.seed}*").appendLine()
+        appendLine(section.body).appendLine()
+        if (section.ahaMoment.isNotEmpty()) appendLine("**Aha:** ${section.ahaMoment}").appendLine()
+    }
+    if (actionItems.isNotEmpty()) {
+        appendLine("## 行动建议")
+        actionItems.forEach { appendLine("- [ ] $it") }
+        appendLine()
+    }
+}
+
+/** SproutArticle 的 markdown 报告（兼容旧字段名） */
+private fun SproutArticle.markdownReport(): String = toMarkdown()
+
+/** 将 SproutArticle 转为纯文本（用于追加笔记、再发芽等场景） */
+private fun SproutArticle.toPlainText(): String = buildString {
+    if (summary.isNotEmpty()) appendLine(summary).appendLine()
+    articles.forEach { section ->
+        if (section.title.isNotEmpty()) appendLine("## ${section.title}")
+        appendLine(section.body)
+        if (section.ahaMoment.isNotEmpty()) appendLine("Aha: ${section.ahaMoment}")
+    }
+    if (actionItems.isNotEmpty()) {
+        appendLine("行动建议:")
+        actionItems.forEach { appendLine("- $it") }
+    }
+}
+
+/** 将 SproutArticle 转为分享文本（精简版，适合分享给他人） */
+private fun SproutArticle.toShareText(): String = buildString {
+    appendLine("【发芽报告】")
+    if (summary.isNotEmpty()) appendLine(summary)
+    articles.forEach { section ->
+        appendLine("${section.title}: ${section.body.take(200)}")
+    }
+}
+
+/** 将 SproutArticle 转为完整 Markdown 文本（用于复制/导出） */
+private fun SproutArticle.toMarkdownText(): String = toMarkdown()
