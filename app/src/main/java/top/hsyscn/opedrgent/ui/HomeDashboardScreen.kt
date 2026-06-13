@@ -220,9 +220,9 @@ fun HomeDashboardScreen(
         item {
             QuickActionsRow(
                 onNewNote = onNewNote,
-                onVoiceRecord = { onOpenSubScreen("meeting") },
+                onVoiceRecord = onNavigateToRecording,
                 onImportFile = { onOpenSubScreen("import") },
-                onSproutAnalysis = { onOpenSubScreen("notes") },
+                onSproutAnalysis = { onNavigateToNotes() },
             )
         }
 
@@ -528,7 +528,7 @@ fun QuickActionsRow(
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         QuickActionItem(icon = Icons.Default.Add, label = "新建笔记", onClick = onNewNote)
-        QuickActionItem(icon = Icons.Default.Mic, label = "发音识别", onClick = onVoiceRecord)
+        QuickActionItem(icon = Icons.Default.Mic, label = "语音速记", onClick = onVoiceRecord)
         QuickActionItem(icon = Icons.Default.UploadFile, label = "导入文件", onClick = onImportFile)
         QuickActionItem(icon = Icons.Default.AutoAwesome, label = "发芽分析", onClick = onSproutAnalysis)
     }
