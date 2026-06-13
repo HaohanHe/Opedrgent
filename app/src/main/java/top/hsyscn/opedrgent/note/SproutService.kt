@@ -123,7 +123,7 @@ class SproutService(private val apiSettings: ApiSettings) {
             val jsonBody = JSONObject().apply {
                 put("model", modelId)
                 put("max_tokens", 4096)
-                put("temperature", 0.4)
+                put("temperature", 1.0)
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
