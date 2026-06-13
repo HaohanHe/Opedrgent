@@ -222,7 +222,7 @@ class VoiceConversationEngine(
 
         try {
             // 步骤1：初始化 ASR 管理器
-            asrManager = AsrManager(context, apiSettings)
+            asrManager = AsrManager(context, apiSettings, forceLocal = true)
             asrManager?.ensureInitialized()
 
             // 步骤2：连接全双工音频引擎
