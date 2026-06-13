@@ -55,17 +55,16 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
     companion object {
         private val MULTIMODAL_MODELS = setOf(
-            "mimo-v2.5", "mimo-v2-omni",
+            "mimo-v2.5",
         )
         private val WEB_SEARCH_MODELS = setOf(
-            "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash",
+            "mimo-v2.5-pro", "mimo-v2.5",
         )
         private val TTS_MODELS = setOf(
             "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone",
         )
         private val THINKING_MODELS = setOf(
-            "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro",
-            "mimo-v2-omni", "mimo-v2-flash", "gemini-2.5",
+            "mimo-v2.5-pro", "mimo-v2.5", "gemini-2.5",
             "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
         )
         private val DEEPSEEK_MODELS = setOf(
@@ -74,7 +73,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         )
         private const val DEEPSEEK_MAX_CONTEXT = 1_000_000
         private val MIMO_THINKING_MODELS = setOf(
-            "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash",
+            "mimo-v2.5-pro", "mimo-v2.5",
         )
 
         fun isMultimodalModel(model: String): Boolean {
