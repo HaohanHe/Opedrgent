@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
+import androidx.activity.compose.BackHandler
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 
@@ -87,6 +88,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -184,6 +189,18 @@ fun AppRoot(
     var subScreen by rememberSaveable { mutableStateOf<String?>(null) }
     var editorTeamInitialInput by rememberSaveable { mutableStateOf("") }
 
+    if (subScreen != null) {
+        BackHandler {
+            subScreen = when {
+                subScreen?.startsWith("noteEditor_") == true -> "notes"
+                subScreen?.startsWith("noteShare_") == true -> "notes"
+                subScreen?.startsWith("noteSprout_") == true -> "notes"
+                subScreen == "noteGraph" -> "notes"
+                else -> null
+            }
+        }
+    }
+
     val state by vm.state.collectAsStateCompat()
 
     LaunchedEffect(initialShareText) {
@@ -221,47 +238,87 @@ fun AppRoot(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val activity = LocalContext.current as? android.app.Activity
+    @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
+    val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }
+    val isLandscape = windowSizeClass?.widthSizeClass != WindowWidthSizeClass.Compact
 
-    Scaffold(
-        containerColor = BgGray,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-            ) {
-                NavigationBarItem(
+    Row(modifier = Modifier.fillMaxSize().background(BgGray)) {
+        if (isLandscape) {
+            NavigationRail(containerColor = Color.White) {
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
                     label = { Text("首页") },
                     selected = selectedTab == MainTab.HOME,
-                    onClick = { selectedTab = MainTab.HOME },
+                    onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
-                NavigationBarItem(
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Note, contentDescription = null) },
                     label = { Text("笔记") },
                     selected = selectedTab == MainTab.NOTES,
-                    onClick = { selectedTab = MainTab.NOTES },
+                    onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                 )
-                NavigationBarItem(
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Mic, contentDescription = null) },
                     label = { Text("录音") },
                     selected = selectedTab == MainTab.RECORDING,
-                    onClick = { selectedTab = MainTab.RECORDING },
+                    onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                 )
-                NavigationBarItem(
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Chat, contentDescription = null) },
                     label = { Text("AI") },
                     selected = selectedTab == MainTab.AI,
-                    onClick = { selectedTab = MainTab.AI },
+                    onClick = { selectedTab = MainTab.AI; subScreen = null },
                 )
-                NavigationBarItem(
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("设置") },
                     selected = selectedTab == MainTab.SETTINGS,
-                    onClick = { selectedTab = MainTab.SETTINGS },
+                    onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
                 )
             }
-        },
-    ) { padding ->
+        }
+        Scaffold(
+            modifier = Modifier.weight(1f),
+            containerColor = BgGray,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = {
+                if (!isLandscape) {
+                    NavigationBar(containerColor = Color.White) {
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                            label = { Text("首页") },
+                            selected = selectedTab == MainTab.HOME,
+                            onClick = { selectedTab = MainTab.HOME; subScreen = null },
+                        )
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                            label = { Text("笔记") },
+                            selected = selectedTab == MainTab.NOTES,
+                            onClick = { selectedTab = MainTab.NOTES; subScreen = null },
+                        )
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                            label = { Text("录音") },
+                            selected = selectedTab == MainTab.RECORDING,
+                            onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
+                        )
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                            label = { Text("AI") },
+                            selected = selectedTab == MainTab.AI,
+                            onClick = { selectedTab = MainTab.AI; subScreen = null },
+                        )
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            label = { Text("设置") },
+                            selected = selectedTab == MainTab.SETTINGS,
+                            onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
+                        )
+                    }
+                }
+            },
+        ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when (subScreen) {
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
@@ -426,6 +483,7 @@ fun AppRoot(
                             },
                             onSessionDeselected = { selectedSessionId = null },
                             onOpenSubScreen = { subScreen = it },
+                            isLandscape = isLandscape,
                         )
                         MainTab.SETTINGS -> SettingsScreen(
                             vm = vm,
@@ -506,6 +564,7 @@ fun AppRoot(
                     }
                 }
             }
+        }
         }
     }
 }

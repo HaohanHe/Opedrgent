@@ -82,44 +82,6 @@ data class StandardSkillDefinition(
     /** 便捷属性：是否需要 Secret */
     val needsSecret: Boolean get() = metadata.requireSecret
 
-    /**
-     * 转换为兼容旧 SkillSystem.SkillDefinition 的格式
-     * 用于向后兼容现有 CuratorService 等组件
-     */
-    fun toLegacySkillDefinition(): LegacySkillDefinition {
-        return LegacySkillDefinition(
-            id = metadata.name,
-            name = metadata.name.split("-").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } },
-            description = metadata.description,
-            version = metadata.version,
-            author = metadata.author.takeIf { it.isNotEmpty() },
-            tags = metadata.tags,
-            category = mapCategory(metadata.category),
-            promptTemplate = metadata.description,
-            body = instructions,
-            metadata = buildMap {
-                put("sourceType", sourceType.name)
-                put("sourcePath", sourcePath)
-                if (isBuiltIn) put("builtIn", "true")
-                if (!isEnabled) put("enabled", "false")
-                put("createdAtMs", createdAtMs.toString())
-                put("updatedAtMs", updatedAtMs.toString())
-                if (metadata.requireSecret) put("requireSecret", "true")
-                if (metadata.homepage.isNotEmpty()) put("homepage", metadata.homepage)
-            },
-        )
-    }
-
-    private fun mapCategory(cat: SkillCategory): top.hsyscn.opedrgent.mcp.skills.SkillCategory {
-        return when (cat) {
-            SkillCategory.GENERAL -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.GENERAL
-            SkillCategory.WRITING, SkillCategory.COMMUNICATION -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.COMMUNICATION
-            SkillCategory.ANALYSIS, SkillCategory.RESEARCH -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.ANALYSIS
-            SkillCategory.PRODUCTIVITY, SkillCategory.AUTOMATION -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.AUTOMATION
-            SkillCategory.CREATIVE -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.GENERAL
-            SkillCategory.DEVELOPMENT, SkillCategory.CODING -> top.hsyscn.opedrgent.mcp.skills.SkillCategory.CODING
-        }
-    }
 }
 
 /**

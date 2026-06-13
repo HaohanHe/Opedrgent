@@ -39,7 +39,6 @@ class ResearchState(
 
     fun recordSearch(query: String, resultCount: Int) {
         completedSearches.add(query)
-        sourcesFound.addAll(phase.sourcesFound.let { mutableSetOf<String>() })
         advanceTo(phase.copy(
             name = if (resultCount > 0) "搜索完成" else "搜索无结果",
             sourcesFound = sourcesFound.size,

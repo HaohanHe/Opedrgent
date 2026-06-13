@@ -95,7 +95,7 @@ class ApiSettings(private val context: Context) {
     fun getTavilyApiKey(): String? = securePrefs.getString("tavilyApiKey", null)?.trim()?.takeIf { it.isNotBlank() }
     fun getFirecrawlApiKey(): String? = securePrefs.getString("firecrawlApiKey", null)?.trim()?.takeIf { it.isNotBlank() }
     fun getMimoApiKey(): String? = securePrefs.getString("mimoApiKey", null)?.trim()?.takeIf { it.isNotBlank() }
-    fun getSearchProviderOrder(): String = prefs.getString("searchProviderOrder", "baidu,bing,360,sogou,yandex,ddg,jina") ?: "baidu,bing,360,sogou,yandex,ddg,jina"
+    fun getSearchProviderOrder(): String = prefs.getString("searchProviderOrder", "bing,baidu,jina") ?: "bing,baidu,jina"
 
     fun saveJinaApiKey(key: String?) {
         if (key.isNullOrBlank()) {

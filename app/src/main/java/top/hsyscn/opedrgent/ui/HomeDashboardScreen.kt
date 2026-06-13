@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
@@ -155,10 +156,16 @@ fun HomeDashboardScreen(
         }
     }
 
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgGray)
+            .background(BgGray),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 640.dp)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
@@ -262,6 +269,7 @@ fun HomeDashboardScreen(
             }
         }
     }
+    } // Box max-width wrapper
 }
 
 // ==================== 子组件 ====================

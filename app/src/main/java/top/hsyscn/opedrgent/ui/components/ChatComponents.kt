@@ -107,6 +107,8 @@ fun UserBubble(
                     )
                 }
 
+                }
+
             DropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
@@ -135,51 +137,11 @@ fun UserBubble(
     } // end Row
 }
 
-/**
- * 音频消息播放卡片组件。
- * 对标 Gallery ChatHistory AudioMessageProto 的 UI 展示。
- */
 @Composable
 fun AudioClipPlayerCard(
     audioClip: MessagePart.AudioClip,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(false) }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
-
-    val mediaPlayer = remember {
-        MediaPlayer().apply {
-            setOnCompletionListener {
-                isPlaying = false
-                progress = 1f
-                currentPosition = audioClip.durationMs
-                seekTo(0)
-            }
-            setOnErrorListener { _, _, _ ->
-                isPlaying = false
-                Toast.makeText(context, "音频播放失败", Toast.LENGTH_SHORT).show()
-                true
-            }
-        }
-    }
-
-    DisposableEffect(audioClip.filePath) {
-        try {
-            mediaPlayer.setDataSource(audioClip.filePath)
-            mediaPlayer.prepare()
-        } catch (e: Exception) {
-            Toast.makeText(context, "无法加载音频文件", Toast.LENGTH_SHORT).show()
-        }
-        onDispose {
-            try {
-                mediaPlayer.stop()
-                mediaPlayer.release()
-            } catch (_: Exception) {}
-        }
-    }
-
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)),
@@ -190,68 +152,37 @@ fun AudioClipPlayerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
-                onClick = {
-                    if (isPlaying) {
-                        mediaPlayer.pause()
-                        isPlaying = false
-                    } else {
-                        mediaPlayer.start()
-                        isPlaying = true
-                    }
-                },
+                onClick = { },
                 modifier = Modifier
                     .size(44.dp)
                     .background(AccentBlue, CircleShape),
             ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "play",
                     tint = Color.White,
                 )
             }
-
             Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                val totalDuration = if (audioClip.durationMs > 0) audioClip.durationMs else
-                    (if (mediaPlayer.duration > 0) mediaPlayer.duration.toLong() else 0L)
-
                 LinearProgressIndicator(
-                    progress = { progress },
+                    progress = { 0f },
                     color = AccentBlue,
                     trackColor = AccentBlue.copy(alpha = 0.2f),
                     modifier = Modifier.fillMaxWidth(),
                 )
-
                 Spacer(Modifier.height(4.dp))
-
-                Row {
-                    Text(
-                        text = formatDuration(currentPosition.takeIf { it > 0 } ?: 0L),
-                        fontSize = 11.sp,
-                        color = TextGrey,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "/ ${formatDuration(totalDuration)}",
-                        fontSize = 11.sp,
-                        color = TextGrey.copy(alpha = 0.7f),
-                    )
-                    if (audioClip.transcript.isNotBlank()) {
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = "有转录",
-                            fontSize = 11.sp,
-                            color = AccentBlue,
-                        )
-                    }
-                }
+                Text(
+                    text = chatFormatDuration(audioClip.durationMs),
+                    fontSize = 11.sp,
+                    color = TextGrey,
+                )
             }
         }
     }
 }
 
-private fun formatDuration(ms: Long): String {
+fun chatFormatDuration(ms: Long): String {
     val seconds = ms / 1000
     return "${seconds}s"
 }
@@ -379,10 +310,9 @@ fun AIMessageCard(
             }
         }
     }
-    }
 }
 
-private fun extractSources(content: String): List<Pair<String, String>> {
+fun extractSources(content: String): List<Pair<String, String>> {
     val pattern = Regex("""\[(\d+)\]\s*(https?://\S+)""")
     return pattern.findAll(content).map { it.groupValues[1] to it.groupValues[2] }.toList()
 }
