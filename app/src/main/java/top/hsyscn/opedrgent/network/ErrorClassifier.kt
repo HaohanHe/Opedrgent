@@ -13,6 +13,9 @@ enum class ClassifiedErrorType {
     RATE_LIMIT,
     FORBIDDEN,
     CAPTCHA,
+    AUTH_ERROR,
+    BALANCE,
+    CONTENT_FILTER,
     SSL_ERROR,
     DNS_ERROR,
     SERVER_ERROR,
@@ -223,6 +226,33 @@ object ErrorClassifier {
         exception: Exception?
     ): ClassifiedError {
         return when (httpCode) {
+            401 -> ClassifiedError(
+                type = ClassifiedErrorType.AUTH_ERROR,
+                action = RecommendedAction.OPEN_CIRCUIT,
+                originalException = exception,
+                httpStatusCode = httpCode,
+                isTransient = false,
+                shouldTriggerCircuitBreaker = true,
+                description = "API Key 无效或已过期，请检查设置"
+            )
+            402 -> ClassifiedError(
+                type = ClassifiedErrorType.BALANCE,
+                action = RecommendedAction.OPEN_CIRCUIT,
+                originalException = exception,
+                httpStatusCode = httpCode,
+                isTransient = false,
+                shouldTriggerCircuitBreaker = true,
+                description = "账户余额不足，请及时充值"
+            )
+            421 -> ClassifiedError(
+                type = ClassifiedErrorType.CONTENT_FILTER,
+                action = RecommendedAction.SKIP,
+                originalException = exception,
+                httpStatusCode = httpCode,
+                isTransient = false,
+                shouldTriggerCircuitBreaker = false,
+                description = "内容被安全策略拦截"
+            )
             429 -> ClassifiedError(
                 type = ClassifiedErrorType.RATE_LIMIT,
                 action = RecommendedAction.OPEN_CIRCUIT,
