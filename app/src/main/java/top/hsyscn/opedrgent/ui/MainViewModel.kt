@@ -64,6 +64,7 @@ import top.hsyscn.opedrgent.automation.AutomationStore
 import top.hsyscn.opedrgent.calendar.CalendarEventDraft
 import top.hsyscn.opedrgent.calendar.IcsWriter
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.ui.invisiblePartnerDataStore
 import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.ResearchStore
 import top.hsyscn.opedrgent.storage.SkillsStore
@@ -226,7 +227,7 @@ enum class SproutingState {
     CANCELLED,
 }
 
-class MainViewModel(app: Application) : AndroidViewModel(app) {
+class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
     val apiSettings = ApiSettings(app)
@@ -258,14 +259,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
     private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
-    private val insightSproutEngine = InsightSproutEngine { prompt ->
-        val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
-        LlmClient().chatCompletions(
-            config = apiConfig,
-            system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
-            messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
-        )
-    }
+    private val insightSproutEngine = InsightSproutEngine(
+        llmCall = { prompt: String ->
+            val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+            LlmClient().chatCompletions(
+                config = apiConfig,
+                system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
+                messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
+            ) ?: ""
+        },
+    )
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine)
     private val agentSwarm = top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor)
     private val curatorService = CuratorService(skillLoader, app)
@@ -461,6 +464,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshSessions()
         refreshSkills()
         refreshMemories()
+        // 启动时将 MemoryStore 已有数据同步到海马体索引（一次性迁移）
+        viewModelScope.launch(Dispatchers.IO) {
+            syncMemoryStoreToHippocampus()
+        }
         automationStore.scheduleAllEnabled()
         val last = apiSettings.getLastSessionId()
         if (!last.isNullOrBlank()) {
@@ -522,18 +529,80 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 在后台线程异步执行，完成后更新 StateFlow。
      */
     fun addMemory(title: String, content: String, type: MemoryType = MemoryType.USER) {
-        memoryStore.add(title, content, type)
+        val entry = memoryStore.add(title, content, type)
+        // 同步到海马体索引
+        hippocampus?.let { hip ->
+            val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
+                .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
+            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+                id = "memory_${entry.id}",
+                sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
+                sourceId = entry.id,
+                title = title,
+                summary = content.take(500),
+                keywords = kw,
+                scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
+                createdAt = entry.createdAt,
+                updatedAt = entry.updatedAt,
+            ))
+        }
         refreshMemories()
     }
 
     fun updateMemory(id: String, title: String, content: String, type: MemoryType = MemoryType.USER) {
         memoryStore.update(id, title, content, type)
+        // 同步更新海马体索引
+        hippocampus?.let { hip ->
+            val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
+                .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
+            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+                id = "memory_$id",
+                sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
+                sourceId = id,
+                title = title,
+                summary = content.take(500),
+                keywords = kw,
+                scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            ))
+        }
         refreshMemories()
     }
 
     fun deleteMemory(id: String) {
         memoryStore.delete(id)
+        // 同步删除海马体索引
+        hippocampus?.deleteBySource(top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY, id)
         refreshMemories()
+    }
+
+    /** 启动时将 MemoryStore 已有数据一次性同步到海马体索引 */
+    private suspend fun syncMemoryStoreToHippocampus() {
+        val hip = hippocampus ?: return
+        val entries = memoryStore.list()
+        if (entries.isEmpty()) return
+        var synced = 0
+        for (entry in entries) {
+            val id = "memory_${entry.id}"
+            // 检查是否已存在（避免重复写入）
+            if (hip.query(entry.title.take(20), limit = 1).any { it.id == id }) continue
+            val kw = (entry.title + " " + entry.content).split(Regex("[\\s,;.!?，。；！？、]+"))
+                .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
+            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+                id = id,
+                sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
+                sourceId = entry.id,
+                title = entry.title,
+                summary = entry.content.take(500),
+                keywords = kw,
+                scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
+                createdAt = entry.createdAt,
+                updatedAt = entry.updatedAt,
+            ))
+            synced++
+        }
+        if (synced > 0) DebugLog.i("MainViewModel: MemoryStore -> HippocampusIndex 同步完成, $synced 条")
     }
 
     fun openSession(id: String) {
@@ -635,6 +704,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val finalText = text.trim()
 
+        // 在添加新用户消息之前，先保存正在流式输出的旧助手回复
+        if (_state.value.isStreaming && _state.value.streamingText.isNotBlank()) {
+            savePartialStreamingContent()
+        }
+        // 取消正在运行的任务
+        if (currentRunJob?.isActive == true) {
+            cancelled.set(true)
+            currentCall?.cancel()
+            currentRunJob?.cancel()
+            currentCall = null
+            currentRunJob = null
+            _state.value = _state.value.copy(
+                isStreaming = false,
+                streamingText = "",
+                streamingReasoning = "",
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+                streamingSessionId = null,
+            )
+        }
+
         store.addMessage(sessionId, Role.USER, finalText)
         _state.value = _state.value.copy(current = store.getSession(sessionId))
         refreshSessions()
@@ -672,9 +762,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         if (userText.isNotBlank()) {
                             val results = hip.query(userText.take(50), limit = 5)
                             if (results.isNotEmpty()) {
-                                append("\n[用户的历史记忆 - 相关条目]\n")
+                                append("\n[用户的历史记忆 - 相关条目]（如需查看详情，请调用 get_memory_detail 工具）\n")
                                 results.forEach { item ->
-                                    append("- [${item.sourceType.label}] ${item.title}: ${item.summary.take(200)}\n")
+                                    val kw = if (item.keywords.isNotBlank()) " | ${item.keywords.take(60)}" else ""
+                                    append("- [${item.sourceType.label}] ${item.title}$kw\n")
                                 }
                             }
                         }
@@ -852,10 +943,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val id = noteRepository.saveNote(note)
             hippocampus?.upsertNote(id, note.title, note.content)
-            // 笔记保存成功后异步生成温暖点评
+            // 笔记保存成功后异步生成温暖点评（仅在开关开启时执行）
             launch(Dispatchers.IO) {
-                warmFeedbackService.generateFeedback(note.content).onSuccess { feedback ->
-                    _warmFeedbackState.value = feedback
+                try {
+                    val warmFeedbackKey = androidx.datastore.preferences.core.booleanPreferencesKey("key_warm_feedback")
+                    val prefs = app.invisiblePartnerDataStore.data.first()
+                    val warmEnabled = prefs[warmFeedbackKey] ?: true
+                    if (warmEnabled) {
+                        warmFeedbackService.generateFeedback(note.content).onSuccess { feedback ->
+                            _warmFeedbackState.value = feedback
+                        }
+                    }
+                } catch (e: Exception) {
+                    DebugLog.w("MainViewModel: 温暖点评跳过: ${e.message}")
                 }
             }
         }
@@ -1351,6 +1451,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     put("required", org.json.JSONArray().apply { put("text") })
                 }
             ),
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "get_memory_detail",
+                description = """查阅用户的记忆条目详情。
+
+【使用场景】：
+- 当 system prompt 中列出了用户的记忆标题，而你需要了解某条记忆的具体内容时
+- 当用户提到某条记忆但你只有标题和关键词，需要查看摘要时
+- 当你需要基于用户的记忆给出更精准的回答时
+
+【使用规则】：
+- 先在 system prompt 的「用户的历史记忆」列表中找到对应的标题
+- 用标题或关键词作为 query 参数搜索
+- 返回该条目的完整摘要和关键词
+- 如果找不到，返回空结果，不要编造""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("query", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "要查找的记忆标题或关键词")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("query") })
+                }
+            ),
         )
     }
 
@@ -1364,17 +1489,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             currentRunJob = null
             savePartialStreamingContent()
             _state.value = _state.value.copy(
-                isStreaming = false,
                 streamingText = "",
                 streamingReasoning = "",
                 streamingToolParts = emptyList(),
                 streamingPhase = "",
-                streamingSessionId = null,
-                loading = false,
             )
         }
-        cancelled.set(false)
+        // cancelled.set(false) 移入协程内部，避免旧协程的CancellationException竞态
         currentRunJob = viewModelScope.launch {
+            cancelled.set(false)
             setLoading(true)
             _state.value = _state.value.copy(
                 streamingSessionId = sessionId,
@@ -1425,9 +1548,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         if (lastUserMsg.isNotBlank()) {
                             val results = hip.query(lastUserMsg, limit = 5)
                             if (results.isNotEmpty()) {
-                                append("\n[用户的历史记忆 - 与当前问题相关的条目]\n")
+                                append("\n[用户的历史记忆 - 与当前问题相关的条目]（如需查看详情，请调用 get_memory_detail 工具）\n")
                                 results.forEach { item ->
-                                    append("- [${item.sourceType.label}] ${item.title}: ${item.summary.take(200)} (${item.ageDays}天前)\n")
+                                    val kw = if (item.keywords.isNotBlank()) " | ${item.keywords.take(60)}" else ""
+                                    append("- [${item.sourceType.label}] ${item.title}$kw\n")
                                 }
                             }
                         }
@@ -1668,7 +1792,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         } else {
             withContext(Dispatchers.IO) {
-                streamLlm(ctx.config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                streamLlm(ctx.config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, priorText = ctx.accumulatedText, priorReasoning = ctx.accumulatedReasoning)
             }
         }
 
@@ -1912,6 +2036,58 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
                                 error = "ask_confirmation 处理失败: ${e.message}",
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = errorTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                        }
+                        return@async
+                    }
+
+                    if (tc.name == "get_memory_detail") {
+                        try {
+                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val query = params.optString("query", "")
+                            val results = hippocampus?.query(query, limit = 3) ?: emptyList()
+                            val output = if (results.isEmpty()) {
+                                org.json.JSONObject().apply {
+                                    put("found", false)
+                                    put("message", "未找到与「$query」相关的记忆条目")
+                                }.toString()
+                            } else {
+                                org.json.JSONObject().apply {
+                                    put("found", true)
+                                    put("items", org.json.JSONArray().apply {
+                                        results.forEach { item ->
+                                            put(org.json.JSONObject().apply {
+                                                put("title", item.title)
+                                                put("type", item.sourceType.label)
+                                                put("summary", item.summary)
+                                                put("keywords", item.keywords)
+                                                put("days_ago", item.ageDays)
+                                            })
+                                        }
+                                    })
+                                }.toString()
+                            }
+                            val resultTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.COMPLETED,
+                                output = output,
+                            ))
+                            synchronized(ctx.allToolParts) {
+                                val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
+                                if (pos >= 0) ctx.allToolParts[pos] = resultTp
+                            }
+                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            DebugLog.e("get_memory_detail error: ${e.message}", e)
+                            val errorTp = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.ERROR,
+                                error = "查阅记忆失败: ${e.message}",
                             ))
                             synchronized(ctx.allToolParts) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
@@ -2191,6 +2367,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         messages: List<ChatMessage>,
         tools: List<top.hsyscn.opedrgent.network.ToolDefinition> = emptyList(),
         deepThinkingEnabled: Boolean = false,
+        priorText: String = "",
+        priorReasoning: String = "",
     ): StreamResult = withContext(Dispatchers.IO) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
@@ -2223,11 +2401,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                             val now = System.currentTimeMillis()
                                             if (now - lastFlushTime >= throttleIntervalMs) {
                                                 lastFlushTime = now
-                                                val textSnapshot = contentBuilder.toString()
-                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                val fullText = if (priorText.isNotEmpty()) priorText + "\n\n" + contentBuilder.toString() else contentBuilder.toString()
+                                                val fullReason = if (priorReasoning.isNotEmpty()) priorReasoning + "\n" + reasoningBuilder.toString() else reasoningBuilder.toString()
                                                 _state.value = _state.value.copy(
-                                                    streamingText = textSnapshot,
-                                                    streamingReasoning = reasonSnapshot,
+                                                    streamingText = fullText,
+                                                    streamingReasoning = fullReason,
                                                     isStreaming = true,
                                                 )
                                             }
@@ -2240,11 +2418,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                             val now = System.currentTimeMillis()
                                             if (now - lastFlushTime >= throttleIntervalMs) {
                                                 lastFlushTime = now
-                                                val textSnapshot = contentBuilder.toString()
-                                                val reasonSnapshot = reasoningBuilder.toString()
+                                                val fullText = if (priorText.isNotEmpty()) priorText + "\n\n" + contentBuilder.toString() else contentBuilder.toString()
+                                                val fullReason = if (priorReasoning.isNotEmpty()) priorReasoning + "\n" + reasoningBuilder.toString() else reasoningBuilder.toString()
                                                 _state.value = _state.value.copy(
-                                                    streamingText = textSnapshot,
-                                                    streamingReasoning = reasonSnapshot,
+                                                    streamingText = fullText,
+                                                    streamingReasoning = fullReason,
                                                     isStreaming = true,
                                                 )
                                             }
@@ -4376,14 +4554,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 var currentPhaseIndex = 0
                 val startTime = System.currentTimeMillis()
 
-                val engine = InsightSproutEngine { prompt ->
-                    val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
-                    LlmClient().chatCompletions(
-                        config = apiConfig,
-                        system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
-                        messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
-                    )
-                }
+                val engine = InsightSproutEngine(
+                    llmCall = { prompt: String ->
+                        val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+                        LlmClient().chatCompletions(
+                            config = apiConfig,
+                            system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
+                            messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
+                        ) ?: ""
+                    },
+                )
 
                 _sproutUiState.value = SproutUiState.GeneratingReport(0, 4)
 
@@ -4394,6 +4574,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     when (phase) {
                         top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
                         top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
+                        top.hsyscn.opedrgent.insight.SproutPhase.WEB_ENHANCE -> _sproutingState.value = SproutingState.PHASE2
                         top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
                         top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
                     }
