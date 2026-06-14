@@ -23,8 +23,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +37,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import kotlin.math.max
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -73,6 +78,11 @@ fun NoteEditorScreen(
     var isPreviewMode by remember { mutableStateOf(false) }
     var showFormatToolbar by remember { mutableStateOf(true) }
     var showAiMenu by remember { mutableStateOf(false) }
+
+    // Ghost Text AI 补全
+    var ghostText by remember { mutableStateOf("") }           // 预测的补全文字
+    var isGhostTextActive by remember { mutableStateOf(false) } // 是否正在显示 ghost text
+    var ghostTextJob by remember { mutableStateOf<Job?>(null) } // 补全请求的协程 Job（用于取消）
 
     // 阅读模式专用状态
     var showReaderMenu by remember { mutableStateOf(false) }
@@ -569,7 +579,32 @@ fun NoteEditorScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .onPreviewKeyEvent { keyEvent ->
+                            val keyCode = keyEvent.nativeKeyEvent?.keyCode ?: 0
+                            when {
+                                keyCode == android.view.KeyEvent.KEYCODE_TAB -> {
+                                    if (isGhostTextActive && ghostText.isNotEmpty()) {
+                                        // 接受 ghost text：将 ghost text 插入到光标位置
+                                        val cursorPos = content.selection.start
+                                        val newText = content.text.substring(0, cursorPos) + ghostText +
+                                                content.text.substring(cursorPos)
+                                        content = TextFieldValue(newText, TextRange(cursorPos + ghostText.length))
+                                        isGhostTextActive = false
+                                        ghostText = ""
+                                        true // 消费事件
+                                    } else false
+                                }
+                                keyCode == android.view.KeyEvent.KEYCODE_ESCAPE -> {
+                                    if (isGhostTextActive) {
+                                        isGhostTextActive = false
+                                        ghostText = ""
+                                        true
+                                    } else false
+                                }
+                                else -> false
+                            }
+                        },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     decorationBox = { innerTextField ->
@@ -592,12 +627,77 @@ fun NoteEditorScreen(
                                 )
                             }
                             innerTextField()
+                            // Ghost Text AI 补全：光标后显示灰色预测文字
+                            if (isGhostTextActive && ghostText.isNotEmpty()) {
+                                val cursorPosition = content.selection.start
+                                val textBeforeCursor = content.text.take(cursorPosition)
+                                Text(
+                                    text = ghostText,
+                                    style = TextStyle(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+                                    ),
+                                    modifier = Modifier.offset(
+                                        x = with(LocalDensity.current) {
+                                            // 基于光标前文字的估算宽度偏移
+                                            val paint = android.graphics.Paint().apply {
+                                                textSize = 16.sp.toPx()
+                                                typeface = android.graphics.Typeface.MONOSPACE
+                                            }
+                                            paint.measureText(textBeforeCursor).toDp()
+                                        },
+                                    ),
+                                )
+                            }
+                            // Tab 键接受提示（底部小字提示）
+                            if (isGhostTextActive && ghostText.isNotEmpty()) {
+                                Text(
+                                    text = "Tab 接受 | Esc 取消",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AccentBlue.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(end = 4.dp, bottom = 4.dp),
+                                )
+                            }
                         }
                     },
                 )
-            }
 
-            // 底部状态栏
+                // Ghost Text AI 补全触发逻辑
+                LaunchedEffect(content.text) {
+                    ghostTextJob?.cancel()
+                    isGhostTextActive = false
+                    ghostText = ""
+
+                    // 只在有足够内容时触发（至少10个字符，且光标不在开头）
+                    if (content.text.length >= 10 && content.selection.start > 5) {
+                        ghostTextJob = launch {
+                            delay(1500L) // 等待用户停止输入 1.5 秒
+
+                            // 取光标所在行的最后 100 个字符作为上下文
+                            val cursorPos = content.selection.start
+                            val contextStart = max(0, cursorPos - 100)
+                            val contextText = content.text.substring(contextStart, cursorPos)
+
+                            // 检测是否在句子中间（以句号/换行/列表符结尾则不补全）
+                            val lastChar = contextText.lastOrNull()?.toString() ?: ""
+                            val shouldComplete = lastChar !in listOf("\n", "。", "！", "？", ".", "!", "?", ":", "：")
+
+                            if (shouldComplete && contextText.trim().length > 3) {
+                                // TODO: 接入 LLM streaming API 获取智能补全
+                                isGhostTextActive = true
+                                // 实际应该调用 LLM streaming API，这里先留空字符串
+                                // 用户后续可以接入真正的 LLM 补全
+                                ghostText = ""
+                            }
+                        }
+                    }
+                }
+
+            }
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 tonalElevation = 2.dp,

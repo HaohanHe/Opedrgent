@@ -40,6 +40,7 @@ import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.BgGray
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -135,7 +136,7 @@ fun NoteListScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -165,17 +166,14 @@ fun NoteListScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = BgGray,
                 ),
             )
 
-            // 搜索栏
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { /* 已实时搜索 */ },
-                active = false,
-                onActiveChange = {},
+            // 搜索栏（使用 OutlinedTextField 替代 SearchBar，避免遮挡下方内容）
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
                 placeholder = { Text("搜索笔记...") },
                 leadingIcon = { Icon(Icons.Default.Search, "搜索") },
                 trailingIcon = {
@@ -185,8 +183,10 @@ fun NoteListScreen(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(48.dp),
-            ) {}
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            )
 
             // 类型筛选 Chip 行
             TypeFilterChips(

@@ -35,6 +35,22 @@ data class PipelineResult(
     val totalDurationMs: Long,
 )
 
+/** 群聊讨论单条消息 */
+data class DiscussionMessage(
+    val role: RoleInstance,
+    val content: String,
+    val order: Int,
+    val isFinalDraft: Boolean = false,
+)
+
+/** 群聊讨论结果 */
+data class DiscussionResult(
+    val messages: List<DiscussionMessage>,
+    val finalDraft: String,
+    val totalTokensUsed: Int,
+    val totalDurationMs: Long,
+)
+
 enum class OutputPlatform(
     val displayName: String,
     val formatHint: String,
@@ -214,7 +230,7 @@ class EditorTeamService(
                 role = role,
                 instruction = when (role) {
                     is RoleInstance.Preset -> when (role.role) {
-                        EditorRole.FORMATTER ->
+                        EditorRole.EDITOR_IN_CHIEF ->
                             "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}" +
                                     if (styleReference.isNotEmpty()) "\n\n风格参考：$styleReference" else ""
                         else -> ""
@@ -256,6 +272,109 @@ class EditorTeamService(
             RoleInstance.Preset(role)
         }
         return executeStep(instance, input)
+    }
+
+    // ==================== 群聊式讨论（写作模式核心） ====================
+
+    /**
+     * 群聊式多Agent讨论 — 写作模式的核心执行方式。
+     *
+     * 模拟微信群聊：用户发一段话，多个AI角色依次发言（像真人打字一样），
+     * 每个角色从自己的专业视角给出意见，最后主编综合定稿。
+     *
+     * 与 planAndExecute（串行流水线）的区别：
+     * - 不需要LLM规划步骤，直接用固定阵容
+     * - 每个角色看到的是用户的原始输入 + 前面角色的发言
+     * - 角色之间可以"互相引用"（"我同意历史的观点，但..."）
+     * - 最终产出是讨论过程 + 主编定稿
+     */
+
+    /**
+     * 启动群聊讨论。
+     *
+     * @param userInput 用户的写作需求或待修改文本
+     * @param roles 参与讨论的角色列表（默认用 defaultPipeline）
+     * @param onEachMessage 每个角色发言后的回调（用于UI实时显示）
+     */
+    suspend fun groupDiscussion(
+        userInput: String,
+        roles: List<EditorRole> = EditorRole.defaultPipeline,
+        onEachMessage: (DiscussionMessage) -> Unit = {},
+    ): DiscussionResult = withContext(Dispatchers.IO) {
+        resetCancel()
+        resetStorage()
+        val startTime = System.currentTimeMillis()
+        var totalTokens = 0
+        val messages = mutableListOf<DiscussionMessage>()
+
+        // 构建讨论上下文：所有角色的发言历史
+        val discussionHistory = mutableListOf<String>()
+
+        for ((index, role) in roles.withIndex()) {
+            if (isCancelled) break
+
+            val instance = RoleInstance.Preset(role)
+
+            // 构建输入：原始需求 + 前面角色的发言（让后续角色能引用）
+            val discussionContext = if (discussionHistory.isNotEmpty()) {
+                val prevMessages = discussionHistory.takeLast(3).joinToString("\n\n") { it }
+                """## 用户的需求
+$userInput
+
+---
+
+## 前面同事的发言（你可以参考或反驳）
+$prevMessages"""
+            } else {
+                userInput
+            }
+
+            DebugLog.i("EditorTeamService.groupDiscussion → ${role.alias} speaking...")
+
+            val result = executeStep(
+                role = instance,
+                input = discussionContext,
+                extraInstructions = if (index == roles.lastIndex) {
+                    "你是最后一位发言者。请综合前面所有同事的意见，给出最终定稿。"
+                } else "",
+            )
+
+            if (result.isSuccess) {
+                val msg = DiscussionMessage(
+                    role = instance,
+                    content = result.output,
+                    order = index,
+                    isFinalDraft = (index == roles.lastIndex),
+                )
+                messages.add(msg)
+                totalTokens += result.tokensUsed
+
+                // 记录到讨论历史（供后续角色参考）
+                discussionHistory.add("【${role.alias}】${role.displayName}说：\n${result.output}")
+
+                // 回调UI更新
+                onEachMessage(msg)
+
+                storage.set("discussion_msg_$index", result.output)
+                storage.set("last_discussion_role", role.alias)
+            } else {
+                DebugLog.w("EditorTeamService.groupDiscussion: ${role.alias} failed: ${result.error}")
+                // 某个角色失败不阻断整体讨论
+                discussionHistory.add("【${role.alias}】（发言失败）")
+            }
+        }
+
+        val finalDraft = messages.lastOrNull { it.isFinalDraft }?.content ?: ""
+        val duration = System.currentTimeMillis() - startTime
+
+        DebugLog.i("EditorTeamService.groupDiscussion done: ${messages.size} msgs, ${duration}ms")
+
+        DiscussionResult(
+            messages = messages.toList(),
+            finalDraft = finalDraft,
+            totalTokensUsed = totalTokens,
+            totalDurationMs = duration,
+        )
     }
 
     /**
@@ -740,17 +859,17 @@ $userInput"""
         }
     }
 
-    /** 为动态角色选一个合适的图标 */
+    /** 为动态角色选一个合适的图标（纯文字标识，无emoji） */
     private fun pickIconForName(name: String): String {
         val keywords = mapOf(
-            "选题" to "\uD83D\uDCA1", "调研" to "\uD83D\uDCDA", "撰写" to "\u270D\uFE0F",
-            "核查" to "\uD83D\uDD0D", "审稿" to "\uD83D\uDCCB", "排版" to "\uD83C\uDFA8",
-            "整理" to "\uD83D\uDCE6", "风格" to "\uD83C\uDFAD", "翻译" to "\uD83C\uDF0D",
-            "分析" to "\uD83D\uDCCA", "设计" to "\uD83C\uDFA8", "校对" to "\uD83D\uDCDD",
-            "数据" to "\uD83D\uDCCA", "创意" to "\uD83C\uDF31", "优化" to "\u2B06",
+            "选题" to "P", "调研" to "R", "撰写" to "W",
+            "核查" to "C", "审稿" to "V", "排版" to "F",
+            "整理" to "O", "风格" to "S", "翻译" to "X",
+            "分析" to "A", "设计" to "D", "校对" to "K",
+            "数据" to "D", "创意" to "I", "优化" to "^",
         )
         for ((kw, icon) in keywords) { if (name.contains(kw) || kw.contains(name)) return icon }
-        return "\u2604" // 默认星号图标
+        return "?" // 默认
     }
 
     /** 回退方案：规划失败时使用默认流水线 */

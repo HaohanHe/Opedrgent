@@ -127,7 +127,7 @@ class MimoAsrEngine(
             finally { tempFile.delete() }
         } catch (e: Exception) {
             DebugLog.e(TAG, "URI 识别失败: ${e.message}", e)
-            SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID)
+            SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = e.message)
         }
     }
 
@@ -137,7 +137,7 @@ class MimoAsrEngine(
         try { recognizeFileInternal(File(filePath), startTimeMs) }
         catch (e: Exception) {
             DebugLog.e(TAG, "文件路径识别失败: ${e.message}", e)
-            SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID)
+            SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = e.message)
         }
     }
 
