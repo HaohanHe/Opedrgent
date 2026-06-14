@@ -374,8 +374,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
   系统 JDK 25+ 与 Gradle 8.x 不兼容，**必须**使用 Android Studio 内置 JBR（Java 21）
 - Sherpa-ONNX AAR must be manually placed in `app/libs/` directory (currently uses stub for compilation)
   Sherpa-ONNX AAR 需手动下载放入 `app/libs/` 目录（当前使用 stub 编译）
-- For proxy access: `$env:HTTP_PROXY="http://127.0.0.1:7897"`
-  如需代理访问网络：`$env:HTTP_PROXY="http://127.0.0.1:7897"`
+
 
 ## Architecture / 核心架构
 
