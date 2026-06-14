@@ -12,6 +12,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 
 class InsightSproutTool(
     private val engine: InsightSproutEngine,
+    private val webSearcher: ((String, Int) -> String)? = null,
 ) : ToolSet {
 
     companion object {
@@ -103,14 +104,20 @@ class InsightSproutTool(
             outputLength = outputLength,
             preferredDomains = preferredDomains,
             useContext = useContext,
+            enableWebSearch = useProviderSearch && webSearcher != null,
         )
+
+        // 如果有联网搜索能力，注入到 engine
+        if (webSearcher != null) {
+            engine.setWebSearcher(webSearcher)
+        }
 
         val startTime = System.currentTimeMillis()
         val result = try {
             engine.sprout(effectiveText, sproutConfig)
         } catch (e: Exception) {
             DebugLog.e("insight_sprout: engine execution failed - ${e.message}", e)
-            return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n提示：发芽过程涉及 4 阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
+            return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n提示：发芽过程涉及多阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
         }
 
         if (result.markdownReport.isBlank() && result.seeds.isEmpty() && result.insights.isEmpty()) {
@@ -120,7 +127,7 @@ class InsightSproutTool(
         val qualityScore = engine.getCachedQualityScore()?.overallScore ?: evaluateFallbackQuality(result)
         val processingTimeMs = System.currentTimeMillis() - startTime
 
-        DebugLog.i("insight_sprout: completed phases=${result.completedPhases.size}/4 time=${processingTimeMs}ms quality=$qualityScore")
+        DebugLog.i("insight_sprout: completed phases=${result.completedPhases.size}/5 time=${processingTimeMs}ms quality=$qualityScore")
 
         val formattedReport = formatSproutResult(result, qualityScore, processingTimeMs, outputLength, preferredDomains)
 
@@ -207,7 +214,7 @@ class InsightSproutTool(
     ): String {
         val sb = StringBuilder(4096)
         val phasesCompleted = result.completedPhases.size
-        val totalPhases = 4
+        val totalPhases = 5
 
         sb.appendLine("**知识发芽完成**")
         sb.appendLine()

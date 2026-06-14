@@ -7,6 +7,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -130,6 +131,11 @@ fun RecordingTab(
     var savedToNote by remember { mutableStateOf(false) }
     var autoSaved by remember { mutableStateOf(false) }          // 是否已自动保存
     var autoSavedNoteId by remember { mutableStateOf(0L) }      // 自动保存的笔记 ID
+
+    // 读取无感伙伴设置中的自动保存开关
+    val autoSaveKey = androidx.datastore.preferences.core.booleanPreferencesKey("key_auto_save")
+    val partnerPrefs = context.invisiblePartnerDataStore.data.collectAsState(initial = null).value
+    val autoSaveEnabled = partnerPrefs?.get(autoSaveKey) ?: true
 
     val audioRecord = remember { mutableStateOf<AudioRecord?>(null) }
     val tempFilePath = remember { mutableStateOf<String?>(null) }
@@ -358,7 +364,7 @@ fun RecordingTab(
                                 if (transcriptText.isBlank() && transcriptResult?.error != null) {
                                     snackbar.showSnackbar(transcriptResult!!.error!!)
                                 }
-                                if (selectedMode == 0 && transcriptText.isNotBlank()) {
+                                if (selectedMode == 0 && transcriptText.isNotBlank() && autoSaveEnabled) {
                                     try {
                                         val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" }
                                         val noteId = vm.createNoteFromText(autoTitle, transcriptText, NoteType.MEETING)
