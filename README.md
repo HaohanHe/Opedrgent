@@ -436,15 +436,3 @@ assets/skills/
 └── multi-agent-collaboration.md # Text Skill: Multi-agent collaboration / 多智能体协作
 ```
 
-## Notes / 注意事项
-
-- Sherpa-ONNX AAR must be manually placed in `app/libs/` (currently uses stub for compilation)
-  Sherpa-ONNX AAR 需手动下载放入 `app/libs/` 目录（当前使用 stub 编译）
-- Some features require network connection (LLM API calls, search, etc.)
-  部分功能需要网络连接（LLM API 调用、搜索等）
-- Browser automation requires user authorization confirmation
-  浏览器接管功能需要用户授权确认
-- Prompt output strictly contains no emoji
-  Prompt 输出严格不含 emoji
-- The `参考/` directory is read-only reference material, not part of the active project build
-  `参考/` 目录为只读参考资料，不属于活跃项目构建范围
