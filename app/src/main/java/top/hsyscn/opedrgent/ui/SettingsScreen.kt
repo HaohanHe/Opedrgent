@@ -154,8 +154,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             modifier = Modifier
                 .padding(padding)
                 .padding(12.dp)
-                .padding(bottom = 100.dp)
-                .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
