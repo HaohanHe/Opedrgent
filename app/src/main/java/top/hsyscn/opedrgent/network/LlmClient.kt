@@ -376,7 +376,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         }
                         val fn = tc.optJSONObject("function") ?: continue
                         val nameDelta = fn.optString("name", "")
+                            .let { if (it == "null") "" else it }
                         val argsDelta = fn.optString("arguments", "")
+                            .let { if (it == "null") "" else it }
 
                         if (nameDelta.isNotEmpty()) {
                             toolCallMap.getOrPut(idx) { StringBuilder() }.append(nameDelta)
