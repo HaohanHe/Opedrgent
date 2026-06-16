@@ -20,17 +20,29 @@ private val DarkColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = Blue40,
-    secondary = BlueGrey40,
-    tertiary = Teal40,
-    background = Color(0xFFF3F3F3),
-    surface = Color(0xFFFFFFFF),
     onPrimary = Color.White,
+    primaryContainer = LightBlueBg,
+    secondary = BlueGrey40,
     onSecondary = Color.White,
-    onBackground = Color(0xFF1E242A),
-    onSurface = Color(0xFF1E242A),
+    secondaryContainer = SurfaceLight,
+    tertiary = Teal40,
+    background = DarkBackground,
+    onBackground = TextDark,
+    surface = DarkSurface,
+    onSurface = TextDark,
     surfaceVariant = Color(0xFFE8EDF5),
-    onSurfaceVariant = Color(0xFF7D7984),
-    outline = Color(0xFFD0D0D0),
+    onSurfaceVariant = TextGrey,
+    outline = BorderLight,
+    outlineVariant = DividerColor,
+    error = DangerRed,
+    errorContainer = ErrorBackground,
+    // Extended semantic (used via MaterialTheme.colorScheme)
+    surfaceContainerLow = SurfaceElevated,
+    surfaceContainer = CardBackground,
+    surfaceContainerHigh = SurfaceLight,
+    inverseSurface = InterviewDarkBg,
+    inverseOnSurface = Color.White,
+    inversePrimary = InterviewPurple,
 )
 
 @Composable

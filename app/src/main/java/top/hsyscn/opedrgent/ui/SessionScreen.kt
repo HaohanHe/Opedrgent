@@ -109,6 +109,11 @@ import top.hsyscn.opedrgent.ui.theme.GreenDot
 import top.hsyscn.opedrgent.ui.theme.LightBlueBg
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.CardBackground
+import top.hsyscn.opedrgent.ui.theme.DisabledColor
+import top.hsyscn.opedrgent.ui.theme.DividerColor
+import top.hsyscn.opedrgent.ui.theme.InputBorder
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 
@@ -428,7 +433,7 @@ fun SessionScreen(
                     Surface(
                         onClick = { vm.sendUserMessage(action.prompt) },
                         shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFFF0F0F0),
+                        color = DividerColor,
                         modifier = Modifier.height(32.dp),
                     ) {
                         Row(
@@ -507,7 +512,7 @@ fun SessionScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(11.dp)),
                     shape = RoundedCornerShape(11.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA)),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
@@ -599,9 +604,9 @@ fun SessionScreen(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(
                         containerColor = when {
-                            isSending -> Color(0xFFBDBDBD)  // 发送中：灰色
+                            isSending -> DisabledColor  // 发送中：灰色
                             prompt.isNotBlank() -> AccentBlue
-                            else -> Color(0xFFE0E0E0)
+                            else -> InputBorder
                         },
                     ),
                     modifier = Modifier
@@ -672,7 +677,7 @@ fun SessionScreen(
                                         scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") }
                                     }
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -708,10 +713,28 @@ fun SessionScreen(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     showMoreOptionsSheet = false
-                                    // TODO: Implement paste link functionality
-                                    scope.launch { snackbar.showSnackbar("粘贴链接功能开发中") }
+                                    // 读取剪贴板内容并作为消息发送
+                                    val clipText = clipboard.getText()?.text ?: ""
+                                    if (clipText.isBlank()) {
+                                        scope.launch { snackbar.showSnackbar("剪贴板为空") }
+                                    } else if (isValidUrl(clipText.trim())) {
+                                        prompt = clipText.trim()
+                                        if (!isSending && prompt.isNotBlank()) {
+                                            isSending = true
+                                            vm.sendUserMessage(prompt)
+                                            prompt = ""
+                                            scope.launch {
+                                                kotlinx.coroutines.delay(500)
+                                                isSending = false
+                                            }
+                                        }
+                                    } else {
+                                        // 非链接内容也支持粘贴发送
+                                        prompt = clipText.trim()
+                                        scope.launch { snackbar.showSnackbar("已粘贴到输入框") }
+                                    }
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -749,7 +772,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     filePicker.launch(arrayOf("image/*"))
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -787,7 +810,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("meeting")
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -825,7 +848,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("knowledge")
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -863,7 +886,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("editorTeam")
                                 },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1079,7 +1102,7 @@ fun SessionScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(11.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5F5F5), contentColor = TextDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = CardBackground, contentColor = TextDark),
                 ) { Text("完整导出中心") }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1147,6 +1170,13 @@ private fun AiStatusBar(isStreaming: Boolean) {
                 .background(GreenDot.copy(alpha = pulseAlpha)),
         )
     }
+}
+
+/** 验证字符串是否为有效 URL */
+private fun isValidUrl(text: String): Boolean {
+    val trimmed = text.trim()
+    return trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
+            trimmed.startsWith("www.") || trimmed.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*"))
 }
 
 /**

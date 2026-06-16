@@ -247,6 +247,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
     val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
+    val asrPostProcessor = top.hsyscn.opedrgent.stt.AsrPostProcessor()
+    val smartSummaryGenerator = top.hsyscn.opedrgent.stt.SmartSummaryGenerator(llm)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)

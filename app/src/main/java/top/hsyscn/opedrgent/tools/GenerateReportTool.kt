@@ -30,7 +30,30 @@ class GenerateReportTool(
         DebugLog.i("generate_report: topic=$topic")
 
         if (data.isBlank()) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "报告生成完成。\n\n# $topic\n\n（暂无研究数据，请先执行深度研究）", endTime = System.currentTimeMillis())))
+            // 无研究数据时，仍基于主题生成基础报告框架（而非返回假文本）
+            val basicPrompt = buildString {
+                appendLine("请基于以下主题，生成一份研究报告框架。")
+                appendLine("由于暂无具体研究数据，请生成包含以下结构的框架性报告：")
+                appendLine()
+                appendLine("1. 研究背景与意义")
+                appendLine("2. 核心问题分析")
+                appendLine("3. 建议研究方向")
+                appendLine("4. 预期结论与建议")
+                appendLine()
+                appendLine("报告主题：$topic")
+                appendLine()
+                appendLine("要求：使用 Markdown 格式，保持专业文风，每个部分给出 2-3 个要点。")
+            }
+            val basicReport = try {
+                llm.chatCompletions(
+                    config = config,
+                    system = systemPrompt,
+                    messages = listOf(ChatMessage(role = Role.USER, content = basicPrompt, createdAt = System.currentTimeMillis())),
+                )
+            } catch (e: Exception) {
+                "报告生成失败：${e.message}"
+            }
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = basicReport, endTime = System.currentTimeMillis())))
         }
 
         val reportPrompt = buildString {

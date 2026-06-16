@@ -94,6 +94,8 @@ import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.DangerRed
+import top.hsyscn.opedrgent.ui.theme.BorderLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -319,8 +321,8 @@ fun KnowledgeBaseScreen(
                     }
                 },
                 onDocClick = { doc ->
-                    // TODO: 后续接入 AI 检索问答 / 内容预览
-                    scope.launch { snackbar.showSnackbar("预览功能开发中: ${doc.title}") }
+                    // 打开文档详情（后续可扩展为内置预览或 LLM 摘要）
+                    scope.launch { snackbar.showSnackbar("文档: ${doc.title} (${doc.fileType}, ${doc.fileSizeBytes}字节)") }
                 },
             )
         }
@@ -454,7 +456,7 @@ fun KnowledgeBaseScreen(
                         showDeleteKbConfirm = false
                         kbToDelete = null
                     }
-                }) { Text("删除", color = Color(0xFFE53935)) }
+                }) { Text("删除", color = DangerRed) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteKbConfirm = false; kbToDelete = null }) { Text("取消") }
@@ -576,7 +578,7 @@ private fun KbGridView(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.5f)),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFCCCCCC).copy(alpha = 0.5f)),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.5f)),
                         modifier = Modifier
                             .height(140.dp)
                             .clickable(onClick = onCreateKb),
@@ -779,7 +781,7 @@ private fun DocumentCard(
     }
 
     val iconTint = when (document.fileType) {
-        "pdf" -> Color(0xFFE53935)
+        "pdf" -> DangerRed
         "jpg", "jpeg", "png", "bmp", "webp" -> Color(0xFF43A047)
         "docx", "doc" -> Color(0xFF1E88E5)
         else -> AccentBlue

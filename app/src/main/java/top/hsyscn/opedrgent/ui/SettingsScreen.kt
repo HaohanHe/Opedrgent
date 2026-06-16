@@ -90,6 +90,10 @@ import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
 @Composable
@@ -430,7 +434,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = "StepAudio 2.5 ASR (阶跃星辰) — 4B MTP 极速引擎，1小时音频19秒转完，0.15元/小时。需阶跃 API Key",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF6C63FF),
+                                color = InterviewPurple,
                             )
                         }
                         if (sttEngine == "local") {
@@ -488,12 +492,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             if (isDownloaded) {
                                                 Surface(
                                                     shape = RoundedCornerShape(4.dp),
-                                                    color = Color(0xFF4CAF50).copy(alpha = 0.15f),
+                                                    color = SuccessGreen.copy(alpha = 0.15f),
                                                 ) {
                                                     Text(
                                                         text = "已下载",
                                                         fontSize = 10.sp,
-                                                        color = Color(0xFF4CAF50),
+                                                        color = SuccessGreen,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                                     )
                                                 }
@@ -654,7 +658,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = "StepAudio 2.5 TTS (阶跃星辰) — Global+Inline 双语境控制，Zero-shot 音色复刻，5.8元/万字符。需阶跃 API Key",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF6C63FF),
+                                color = InterviewPurple,
                             )
                         }
                         if (ttsEngine == "mimo") {
@@ -687,7 +691,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = "关闭后自动朗读时直接播放音频",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF4CAF50),
+                                color = SuccessGreen,
                             )
                         }
                     }
@@ -762,7 +766,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Text(
                             text = "关闭后 AI 仅基于本地知识和已有笔记回答问题，不会发起任何网络请求",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF4CAF50),
+                            color = SuccessGreen,
                         )
                     }
                 }
@@ -971,7 +975,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
                     if (isLocalMode && currentInfo != null) {
                         Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = Color(0xFFEEEEEE))
+                        HorizontalDivider(color = DividerColor)
                         Spacer(Modifier.height(10.dp))
 
                         var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }

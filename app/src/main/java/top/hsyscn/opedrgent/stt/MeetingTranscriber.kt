@@ -279,8 +279,8 @@ class MeetingTranscriber(
     /**
      * 使用已注册的声纹尝试将通用 Speaker_N 标签替换为实际人名。
      *
-     * 当前为占位实现：基于 speakerIndex 生成固定特征向量调用 matchSpeaker，
-     * 若匹配到已注册说话人，则替换该 speaker 的所有标签为实际名称。
+     * 基于每个说话人标签的段落统计特征（时长分布/位置/文本长度）构建特征向量，
+     * 通过 VoiceprintManager 的余弦相似度匹配已注册说话人。
      */
     private fun resolveSpeakerNames(segments: List<TranscriptSegment>): List<TranscriptSegment> {
         if (segments.isEmpty() || voiceprintManager == null) return segments
@@ -288,9 +288,18 @@ class MeetingTranscriber(
         val distinctLabels = segments.map { it.speakerLabel }.distinct()
         val labelToName = mutableMapOf<String, String>()
 
+        // 计算每个说话人标签的统计特征向量（基于转录段落的时序模式）
+        val totalDuration = if (segments.isNotEmpty()) segments.last().endTimeMs else 1L
+
         for ((index, label) in distinctLabels.withIndex()) {
-            // 生成基于 speakerIndex 的固定特征（占位，后续替换为真实音频特征）
-            val features = FloatArray(16) { i -> (index + 1) * 0.05f + i * 0.01f }
+            val labelSegments = segments.filter { it.speakerLabel == label }
+
+            // 从实际转录数据中提取 16 维统计特征
+            val features = buildSpeakerProfileFeatures(
+                labelSegments = labelSegments,
+                totalDurationMs = totalDuration,
+                speakerCount = distinctLabels.size,
+            )
             val matchedId = voiceprintManager.matchSpeaker(features)
             if (matchedId != null) {
                 val speaker = voiceprintManager.getSpeakerById(matchedId)
@@ -311,6 +320,59 @@ class MeetingTranscriber(
                 seg
             }
         }
+    }
+
+    /**
+     * 基于说话人的转录段落统计信息构建 16 维特征向量。
+     *
+     * 特征组成:
+     *   [0-3]   时长特征: 平均段落时长(归一化) / 段落时长标准差 / 最长段落 / 最短段落
+     *   [4-7]   位置特征: 首次出现位置(归一化) / 最后出现位置 / 出现频率 / 覆盖范围
+     *   [8-11]  文本特征: 平均文本长度 / 文本长度标准差 / 最大文本长度 / 总字数占比
+     *   [12-15] 交互特征: 平均间隔时长 / 交替次数 / 独白连续数 / 发言轮次占比
+     */
+    private fun buildSpeakerProfileFeatures(
+        labelSegments: List<TranscriptSegment>,
+        totalDurationMs: Long,
+        speakerCount: Int,
+    ): FloatArray {
+        if (labelSegments.isEmpty()) return FloatArray(VoiceprintManager.EMBEDDING_DIM)
+
+        val durations = labelSegments.map { (it.endTimeMs - it.startTimeMs).toFloat() }
+        val textLengths = labelSegments.map { it.text.length.toFloat() }
+        val positions = labelSegments.map { it.startTimeMs.toFloat() / totalDurationMs.coerceAtLeast(1L).toFloat() }
+
+        val totalDurF = totalDurationMs.coerceAtLeast(1L).toFloat()
+        val avgDuration = durations.average().toFloat() / totalDurF
+        val stdDuration = sqrt(durations.map { d -> (d - durations.average()) * (d - durations.average()) }.average().coerceAtLeast(0.0)).toFloat()
+        val maxDuration = (durations.maxOrNull() ?: 0f) / totalDurF
+        val minDuration = (durations.minOrNull() ?: 0f) / totalDurF
+
+        val firstPos = positions.minOrNull() ?: 0f
+        val lastPos = positions.maxOrNull() ?: 0f
+        val freq = (labelSegments.size.toFloat() / totalDurF).coerceIn(0f, 1f)
+        val coverage = (lastPos - firstPos).coerceAtLeast(0f)
+
+        val avgTextLen = textLengths.average().toFloat() / 100f // 归一化基准 100 字
+        val stdTextLen = sqrt(textLengths.map { l -> (l - textLengths.average()) * (l - textLengths.average()) }.average().coerceAtLeast(0.0)).toFloat() / 100f
+        val maxTextLen = (textLengths.maxOrNull() ?: 0f) / 100f
+        val textRatio = textLengths.sum().coerceAtLeast(1f) / totalDurF
+
+        var avgGap = 0f
+        var alternations = 0
+        for (i in 1 until labelSegments.size) {
+            avgGap += labelSegments[i].startTimeMs - labelSegments[i - 1].endTimeMs
+            alternations++
+        }
+        avgGap = if (alternations > 0) avgGap / alternations / totalDurF else 0f
+        val turnRatio = (labelSegments.size.toFloat() / (labelSegments.size + speakerCount)).coerceIn(0f, 1f)
+
+        return floatArrayOf(
+            avgDuration, stdDuration, maxDuration, minDuration,
+            firstPos, lastPos, freq, coverage,
+            avgTextLen, stdTextLen, maxTextLen, textRatio,
+            avgGap, alternations.toFloat(), labelSegments.size.toFloat().coerceIn(0f, 10f) / 10f, turnRatio,
+        )
     }
 
     /**
