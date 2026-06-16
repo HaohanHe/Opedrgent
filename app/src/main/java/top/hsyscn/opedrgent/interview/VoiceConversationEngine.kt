@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.interview
 
 import android.content.Context
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -603,8 +604,8 @@ class VoiceConversationEngine(
     /**
      * 识别 PCM 音频数据。
      *
-     * 尝试使用流式 ASR 引擎识别，
-     * 如果不可用则返回空字符串。
+     * 优先使用离线文件识别路径（将 PCM 写入临时 WAV 文件后调用 transcribeFile），
+     * 该方式更稳定且不依赖麦克风流式采集。仅在离线路径不可用时降级为流式模式。
      *
      * @return 识别出的文本
      */
@@ -618,58 +619,126 @@ class VoiceConversationEngine(
         }
 
         return try {
-            // 注意：这里简化处理，实际项目中应该将 PCM 数据送入 ASR 引擎
-            // 由于 AsrManager.startStreaming() 是基于麦克风流式采集的，
-            // 对于离线 PCM 数据，可能需要使用其他接口或扩展 AsrManager
+            // 主路径：将 PCM 数据写入临时 WAV 文件，使用离线文件识别
+            val tempWavFile = File(context.cacheDir, "interview_pcm_${System.nanoTime()}.wav")
+            try {
+                pcmToWav(pcmData, tempWavFile)
+                DebugLog.d(TAG, "PCM→WAV 完成: ${pcmData.size}B → ${tempWavFile.length()}B")
 
-            // 当前实现：启动流式识别等待结果
-            // TODO: 集成离线 PCM 识别接口（如 Whisper API 或本地模型）
-            var finalResult = ""
+                val result = manager.transcribeFile(tempWavFile.absolutePath)
+                val text = result.text
+                if (text.isNotBlank()) {
+                    onPartialText(text)
+                    DebugLog.i(TAG, "离线 ASR 结果: '${text.take(100)}'")
+                }
+                text
+            } finally {
+                tempWavFile.safeDelete()
+            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "离线识别失败，尝试流式降级: ${e.message}")
+            // 降级：使用流式 ASR（适用于实时场景）
+            recognizePcmStreaming(manager, onPartialText)
+        }
+    }
 
-            asrJob = CoroutineScope(Dispatchers.IO).launch {
-                val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
-                flow
-                    .catch { e ->
-                        DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
-                    }
-                    .collect { state ->
-                        when (state) {
-                            is StreamingRecognitionState.Recognizing -> {
-                                // 实时识别结果（partial）
-                                onPartialText(state.partialText)
-                            }
-                            is StreamingRecognitionState.FinalResult -> {
-                                // 最终识别结果
-                                finalResult = state.text
-                                DebugLog.i(TAG, "ASR 最终结果: '${finalResult.take(100)}'")
-                            }
-                            is StreamingRecognitionState.Error -> {
-                                DebugLog.e(TAG, "ASR 错误: ${state.message}")
-                            }
-                            is StreamingRecognitionState.Stopped -> {
-                                DebugLog.d(TAG, "ASR 已停止")
-                            }
-                            is StreamingRecognitionState.Listening -> {
-                                DebugLog.d(TAG, "ASR 进入监听状态")
-                            }
+    /**
+     * 流式 ASR 降级路径 — 用于实时录音场景（麦克风采集的 PCM 无法写入文件时）。
+     */
+    private suspend fun recognizePcmStreaming(
+        manager: top.hsyscn.opedrgent.stt.AsrManager,
+        onPartialText: (String) -> Unit,
+    ): String {
+        var finalResult = ""
+
+        asrJob = CoroutineScope(Dispatchers.IO).launch {
+            val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
+            flow
+                .catch { e ->
+                    DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
+                }
+                .collect { state ->
+                    when (state) {
+                        is StreamingRecognitionState.Recognizing -> {
+                            onPartialText(state.partialText)
+                        }
+                        is StreamingRecognitionState.FinalResult -> {
+                            finalResult = state.text
+                            DebugLog.i(TAG, "ASR 最终结果: '${finalResult.take(100)}'")
+                        }
+                        is StreamingRecognitionState.Error -> {
+                            DebugLog.e(TAG, "ASR 错误: ${state.message}")
+                        }
+                        is StreamingRecognitionState.Stopped -> {
+                            DebugLog.d(TAG, "ASR 已停止")
+                        }
+                        is StreamingRecognitionState.Listening -> {
+                            DebugLog.d(TAG, "ASR 进入监听状态")
                         }
                     }
-            }
-
-            // 等待 ASR 返回最终结果（VAD 检测到静默后 ASR 会自动出结果，这里给一个上限超时）
-            delay(1500L)
-
-            asrJob?.cancel()
-            asrJob = null
-
-            finalResult
-
-        } catch (e: CancellationException) {
-            ""
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "ASR 识别失败: ${e.message}", e)
-            ""
+                }
         }
+
+        delay(1500L)
+
+        asrJob?.cancel()
+        asrJob = null
+
+        return finalResult
+    }
+
+    /** 将原始 PCM 16-bit 单声道数据封装为 WAV 文件 */
+    private fun pcmToWav(pcmData: ByteArray, outputFile: File) {
+        val sampleRate = 16000
+        val channels = 1
+        val bitsPerSample = 16
+        val dataSize = pcmData.size
+        val fileSize = 36 + dataSize
+
+        outputFile.outputStream().use { fos ->
+            // RIFF header
+            fos.write("RIFF".toByteArray())
+            fos.write(intToLittleEndian(fileSize))
+            fos.write("WAVE".toByteArray())
+
+            // fmt chunk
+            fos.write("fmt ".toByteArray())
+            fos.write(intToLittleEndian(16))             // chunk size
+            fos.write(shortToLittleEndian(1))              // PCM format
+            fos.write(shortToLittleEndian(channels))
+            fos.write(intToLittleEndian(sampleRate))
+            fos.write(intToLittleEndian(sampleRate * channels * bitsPerSample / 8)) // byte rate
+            fos.write(shortToLittleEndian(channels * bitsPerSample / 8))           // block align
+            fos.write(shortToLittleEndian(bitsPerSample))
+
+            // data chunk
+            fos.write("data".toByteArray())
+            fos.write(intToLittleEndian(dataSize))
+            fos.write(pcmData)
+        }
+    }
+
+    /** 安全删除文件（忽略不存在的情况） */
+    private fun File.safeDelete() {
+        try { if (exists()) delete() } catch (_: Exception) {}
+    }
+
+    /** Int → Little-Endian 4 字节 */
+    private fun intToLittleEndian(value: Int): ByteArray {
+        return byteArrayOf(
+            (value and 0xFF).toByte(),
+            ((value shr 8) and 0xFF).toByte(),
+            ((value shr 16) and 0xFF).toByte(),
+            ((value shr 24) and 0xFF).toByte(),
+        )
+    }
+
+    /** Short → Little-Endian 2 字节 */
+    private fun shortToLittleEndian(value: Int): ByteArray {
+        return byteArrayOf(
+            (value and 0xFF).toByte(),
+            ((value shr 8) and 0xFF).toByte(),
+        )
     }
 
     /**

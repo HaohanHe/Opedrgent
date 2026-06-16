@@ -46,6 +46,21 @@ import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.TextPrimary
+import top.hsyscn.opedrgent.ui.theme.TextSecondary
+import top.hsyscn.opedrgent.ui.theme.BorderLight
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.ChipWarningText
+import top.hsyscn.opedrgent.ui.theme.DisabledColor
+import top.hsyscn.opedrgent.ui.theme.DividerColor
+import top.hsyscn.opedrgent.ui.theme.SproutBackground
+import top.hsyscn.opedrgent.ui.theme.SproutQuoteBg
+import top.hsyscn.opedrgent.ui.theme.SproutChipBg
+import top.hsyscn.opedrgent.ui.theme.SproutDivider
+import top.hsyscn.opedrgent.ui.theme.SproutSeedText
+import top.hsyscn.opedrgent.ui.theme.SproutMetaText
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -196,7 +211,7 @@ fun NoteSproutScreen(
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).background(Color(0xFFFAFAF5))) {
+        Box(Modifier.fillMaxSize().padding(padding).background(SproutBackground)) {
             when {
                 isGenerating && article == null -> SproutLoadingView()
                 errorMessage != null && article == null -> SproutErrorView(message = errorMessage!!, onRetry = {
@@ -277,7 +292,7 @@ private fun SproutArticleContent(
         }
 
         AnimatedVisibility(visible = isRefreshing) {
-            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color(0xFF4CAF50))
+            LinearProgressIndicator(Modifier.fillMaxWidth(), color = SuccessGreen)
         }
 
         // 底部操作栏：仅在发芽报告存在时显示
@@ -349,7 +364,7 @@ private fun ReportHeader(dateStr: String, modelName: String) {
     ) {
         Surface(
             shape = RoundedCornerShape(4.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF333333)),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, TextPrimary),
             color = Color.Transparent,
         ) {
             Text(
@@ -359,13 +374,13 @@ private fun ReportHeader(dateStr: String, modelName: String) {
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 4.sp,
                 ),
-                color = Color(0xFF222222),
+                color = TextPrimary,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Description, null, tint = Color(0xFF888888), modifier = Modifier.size(14.dp))
-            Text(dateStr, style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
+            Icon(Icons.Default.Description, null, tint = SproutMetaText, modifier = Modifier.size(14.dp))
+            Text(dateStr, style = MaterialTheme.typography.labelSmall, color = SproutMetaText)
         }
     }
 }
@@ -377,7 +392,7 @@ private fun SummaryBlock(summary: String) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(listOf(Color(0xFF667eea), Color(0xFF764ba2))))
+            .background(Brush.linearGradient(listOf(Color(0xFF34D399), Color(0xFF059669))))
             .padding(18.dp),
     ) {
         Text(summary, style = MaterialTheme.typography.bodyLarge.copy(
@@ -403,7 +418,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
                 ),
-                color = Color(0xFF1a1a1a),
+                color = TextPrimary,
             )
 
             Spacer(Modifier.height(16.dp))
@@ -421,7 +436,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
                 AhaBlock(moment = section.ahaMoment, importance = section.importance)
             }
 
-            HorizontalDivider(color = Color(0xFFE0DCC), thickness = 1.dp)
+            HorizontalDivider(color = SproutDivider, thickness = 1.dp)
         }
     }
 }
@@ -435,7 +450,7 @@ private fun SeedBlock(seed: String) {
         Text(
             text = seed,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF777777),
+            color = SproutSeedText,
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
             lineHeight = 20.sp,
             modifier = Modifier.weight(1f),
@@ -462,18 +477,18 @@ private fun ArticleBody(body: String) {
 
 @Composable
 private fun PlainText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp, color = Color(0xFF333333)))
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp, color = TextPrimary))
 }
 
 @Composable
 private fun BoldText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 26.sp, color = Color(0xFF1a1a1a)))
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 26.sp, color = TextPrimary))
 }
 
 @Composable
 private fun QuoteBlock(text: String) {
-    Box(Modifier.fillMaxWidth().background(Color(0xFFF5F0E8)).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF555555), lineHeight = 22.sp))
+    Box(Modifier.fillMaxWidth().background(SproutQuoteBg).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary, lineHeight = 22.sp))
     }
 }
 
@@ -494,7 +509,7 @@ private fun AhaBlock(moment: String, importance: Int) {
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Medium,
                     lineHeight = 24.sp,
-                    color = Color(0xFFE65100),
+                    color = AccentOrange,
                     textDecoration = TextDecoration.Underline,
                 ),
             )
@@ -514,7 +529,7 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
             if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = AccentBlue)
         }
         if (items.isNotEmpty()) {
-            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = 8.dp), color = Color(0xFF4CAF50), trackColor = Color(0xFFE8E8E8))
+            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = 8.dp), color = SuccessGreen, trackColor = DividerColor)
         }
         items.forEachIndexed { idx, item ->
             val done = idx in completed
@@ -524,9 +539,9 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
-                    tint = if (done) Color(0xFF4CAF50) else Color(0xFFBBBBBB))
+                    tint = if (done) SuccessGreen else DisabledColor)
                 Text(item, style = MaterialTheme.typography.bodyMedium,
-                    color = if (done) Color(0xFF999999) else Color(0xFF333333),
+                    color = if (done) TextSecondary else TextPrimary,
                     textDecoration = if (done) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f))
             }
@@ -553,7 +568,7 @@ private fun ConceptsSection(concepts: List<String>) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.wrapContentHeight()) {
             concepts.forEach {
                 SuggestionChip(onClick = {}, label = { Text(it) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color(0xFFF0EAD6)))
+                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = SproutChipBg))
             }
         }
     }
@@ -567,7 +582,7 @@ private fun SproutLoadingView() {
         val infiniteTransition = rememberInfiniteTransition(label = "sprout")
         val scale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.25f,
             animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s")
-        Box(Modifier.size(80.dp).scale(scale).background(Color(0xFF4CAF50).copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(80.dp).scale(scale).background(SuccessGreen.copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
             Text("*", fontSize = 40.sp)
         }
         Spacer(Modifier.height(24.dp))

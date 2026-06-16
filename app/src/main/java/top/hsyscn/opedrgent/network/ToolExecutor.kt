@@ -293,6 +293,9 @@ class ToolExecutor(
 
     /**
      * 按工具名执行，返回结果文本。供 MultiAgentOrchestrator 调用。
+     *
+     * 通过构造临时的 ToolPart 包装参数来复用 execute() 管线，
+     * 这是内部调度模式，不经过用户交互流程。
      */
     suspend fun executeToolByName(
         toolName: String,
@@ -300,7 +303,7 @@ class ToolExecutor(
         config: ApiConfig,
         systemPrompt: String = "",
     ): String {
-        val dummyPart = ToolPart(
+        val invocationPart = ToolPart(
             tool = toolName,
             state = ToolState(
                 status = ToolStateType.RUNNING,
@@ -308,7 +311,7 @@ class ToolExecutor(
                 startTime = System.currentTimeMillis(),
             ),
         )
-        val result = execute(dummyPart, config, systemPrompt)
+        val result = execute(invocationPart, config, systemPrompt)
         return result.toolPart.state.output
             ?: result.toolPart.state.error
             ?: "工具执行完成但无输出"

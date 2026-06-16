@@ -146,9 +146,15 @@ import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.UserBubbleEnd
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
-// import top.hsyscn.opedrgent.ui.components.AIMessageCard  // TODO: 组件尚未实现
+import top.hsyscn.opedrgent.ui.theme.BadgeError
+import top.hsyscn.opedrgent.ui.theme.BorderLight
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.DangerRed
+import top.hsyscn.opedrgent.ui.theme.ChipWarningBg
+import top.hsyscn.opedrgent.ui.theme.ChipWarningText
+import top.hsyscn.opedrgent.ui.theme.ChipSuccessBg
+import top.hsyscn.opedrgent.ui.theme.ChipSuccessText
 import top.hsyscn.opedrgent.ui.components.MarkdownText
-// import top.hsyscn.opedrgent.ui.components.SourceCitations  // TODO: 组件尚未实现
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.QuestionDock
@@ -185,7 +191,7 @@ fun BadgeDot(
         Box(
             modifier = modifier
                 .size(8.dp)
-                .background(Color(0xFFFF4444), CircleShape)
+                .background(BadgeError, CircleShape)
         )
     }
 }
@@ -764,7 +770,7 @@ fun SessionsScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(11.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE4E4E4),
+                    unfocusedBorderColor = BorderLight,
                     focusedBorderColor = AccentBlue,
                 ),
             )
@@ -1293,7 +1299,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (msg.startsWith("导入成功")) Color(0xFF4CAF50) else Color(0xFFE53935),
+                            color = if (msg.startsWith("导入成功")) SuccessGreen else DangerRed,
                         )
                     }
                 }
@@ -1440,8 +1446,8 @@ private fun GallerySkillCard(
                         label = { Text("API Key", fontSize = 10.sp) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                            containerColor = Color(0xFFFFF3E0), // 浅橙
-                            labelColor = Color(0xFFE65100),
+                            containerColor = ChipWarningBg, // 浅橙
+                            labelColor = ChipWarningText,
                         ),
                     )
                 }
@@ -1452,8 +1458,8 @@ private fun GallerySkillCard(
                         label = { Text("JS", fontSize = 10.sp) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                            containerColor = Color(0xFFE8F5E9), // 浅绿
-                            labelColor = Color(0xFF2E7D32),
+                            containerColor = ChipSuccessBg, // 浅绿
+                            labelColor = ChipSuccessText,
                         ),
                     )
                 }
