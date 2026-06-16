@@ -39,10 +39,17 @@ import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
+import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BgGray
+import top.hsyscn.opedrgent.ui.theme.TextGrey
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.text.style.TextOverflow
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import top.hsyscn.opedrgent.note.SourceType
 
 /**
  * 笔记列表页。
@@ -68,10 +75,22 @@ fun NoteListScreen(
     onGraphClick: () -> Unit = {},
     onSendToChat: (Long) -> Unit = {},
     onSendWithSkill: (Long, String) -> Unit = { _, _ -> },
+    onEditNote: (Long) -> Unit = {},
+    onAppendNote: (Long) -> Unit = {},
+    onCorrectNote: (Long) -> Unit = {},
+    onAddToKnowledgeBase: (Long) -> Unit = {},
+    onAddTag: (Long) -> Unit = {},
     showBackButton: Boolean = true,
+    aiSearchResults: List<AiSearchResult> = emptyList(),
+    isAiSearching: Boolean = false,
+    onAiSearch: (String) -> Unit = {},
+    onClearAiSearch: () -> Unit = {},
+    searchHistory: List<String> = emptyList(),
+    onClearSearchHistory: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
+    var isAiSearchActive by remember { mutableStateOf(false) }
     var selectedType by remember { mutableStateOf<NoteType?>(null) }
     var selectedTag by remember { mutableStateOf<String?>(null) }
     var currentFolderId by remember { mutableStateOf<Long?>(null) }
@@ -87,8 +106,10 @@ fun NoteListScreen(
     val allFolders by folderRepository.getAllFolders().collectAsState(initial = emptyList())
 
     // 笔记数据
-    val notesFlow = remember(searchQuery, selectedType, selectedTag, currentFolderId) {
-        if (searchQuery.isNotBlank()) {
+    val notesFlow = remember(searchQuery, selectedType, selectedTag, currentFolderId, isAiSearchActive) {
+        if (isAiSearchActive) {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        } else if (searchQuery.isNotBlank()) {
             repository.searchNotes(searchQuery.trim())
         } else if (selectedTag != null) {
             repository.getByTag(selectedTag!!)
@@ -99,13 +120,14 @@ fun NoteListScreen(
         }
     }
     val notes by notesFlow.collectAsState(initial = emptyList())
+    val displayNotes = if (isAiSearchActive) aiSearchResults.map { it.note } else notes
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
 
     // 加载关联推荐（基于最新笔记）
-    LaunchedEffect(notes) {
-        if (notes.isNotEmpty()) {
-            val latest = notes.first()
+    LaunchedEffect(displayNotes) {
+        if (displayNotes.isNotEmpty() && !isAiSearchActive) {
+            val latest = displayNotes.first()
             latestNoteTitle = latest.title.ifBlank { "无标题" }
             recommendedNotes = repository.getLinkedNotesWithTitles(latest.id)
         } else {
@@ -173,20 +195,97 @@ fun NoteListScreen(
             // 搜索栏（使用 OutlinedTextField 替代 SearchBar，避免遮挡下方内容）
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("搜索笔记...") },
+                onValueChange = {
+                    searchQuery = it
+                    if (it.isEmpty()) {
+                        isAiSearchActive = false
+                        onClearAiSearch()
+                    }
+                },
+                placeholder = { Text("搜索笔记...（支持自然语言）") },
                 leadingIcon = { Icon(Icons.Default.Search, "搜索") },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            isAiSearchActive = false
+                            onClearAiSearch()
+                        }) {
                             Icon(Icons.Default.Close, "清除")
                         }
                     }
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        val query = searchQuery.trim()
+                        if (query.isNotBlank()) {
+                            val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
+                            if (nlKeywords.any { query.contains(it) }) {
+                                isAiSearchActive = true
+                                onAiSearch(query)
+                            } else {
+                                isAiSearchActive = false
+                                onClearAiSearch()
+                            }
+                        }
+                    },
+                ),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             )
+
+            // 搜索历史
+            if (searchQuery.isEmpty() && searchHistory.isNotEmpty()) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "搜索历史",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            onClick = onClearSearchHistory,
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Text("清除", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        searchHistory.forEach { historyItem ->
+                            AssistChip(
+                                onClick = {
+                                    searchQuery = historyItem
+                                    val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
+                                    if (nlKeywords.any { historyItem.contains(it) }) {
+                                        isAiSearchActive = true
+                                        onAiSearch(historyItem)
+                                    } else {
+                                        isAiSearchActive = false
+                                        onClearAiSearch()
+                                    }
+                                },
+                                label = { Text(historyItem, fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.History,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
 
             // 类型筛选 Chip 行
             TypeFilterChips(
@@ -227,16 +326,34 @@ fun NoteListScreen(
 
             Spacer(Modifier.height(8.dp))
 
+            // AI 搜索加载指示器
+            if (isAiSearching) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = AccentBlue)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "AI 正在理解您的搜索意图...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             // 笔记列表
-            if (notes.isEmpty()) {
+            if (displayNotes.isEmpty() && !isAiSearching) {
                 EmptyNoteState(onNewNote = onNewNote)
-            } else {
+            } else if (!isAiSearching) {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     // 关联推荐区域
-                    if (recommendedNotes.isNotEmpty()) {
+                    if (recommendedNotes.isNotEmpty() && !isAiSearchActive) {
                         item(key = "recommendation") {
                             RecommendationCard(
                                 sourceTitle = latestNoteTitle,
@@ -246,9 +363,11 @@ fun NoteListScreen(
                         }
                     }
 
-                    items(notes, key = { it.id }) { note ->
+                    items(displayNotes, key = { it.id }) { note ->
+                        val relevance = aiSearchResults.find { it.note.id == note.id }?.relevance
                         NoteCard(
                             note = note,
+                            relevance = relevance,
                             onClick = { onNoteClick(note.id) },
                             onTogglePin = { scope.launch { repository.togglePin(note.id) } },
                             onDelete = { scope.launch { repository.deleteNote(note.id) } },
@@ -256,6 +375,11 @@ fun NoteListScreen(
                             onSprout = { onSproutNote(note.id) },
                             onSendToChat = { onSendToChat(note.id) },
                             onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
+                            onEdit = { onEditNote(note.id) },
+                            onAppend = { onAppendNote(note.id) },
+                            onCorrect = { onCorrectNote(note.id) },
+                            onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
+                            onAddTag = { onAddTag(note.id) },
                             linkCount = repository.getLinkCount(note.id),
                         )
                     }
@@ -540,6 +664,7 @@ private fun FolderDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NoteCard(
     note: Note,
@@ -550,9 +675,16 @@ private fun NoteCard(
     onSprout: () -> Unit = {},
     onSendToChat: () -> Unit = {},
     onSendWithSkill: (String) -> Unit = { _ -> },
+    onEdit: () -> Unit = {},
+    onAppend: () -> Unit = {},
+    onCorrect: () -> Unit = {},
+    onAddToKnowledgeBase: () -> Unit = {},
+    onAddTag: () -> Unit = {},
     linkCount: Int = 0,
+    relevance: Int? = null,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    var showSheet by remember { mutableStateOf(false) }
 
     Card(
         onClick = onClick,
@@ -620,61 +752,47 @@ private fun NoteCard(
                 }
 
                 // 更多菜单
-                Box {
-                    IconButton({ showMenu = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(if (note.isPinned) "取消置顶" else "置顶") },
-                            onClick = { showMenu = false; onTogglePin() },
-                            leadingIcon = { Icon(Icons.Default.PushPin, null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("发芽") },
-                            onClick = { showMenu = false; onSprout() },
-                            leadingIcon = { Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF4CAF50)) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("发送到 AI 分析") },
-                            onClick = { showMenu = false; onSendToChat() },
-                            leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, null, tint = AccentBlue) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("点评亮点") },
-                            leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
-                            onClick = {
-                                showMenu = false
-                                onSendWithSkill("insight_review")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("深度拷问") },
-                            leadingIcon = { Icon(Icons.Default.Search, null) },
-                            onClick = {
-                                showMenu = false
-                                onSendWithSkill("critical_inquiry")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("润色优化") },
-                            leadingIcon = { Icon(Icons.Default.Edit, null) },
-                            onClick = {
-                                showMenu = false
-                                onSendWithSkill("text_refine")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("分享") },
-                            onClick = { showMenu = false; onShare() },
-                            leadingIcon = { Icon(Icons.Default.Share, null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("删除", color = MaterialTheme.colorScheme.error) },
-                            onClick = { showMenu = false; onDelete() },
-                            leadingIcon = { Icon(Icons.Default.Delete, null) },
+                IconButton({ showSheet = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                // AI 相关度标签
+                if (relevance != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Text(
+                            "相关度 ${relevance}%",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                         )
                     }
+                    Spacer(Modifier.width(4.dp))
+                }
+
+                // 来源类型标签
+                val sourceLabel = when (note.sourceType) {
+                    SourceType.ASR, SourceType.MEETING_TRANSCRIPT -> "录音"
+                    SourceType.LINK_EXTRACT -> "链接"
+                    SourceType.MANUAL -> "手动"
+                    SourceType.AI_GENERATED -> "AI生成"
+                    else -> null
+                }
+                if (sourceLabel != null) {
+                    Surface(
+                        color = AccentBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Text(
+                            sourceLabel,
+                            fontSize = 10.sp,
+                            color = AccentBlue,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
                 }
 
                 // 时间
@@ -713,7 +831,74 @@ private fun NoteCard(
                     }
                 }
             }
+
+            // 来源链接卡片
+            if (note.sourceUrl.isNotEmpty()) {
+                val ctx = LocalContext.current
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .clickable {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(note.sourceUrl))
+                            runCatching { ctx.startActivity(intent) }
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F7FA)),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = null,
+                            tint = AccentBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = note.sourceUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AccentBlue,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = "来源链接",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextGrey,
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "打开链接",
+                            tint = TextGrey,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    if (showSheet) {
+        top.hsyscn.opedrgent.ui.components.NoteActionBottomSheet(
+            note = note,
+            sheetState = sheetState,
+            onDismiss = { showSheet = false },
+            onEdit = onEdit,
+            onShare = onShare,
+            onAppend = onAppend,
+            onCorrect = onCorrect,
+            onSprout = onSprout,
+            onAddToKnowledgeBase = onAddToKnowledgeBase,
+            onAddTag = onAddTag,
+            onDelete = onDelete,
+            onTogglePin = onTogglePin,
+            onSendToChat = onSendToChat,
+        )
     }
 }
 

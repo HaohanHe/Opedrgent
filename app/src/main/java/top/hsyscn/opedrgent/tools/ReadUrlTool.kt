@@ -71,7 +71,11 @@ class ReadUrlTool(
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())))
         }
 
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "读取失败：$url（已跳过，请尝试其他来源）", endTime = System.currentTimeMillis())))
+        // ★ BUG-03 修复：失败时使用 ERROR 状态，让 Guardrail 能检测到
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+            status = ToolStateType.ERROR,
+            error = "读取失败：$url（SourceFetcher 和 WebView 均失败，请尝试其他来源或搜索关键词）",
+            endTime = System.currentTimeMillis())))
     }
 
     override fun getTools(): Map<String, ToolBinding> {

@@ -69,17 +69,20 @@ class TtsPlayer(
         lastPitch = pitch
         lastMimoVoice = mimoVoice
 
+        val useStepAudio = !forceLocal && apiSettings.getTtsEngine() == "stepaudio" && apiSettings.hasApiKey()
         val useMimo = !forceLocal && apiSettings.isTtsMimoEnabled() && apiSettings.hasApiKey()
-        if (useMimo) {
-            speakWithMimo(t, mimoVoice, downloadOnly)
-        } else {
-            // 下载模式只对 MiMO 有效，Android TTS 不支持下载
-            if (downloadOnly) {
-                DebugLog.w("TtsPlayer: downloadOnly 模式仅支持 MiMO TTS，已忽略")
-                isSpeaking = false
-                return
+
+        when {
+            useStepAudio -> speakWithStepAudio(t, mimoVoice, downloadOnly)
+            useMimo -> speakWithMimo(t, mimoVoice, downloadOnly)
+            else -> {
+                if (downloadOnly) {
+                    DebugLog.w("TtsPlayer: downloadOnly 模式仅支持云端 TTS，已忽略")
+                    isSpeaking = false
+                    return
+                }
+                speakWithAndroid(t, localeTag, rate, pitch)
             }
-            speakWithAndroid(t, localeTag, rate, pitch)
         }
     }
 
@@ -152,6 +155,57 @@ class TtsPlayer(
                 }
             } catch (e: Exception) {
                 DebugLog.e("MimoTts speak error: ${e.message}", e)
+                if (!playerCancelled.get() && !downloadOnly) {
+                    speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
+                }
+            }
+        }
+    }
+
+    /**
+     * 使用阶跃星辰 StepAudio 2.5 TTS 合成并播放。
+     *
+     * 核心差异化能力（MiMo 完全没有的）：
+     * - Global Context：instruction 参数定义整段基调
+     * - Inline Context：文本中 () 插入句内指令，不朗读只控制情绪
+     * - Zero-shot 音色复刻：3秒参考音频克隆任意音色
+     */
+    private fun speakWithStepAudio(text: String, voiceId: String, downloadOnly: Boolean = false) {
+        currentPlayerJob = CoroutineScope(Dispatchers.Main).launch {
+            playerCancelled.set(false)
+            isSpeaking = true
+            isPaused = false
+
+            try {
+                val apiKey = apiSettings.getApiKey()
+                    ?: throw IllegalStateException("API密钥未设置")
+
+                if (apiKey.isBlank()) {
+                    DebugLog.w("StepAudioTts: API key is blank, falling back to Android TTS")
+                    if (!downloadOnly) speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
+                    return@launch
+                }
+
+                val pcmBytes = StepAudioTtsClient.synthesize(apiKey, text, voiceId)
+                if (playerCancelled.get()) return@launch
+
+                if (pcmBytes == null || pcmBytes.isEmpty()) {
+                    DebugLog.w("StepAudioTts: synthesize returned null/empty, falling back to Android TTS")
+                    if (!downloadOnly) speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
+                    return@launch
+                }
+
+                if (downloadOnly) {
+                    saveAudioToLocal(pcmBytes, text)
+                    isSpeaking = false
+                    isPaused = false
+                } else {
+                    withContext(Dispatchers.IO) {
+                        playPcmAudio(pcmBytes)
+                    }
+                }
+            } catch (e: Exception) {
+                DebugLog.e("StepAudioTts speak error: ${e.message}", e)
                 if (!playerCancelled.get() && !downloadOnly) {
                     speakWithAndroid(text, lastLocaleTag, lastRate, lastPitch)
                 }

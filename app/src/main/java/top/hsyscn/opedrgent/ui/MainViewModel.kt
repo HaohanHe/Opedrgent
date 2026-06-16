@@ -22,7 +22,11 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.Call
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
+import top.hsyscn.opedrgent.note.AiSearchEngine
+import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
+import top.hsyscn.opedrgent.note.NoteDao
+import top.hsyscn.opedrgent.note.NoteDatabase
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.note.FolderRepository
@@ -157,6 +161,10 @@ data class UiState(
     val contextCompressionEnabled: Boolean = true,
     val debugModeEnabled: Boolean = false,
     val searchScope: top.hsyscn.opedrgent.ui.components.SearchScope = top.hsyscn.opedrgent.ui.components.SearchScope.ALL,
+    val pendingSproutCount: Int = 0,
+    val pendingMessageCount: Int = 0,
+    val aiSearchResults: List<AiSearchResult> = emptyList(),
+    val isAiSearching: Boolean = false,
 )
 
 data class EvolutionSuggestion(
@@ -243,6 +251,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
+    private val noteDao = NoteDao(NoteDatabase.getInstance(app))
+    private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings)
+    private val knowledgeBase = top.hsyscn.opedrgent.storage.KnowledgeBase(app)
 
     /** Global hippocampus index — set by AppRoot after creation */
     var hippocampus: HippocampusIndex? = null
@@ -259,6 +270,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
     private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
+
+    /** 缓存的技能名称列表，用于注入系统 Prompt（避免 suspend 调用） */
+    @Volatile
+    private var cachedSkillNames: List<Pair<String, String>> = emptyList()
     private val insightSproutEngine = InsightSproutEngine(
         llmCall = { prompt: String ->
             val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
@@ -269,9 +284,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ) ?: ""
         },
     )
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine)
+    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
     private val agentSwarm = top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor)
     private val curatorService = CuratorService(skillLoader, app)
+
+    // ★ AgentService：独立的 Agent 后台服务（渐进式迁移）
+    private val agentService = top.hsyscn.opedrgent.agent.AgentService(
+        llmClient = llm,
+        toolExecutor = toolExecutor,
+        store = store,
+        scope = viewModelScope,
+    )
+
+    /** 是否使用 AgentService 路径（渐进式迁移开关，测试通过后移除） */
+    private val useAgentService = false
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
@@ -297,6 +323,61 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun respondToConfirmation(selectedOption: String?) {
         _confirmationRequest.value = null
         _confirmationResponse.tryEmit(selectedOption)
+    }
+
+    // ==================== AgentService 桥接辅助方法 ====================
+
+    private fun parseQuestionInput(input: Map<String, String>): QuestionRequest {
+        val questionsJson = input["questions"] ?: "[]"
+        val arr = org.json.JSONArray(questionsJson)
+        val questions = (0 until arr.length()).map { i ->
+            val q = arr.getJSONObject(i)
+            val optsArr = q.getJSONArray("options")
+            val options = (0 until optsArr.length()).map { j ->
+                val opt = optsArr.getJSONObject(j)
+                QuestionOption(
+                    label = opt.getString("label"),
+                    description = opt.optString("description", ""),
+                )
+            }
+            QuestionInfo(
+                question = q.getString("question"),
+                header = q.optString("header", "请选择"),
+                options = options,
+                multiple = q.optBoolean("multiple", false),
+                allowCustom = q.optBoolean("allowCustom", false),
+            )
+        }
+        return QuestionRequest(questions = questions)
+    }
+
+    private fun parseConfirmationInput(input: Map<String, String>): ConfirmationRequest {
+        val optionsStr = input["options"] ?: "确认,取消"
+        val options = optionsStr.split(",").map { ConfirmationOption(label = it.trim()) }
+        return ConfirmationRequest(
+            message = input["message"] ?: "确认执行？",
+            detail = input["detail"] ?: "",
+            options = options,
+            timeoutSeconds = input["timeoutSeconds"]?.toIntOrNull() ?: 30,
+        )
+    }
+
+    private fun buildQuestionResultJson(answers: List<List<String>>): String {
+        val result = answers.mapIndexed { idx, ans ->
+            mapOf("question" to "Q${idx + 1}", "answers" to ans)
+        }
+        return org.json.JSONObject(mapOf("answers" to result)).toString()
+    }
+
+    private fun buildConfirmationResultJson(selectedOption: String?, request: ConfirmationRequest?): String {
+        if (selectedOption == "__confirmed__") {
+            return org.json.JSONObject(mapOf("confirmed" to true, "timeout" to false)).toString()
+        }
+        return org.json.JSONObject(mapOf(
+            "confirmed" to (selectedOption != null),
+            "selectedOption" to (selectedOption ?: ""),
+            "timeout" to false,
+        )).toString()
     }
 
     val _sttProgress = MutableStateFlow<SttProgressState>(SttProgressState.IDLE)
@@ -469,6 +550,58 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             syncMemoryStoreToHippocampus()
         }
         automationStore.scheduleAllEnabled()
+
+        // 观察 AgentService 状态，同步到 UI
+        viewModelScope.launch {
+            agentService.state.collect { agentState ->
+                if (agentState.isRunning || agentState.isStreaming) {
+                    _state.value = _state.value.copy(
+                        isStreaming = agentState.isStreaming,
+                        streamingText = agentState.streamingText,
+                        streamingReasoning = agentState.streamingReasoning,
+                        streamingToolParts = agentState.streamingToolParts,
+                        streamingPhase = agentState.streamingPhase,
+                        loading = agentState.isRunning,
+                    )
+                }
+                if (agentState.error != null) {
+                    _state.value = _state.value.copy(error = agentState.error)
+                }
+            }
+        }
+
+        // 观察 AgentService 用户交互请求
+        viewModelScope.launch {
+            agentService.userInteraction.collect { interaction ->
+                when (interaction.toolName) {
+                    "ask_question" -> {
+                        val questions = parseQuestionInput(interaction.input)
+                        _questionRequest.value = questions
+                        _state.value = _state.value.copy(streamingPhase = "等待用户选择...")
+                        // 等待用户回答后回传给 AgentService
+                        viewModelScope.launch {
+                            val answers = _questionResponse.first()
+                            agentService.submitUserResponse(
+                                interaction.toolCallId,
+                                buildQuestionResultJson(answers),
+                            )
+                        }
+                    }
+                    "ask_confirmation" -> {
+                        val request = parseConfirmationInput(interaction.input)
+                        _confirmationRequest.value = request
+                        _state.value = _state.value.copy(streamingPhase = "等待确认...")
+                        viewModelScope.launch {
+                            val response = _confirmationResponse.first()
+                            agentService.submitUserResponse(
+                                interaction.toolCallId,
+                                buildConfirmationResultJson(response, request),
+                            )
+                        }
+                    }
+                }
+            }
+        }
         val last = apiSettings.getLastSessionId()
         if (!last.isNullOrBlank()) {
             _state.value = _state.value.copy(current = store.getSession(last))
@@ -476,25 +609,28 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshSessions() {
-        val sessions = store.listSessions()
+        // ★ 修复：消除 O(N^2) 性能问题
+        // 之前：listSessions() 读取全文件1次 + getSession() 每个会话再读1次 = N+1次 I/O
+        // 现在：一次性加载所有会话，只读取文件1次
+        val summaries = store.listSessions()
         sessionCache.clear()
-        sessions.forEach { summary ->
-            val session = store.getSession(summary.id)
-            if (session != null) sessionCache[summary.id] = session
-        }
-        _state.value = _state.value.copy(sessions = sessions)
+        // listSessions 已经返回所有会话摘要，直接用 summaries 填充缓存
+        // 注意：sessionCache 只缓存 SessionSummary，不缓存完整 ResearchSession
+        // 完整 ResearchSession 按需从 store.getSession() 获取
+        _state.value = _state.value.copy(sessions = summaries)
     }
 
     fun setSessionSearchQuery(q: String) {
         val query = q.trim()
-        val allSessions = sessionCache.values.toList()
         if (query.isEmpty()) {
             _state.value = _state.value.copy(
-                sessions = allSessions.map { SessionSummary(it.id, it.title, it.updatedAt) },
+                sessions = _state.value.sessions,
                 sessionSearchQuery = "",
             )
             return
         }
+        // ★ 修复：搜索时才加载完整会话数据（按需加载，避免 refreshSessions 时的 O(N^2)）
+        val allSessions = store.listSessions().mapNotNull { store.getSession(it.id) }
         val lowered = query.lowercase()
         val filtered = allSessions.filter { s ->
             val hay = buildString {
@@ -520,6 +656,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refreshMemories() {
         _state.value = _state.value.copy(memories = memoryStore.list())
+    }
+
+    fun refreshPendingCounts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val allNotes = noteRepository.getAllNotes().first()
+            val reports = sproutReportStore.getAll()
+            val sproutCount = allNotes.count { note ->
+                reports.none { it.sourceNoteId == note.id }
+            }
+            _state.value = _state.value.copy(
+                pendingSproutCount = sproutCount,
+            )
+        }
     }
 
     // ==================== 主动推送引擎 API ====================
@@ -633,6 +782,31 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         refreshSessions()
     }
 
+    fun deleteSession(sessionId: String) {
+        // ★ 新增：删除会话功能
+        if (store.deleteSession(sessionId)) {
+            // 如果删除的是当前打开的会话，关闭它
+            if (_state.value.current?.id == sessionId) {
+                _state.value = _state.value.copy(current = null, error = null)
+            }
+            refreshSessions()
+        }
+    }
+
+    fun renameSession(sessionId: String, newTitle: String) {
+        // ★ 新增：重命名会话功能
+        if (store.renameSession(sessionId, newTitle)) {
+            // 如果重命名的是当前打开的会话，更新 UI
+            if (_state.value.current?.id == sessionId) {
+                val updated = store.getSession(sessionId)
+                if (updated != null) {
+                    _state.value = _state.value.copy(current = updated)
+                }
+            }
+            refreshSessions()
+        }
+    }
+
     fun createSession(title: String) {
         val session = store.createSession(title)
         refreshSessions()
@@ -644,6 +818,46 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         refreshSessions()
         _state.value = _state.value.copy(navigateToSessionId = session.id)
         openSession(session.id)
+    }
+
+    /**
+     * 会话分叉（Kilo 风格 Session Fork）。
+     * 从当前会话创建一个副本，复制所有消息历史，重置成本。
+     * 支持从指定消息点截断。
+     */
+    fun forkSession(sourceSessionId: String, upToMessageId: String? = null) {
+        val source = store.getSession(sourceSessionId) ?: return
+        val forkedTitle = top.hsyscn.opedrgent.agent.ConversationUtils.getForkedTitle(source.title)
+        val forked = store.createSession(forkedTitle)
+
+        // 复制消息（可选截断到指定消息点）
+        val messagesToCopy = if (upToMessageId != null) {
+            val idx = source.messages.indexOfFirst { it.id == upToMessageId }
+            if (idx >= 0) source.messages.take(idx + 1) else source.messages
+        } else {
+            source.messages
+        }
+
+        for (msg in messagesToCopy) {
+            store.addMessage(
+                forked.id,
+                msg.role,
+                msg.content,
+                toolParts = msg.toolParts,
+                reasoningParts = msg.reasoningParts,
+                parts = msg.parts,
+            )
+        }
+
+        // 复制来源
+        for (source_item in source.sources) {
+            store.addSource(forked.id, source_item.type, source_item.title, source_item.url, source_item.content)
+        }
+
+        refreshSessions()
+        _state.value = _state.value.copy(navigateToSessionId = forked.id)
+        openSession(forked.id)
+        DebugLog.i("forkSession: forked '${source.title}' -> '$forkedTitle' (${messagesToCopy.size} messages)")
     }
 
     fun addUrlSource(url: String) {
@@ -928,6 +1142,40 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 将笔记内容发送给 AI 进行纠错 */
+    fun correctNote(noteId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val note = noteRepository.getNoteById(noteId) ?: return@launch
+            val prompt = buildString {
+                appendLine("请帮我检查以下内容的错误并进行修正：")
+                appendLine()
+                appendLine("---")
+                appendLine("标题: ${note.title}")
+                appendLine("内容:")
+                appendLine(note.content)
+                appendLine("---")
+            }
+            withContext(Dispatchers.Main) {
+                sendUserMessage(prompt)
+            }
+        }
+    }
+
+    /** 将笔记添加到知识库 */
+    fun addNoteToKnowledgeBase(noteId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val note = noteRepository.getNoteById(noteId) ?: return@launch
+            val result = knowledgeBase.addTextDocument(
+                title = note.title.ifBlank { "笔记 #${note.id}" },
+                content = note.content,
+            )
+            withContext(Dispatchers.Main) {
+                val message = if (result.success) "已添加到知识库" else "添加到知识库失败: ${result.error}"
+                android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     /** 将 AI 回复保存为笔记 */
     fun saveAiReplyAsNote(messageIndex: Int) {
         val session = _state.value.current ?: return
@@ -1091,6 +1339,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     suspend fun refreshGallerySkills() {
         gallerySkills = skillLoader.loadAllSkills()
+        // 缓存技能名称列表供系统 Prompt 注入
+        cachedSkillNames = skillLoader.getEnabledSkills()
+            .filter { !it.metadata.requireSecret }
+            .map { it.metadata.name to it.metadata.description }
     }
 
     /**
@@ -1532,9 +1784,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 val config = apiSettings.getApiConfig()
                     ?: throw IllegalStateException("请先在设置里填写 API Key 或加载本地模型")
-                val maxContextTokens = if (top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(config.model)) {
-                    top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
-                } else 16000
+                val maxContextTokens = resolveMaxContextTokens(config.model)
 
                 // --- "我的笔记"搜索：从海马体索引中检索相关记忆（WEB_ONLY 模式跳过） ---
                 val memoryContext = buildString {
@@ -1569,6 +1819,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 if (loopResult == null || loopResult.wasCancelled) {
                     savePartialStreamingContent()
+                    return@launch
+                }
+
+                // ★ BUG-10 修复：错误退出时通知用户，而非显示空白消息
+                if (lastError != null && loopResult.finalContent.isBlank()) {
+                    val errorMsg = "抱歉，处理过程中遇到错误: $lastError"
+                    store.addMessage(sessionId, Role.ASSISTANT, errorMsg, reasoningParts = emptyList())
+                    _state.value = _state.value.copy(
+                        isStreaming = false,
+                        streamingText = "",
+                        streamingReasoning = "",
+                        streamingToolParts = emptyList(),
+                        streamingPhase = "",
+                        streamingSessionId = null,
+                    )
+                    refreshSessions()
                     return@launch
                 }
 
@@ -1623,6 +1889,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 refreshSessions()
 
+                // ★ Auto-title（Kilo 风格）：第一条消息后自动生成标题
+                viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        val session = store.getSession(sessionId) ?: return@launch
+                        val userMsgCount = session.messages.count { it.role == Role.USER }
+                        if (top.hsyscn.opedrgent.agent.ConversationUtils.shouldGenerateTitle(session.title, userMsgCount)) {
+                            val firstUser = session.messages.firstOrNull { it.role == Role.USER }?.textContent ?: ""
+                            // ★ 改进标题生成：智能截断，尝试在自然边界处断开
+                            val generatedTitle = generateSmartTitle(firstUser)
+                            if (generatedTitle != null && generatedTitle != "新对话") {
+                                val updatedSession = store.getSession(sessionId)?.copy(title = generatedTitle)
+                                if (updatedSession != null) {
+                                    store.updateSession(updatedSession)
+                                    withContext(Dispatchers.Main) { refreshSessions() }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { }
+                }
+
                 viewModelScope.launch(Dispatchers.IO) {
                     try {
                         autoGenerateArtifact(sessionId, ArtifactKind.SUMMARY)
@@ -1649,6 +1935,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (!cancelled.get()) {
                     DebugLog.e("runModel error: ${e.message}", e)
+                    // ★ 修复：异常时保存已有的流式内容，避免用户看到的输出丢失
+                    savePartialStreamingContent()
                     _state.value = _state.value.copy(
                         error = e.message ?: "请求失败",
                         isStreaming = false,
@@ -1680,6 +1968,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val state = ResearchState(maxRounds = 10)
         val budgetTracker = TokenBudgetMonitor.createTracker()
+        // ★ BUG-01 修复：Guardrail 在 runLoop 级别创建，跨轮累积历史
+        val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
+        // ★ BUG-11 修复：总重试次数限制，防止 API 调用失控
+        var totalRetries = 0
+        val maxTotalRetries = 6
 
         try {
             while (state.shouldContinue()) {
@@ -1691,15 +1984,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // 2. 执行单轮 LLM 调用
                 val outcome = try {
-                    executeOneRound(ctx, state)
+                    executeOneRound(ctx, state, guardrail)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     handleRoundError(e)
                 }
 
-                // 3. Token 预算检查（递减检测）
-                val currentTokens = ctx.toolMessages.sumOf { top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(it.textContent) }
+                // 3. Token 预算检查（★ BUG-05 修复：统计所有消息，不只是 toolMessages）
+                val currentTokens = run {
+                    val sess = store.getSession(ctx.sessionId) ?: return@run ctx.toolMessages.sumOf { top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(it.textContent) }
+                    var total = 0
+                    // 系统 prompt
+                    total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(buildSystemPrompt(sess))
+                    // 历史消息
+                    for (msg in sess.messages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(msg.textContent)
+                    // 工具消息
+                    for (msg in ctx.toolMessages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(msg.textContent)
+                    // 当前累积文本
+                    total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(ctx.accumulatedText)
+                    total
+                }
                 val budgetDecision = TokenBudgetMonitor.checkBudget(budgetTracker, ctx.maxContextTokens, currentTokens)
 
                 when (budgetDecision) {
@@ -1729,6 +2034,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     is LoopOutcome.Break -> break
                     is LoopOutcome.Retry -> {
+                        totalRetries++
+                        if (totalRetries > maxTotalRetries) {
+                            DebugLog.w("runLoop: total retries ($totalRetries) exceeded limit ($maxTotalRetries), stopping")
+                            lastError = "重试次数过多，已自动停止"
+                            break
+                        }
                         loopState = LoopState.RETRYING
                         retryCount++
                         _state.value = _state.value.copy(
@@ -1758,7 +2069,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** 执行单轮 LLM 调用 + 工具执行 */
-    private suspend fun executeOneRound(ctx: LoopContext, state: ResearchState): LoopOutcome {
+    private suspend fun executeOneRound(ctx: LoopContext, state: ResearchState, guardrail: top.hsyscn.opedrgent.utils.ToolCallGuardrail): LoopOutcome {
         val session = store.getSession(ctx.sessionId) ?: throw IllegalStateException("会话不存在")
         val system = buildSystemPrompt(session)
 
@@ -1772,7 +2083,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 append(ctx.memoryContext)
             }
         }
-        val messages = compressed.messages
+
+        // ★ Auto-continue（Kilo 风格）：压缩后自动注入恢复消息
+        var messages = compressed.messages
+        if (compressed.summary != null && top.hsyscn.opedrgent.agent.ConversationUtils.shouldAutoContinue(allMessages)) {
+            val continueMsg = ChatMessage(
+                role = Role.USER,
+                content = top.hsyscn.opedrgent.agent.ConversationUtils.buildAutoContinueMessage(),
+                parts = listOf(MessagePart.Text(content = top.hsyscn.opedrgent.agent.ConversationUtils.buildAutoContinueMessage())),
+            )
+            messages = messages + continueMsg
+            DebugLog.d("executeOneRound: auto-continue injected after compaction")
+        }
 
         DebugLog.d("executeOneRound: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
 
@@ -1858,10 +2180,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
             val parsedArgs: Map<String, String> = runCatching {
-                org.json.JSONObject(tc.arguments).let { json ->
+                val argsStr = tc.arguments ?: "{}"
+                // 尝试修复常见 JSON 格式问题
+                val fixedArgs = argsStr
+                    .replace(Regex(",\\s*}"), "}")   // 移除尾部逗号
+                    .replace(Regex(",\\s*]"), "]")   // 移除数组尾部逗号
+                org.json.JSONObject(fixedArgs).let { json ->
                     json.keys().asSequence().associateWith { json.opt(it).toString() }
                 }
-            }.getOrDefault(emptyMap())
+            }.getOrElse { e ->
+                DebugLog.w("工具参数 JSON 解析失败: ${tc.arguments?.take(100)} -> ${e.message}")
+                // 如果解析失败，尝试将原始字符串作为 query 参数传递
+                val fallback = tc.arguments?.take(500) ?: ""
+                if (fallback.isNotBlank()) mapOf("query" to fallback) else emptyMap()
+            }
             ToolPart(
                 tool = tc.name,
                 state = ToolState(
@@ -1874,7 +2206,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         ctx.allToolParts.addAll(pendingToolParts)
         _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
 
-        val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
+        // ★ BUG-01 修复：使用 runLoop 级别的 guardrail，跨轮累积历史
+        var guardrailHalted = false
 
         coroutineScope {
             result.toolCalls.forEachIndexed { idx, tc ->
@@ -2117,8 +2450,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         }
                     }
 
-                    val execResult = withContext(Dispatchers.IO) {
-                        toolExecutor.execute(tp, ctx.config, system, useProviderSearch = isProviderWebSearchEnabled())
+                    // ★ BUG-07 修复：工具执行 60 秒超时保护
+                    val execResult = try {
+                        withTimeout(60_000L) {
+                            withContext(Dispatchers.IO) {
+                                toolExecutor.execute(tp, ctx.config, system, useProviderSearch = isProviderWebSearchEnabled())
+                            }
+                        }
+                    } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                        DebugLog.w("Tool '${tp.tool}' timed out after 60s")
+                        top.hsyscn.opedrgent.network.ToolResult(
+                            toolPart = tp.copy(state = tp.state.copy(
+                                status = ToolStateType.ERROR,
+                                error = "工具执行超时（60秒），请尝试其他方式",
+                                endTime = System.currentTimeMillis(),
+                            ))
+                        )
                     }
                     // 缓存执行结果，稍后按正确顺序统一添加到 toolMessages
                     ctx.toolExecCache[tc.id] = execResult
@@ -2133,12 +2480,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     when (action) {
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT -> {
                             DebugLog.w("ToolCallGuardrail: HALT — 工具调用死循环检测，终止 Agent 循环")
+                            guardrailHalted = true
                             _state.value = _state.value.copy(
                                 streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到重复失败，已自动停止。",
                             )
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
                             DebugLog.w("ToolCallGuardrail: BLOCK — 工具调用无进展")
+                            guardrailHalted = true
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
                             DebugLog.w("ToolCallGuardrail: WARN — 工具 '${tp.tool}' 连续失败")
@@ -2165,16 +2514,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     if (execResult.openBrowserUrl != null) {
                         _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
-                    }
-
-                    val newSources2 = execResult.addedSources.filter { it.isNotBlank() && !ctx.usedUrls.contains(it) }
-                    if (newSources2.isNotEmpty()) {
-                        val s = store.getSession(ctx.sessionId)
-                        newSources2.forEach { url ->
-                            if (s != null && s.sources.none { it.url == url }) {
-                                store.addSource(ctx.sessionId, SourceType.URL, title = url, url = url, content = "")
-                            }
-                        }
                     }
 
                     val taggedSources = execResult.addedSources.mapNotNull { url ->
@@ -2237,7 +2576,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } else ""
             val toolOutput = when {
                 execResult.toolPart.state.status == ToolStateType.ERROR -> {
-                    "[工具执行失败: ${execResult.toolPart.state.error?.take(100)}]"
+                    // ★ 修复：错误信息从 100 字符扩展到 300 字符，让 LLM 能理解完整错误上下文
+                    "[工具执行失败: ${execResult.toolPart.state.error?.take(300)}]"
                 }
                 execResult.toolPart.state.output != null -> execResult.toolPart.state.output
                 else -> "工具执行完成"
@@ -2269,12 +2609,30 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
 
+        // ★ BUG-02 修复：Guardrail HALT/BLOCK 实际终止循环
+        if (guardrailHalted) {
+            return LoopOutcome.Break
+        }
+
         return LoopOutcome.Continue
     }
 
     /** 处理轮次异常，返回 Retry 或 Error */
     private fun handleRoundError(e: Exception): LoopOutcome {
         if (e is CancellationException) throw e
+
+        // ★ Network Disconnect 检测（Kilo 风格）
+        if (top.hsyscn.opedrgent.agent.ConversationUtils.isNetworkDisconnect(e)) {
+            DebugLog.w("handleRoundError: network disconnect detected: ${e.message}")
+            _state.value = _state.value.copy(streamingPhase = "网络断开，等待恢复中...")
+            // 网络断开时使用更长的重试延迟
+            val networkDelay = 10_000L * (retryCount + 1)
+            return if (retryCount < RetryPolicy.MAX_RETRIES) {
+                LoopOutcome.Retry(networkDelay)
+            } else {
+                LoopOutcome.Error("网络连接已断开，请检查网络后重试")
+            }
+        }
 
         val retryDelay = RetryPolicy.delay(retryCount, e)
         return if (RetryPolicy.isRetryable(e) && retryCount < RetryPolicy.MAX_RETRIES) {
@@ -2468,9 +2826,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                     buffer.cancel()
                                     val partial = contentBuilder.toString().trim()
                                     if (partial.isNotEmpty()) {
+                                        // ★ BUG-06 修复：部分响应也要标记错误，让调用方知道不完整
+                                        DebugLog.w("streamLlm: partial response (${partial.length} chars) due to error: $err")
                                         continuation.resumeWith(Result.success(StreamResult(
-                                            content = partial,
+                                            content = partial + "\n\n[回答因网络中断而不完整]",
                                             reasoning = reasoningBuilder.toString(),
+                                            error = err,
                                         )))
                                     } else {
                                         val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
@@ -2611,7 +2972,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                     buffer.cancel()
                                     val partial = contentBuilder.toString().trim()
                                     if (partial.isNotEmpty()) {
-                                        continuation.resumeWith(Result.success(StreamResult(content = partial, reasoning = reasoningBuilder.toString())))
+                                        // ★ 修复：多模态流式部分响应也标记不完整
+                                        continuation.resumeWith(Result.success(StreamResult(
+                                            content = partial + "\n\n[回答因网络中断而不完整]",
+                                            reasoning = reasoningBuilder.toString(),
+                                            error = err,
+                                        )))
                                     } else {
                                         val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
                                             java.lang.Exception(err), null, null
@@ -2725,6 +3091,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun isTtsEnabled(): Boolean = apiSettings.isTtsEnabled()
     fun isTtsAutoSpeak(): Boolean = apiSettings.isTtsAutoSpeak()
     fun isTtsMimoEnabled(): Boolean = apiSettings.isTtsMimoEnabled()
+    fun getTtsEngine(): String = apiSettings.getTtsEngine()
+    fun saveTtsEngine(engine: String) { apiSettings.saveTtsEngine(engine) }
     fun getTtsMimoVoice(): String = apiSettings.getTtsMimoVoice()
     fun getTtsRate(): Float = apiSettings.getTtsRate()
     fun getTtsPitch(): Float = apiSettings.getTtsPitch()
@@ -2736,6 +3104,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
     fun isDebugMode(): Boolean = apiSettings.isDebugMode()
     fun isDeepThinking(): Boolean = apiSettings.isDeepThinking()
+    fun isWebSearchEnabled(): Boolean = apiSettings.isWebSearchEnabled()
+    fun getWebSearchSource(): String = apiSettings.getWebSearchSource()
+    fun saveWebSearchEnabled(enabled: Boolean) { apiSettings.saveWebSearchEnabled(enabled) }
+    fun saveWebSearchSource(source: String) { apiSettings.saveWebSearchSource(source) }
 
     fun toggleDeepThinking(): Boolean {
         val next = !isDeepThinking()
@@ -3685,6 +4057,100 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         file
     }
 
+    /**
+     * ★ BUG-09 修复：根据模型名称智能判断上下文窗口大小
+     * 数据来源：2026年5-6月各厂商官方文档
+     * 注：RULER 基准测试显示有效上下文通常为标称值的 50-65%
+     */
+    private fun resolveMaxContextTokens(model: String): Int {
+        val m = model.lowercase()
+        return when {
+            // DeepSeek V4 系列（1M，含 Pro 和 Flash）
+            m.contains("deepseek-v4") || m.contains("deepseek-r1") -> 1_000_000
+            top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(m) ->
+                top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
+            m.contains("deepseek-v3") -> 128_000
+
+            // Claude 系列（Anthropic, 2026）
+            m.contains("claude-opus") -> 200_000       // Opus 4.7: 200K
+            m.contains("claude-haiku") -> 200_000       // Haiku 4.5: 200K
+            m.contains("claude-sonnet") -> 1_000_000    // Sonnet 4.6: 1M flat rate
+            m.contains("claude") -> 200_000             // 其他 Claude 默认 200K
+
+            // GPT 系列（OpenAI, 2026）
+            m.contains("gpt-5.5") -> 270_000
+            m.contains("gpt-5") -> 270_000
+            m.contains("gpt-4o") -> 128_000
+            m.contains("gpt-4-turbo") -> 128_000
+            m.contains("gpt-4") -> 32_000
+            m.contains("gpt-3.5") -> 16_000
+
+            // Gemini 系列（Google, 2026）
+            m.contains("gemini-3") -> 1_000_000         // Gemini 3.1 Pro: 1M
+            m.contains("gemini-2.5") -> 1_000_000       // Gemini 2.5 Pro: 1M
+            m.contains("gemini") -> 1_000_000           // Gemini 默认 1M
+
+            // Grok 系列（xAI）
+            m.contains("grok") -> 2_000_000             // Grok 4.20: 2M
+
+            // Llama 系列（Meta）
+            m.contains("llama-4-scout") -> 10_000_000   // 10M！
+            m.contains("llama-4") -> 1_000_000
+            m.contains("llama-3") -> 128_000
+            m.contains("llama") -> 8_000
+
+            // ====== 国内主力模型（截图内置列表） ======
+
+            // 豆包 Doubao Seed 系列（字节跳动）- 全系 256K
+            m.contains("doubao-seed-2.0") || m.contains("seed-2.0") -> 256_000
+            m.contains("doubao-seed-1.8") || m.contains("seed-1.8") -> 256_000
+            m.contains("doubao-seed-code") -> 256_000
+            m.contains("doubao-seed") -> 256_000
+            m.contains("doubao") -> 256_000
+
+            // MiniMax 系列
+            m.contains("minimax-m3") -> 1_000_000       // M3: 1M (2026.6)
+            m.contains("minimax-m2") -> 200_000         // M2.7: 200K
+            m.contains("minimax") -> 200_000
+
+            // 智谱 GLM 系列 - 全系 200K
+            m.contains("glm-5.1") -> 200_000            // GLM-5.1: 200K, 8小时自治
+            m.contains("glm-5v") -> 200_000             // GLM-5V-Turbo: 200K, 多模态
+            m.contains("glm-5-turbo") -> 200_000        // GLM-5-Turbo: 200K
+            m.contains("glm-5") -> 200_000              // GLM-5: 200K
+            m.contains("glm") -> 200_000
+
+            // Kimi / Moonshot（月之暗面）- 全系 256K
+            m.contains("kimi-k2.7") || m.contains("k2.7-code") -> 256_000
+            m.contains("kimi-k2.6") || m.contains("k2.6-code") -> 256_000
+            m.contains("kimi-k2.5") -> 256_000
+            m.contains("kimi") -> 256_000
+
+            // 通义千问 Qwen 系列
+            m.contains("qwen3.7") -> 1_000_000          // Qwen3.7-Plus/Max: 1M
+            m.contains("qwen3.6") -> 1_000_000          // Qwen3.6 Plus: 1M
+            m.contains("qwen3-max") -> 256_000          // Qwen3-Max: 256K
+            m.contains("qwen3") -> 262_000              // Qwen3-235B: 262K
+            m.contains("qwen-max") -> 256_000
+            m.contains("qwen-long") -> 1_000_000
+            m.contains("qwen") -> 32_000
+
+            // 小米 MiMo 系列
+            m.contains("mimo-v2.5") -> 1_000_000        // MiMo-V2.5: 1M
+            m.contains("mimo-v2") -> 256_000             // MiMo-V2-Flash: 256K
+            m.contains("mimo") -> 256_000
+
+            // Mistral 系列
+            m.contains("mistral") || m.contains("mixtral") -> 128_000
+
+            // 本地模型
+            m.contains("local") || m.contains("ollama") || m.contains("lmstudio") -> 8_000
+
+            // 其他云端模型保守估计
+            else -> 32_000
+        }
+    }
+
     private fun buildSystemPrompt(session: ResearchSession): String {
         val app = getApplication<Application>()
         val includeLoc = apiSettings.isLocationEnabled()
@@ -3706,7 +4172,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             hasCalendar = true
         )
 
-        return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx)
+        return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, cachedSkillNames)
     }
 
     private fun inferProviderFromUrl(baseUrl: String): String {
@@ -3719,6 +4185,36 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             baseUrl.contains("localhost", ignoreCase = true) || baseUrl.contains("127.0.0.1") -> "local"
             else -> "custom"
         }
+    }
+
+    /**
+     * 智能标题生成：从用户消息中提取有意义的标题
+     * 尝试在自然边界处断开，避免截断在词语中间
+     */
+    private fun generateSmartTitle(text: String): String? {
+        val cleaned = text.trim().replace(Regex("\\s+"), " ")
+        if (cleaned.isEmpty()) return null
+
+        val maxLen = 50
+        if (cleaned.length <= maxLen) return cleaned
+
+        // 尝试在自然边界处断开：句号、问号、逗号、空格
+        val breakChars = listOf("。", "？", "，", "、", "；", ".", "?", ",", " ", "：", ":")
+        var bestBreak = -1
+        for (char in breakChars) {
+            val idx = cleaned.lastIndexOf(char, maxLen - 3)
+            if (idx > bestBreak && idx > 10) {
+                bestBreak = idx
+            }
+        }
+
+        val title = if (bestBreak > 0) {
+            cleaned.substring(0, bestBreak + 1).trimEnd()
+        } else {
+            cleaned.substring(0, maxLen - 3).trimEnd()
+        }
+
+        return title.ifEmpty { null }
     }
 
     private fun buildMarkdown(session: ResearchSession): String {
@@ -3812,6 +4308,35 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 将 URL 保存为链接笔记，原文存入 originalContent，处理后内容存入 content */
+    fun saveLinkAsNote(url: String) {
+        viewModelScope.launch {
+            setLoading(true)
+            try {
+                val fetched = withContext(Dispatchers.IO) { sourceFetcher.fetchUrl(url) }
+                val raw = fetched.text.takeIf { it.isNotBlank() } ?: "抓取失败：正文为空"
+                val sanitized = PromptSafety.sanitizeForPrompt(raw, sourceLabel = url)
+                val polished = sanitized.content
+                val note = Note(
+                    title = fetched.title?.ifBlank { url } ?: url,
+                    content = polished,
+                    type = NoteType.LINK,
+                    sourceUrl = url,
+                    originalContent = raw,
+                    sourceType = top.hsyscn.opedrgent.note.SourceType.LINK_EXTRACT,
+                    sourceUri = url,
+                    wordCount = polished.length,
+                )
+                val id = noteRepository.saveNote(note)
+                hippocampus?.upsertNote(id, note.title, note.content)
+            } catch (e: Exception) {
+                DebugLog.w("saveLinkAsNote: 保存链接笔记失败: ${e.message}")
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
     fun handleIncomingShare(text: String) {
         val raw = text.trim()
         if (raw.isEmpty()) return
@@ -3822,6 +4347,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(navigateToSessionId = sessionId)
         if (url != null) {
             addUrlSource(url)
+            saveLinkAsNote(url)
         } else {
             addTextSource(title = "剪藏", text = raw)
         }
@@ -4130,6 +4656,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 is ModelManager.DownloadProgress.Extracting -> {
                                     _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
                                 }
+                                is ModelManager.DownloadProgress.SourceSwitch -> {
+                                    DebugLog.d("MainViewModel: 切换下载源 ${progress.sourceName} (${progress.current}/${progress.total})")
+                                }
                                 is ModelManager.DownloadProgress.Complete -> { /* done */ }
                                 is ModelManager.DownloadProgress.Error -> {
                                     _sttUiState.value = SttUiState.Error(
@@ -4433,6 +4962,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             withContext(Dispatchers.Main) {
                                 _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
                             }
+                        }
+                        is ModelManager.DownloadProgress.SourceSwitch -> {
+                            DebugLog.d("MainViewModel: 切换下载源 ${progress.sourceName} (${progress.current}/${progress.total})")
                         }
                         is ModelManager.DownloadProgress.Complete -> { /* done */ }
                         is ModelManager.DownloadProgress.Error -> {
@@ -5199,5 +5731,51 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 _interviewState.value = _interviewState.value.copy(elapsedSeconds = elapsed)
             }
         }
+    }
+
+    // ==================== AI 笔记搜索 ====================
+
+    private val searchHistoryPrefs = app.getSharedPreferences("note_search_history", Context.MODE_PRIVATE)
+    private val searchHistoryKey = "history"
+
+    fun getSearchHistory(): List<String> {
+        val json = searchHistoryPrefs.getString(searchHistoryKey, "[]") ?: "[]"
+        return try {
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun addSearchHistory(query: String) {
+        val history = getSearchHistory().toMutableList()
+        history.remove(query)
+        history.add(0, query)
+        val trimmed = history.take(5)
+        val arr = org.json.JSONArray(trimmed)
+        searchHistoryPrefs.edit().putString(searchHistoryKey, arr.toString()).apply()
+    }
+
+    fun clearSearchHistory() {
+        searchHistoryPrefs.edit().remove(searchHistoryKey).apply()
+    }
+
+    fun aiSearch(query: String) {
+        if (query.isBlank()) {
+            _state.value = _state.value.copy(aiSearchResults = emptyList(), isAiSearching = false)
+            return
+        }
+        addSearchHistory(query)
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.value = _state.value.copy(isAiSearching = true)
+            val results = aiSearchEngine.search(query)
+            _state.value = _state.value.copy(
+                aiSearchResults = results,
+                isAiSearching = false,
+            )
+        }
+    }
+
+    fun clearAiSearch() {
+        _state.value = _state.value.copy(aiSearchResults = emptyList(), isAiSearching = false)
     }
 }

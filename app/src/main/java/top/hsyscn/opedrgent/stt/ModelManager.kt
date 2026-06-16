@@ -20,16 +20,41 @@ object ModelManager {
     private const val TAG = "ModelManager"
     private const val MODEL_BASE_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
 
+    /** 下载超时：连续 N 毫秒无进度则切换源 */
+    private const val STALL_TIMEOUT_MS = 10_000L
+
+    /** 国内镜像源（按优先级排序） */
+    private val MIRROR_SOURCES = listOf(
+        MirrorSource("GitCode", "https://gitcode.com/GitHub_Trending/sh/sherpa-onnx/releases/download"),
+        // ModelScope 魔搭的 sherpa-onnx 模型路径格式不同，暂不自动拼接
+        // 如需扩展可在此追加: MirrorSource("ModelScope", "..."),
+    )
+
+    data class MirrorSource(val name: String, val baseUrl: String)
+
     data class ModelInfo(
         val type: ModelType,
         val modelName: String,
         val version: String,
         val sizeBytes: Long,
-        val downloadUrl: String,
+        /** 官方 GitHub 下载地址 */
+        val officialUrl: String,
+        /** 各镜像源的相对路径（拼接到 mirror.baseUrl 后面） */
+        val releasePath: String,
         val minRamMB: Int,
         /** 解压后的模型目录名（tar.bz2 内部可能包含子目录） */
         val extractDirName: String = modelName,
-    )
+    ) {
+        /** 生成完整下载地址列表：官方优先，镜像在后 */
+        fun allDownloadUrls(): List<Pair<String, String>> {
+            val urls = mutableListOf<Pair<String, String>>()  // (sourceName, url)
+            urls.add("GitHub Official" to officialUrl)
+            for (mirror in MIRROR_SOURCES) {
+                urls.add(mirror.name to "${mirror.baseUrl}/${releasePath}")
+            }
+            return urls
+        }
+    }
 
     val AVAILABLE_MODELS = listOf(
         ModelInfo(
@@ -37,7 +62,8 @@ object ModelManager {
             modelName = "sherpa-onnx-paraformer-zh",
             version = "2024-03-09",
             sizeBytes = 220 * 1024 * 1024L,
-            downloadUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-paraformer-zh-2024-03-09.tar.bz2",
+            officialUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-paraformer-zh-2024-03-09.tar.bz2",
+            releasePath = "asr-models/sherpa-onnx-paraformer-zh-2024-03-09.tar.bz2",
             minRamMB = 6 * 1024,
         ),
         ModelInfo(
@@ -45,7 +71,8 @@ object ModelManager {
             modelName = "sherpa-onnx-sense-voice-zh",
             version = "2024-10-30",
             sizeBytes = 240 * 1024 * 1024L,
-            downloadUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30.tar.bz2",
+            officialUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30.tar.bz2",
+            releasePath = "asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30.tar.bz2",
             minRamMB = 4 * 1024,
             extractDirName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30",
         ),
@@ -54,7 +81,8 @@ object ModelManager {
             modelName = "sherpa-onnx-funasr-nano-int8",
             version = "2025-12-01",
             sizeBytes = 20 * 1024 * 1024L,
-            downloadUrl = "$MODEL_BASE_URL/asr-models/models/sherpa-onnx-funasr-nano-int8.tar.bz2",
+            officialUrl = "$MODEL_BASE_URL/asr-models/models/sherpa-onnx-funasr-nano-int8.tar.bz2",
+            releasePath = "asr-models/models/sherpa-onnx-funasr-nano-int8.tar.bz2",
             minRamMB = 0,
         ),
     )
@@ -127,60 +155,127 @@ object ModelManager {
             return@flow
         }
 
-        DebugLog.i("$TAG: 开始下载模型 ${modelInfo.modelName} (${formatSize(modelInfo.sizeBytes)})")
+        val sources = modelInfo.allDownloadUrls()
+        DebugLog.i("$TAG: 开始下载模型 ${modelInfo.modelName} (${formatSize(modelInfo.sizeBytes)}), 共 ${sources.size} 个候选源")
 
-        val archiveFile: File
+        var lastError: String? = null
+
+        for ((index, pair) in sources.withIndex()) {
+            val (sourceName, url) = pair
+            DebugLog.i("$TAG: [${index + 1}/${sources.size}] 尝试源: $sourceName -> $url")
+            emit(DownloadProgress.SourceSwitch(sourceName, index + 1, sources.size))
+
+            val result = tryDownloadFromSource(context, modelInfo, url)
+
+            when (result) {
+                is DownloadResult.Success -> {
+                    // 下载成功，执行解压
+                    DebugLog.i("$TAG: 源 [$sourceName] 下载完成，开始解压")
+                    val extractOk = extractAndVerify(context, modelInfo, result.archiveFile) { progress ->
+                        emit(DownloadProgress.Extracting(progress))
+                    }
+                    if (extractOk) {
+                        DebugLog.i("$TAG: 模型 ${modelInfo.modelName} 安装完成（来自 $sourceName）")
+                        emit(DownloadProgress.Complete)
+                        return@flow
+                    } else {
+                        lastError = "解压验证失败"
+                        DebugLog.w("$TAG: 源 [$sourceName] 解压失败，尝试下一个源")
+                        continue
+                    }
+                }
+                is DownloadResult.Stalled -> {
+                    lastError = result.reason
+                    DebugLog.w("$TAG: 源 [$sourceName] 卡住(${result.reason})，切换到下一个源")
+                    continue
+                }
+                is DownloadResult.Failed -> {
+                    lastError = result.reason
+                    DebugLog.w("$TAG: 源 [$sourceName] 失败(${result.reason})，尝试下一个源")
+                    continue
+                }
+            }
+        }
+
+        // 所有源都失败了
+        emit(DownloadProgress.Error("所有下载源均失败。最后错误: $lastError"))
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * 从指定 URL 下载模型文件。
+     * 返回下载结果：成功/卡住/失败。
+     */
+    private suspend fun tryDownloadFromSource(
+        context: Context,
+        modelInfo: ModelInfo,
+        url: String,
+    ): DownloadResult {
+        val archiveFile = File(getModelDirectory(context), "${modelInfo.modelName}.tar.bz2")
+
         try {
-            emit(DownloadProgress.Downloading(0f))
-
-            val request = Request.Builder().url(modelInfo.downloadUrl).build()
+            val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                emit(DownloadProgress.Error("下载失败 HTTP ${response.code}"))
-                return@flow
+                return DownloadResult.Failed("HTTP ${response.code}")
             }
 
-            val body = response.body ?: run {
-                emit(DownloadProgress.Error("响应体为空"))
-                return@flow
-            }
+            val body = response.body ?: return DownloadResult.Failed("响应体为空")
 
             val totalBytes = body.contentLength()
-            val modelBaseDir = getModelDirectory(context)
-            archiveFile = File(modelBaseDir, "${modelInfo.modelName}.tar.bz2")
-
             FileOutputStream(archiveFile).use { output ->
                 body.byteStream().use { input ->
                     val buffer = ByteArray(16384)
                     var bytesRead: Int
                     var totalRead = 0L
+                    var lastProgressTime = System.currentTimeMillis()
+                    var lastProgressBytes = 0L
 
                     while (input.read(buffer).also { bytesRead = it } != -1) {
                         output.write(buffer, 0, bytesRead)
                         totalRead += bytesRead
-                        if (totalBytes > 0) {
-                            val progress = totalRead.toFloat() / totalBytes.toFloat()
-                            emit(DownloadProgress.Downloading(progress.coerceIn(0f, 1f)))
+
+                        val now = System.currentTimeMillis()
+                        // 检测是否卡住：超过 STALL_TIMEOUT_MS 毫秒没有任何新数据
+                        if (totalRead > lastProgressBytes) {
+                            lastProgressTime = now
+                            lastProgressBytes = totalRead
+                        } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
+                            DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据，已下载 ${formatSize(totalRead)}")
+                            return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
                         }
                     }
                 }
             }
 
-            DebugLog.i("$TAG: 模型压缩包下载完成 (${formatSize(archiveFile.length())})")
+            // 验证文件大小合理性（至少 > 1KB）
+            if (archiveFile.length() < 1024) {
+                archiveFile.delete()
+                return DownloadResult.Failed("下载文件过小 (${archiveFile.length()} B)，可能不是有效压缩包")
+            }
+
+            return DownloadResult.Success(archiveFile)
 
         } catch (e: Exception) {
-            DebugLog.e("$TAG: 下载异常: ${e.message}", e)
-            emit(DownloadProgress.Error("下载失败: ${e.message}"))
-            return@flow
+            // 清理可能残留的不完整文件
+            if (archiveFile.exists()) archiveFile.delete()
+            return DownloadResult.Failed(e.message ?: "未知异常")
         }
+    }
 
-            // 解压 tar.bz2
-            try {
-                emit(DownloadProgress.Extracting(0f))
-                extractTarBz2(archiveFile, getModelDirectory(context)) { progress ->
-                    emit(DownloadProgress.Extracting(progress))
-                }
+    /**
+     * 解压并验证模型文件。
+     */
+    private suspend fun extractAndVerify(
+        context: Context,
+        modelInfo: ModelInfo,
+        archiveFile: File,
+        onProgress: suspend (Float) -> Unit,
+    ): Boolean {
+        return try {
+            extractTarBz2(archiveFile, getModelDirectory(context)) { progress ->
+                onProgress(progress)
+            }
 
             // 删除压缩包释放空间
             if (archiveFile.exists()) {
@@ -191,19 +286,25 @@ object ModelManager {
             // 验证解压结果
             val modelDir = getModelDir(context, modelInfo)
             if (!modelDir.exists() || modelDir.listFiles()?.isEmpty() != false) {
-                emit(DownloadProgress.Error("解压后未找到模型文件"))
-                return@flow
+                DebugLog.e("$TAG: 解压后未找到模型文件")
+                false
+            } else {
+                val fileCount = modelDir.listFiles()?.size ?: 0
+                DebugLog.i("$TAG: 模型解压完成 ($fileCount 个文件 in ${modelDir.name})")
+                true
             }
-
-            val fileCount = modelDir.listFiles()?.size ?: 0
-            DebugLog.i("$TAG: 模型解压完成 ($fileCount 个文件 in ${modelDir.name})")
-            emit(DownloadProgress.Complete)
-
         } catch (e: Exception) {
             DebugLog.e("$TAG: 解压异常: ${e.message}", e)
-            emit(DownloadProgress.Error("解压失败: ${e.message}"))
+            false
         }
-    }.flowOn(Dispatchers.IO)
+    }
+
+    /** 单次下载结果 */
+    private sealed class DownloadResult {
+        data class Success(val archiveFile: File) : DownloadResult()
+        data class Stalled(val reason: String) : DownloadResult()
+        data class Failed(val reason: String) : DownloadResult()
+    }
 
     /**
      * 解压 tar.bz2 文件到目标目录。
@@ -290,6 +391,8 @@ object ModelManager {
     sealed class DownloadProgress {
         data class Downloading(val progress: Float) : DownloadProgress()   // 0..1
         data class Extracting(val progress: Float) : DownloadProgress()   // 0..1
+        /** 切换到新的下载源 */
+        data class SourceSwitch(val sourceName: String, val current: Int, val total: Int) : DownloadProgress()
         data object Complete : DownloadProgress()
         data class Error(val message: String) : DownloadProgress()
     }

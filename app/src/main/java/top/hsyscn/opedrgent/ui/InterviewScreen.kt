@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -95,6 +98,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.interview.InterviewConfig
+import top.hsyscn.opedrgent.interview.StepRealtimeClient
 import top.hsyscn.opedrgent.interview.InterviewPhase
 import top.hsyscn.opedrgent.interview.InterviewReport
 import top.hsyscn.opedrgent.interview.InterviewType
@@ -184,6 +188,7 @@ private fun InterviewSetupScreen(
             )
         },
         containerColor = BgGray,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -203,6 +208,18 @@ private fun InterviewSetupScreen(
                 text = "AI会通过对话了解你的需求，无需提前填写信息",
                 fontSize = 13.sp,
                 color = TextGrey,
+            )
+
+            // ===== 阶跃星辰 Step 3.7 Flash 推荐横幅 =====
+            StepRecommendationBanner(
+                onUseStepEngine = { apiKey, model, voice ->
+                    onStart(
+                        InterviewConfig(
+                            type = InterviewType.JOB_INTERVIEW, // 默认，用户后续可切换
+                            enableVoiceConversation = true,
+                        ).apply { stepApiKey = apiKey; stepModel = model; stepVoice = voice }
+                    )
+                },
             )
 
             Row(
@@ -273,6 +290,243 @@ private fun difficultyFromInt(level: Int): DifficultyLevel = when {
     level <= 6 -> DifficultyLevel.NORMAL
     level <= 8 -> DifficultyLevel.HARD
     else -> DifficultyLevel.EXPERT
+}
+
+// ── 阶跃星辰 StepAudio 2.5 Realtime 推荐横幅 ──
+
+/**
+ * 面试模式顶部的推荐横幅 — 引导用户使用阶跃星辰 StepAudio 2.5 Realtime 实时语音引擎。
+ *
+ * 展示：
+ * - 推荐卡片（品牌色 + 核心优势说明）
+ * - API Key 输入框
+ * - 模型选择下拉（默认 stepaudio-2.5-realtime）
+ * - 音色选择下拉
+ * - "使用 Step 引擎开始" 按钮
+ */
+@Composable
+private fun StepRecommendationBanner(
+    onUseStepEngine: (apiKey: String, model: String, voice: String) -> Unit,
+) {
+    var showConfig by rememberSaveable { mutableStateOf(false) }
+    var apiKey by rememberSaveable { mutableStateOf("") }
+    // 默认选中 stepaudio-2.5-realtime（索引 0，因为已排到第一位）
+    var selectedModelIndex by rememberSaveable { mutableIntStateOf(0) }
+    var selectedVoiceIndex by rememberSaveable { mutableIntStateOf(0) }
+
+    val models = StepRealtimeClient.SUPPORTED_MODELS
+    val voices = StepRealtimeClient.SUPPORTED_VOICES
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A2E), // 深蓝底色，呼应阶跃星辰品牌
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // 标题行：品牌 + 推荐 tag
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "Step",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = Color(0xFF6C63FF), // 阶跃紫
+                )
+                Text(
+                    text = "Audio 2.5",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = Color.White,
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                // 推荐标签
+                Text(
+                    text = "RECOMMENDED",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = 2.sp,
+                    modifier = Modifier
+                        .background(
+                            color = Color(0xFF6C63FF),
+                            shape = RoundedCornerShape(4.dp),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+
+            // 核心优势描述
+            Text(
+                text = "StepAudio 2.5 Realtime — 副语言感知 + Zero-shot 音色复刻 + Global/Inline 双语境控制，ASR+LLM+TTS 一体化 WebSocket",
+                fontSize = 12.sp,
+                color = Color(0xFFB0B0CC),
+                lineHeight = 18.sp,
+            )
+
+            if (!showConfig) {
+                // 收起状态：显示配置入口按钮
+                Button(
+                    onClick = { showConfig = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2A2A4A),
+                        contentColor = Color(0xFFB0B0CC),
+                    ),
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("配置 API Key 并使用", fontSize = 13.sp)
+                }
+            } else {
+                // 展开状态：API Key + 模型/音色选择
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("Step API Key", fontSize = 12.sp, color = Color(0xFF8888AA)) },
+                    placeholder = { Text("sk-...", fontSize = 12.sp, color = Color(0xFF555566)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6C63FF),
+                        unfocusedBorderColor = Color(0xFF333355),
+                        cursorColor = Color(0xFF6C63FF),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                    ),
+                )
+
+                // 模型 + 音色 选择行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    // 模型选择
+                    Box(modifier = Modifier.weight(1f)) {
+                        var modelExpanded by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            value = models.getOrNull(selectedModelIndex)?.let {
+                            it.removePrefix("step").removePrefix("audio")
+                                .replace("-", " ")
+                                .split(" ")
+                                .joinToString(" ") { word ->
+                                    if (word.isNotEmpty()) word[0].uppercase() + word.drop(1) else ""
+                                }
+                        } ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Model", fontSize = 11.sp, color = Color(0xFF8888AA)) },
+                            trailingIcon = {
+                                IconButton({ modelExpanded = !modelExpanded }) {
+                                    Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF8888AA))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF6C63FF),
+                                unfocusedBorderColor = Color(0xFF333355),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                            ),
+                        )
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false },
+                            modifier = Modifier.background(Color(0xFF222233)),
+                        ) {
+                            models.forEachIndexed { index, name ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(name, fontSize = 13.sp, color = Color.White) },
+                                    onClick = {
+                                        selectedModelIndex = index
+                                        modelExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    // 音色选择
+                    Box(modifier = Modifier.weight(1f)) {
+                        var voiceExpanded by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            value = voices.getOrNull(selectedVoiceIndex)?.second ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Voice", fontSize = 11.sp, color = Color(0xFF8888AA)) },
+                            trailingIcon = {
+                                IconButton({ voiceExpanded = !voiceExpanded }) {
+                                    Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF8888AA))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF6C63FF),
+                                unfocusedBorderColor = Color(0xFF333355),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                            ),
+                        )
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = voiceExpanded,
+                            onDismissRequest = { voiceExpanded = false },
+                            modifier = Modifier.background(Color(0xFF222233)),
+                        ) {
+                            voices.forEachIndexed { index, (_, label) ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(label, fontSize = 13.sp, color = Color.White) },
+                                    onClick = {
+                                        selectedVoiceIndex = index
+                                        voiceExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 启动按钮
+                val canStart = apiKey.isNotBlank()
+                Button(
+                    onClick = {
+                        if (canStart) {
+                            onUseStepEngine(apiKey.trim(), models[selectedModelIndex], voices[selectedVoiceIndex].first)
+                        }
+                    },
+                    enabled = canStart,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (canStart) Color(0xFF6C63FF) else Color(0xFF333355),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF222233),
+                        disabledContentColor = Color(0xFF555566),
+                    ),
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (canStart) "使用 StepAudio 2.5 开始面试" else "请先输入 API Key",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+        }
+    }
 }
 
 // ── 模式选择卡片 ──
@@ -571,6 +825,7 @@ private fun InterviewSessionScreen(
             )
         },
         containerColor = BgGray,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -1385,6 +1640,7 @@ private fun InterviewReportScreen(
             )
         },
         containerColor = BgGray,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         if (report == null) {
             // 报告生成中

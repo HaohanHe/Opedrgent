@@ -61,6 +61,9 @@ data class Note(
     /** 原文内容（如果是链接/文档类笔记，保存原始文本） */
     var originalContent: String? = null,
 
+    /** 来源 URL（链接笔记使用） */
+    var sourceUrl: String = "",
+
     /** 笔记来源类型：手动创建 / ASR转录 / AI生成 / 链接提取 */
     var sourceType: SourceType = SourceType.MANUAL,
 ) {

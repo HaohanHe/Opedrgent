@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -65,7 +66,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.collectAsState
@@ -82,6 +85,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -106,20 +111,21 @@ import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
-import top.hsyscn.opedrgent.ui.components.InputMode
-import top.hsyscn.opedrgent.ui.components.InputModeBar
-import top.hsyscn.opedrgent.ui.components.SearchScopeChips
-import top.hsyscn.opedrgent.ui.components.SearchScope
+
+
 import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
 import top.hsyscn.opedrgent.ui.components.MessageBodyError
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.QuestionDock
+import top.hsyscn.opedrgent.ui.components.SearchScope
 import top.hsyscn.opedrgent.ui.components.SproutResultView
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
+
+private data class QuickAction(val label: String, val emoji: String, val prompt: String)
 
 @Composable
 fun SessionScreen(
@@ -139,6 +145,7 @@ fun SessionScreen(
     var listening by rememberSaveable { mutableStateOf(false) }
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
+    var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -379,50 +386,103 @@ fun SessionScreen(
                 }
             }
 
-            // Stop responding button
+            // Stop responding / Skeleton loading
             AnimatedVisibility(visible = state.isStreaming) {
-                OutlinedButton(
-                    onClick = { vm.stopGeneration() },
-                    modifier = Modifier
-                        .padding(horizontal = 66.dp, vertical = 4.dp)
-                        .fillMaxWidth(),
-                    shape = RoundedCornerShape(7.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
-                    border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-                ) {
-                    Box(
+                if (state.streamingText.length < 10) {
+                    SkeletonLoadingBar(onStop = { vm.stopGeneration() })
+                } else {
+                    OutlinedButton(
+                        onClick = { vm.stopGeneration() },
                         modifier = Modifier
-                            .size(17.dp)
-                            .background(AccentBlue, RoundedCornerShape(2.dp)),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
+                            .padding(horizontal = 66.dp, vertical = 4.dp)
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(7.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(17.dp)
+                                .background(AccentBlue, RoundedCornerShape(2.dp)),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
 
-            // Input mode bar
-            var inputMode by rememberSaveable { mutableStateOf(InputMode.CHAT) }
-            InputModeBar(
-                currentMode = inputMode,
-                onModeChange = { inputMode = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            // Quick action chips
+            val quickActions = listOf(
+                QuickAction("发芽一下", "\uD83C\uDF31", "请基于我们的对话内容，帮我进行知识发芽，发掘深层联系和新视角。"),
+                QuickAction("点评一下", "\u2B50", "请点评我上面的想法，找出闪光点和可以改进的地方。"),
+                QuickAction("润色一下", "\u2728", "请帮我润色上面的内容，使其表达更清晰、更专业。"),
+                QuickAction("拷问一下", "\uD83D\uDD17", "请对我上面的观点进行深度拷问，找出逻辑漏洞和盲点。"),
             )
-
-            // Search scope chips
-            SearchScopeChips(
-                currentScope = state.searchScope,
-                onScopeChange = { vm.setSearchScope(it) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                quickActions.forEach { action ->
+                    Surface(
+                        onClick = { vm.sendUserMessage(action.prompt) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFF0F0F0),
+                        modifier = Modifier.height(32.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                        ) {
+                            Text(action.emoji, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                action.label,
+                                fontSize = 12.sp,
+                                color = TextDark,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
 
             // Input bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 100.dp, top = 4.dp),
+                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // Scope selector
+                Surface(
+                    onClick = { showScopeSheet = true },
+                    shape = RoundedCornerShape(12.dp),
+                    color = AccentBlue.copy(alpha = 0.1f),
+                    modifier = Modifier.height(37.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = AccentBlue,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = state.searchScope.label,
+                            color = AccentBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+
                 // "+" button for more options
                 Card(
                     shape = CircleShape,
@@ -835,6 +895,62 @@ fun SessionScreen(
                     }
                 }
             }
+
+        // Scope selector bottom sheet
+        if (showScopeSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showScopeSheet = false },
+                sheetState = rememberModalBottomSheetState(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = "选择数据源范围",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                    SearchScope.entries.forEach { scopeEntry ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    vm.setSearchScope(scopeEntry)
+                                    showScopeSheet = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = scopeEntry == state.searchScope,
+                                onClick = null,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = scopeEntry.label,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                val description = when (scopeEntry) {
+                                    SearchScope.ALL -> "笔记、知识库和全网搜索"
+                                    SearchScope.MY_NOTES -> "仅搜索我的笔记和知识库"
+                                    SearchScope.WEB_ONLY -> "仅使用全网搜索引擎"
+                                }
+                                Text(
+                                    text = description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextGrey,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
         }
 
         // 选择题浮层：锚定在输入框上方，避免遮挡
@@ -847,7 +963,7 @@ fun SessionScreen(
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 80.dp), // 避让底部 InputModeBar
+                    .padding(bottom = 80.dp),
             )
         }
 
@@ -1030,5 +1146,76 @@ private fun AiStatusBar(isStreaming: Boolean) {
                 .clip(CircleShape)
                 .background(GreenDot.copy(alpha = pulseAlpha)),
         )
+    }
+}
+
+/**
+ * 骨架屏加载动画，在 AI 开始生成但文本尚为空/极短时显示。
+ */
+@Composable
+private fun SkeletonLoadingBar(onStop: () -> Unit) {
+    val shimmerColors = listOf(
+        Color.LightGray.copy(alpha = 0.6f),
+        Color.LightGray.copy(alpha = 0.2f),
+        Color.LightGray.copy(alpha = 0.6f),
+    )
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmer",
+    )
+    val brush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset(translateAnim - 200f, 0f),
+        end = Offset(translateAnim, 0f),
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 66.dp, vertical = 4.dp),
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            repeat(3) { index ->
+                val widthFraction = when (index) {
+                    0 -> 0.95f
+                    1 -> 0.75f
+                    2 -> 0.5f
+                    else -> 0.95f
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(widthFraction)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(brush),
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = onStop,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(7.dp),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
+            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(17.dp)
+                    .background(AccentBlue, RoundedCornerShape(2.dp)),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
+        }
     }
 }

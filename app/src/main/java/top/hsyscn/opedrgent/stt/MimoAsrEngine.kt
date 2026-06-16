@@ -47,6 +47,8 @@ class MimoAsrEngine(
     private val apiSettings: ApiSettings,
 ) : SpeechEngine {
 
+    private val vocabularyStore = VocabularyStore(context)
+
     companion object {
         private const val TAG = "MimoAsrEngine"
         const val MODEL_ID = "mimo-v2.5-asr"
@@ -196,7 +198,7 @@ class MimoAsrEngine(
                     if (bufferSizeMs >= MIN_CHUNK_MS && (shouldSendByTime || shouldSendBySilence)) {
                         val result = sendBufferChunk()
                         if (result != null) {
-                            confirmedText.append(result)
+                            confirmedText.append(vocabularyStore.applyVocabulary(result))
                             val currentFull = confirmedText.toString()
                             trySend(StreamingRecognitionState.Recognizing(currentFull))
                         }
@@ -207,11 +209,11 @@ class MimoAsrEngine(
                 if (audioBuffer.isNotEmpty()) {
                     val finalChunk = sendBufferChunk()
                     if (finalChunk != null) {
-                        confirmedText.append(finalChunk)
+                        confirmedText.append(vocabularyStore.applyVocabulary(finalChunk))
                     }
                 }
 
-                val fullText = confirmedText.toString().trim()
+                val fullText = vocabularyStore.applyVocabulary(confirmedText.toString().trim())
                 val durationMs = System.currentTimeMillis() - sessionStartTimeMs
 
                 DebugLog.i(TAG, "流式识别完成: ${fullText.length}字, ${durationMs}ms")
@@ -220,7 +222,7 @@ class MimoAsrEngine(
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "流式识别被取消")
                 // 取消时也尝试返回已有文本
-                val partial = confirmedText.toString().trim()
+                val partial = vocabularyStore.applyVocabulary(confirmedText.toString().trim())
                 if (partial.isNotEmpty()) {
                     trySend(StreamingRecognitionState.FinalResult(partial))
                 } else {
@@ -551,17 +553,19 @@ class MimoAsrEngine(
             DebugLog.w(TAG, "MiMO ASR 返回空结果: errorMsg=$errorMsg")
         }
 
+        val resultText = vocabularyStore.applyVocabulary(text)
+
         return SttResult(
-            text = text,
-            confidence = if (text.isNotEmpty()) 1f else 0f,
-            segments = if (text.isNotEmpty()) listOf(
-                SttSegment(text = text, startTimeMs = 0, endTimeMs = durationMs, confidence = 1f),
+            text = resultText,
+            confidence = if (resultText.isNotEmpty()) 1f else 0f,
+            segments = if (resultText.isNotEmpty()) listOf(
+                SttSegment(text = resultText, startTimeMs = 0, endTimeMs = durationMs, confidence = 1f),
             ) else emptyList(),
             durationMs = durationMs,
             processingTimeMs = durationMs,
             engineType = EngineType.MIMO_ASR,
             modelUsed = MODEL_ID,
-            error = if (text.isEmpty() && errorMsg != null) errorMsg else null,
+            error = if (resultText.isEmpty() && errorMsg != null) errorMsg else null,
         )
     }
 

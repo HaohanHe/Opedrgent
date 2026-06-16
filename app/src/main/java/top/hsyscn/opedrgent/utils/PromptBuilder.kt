@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.utils
 import top.hsyscn.opedrgent.env.EnvironmentInfo
 import top.hsyscn.opedrgent.model.ResearchSession
 import top.hsyscn.opedrgent.model.Source
+import top.hsyscn.opedrgent.mcp.skills.SkillLoader
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.MemoryStore
 
@@ -26,6 +27,28 @@ object PromptBuilder {
         return ""
     }
 
+    /**
+     * 构建可用 Skill 列表注入到系统 Prompt（Kilo 风格）。
+     * LLM 看到列表后，可通过 load_skill 工具按需加载完整内容。
+     * @param skillNames 预加载的技能名称列表（调用方需在协程中获取）
+     */
+    fun buildSkillsSection(skillNames: List<Pair<String, String>>): String {
+        if (skillNames.isEmpty()) return ""
+
+        val sb = StringBuilder("# 可用技能 (Skills)\n\n")
+        sb.appendLine("以下技能可用。使用 `load_skill` 工具加载技能的完整指令。")
+        sb.appendLine("仅在任务匹配技能描述时才加载，不要预加载。")
+        sb.appendLine()
+
+        for ((name, description) in skillNames) {
+            sb.appendLine("- **$name**: $description")
+        }
+
+        sb.appendLine()
+        sb.appendLine("调用方式: load_skill(name=\"技能名称\")")
+        return sb.toString().trim()
+    }
+
     fun buildDynamicPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
@@ -33,6 +56,7 @@ object PromptBuilder {
         envInfo: EnvironmentInfo? = null,
         modelInfo: ModelInfo? = null,
         platformCtx: PlatformContext? = null,
+        skillNames: List<Pair<String, String>> = emptyList(),
     ): String {
         val layers = mutableListOf<String?>()
 
@@ -69,6 +93,11 @@ object PromptBuilder {
 
         layers += buildRuntimeLayer(envInfo, session)
 
+        val skillsLayer = buildSkillsSection(skillNames)
+        if (skillsLayer.isNotBlank()) {
+            layers.add(skillsLayer)
+        }
+
         return layers.filterNotNull().joinToString("\n\n").trim()
     }
 
@@ -79,9 +108,10 @@ object PromptBuilder {
         envInfo: EnvironmentInfo? = null,
         modelInfo: ModelInfo? = null,
         platformCtx: PlatformContext? = null,
+        skillNames: List<Pair<String, String>> = emptyList(),
     ): String {
         val static = buildStaticPrompt()
-        val dynamic = buildDynamicPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx)
+        val dynamic = buildDynamicPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, skillNames)
         return "$static$PROMPT_CACHE_BOUNDARY\n$dynamic"
     }
 

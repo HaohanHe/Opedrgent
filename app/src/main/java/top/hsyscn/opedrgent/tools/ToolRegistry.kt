@@ -9,7 +9,9 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.createType
+import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ToolPart
+import top.hsyscn.opedrgent.network.ToolDefinition
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 
@@ -74,6 +76,12 @@ class ToolRegistry {
             val descriptionAnnotation = func.findAnnotation<ToolDescription>()
             val description = descriptionAnnotation?.description ?: ""
 
+            // 获取参数 Schema：从 @ToolParameters 注解中提取
+            val paramsAnnotation = func.findAnnotation<ToolParameters>()
+            val parameters = paramsAnnotation?.schema?.takeIf { it.isNotBlank() }?.let {
+                try { JSONObject(it) } catch (_: Exception) { null }
+            }
+
             // 将 suspend 成员函数包装为 invoker lambda
             // 使用反射调用：将参数映射到函数签名
             val invoker = buildInvoker(toolSet, func)
@@ -82,6 +90,7 @@ class ToolRegistry {
                 ToolBinding(
                     name = toolName,
                     description = description,
+                    parameters = parameters,
                     invoker = invoker
                 )
             )
@@ -129,5 +138,22 @@ class ToolRegistry {
 
     fun getToolDescriptions(): Map<String, String> {
         return tools.mapValues { it.value.description }
+    }
+
+    /**
+     * 将所有已注册工具转为标准 ToolDefinition 列表，供 LLM API 使用。
+     * 每个工具的 parameters 字段使用标准 JSON Schema 格式。
+     */
+    fun getToolDefinitions(): List<ToolDefinition> {
+        return tools.values.map { binding ->
+            ToolDefinition(
+                name = binding.name,
+                description = binding.description,
+                parameters = binding.parameters ?: JSONObject().apply {
+                    put("type", "object")
+                    put("properties", JSONObject())
+                },
+            )
+        }
     }
 }

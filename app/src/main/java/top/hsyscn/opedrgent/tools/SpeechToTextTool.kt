@@ -328,6 +328,7 @@ class SpeechToTextTool(
             top.hsyscn.opedrgent.stt.EngineType.SHERPA_ONNX -> "Sherpa-ONNX (Paraformer)"
             top.hsyscn.opedrgent.stt.EngineType.ANDROID_SPEECH_RECOGNIZER -> "Android SpeechRecognizer"
             top.hsyscn.opedrgent.stt.EngineType.MIMO_ASR -> "MiMO ASR (在线)"
+            top.hsyscn.opedrgent.stt.EngineType.STEP_AUDIO_ASR -> "StepAudio 2.5 ASR (阶跃云端)"
         }
     }
 

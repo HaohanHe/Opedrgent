@@ -21,8 +21,17 @@ import top.hsyscn.opedrgent.tools.RunCalendarTool
 import top.hsyscn.opedrgent.tools.SpeechToTextTool
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
+import top.hsyscn.opedrgent.tools.TodoWriteTool
+import top.hsyscn.opedrgent.tools.RecallTool
+import top.hsyscn.opedrgent.tools.StepRagTool
+import top.hsyscn.opedrgent.tools.StepSearchTool
+import top.hsyscn.opedrgent.tools.StepMobileAgentTool
+import top.hsyscn.opedrgent.tools.StepImageEditTool
+import top.hsyscn.opedrgent.tools.StepImageGenTool
+import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.mcp.skills.SkillLoader
+import top.hsyscn.opedrgent.agent.McpManager
 
 data class ToolResult(
     val toolPart: ToolPart,
@@ -40,6 +49,8 @@ class ToolExecutor(
     private val asrManager: top.hsyscn.opedrgent.stt.AsrManager? = null,
     private val skillLoader: SkillLoader? = null, // Gallery Skill 系统加载器（可选，用于 run_js 工具）
     private val insightSproutEngine: top.hsyscn.opedrgent.insight.InsightSproutEngine? = null,
+    private val knowledgeBase: KnowledgeBase? = null, // 知识库（用于 RAG 检索工具）
+    val mcpManager: McpManager = McpManager(), // MCP 多服务器管理器
 ) {
 
     private var webViewAgent: WebViewAgent? = null
@@ -66,6 +77,17 @@ class ToolExecutor(
         if (insightSproutEngine != null) {
             register(InsightSproutTool(insightSproutEngine))
         }
+        // ★ TodoWrite + Recall 工具：结构化任务跟踪 + 跨会话记忆
+        register(TodoWriteTool(context))
+        register(RecallTool(context))
+        // ★ 阶跃星辰扩展工具集
+        if (knowledgeBase != null) {
+            register(StepRagTool(context, knowledgeBase))
+        }
+        register(StepSearchTool())
+        register(StepMobileAgentTool(context))
+        register(StepImageEditTool(context))
+        register(StepImageGenTool())
     }
 
     suspend fun execute(
@@ -82,9 +104,67 @@ class ToolExecutor(
         )
         DebugLog.i("ToolExecutor.execute: ${started.tool} with ${started.state.input}")
 
+        // 联网查询总开关守卫：关闭后所有搜索类工具直接返回
+        if (!apiSettings.isWebSearchEnabled() && (started.tool == "web_search" || started.tool == "deep_research")) {
+            DebugLog.i("ToolExecutor: ${started.tool} blocked by webSearchEnabled=false")
+            return@withContext ToolResult(
+                toolPart = started.copy(
+                    state = started.state.copy(
+                        status = ToolStateType.COMPLETED,
+                        output = "联网查询功能已关闭。当前仅基于本地知识和已有笔记回答问题。",
+                        endTime = System.currentTimeMillis(),
+                    ),
+                ),
+            )
+        }
+
+        // 来源选择：根据设置决定使用自有引擎还是厂商内置搜索
+        val effectiveUseProvider = if (started.tool == "web_search") {
+            when (apiSettings.getWebSearchSource()) {
+                "own" -> true       // 自有引擎：ddg/bing/baidu/searxng/jina
+                "provider" -> false // 厂商内置：走 provider_native 或 LLM 原生搜索
+                else -> useProviderSearch
+            }
+        } else {
+            useProviderSearch
+        }
+
         try {
+            // ★ MCP 工具路由
+            if (mcpManager.isMcpTool(started.tool)) {
+                val args = org.json.JSONObject()
+                started.state.input.forEach { (k, v) -> args.put(k, v) }
+                val mcpResult = mcpManager.callTool(started.tool, args)
+                return@withContext ToolResult(
+                    toolPart = started.copy(
+                        state = started.state.copy(
+                            status = if (mcpResult.isError) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                            output = mcpResult.content,
+                            error = if (mcpResult.isError) mcpResult.content else null,
+                            endTime = System.currentTimeMillis(),
+                        ),
+                    ),
+                )
+            }
+
+            // ★ load_skill 工具：按需加载 Skill 完整内容
+            if (started.tool == "load_skill") {
+                val skillName = started.state.input["name"] ?: ""
+                val result = executeLoadSkill(skillName)
+                return@withContext ToolResult(
+                    toolPart = started.copy(
+                        state = started.state.copy(
+                            status = if (result.startsWith("错误")) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                            output = result,
+                            error = if (result.startsWith("错误")) result else null,
+                            endTime = System.currentTimeMillis(),
+                        ),
+                    ),
+                )
+            }
+
             // ★ @Tool注解驱动的注册表路由（替代巨型when分支）
-            val result = toolRegistry.invoke(started.tool, started, config, systemPrompt, useProviderSearch)
+            val result = toolRegistry.invoke(started.tool, started, config, systemPrompt, effectiveUseProvider)
             if (result != null) {
                 return@withContext result
             }
@@ -162,6 +242,52 @@ class ToolExecutor(
             },
         ),
     )
+
+    /**
+     * 统一工具定义：本地注册工具 + MCP 远程工具。
+     * 合并 ToolRegistry 中的本地工具和 McpManager 中的远程 MCP 工具。
+     */
+    suspend fun getToolDefinitions(): List<ToolDefinition> {
+        val local = toolRegistry.getToolDefinitions()
+        val mcp = mcpManager.refreshAllTools()
+        val loadSkill = listOf(ToolDefinition(
+            name = "load_skill",
+            description = "按需加载技能的完整指令。仅在任务匹配某个技能描述时调用，不要预加载。",
+            parameters = org.json.JSONObject().apply {
+                put("type", "object")
+                put("properties", org.json.JSONObject().apply {
+                    put("name", org.json.JSONObject().apply {
+                        put("type", "string")
+                        put("description", "要加载的技能名称")
+                    })
+                })
+                put("required", org.json.JSONArray().apply { put("name") })
+            },
+        ))
+        return loadSkill + local + mcp
+    }
+
+    /**
+     * 执行 load_skill 工具：查找并返回 Skill 的完整指令内容
+     */
+    private suspend fun executeLoadSkill(skillName: String): String {
+        if (skillName.isBlank()) return "错误: 未指定技能名称"
+        val loader = skillLoader ?: return "错误: 技能系统未初始化"
+
+        val skill = loader.getEnabledSkills().find { it.metadata.name == skillName }
+            ?: return "错误: 未找到名为 '$skillName' 的技能，或该技能已禁用"
+
+        val sb = StringBuilder()
+        sb.appendLine("<skill_content name=\"$skillName\">")
+        sb.appendLine()
+        sb.appendLine(skill.instructions)
+        sb.appendLine()
+        if (skill.localScriptsPath != null) {
+            sb.appendLine("脚本路径: ${skill.localScriptsPath}")
+        }
+        sb.appendLine("</skill_content>")
+        return sb.toString().trim()
+    }
 
     /**
      * 按工具名执行，返回结果文本。供 MultiAgentOrchestrator 调用。

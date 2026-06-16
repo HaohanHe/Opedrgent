@@ -22,6 +22,7 @@ enum class EngineType {
     SHERPA_ONNX,
     ANDROID_SPEECH_RECOGNIZER,
     MIMO_ASR,
+    STEP_AUDIO_ASR,   // 阶跃星辰 StepAudio 2.5 云端 ASR
 }
 
 // ==================== 会议转录结果（UI 层使用）====================
