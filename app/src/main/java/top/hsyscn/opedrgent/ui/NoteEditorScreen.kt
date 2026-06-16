@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.max
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,7 +49,13 @@ import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
+import top.hsyscn.opedrgent.note.parseAiSummary
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.components.AudioPlayer
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
+import top.hsyscn.opedrgent.ui.components.SproutEmptyIllustration
+import top.hsyscn.opedrgent.ui.components.BalloonEmptyIllustration
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -65,6 +73,10 @@ fun NoteEditorScreen(
     onBack: () -> Unit,
     forceReadOnly: Boolean = false,
     onEdit: () -> Unit = {},  // 阅读模式专用：点击编辑时跳转到编辑器
+    onCorrectNote: (Long) -> Unit = {},
+    onAddToKnowledgeBase: (Long) -> Unit = {},
+    onAddTag: (Long) -> Unit = {},
+    onAppendNote: (Long) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,6 +99,8 @@ fun NoteEditorScreen(
     // 阅读模式专用状态
     var showReaderMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(1) }
+    var currentNote by remember { mutableStateOf<Note?>(null) }
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
@@ -104,6 +118,10 @@ fun NoteEditorScreen(
                 content = content.text,
                 type = noteType,
                 wordCount = content.text.length,
+                sourceUri = currentNote?.sourceUri,
+                originalContent = currentNote?.originalContent,
+                sourceUrl = currentNote?.sourceUrl ?: "",
+                sourceType = currentNote?.sourceType ?: top.hsyscn.opedrgent.note.SourceType.MANUAL,
             )
             note.setTags(tags)
             val id = repository.saveNote(note)
@@ -153,6 +171,7 @@ fun NoteEditorScreen(
                 noteType = existing.type
                 tags = existing.getTags()
                 lastSavedAt = existing.updatedAt
+                currentNote = existing
             }
         }
     }
@@ -170,8 +189,10 @@ fun NoteEditorScreen(
 
     if (forceReadOnly) {
         // ════════════════════════════════════════
-        // 阅读模式（只读展示）
+        // 阅读模式（只读展示）— Dedao Brain 风格 Tab + 浮动底栏
         // ════════════════════════════════════════
+        val tabTitles = listOf("原文", "笔记内容", "发芽", "追加笔记")
+
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
@@ -196,6 +217,7 @@ fun NoteEditorScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 )
             },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -227,16 +249,541 @@ fun NoteEditorScreen(
                     }
                 }
 
+                // 音频播放器（仅当笔记关联音频文件时显示）
+                if (noteType == NoteType.MEETING || noteType == NoteType.ASR || noteType == NoteType.AUDIO) {
+                    val audioUri = currentNote?.sourceUri
+                    if (!audioUri.isNullOrBlank()) {
+                        AudioPlayer(audioUri = audioUri)
+                    }
+                }
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-                // 内容区域：Markdown 渲染
-                MarkdownPreview(
-                    content = content.text,
+                // Tab 导航
+                ScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    edgePadding = 16.dp,
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = AccentBlue,
+                    divider = {},
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = {
+                                Text(
+                                    title,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            selectedContentColor = AccentBlue,
+                            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                // 内容区域（Tab 切换）
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                )
+                ) {
+                    when (selectedTab) {
+                        0 -> {
+                            // 原文
+                            val original = if (noteType == NoteType.LINK) {
+                                currentNote?.originalContent
+                            } else {
+                                currentNote?.originalContent
+                            }
+                            if (!original.isNullOrBlank()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        .padding(bottom = 80.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                ) {
+                                    // 来源链接卡片
+                                    val url = currentNote?.sourceUrl
+                                    if (!url.isNullOrEmpty()) {
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp)
+                                                .clickable {
+                                                    val intent = android.content.Intent(
+                                                        android.content.Intent.ACTION_VIEW,
+                                                        android.net.Uri.parse(url),
+                                                    )
+                                                    runCatching { context.startActivity(intent) }
+                                                },
+                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F7FA)),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Link,
+                                                    contentDescription = null,
+                                                    tint = AccentBlue,
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        "来源链接",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = TextGrey,
+                                                    )
+                                                    Text(
+                                                        url,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = AccentBlue,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                }
+                                                Icon(
+                                                    Icons.Default.OpenInNew,
+                                                    contentDescription = "打开链接",
+                                                    tint = TextGrey,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    MarkdownPreview(
+                                        content = original,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            } else {
+                                if (noteType == NoteType.ASR || noteType == NoteType.MEETING) {
+                                    EmptyStateView(
+                                        icon = {
+                                            Icon(
+                                                Icons.Default.Mic,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(72.dp),
+                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                            )
+                                        },
+                                        title = "正在汲取养分..",
+                                        subtitle = "暂无原始转录文本",
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    MarkdownPreview(
+                                        content = content.text,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                            .padding(bottom = 80.dp),
+                                    )
+                                }
+                            }
+                        }
+                        1 -> {
+                            // 笔记内容（含智能总结子标签）
+                            var selectedSubTab by remember { mutableIntStateOf(0) }
+                            val subTabTitles = listOf("智能总结", "章节概要", "金句精选", "待办事项")
+                            val parsedSummary = remember(content.text) { parseAiSummary(content.text) }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = 80.dp),
+                            ) {
+                                // 子标签行
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    subTabTitles.forEachIndexed { index, title ->
+                                        val selected = selectedSubTab == index
+                                        Box(
+                                            modifier = Modifier
+                                                .clickable { selectedSubTab = index }
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    title,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (selected) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                                if (selected) {
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(20.dp)
+                                                            .height(2.dp)
+                                                            .background(AccentBlue, RoundedCornerShape(1.dp)),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                ) {
+                                    when (selectedSubTab) {
+                                        0 -> {
+                                            val text = parsedSummary.smartSummary.ifBlank { content.text }
+                                            MarkdownPreview(
+                                                content = text,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                        }
+                                        1 -> {
+                                            val text = parsedSummary.chapterOutline.ifBlank { parsedSummary.smartSummary.ifBlank { content.text } }
+                                            MarkdownPreview(
+                                                content = text,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                        }
+                                        2 -> {
+                                            if (parsedSummary.keyQuotes.isNotEmpty()) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .verticalScroll(rememberScrollState()),
+                                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    parsedSummary.keyQuotes.forEach { quote ->
+                                                        Surface(
+                                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.padding(12.dp),
+                                                                verticalAlignment = Alignment.Top,
+                                                            ) {
+                                                                Text(
+                                                                    "\"",
+                                                                    fontSize = 18.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = AccentBlue,
+                                                                    modifier = Modifier.padding(end = 8.dp),
+                                                                )
+                                                                Text(
+                                                                    quote,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                                    modifier = Modifier.weight(1f),
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                EmptyStateView(
+                                                    icon = {
+                                                        Icon(
+                                                            Icons.Default.FormatQuote,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(56.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                                        )
+                                                    },
+                                                    title = "暂无金句精选",
+                                                    subtitle = "",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                )
+                                            }
+                                        }
+                                        3 -> {
+                                            if (parsedSummary.actionItems.isNotEmpty()) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .verticalScroll(rememberScrollState()),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    parsedSummary.actionItems.forEach { item ->
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        ) {
+                                                            Text(
+                                                                "\u2610",
+                                                                fontSize = 16.sp,
+                                                                color = AccentBlue,
+                                                                modifier = Modifier.padding(end = 10.dp),
+                                                            )
+                                                            Text(
+                                                                item,
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = MaterialTheme.colorScheme.onSurface,
+                                                                modifier = Modifier.weight(1f),
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                EmptyStateView(
+                                                    icon = {
+                                                        Icon(
+                                                            Icons.Default.CheckCircle,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(56.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                                        )
+                                                    },
+                                                    title = "暂无待办事项",
+                                                    subtitle = "",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            // 发芽
+                            if (currentNote?.hasSproutReport() == true) {
+                                val article = currentNote?.getSproutArticle()
+                                val report = currentNote?.getSproutReport()
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        .padding(bottom = 80.dp),
+                                ) {
+                                    if (article != null && article.articles.isNotEmpty()) {
+                                        article.articles.forEachIndexed { idx, section ->
+                                            if (idx > 0) {
+                                                Spacer(Modifier.height(16.dp))
+                                                HorizontalDivider()
+                                                Spacer(Modifier.height(16.dp))
+                                            }
+                                            Text(
+                                                section.title,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                shape = RoundedCornerShape(8.dp),
+                                            ) {
+                                                Text(
+                                                    "种子：${section.seed}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(12.dp),
+                                                )
+                                            }
+                                            Spacer(Modifier.height(8.dp))
+                                            MarkdownPreview(
+                                                content = section.body,
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                            if (section.ahaMoment.isNotBlank()) {
+                                                Spacer(Modifier.height(8.dp))
+                                                Surface(
+                                                    color = Color(0xFFFFF8E1),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                ) {
+                                                    Text(
+                                                        "Aha：${section.ahaMoment}",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = Color(0xFFFF8F00),
+                                                        modifier = Modifier.padding(12.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (article.actionItems.isNotEmpty()) {
+                                            Spacer(Modifier.height(16.dp))
+                                            Text(
+                                                "行动建议",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                            article.actionItems.forEach { item ->
+                                                Text(
+                                                    "• $item",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    modifier = Modifier.padding(vertical = 2.dp),
+                                                )
+                                            }
+                                        }
+                                    } else if (report != null) {
+                                        Text(
+                                            report.summary,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        report.keyPoints.forEach { point ->
+                                            Text(
+                                                "• $point",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(vertical = 2.dp),
+                                            )
+                                        }
+                                        if (report.actionItems.isNotEmpty()) {
+                                            Spacer(Modifier.height(12.dp))
+                                            Text(
+                                                "行动建议",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                            report.actionItems.forEach { item ->
+                                                Text(
+                                                    "• $item",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    modifier = Modifier.padding(vertical = 2.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                var sproutTitle by remember { mutableStateOf("正在汲取养分..") }
+                                LaunchedEffect(Unit) {
+                                    delay(2000L)
+                                    sproutTitle = "暂无发芽"
+                                }
+                                EmptyStateView(
+                                    icon = { SproutEmptyIllustration() },
+                                    title = sproutTitle,
+                                    subtitle = "",
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                        3 -> {
+                            // 追加笔记
+                            EmptyStateView(
+                                icon = { BalloonEmptyIllustration() },
+                                title = "暂无追加笔记",
+                                subtitle = "",
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+
+                    // 浮动底部操作栏
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp,
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .fillMaxWidth()
+                            .height(64.dp),
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                // 吉祥物头像
+                                Surface(
+                                    shape = CircleShape,
+                                    color = AccentBlue.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(40.dp),
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {
+                                        Text(
+                                            "O",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentBlue,
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                ) {
+                                    // 追加笔记
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable { selectedTab = 3 },
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "追加笔记",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "追加笔记",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+
+                                    // 发芽
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable {
+                                            onSendWithSkill(noteId ?: return@clickable, "insight_sprout")
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = "发芽",
+                                            tint = Color(0xFF4CAF50),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "发芽",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+
+                                // 右侧占位保持对称
+                                Spacer(modifier = Modifier.size(40.dp))
+                            }
+
+                            // 配额指示器
+                            Text(
+                                "已用完，去升级",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 12.dp, bottom = 6.dp),
+                            )
+                        }
+                    }
+                }
 
                 // 元信息行
                 Surface(
@@ -266,89 +813,43 @@ fun NoteEditorScreen(
                         }
                     }
                 }
-
-                // 底部操作栏
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        // 编辑按钮
-                        ReaderActionButton(
-                            icon = Icons.Default.Edit,
-                            label = "编辑",
-                            onClick = { if (onEdit != {}) onEdit() else onBack() },
-                        )
-                        // 讨论按钮
-                        ReaderActionButton(
-                            icon = Icons.Default.ChatBubbleOutline,
-                            label = "讨论",
-                            onClick = { onSendToChat(noteId ?: return@ReaderActionButton) },
-                        )
-                        // 发芽按钮
-                        ReaderActionButton(
-                            icon = Icons.Default.AutoAwesome,
-                            label = "发芽",
-                            onClick = { onSendWithSkill(noteId ?: return@ReaderActionButton, "insight_sprout") },
-                        )
-                    }
-                }
             }
         }
 
-        // 三点菜单
-        DropdownMenu(
-            expanded = showReaderMenu,
-            onDismissRequest = { showReaderMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("编辑") },
-                leadingIcon = { Icon(Icons.Default.Edit, null) },
-                onClick = {
-                    showReaderMenu = false
+        // 底部操作菜单
+        if (showReaderMenu && noteId != null) {
+            val menuNote = currentNote ?: Note(
+                id = noteId,
+                title = title,
+                content = content.text,
+                type = noteType,
+                updatedAt = lastSavedAt ?: System.currentTimeMillis(),
+            ).apply { setTags(tags) }
+
+            val sheetState = rememberModalBottomSheetState()
+            top.hsyscn.opedrgent.ui.components.NoteActionBottomSheet(
+                note = menuNote,
+                sheetState = sheetState,
+                onDismiss = { showReaderMenu = false },
+                onEdit = {
                     if (onEdit != {}) onEdit() else onBack()
                 },
-            )
-            DropdownMenuItem(
-                text = { Text("发芽分析") },
-                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
-                onClick = {
-                    showReaderMenu = false
-                    onSendWithSkill(noteId ?: return@DropdownMenuItem, "insight_sprout")
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("在对话中讨论") },
-                leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, null) },
-                onClick = {
-                    showReaderMenu = false
-                    onSendToChat(noteId ?: return@DropdownMenuItem)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("分享") },
-                leadingIcon = { Icon(Icons.Default.Share, null) },
-                onClick = {
-                    showReaderMenu = false
-                    // 复制内容到剪贴板作为简易分享
+                onShare = {
                     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(content.text))
                     scope.launch {
                         snackbarHostState.showSnackbar("已复制到剪贴板", duration = SnackbarDuration.Short)
                     }
                 },
-            )
-            DropdownMenuItem(
-                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
-                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                onClick = {
-                    showReaderMenu = false
-                    showDeleteDialog = true
+                onAppend = { onAppendNote(noteId) },
+                onCorrect = { onCorrectNote(noteId) },
+                onSprout = { onSendWithSkill(noteId, "insight_sprout") },
+                onAddToKnowledgeBase = { onAddToKnowledgeBase(noteId) },
+                onAddTag = { onAddTag(noteId) },
+                onDelete = { showDeleteDialog = true },
+                onTogglePin = {
+                    scope.launch { repository.togglePin(noteId) }
                 },
+                onSendToChat = { onSendToChat(noteId) },
             )
         }
 
@@ -443,6 +944,7 @@ fun NoteEditorScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 )
             },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
         Column(
             modifier = Modifier

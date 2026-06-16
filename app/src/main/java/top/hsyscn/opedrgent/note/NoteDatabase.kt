@@ -19,7 +19,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "opedrgent_notes.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         const val TABLE_NOTES = "notes"
 
         // 列名
@@ -38,6 +38,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_WORD_COUNT = "word_count"
         const val COL_SPROUT_REPORT_JSON = "sprout_report_json"
         const val COL_ORIGINAL_CONTENT = "original_content"
+        const val COL_SOURCE_URL = "source_url"
         const val COL_SOURCE_TYPE = "source_type"
 
         // 单例
@@ -68,6 +69,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_WORD_COUNT INTEGER NOT NULL DEFAULT 0,
                 $COL_SPROUT_REPORT_JSON TEXT,
                 $COL_ORIGINAL_CONTENT TEXT,
+                $COL_SOURCE_URL TEXT DEFAULT '',
                 $COL_SOURCE_TYPE TEXT DEFAULT 'MANUAL'
             )
         """.trimIndent())
@@ -80,7 +82,9 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 未来版本升级时处理数据迁移
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $COL_SOURCE_URL TEXT DEFAULT ''")
+        }
     }
 
     /** 从 Cursor 构建Note对象 */
@@ -101,6 +105,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
             wordCount = cursor.getInt(cursor.getColumnIndexOrThrow(COL_WORD_COUNT)),
             sproutReportJson = cursor.getString(cursor.getColumnIndexOrThrow(COL_SPROUT_REPORT_JSON)),
             originalContent = cursor.getString(cursor.getColumnIndexOrThrow(COL_ORIGINAL_CONTENT)),
+            sourceUrl = cursor.getString(cursor.getColumnIndexOrThrow(COL_SOURCE_URL)) ?: "",
             sourceType = try { SourceType.valueOf(cursor.getString(cursor.getColumnIndexOrThrow(COL_SOURCE_TYPE))) } catch (_: Exception) { SourceType.MANUAL },
         )
     }

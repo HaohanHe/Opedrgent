@@ -26,6 +26,8 @@ class SherpaOnnxEngine(
     private val config: SttConfig = SttConfig(),
 ) : SpeechEngine {
 
+    private val vocabularyStore = VocabularyStore(context)
+
     companion object {
         private const val TAG = "SherpaOnnxEngine"
         private const val TARGET_SAMPLE_RATE = 16000
@@ -49,11 +51,22 @@ class SherpaOnnxEngine(
         }
     }
 
-    /** 离线识别器（用于文件转录） */
+    /** 离线识别器（用于文件转录和伪流式识别） */
     private var offlineRecognizer: OfflineRecognizer? = null
     private var _isInitialized = AtomicBoolean(false)
     private var streamingActive = AtomicBoolean(false)
     private var currentModelDir: File? = null
+
+    // ==================== 伪流式识别状态 ====================
+    /** 累积音频缓冲区（用于伪流式识别） */
+    @Volatile
+    private var streamingBuffer = FloatArray(0)
+    /** 上次识别结果文本（用于去重） */
+    @Volatile
+    private var lastRecognizedText = ""
+    /** 流式识别结果通道（由 startStreamingRecognition 创建） */
+    @Volatile
+    private var streamingChannel: kotlinx.coroutines.channels.SendChannel<StreamingRecognitionState>? = null
 
     override val engineType = EngineType.SHERPA_ONNX
 
@@ -193,34 +206,126 @@ class SherpaOnnxEngine(
     }
 
     /**
-     * 启动流式识别（实时语音输入）。
+     * 启动伪流式识别（实时语音输入）。
      *
-     * 使用 OnlineRecognizer + OnlineStream 实现真正的增量识别：
-     * - 外部通过 [feedAudioData] 喂入音频采样点
-     * - 内部每 [STREAMING_CHUNK_MS] 轮询一次中间结果
+     * 使用 OfflineRecognizer 实现增量识别：
+     * - 外部通过 [feedAudioData] 持续喂入音频采样点
+     * - 每收到音频就累积到缓冲区，达到阈值时触发离线识别
+     * - 对比上次结果，只发送变化部分（去重）
      * - 停止时输出最终结果
      *
-     * 如果 OnlineRecognizer 不可用（模型不支持或初始化失败），返回 Error 状态。
+     * 这种方案兼容所有离线模型（Paraformer/SenseVoice/FunASR），
+     * 用户体验接近真正的流式识别（边说边出文字）。
      */
     override fun startStreamingRecognition(): Flow<StreamingRecognitionState> {
         return callbackFlow {
-            if (!_isInitialized.get()) {
+            if (!_isInitialized.get() || offlineRecognizer == null) {
                 trySend(StreamingRecognitionState.Error("引擎未初始化，请先调用 initialize()"))
                 close()
                 return@callbackFlow
             }
 
-            trySend(StreamingRecognitionState.Error("当前版本暂不支持实时流式识别，请使用文件转录模式"))
-            close()
+            // 重置流式状态
+            streamingBuffer = FloatArray(0)
+            lastRecognizedText = ""
+            streamingActive.set(true)
+            streamingChannel = this
+
+            trySend(StreamingRecognitionState.Listening)
+            DebugLog.i(TAG, "伪流式识别已启动 (chunk=${STREAMING_CHUNK_MS}ms)")
+
+            awaitClose {
+                streamingActive.set(false)
+                streamingChannel = null
+                DebugLog.i(TAG, "伪流式识别 Flow 已关闭")
+            }
         }
     }
 
-    fun feedAudioData(samples: FloatArray) { /* 流式识别暂不可用 */ }
+    /**
+     * 喂入音频数据到流式识别缓冲区。
+     *
+     * 外部录音模块每采集一批采样点就调用此方法。
+     * 音频格式要求：16kHz, mono, float32 [-1.0, 1.0]
+     *
+     * 当累积音频达到 [STREAMING_CHUNK_MS] 的整数倍时，自动触发一次识别。
+     */
+    fun feedAudioData(samples: FloatArray) {
+        if (!streamingActive.get() || samples.isEmpty()) return
+
+        // 追加到缓冲区
+        val oldBuffer = streamingBuffer
+        val newBuffer = FloatArray(oldBuffer.size + samples.size)
+        System.arraycopy(oldBuffer, 0, newBuffer, 0, oldBuffer.size)
+        System.arraycopy(samples, 0, newBuffer, oldBuffer.size, samples.size)
+        streamingBuffer = newBuffer
+
+        // 计算缓冲区时长（毫秒）
+        val bufferDurationMs = (newBuffer.size.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
+
+        // 每累积 STREAMING_CHUNK_MS 的整数倍时触发识别
+        val chunkSamples = (TARGET_SAMPLE_RATE * STREAMING_CHUNK_MS / 1000).toInt()
+        if (newBuffer.size >= chunkSamples) {
+            triggerIncrementalRecognition(newBuffer, bufferDurationMs)
+        }
+    }
+
+    /**
+     * 触发增量识别：对累积缓冲区执行离线识别，与上次结果对比后发送变化部分。
+     */
+    private fun triggerIncrementalRecognition(buffer: FloatArray, bufferDurationMs: Long) {
+        val recognizer = offlineRecognizer ?: return
+        val channel = streamingChannel ?: return
+
+        try {
+            val currentText = decodeSegment(recognizer, buffer).trim()
+
+            if (currentText.isNotEmpty() && currentText != lastRecognizedText) {
+                lastRecognizedText = currentText
+                channel.trySend(StreamingRecognitionState.Recognizing(currentText))
+                DebugLog.d(TAG, "伪流式中间结果: ${currentText.takeLast(40)} (${bufferDurationMs}ms)")
+            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "增量识别异常: ${e.message}")
+        }
+    }
+
+    /**
+     * 标记流式识别结束，触发最终结果。
+     * 外部录音模块停止录音后调用。
+     */
+    fun finishStreaming() {
+        if (!streamingActive.compareAndSet(true, false)) return
+
+        val channel = streamingChannel ?: return
+        val buffer = streamingBuffer
+
+        if (buffer.isNotEmpty()) {
+            try {
+                val recognizer = offlineRecognizer
+                if (recognizer != null) {
+                    val finalText = vocabularyStore.applyVocabulary(decodeSegment(recognizer, buffer).trim())
+                    if (finalText.isNotEmpty()) {
+                        channel.trySend(StreamingRecognitionState.FinalResult(finalText))
+                        DebugLog.i(TAG, "伪流式最终结果: ${finalText.length}字")
+                    }
+                }
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "最终识别异常: ${e.message}", e)
+            }
+        }
+
+        channel.trySend(StreamingRecognitionState.Stopped)
+
+        // 清理
+        streamingBuffer = FloatArray(0)
+        lastRecognizedText = ""
+        streamingChannel = null
+    }
 
     override fun stopStreamingRecognition() {
-        if (streamingActive.compareAndSet(true, false)) {
-            DebugLog.i(TAG, "停止流式识别信号已发送")
-        }
+        DebugLog.i(TAG, "停止流式识别信号已发送")
+        finishStreaming()
     }
 
     override fun close() {
@@ -301,10 +406,13 @@ class SherpaOnnxEngine(
         val processingTimeMs = System.currentTimeMillis() - startTimeMs
         DebugLog.i(TAG, "识别完成: 共${segmentIndex}段, 文本长度=${fullText.length}, 耗时=${processingTimeMs}ms")
 
+        val resultText = vocabularyStore.applyVocabulary(fullText.toString())
+        val resultSegments = segments.map { it.copy(text = vocabularyStore.applyVocabulary(it.text)) }
+
         return SttResult(
-            text = fullText.toString(),
-            confidence = if (segments.isNotEmpty()) 1f else 0f,
-            segments = segments.toList(),
+            text = resultText,
+            confidence = if (resultSegments.isNotEmpty()) 1f else 0f,
+            segments = resultSegments,
             durationMs = durationMs,
             processingTimeMs = processingTimeMs,
             engineType = EngineType.SHERPA_ONNX,

@@ -41,7 +41,9 @@ data class ClassifiedError(
     val httpStatusCode: Int?,
     val isTransient: Boolean,
     val shouldTriggerCircuitBreaker: Boolean,
-    val description: String
+    val description: String,
+    /** 服务端返回的 retry-after 延迟（毫秒），null 表示未指定 */
+    val retryAfterMs: Long? = null,
 )
 
 object ErrorClassifier {
@@ -58,6 +60,12 @@ object ErrorClassifier {
         return classifyInternal(exception = null, httpCode = httpCode, responseBody = body)
     }
 
+    fun classify(httpCode: Int, body: String? = null, headers: Map<String, String> = emptyMap()): ClassifiedError {
+        val error = classifyInternal(exception = null, httpCode = httpCode, responseBody = body)
+        val retryAfter = parseRetryAfterMs(headers)
+        return if (retryAfter != null) error.copy(retryAfterMs = retryAfter) else error
+    }
+
     fun classify(exception: Exception, httpCode: Int?, responseBody: String? = null): ClassifiedError {
         return classifyInternal(exception = exception, httpCode = httpCode, responseBody = responseBody)
     }
@@ -67,6 +75,8 @@ object ErrorClassifier {
     fun shouldOpenCircuit(error: ClassifiedError): Boolean = error.shouldTriggerCircuitBreaker
 
     fun getRetryDelayMs(error: ClassifiedError): Long {
+        // 优先使用服务端返回的 retry-after
+        error.retryAfterMs?.let { return it.coerceIn(1000L, 120_000L) }
         return when (error.type) {
             ClassifiedErrorType.TIMEOUT -> 2000L
             ClassifiedErrorType.RATE_LIMIT -> 60000L
@@ -74,6 +84,22 @@ object ErrorClassifier {
             ClassifiedErrorType.NETWORK_ERROR -> 3000L
             else -> 0L
         }
+    }
+
+    /**
+     * 从 HTTP 响应头解析 retry-after 值（毫秒）。
+     * 支持两种格式：
+     * - retry-after: 30 （秒数）
+     * - retry-after-ms: 5000 （毫秒，非标准但常见）
+     */
+    fun parseRetryAfterMs(headers: Map<String, String>): Long? {
+        // 优先检查 retry-after-ms（毫秒精度）
+        headers["retry-after-ms"]?.toLongOrNull()?.let { return it }
+        // 再检查 retry-after（秒数）
+        headers["retry-after"]?.let { value ->
+            value.toLongOrNull()?.let { return it * 1000L }
+        }
+        return null
     }
 
     fun formatForLog(error: ClassifiedError): String {

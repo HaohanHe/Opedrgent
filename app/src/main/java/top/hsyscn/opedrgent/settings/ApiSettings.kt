@@ -37,6 +37,8 @@ val PROVIDER_PRESETS = listOf(
     ProviderPreset("LM Studio (本地)", "http://localhost:1234/v1", listOf("local-model")),
     ProviderPreset("OpenRouter", "https://openrouter.ai/api/v1", listOf("anthropic/claude-sonnet-4", "openai/gpt-4o", "google/gemini-2.5-flash", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash", "google/gemma-4-31b-it")),
     ProviderPreset("火山引擎", "https://ark.cn-beijing.volces.com/api/v3", listOf("doubao-pro-32k", "doubao-lite-32k")),
+    ProviderPreset("阶跃星辰 Step Plan", "https://api.stepfun.com/step_plan/v1", listOf("step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603", "step-router-v1")),
+    ProviderPreset("阶跃星辰 Messages (Anthropic)", "https://api.stepfun.com/step_plan", listOf("step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603", "step-router-v1")),
 )
 
 class ApiSettings(private val context: Context) {
@@ -73,6 +75,17 @@ class ApiSettings(private val context: Context) {
     fun isTtsAutoSpeak(): Boolean = prefs.getBoolean("ttsAutoSpeak", false)
     fun isTtsDownloadOnly(): Boolean = prefs.getBoolean("ttsDownloadOnly", false)  // 下载到本地不自动播放
     fun isTtsMimoEnabled(): Boolean = prefs.getBoolean("ttsMimoEnabled", false)
+    /** TTS 引擎选择：system(系统) / mimo(MiMo) / stepaudio(阶跃 StepAudio) */
+    fun getTtsEngine(): String {
+        // 向后兼容：旧版用布尔值
+        val engine = prefs.getString("ttsEngine", null)
+        if (engine != null) return engine
+        // 旧版迁移
+        return if (prefs.getBoolean("ttsMimoEnabled", false)) "mimo" else "system"
+    }
+    fun saveTtsEngine(engine: String) {
+        prefs.edit().putString("ttsEngine", engine).apply()
+    }
     fun getTtsMimoVoice(): String = prefs.getString("ttsMimoVoice", "冰糖") ?: "冰糖"
     fun getTtsRate(): Float = prefs.getFloat("ttsRate", 1.0f)
     fun getTtsPitch(): Float = prefs.getFloat("ttsPitch", 1.0f)
@@ -87,6 +100,19 @@ class ApiSettings(private val context: Context) {
     fun isDebugMode(): Boolean = prefs.getBoolean("debugMode", false)
     fun isDeepThinking(): Boolean = prefs.getBoolean("deepThinking", true)
     fun isProviderWebSearchEnabled(): Boolean = prefs.getBoolean("providerWebSearchEnabled", true)
+
+    /** 联网查询总开关：关闭后所有网络搜索功能禁用 */
+    fun isWebSearchEnabled(): Boolean = prefs.getBoolean("webSearchEnabled", true)
+
+    /** 联网查询来源选择："own" = Opedrgent 自有搜索引擎, "provider" = 模型厂商内置搜索 */
+    fun getWebSearchSource(): String = prefs.getString("webSearchSource", "own") ?: "own"
+    fun saveWebSearchSource(source: String) {
+        prefs.edit().putString("webSearchSource", source).apply()
+    }
+    fun saveWebSearchEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("webSearchEnabled", enabled).apply()
+    }
+
     fun getLastLocation(): String? = prefs.getString("lastLocation", null)?.trim()?.takeIf { it.isNotBlank() }
 
     fun getJinaApiKey(): String? = securePrefs.getString("jinaApiKey", null)?.trim()?.takeIf { it.isNotBlank() }

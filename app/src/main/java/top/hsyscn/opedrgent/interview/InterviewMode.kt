@@ -306,6 +306,9 @@ data class InterviewReport(
  * @param verdictThresholds 判定阈值配置（null = LLM 根据场景自动决定）
  * @param customInstructions 用户额外的自由格式指令
  * @param ttsScenario TTS 语音场景（控制语音风格）
+ * @param stepApiKey 阶跃星辰 API Key（使用 StepRealtime 引擎时必填）
+ * @param stepModel 阶跃星辰模型名称（默认 step-3.7-flash）
+ * @param stepVoice 阶跃星辰音色 ID（默认 linjiajiejie）
  */
 data class InterviewConfig(
     val type: InterviewType = InterviewType.JOB_INTERVIEW,
@@ -326,6 +329,10 @@ data class InterviewConfig(
     val verdictThresholds: VerdictThresholds? = null,
     val customInstructions: String = "",
     val ttsScenario: TtsScenario = TtsScenario.INTERVIEW,
+    // Step Realtime 引擎参数
+    var stepApiKey: String = "",
+    var stepModel: String = "stepaudio-2.5-realtime",  // 默认使用专门的语音大模型
+    var stepVoice: String = "linjiajiejie",
 ) {
     /**
      * 获取材料的合并文本（兼容旧接口）。

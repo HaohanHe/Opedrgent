@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -32,9 +33,13 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +57,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -75,6 +82,8 @@ import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
+import top.hsyscn.opedrgent.stt.ModelManager
+import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import top.hsyscn.opedrgent.ui.theme.BgGray
@@ -84,7 +93,7 @@ import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, toVocabulary: () -> Unit = {}, toVoiceprint: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -97,9 +106,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
+    var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
+    var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
+    var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
@@ -149,11 +161,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
         containerColor = BgGray,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(12.dp)
+                .padding(bottom = 80.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -343,6 +357,32 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
             HorizontalDivider()
 
+            Text("声纹识别", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = toVoiceprint,
+                shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp), tint = BubbleBlue)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("声纹识别", fontWeight = FontWeight.SemiBold)
+                        Text("注册说话人声纹，会议录音自动识别发言人", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = "进入")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             Text("语音", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
                 colors = CardDefaults.cardColors(
@@ -366,6 +406,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     shape = RoundedCornerShape(20.dp),
                                 )
                                 FilterChip(
+                                    selected = sttEngine == "stepaudio",
+                                    onClick = { sttEngine = "stepaudio" },
+                                    label = { Text("StepAudio", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
                                     selected = sttEngine == "mimo",
                                     onClick = { sttEngine = "mimo" },
                                     label = { Text("MiMo ASR", fontSize = 12.sp) },
@@ -380,12 +426,200 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 color = Color(0xFFE67E22),
                             )
                         }
+                        if (sttEngine == "stepaudio") {
+                            Text(
+                                text = "StepAudio 2.5 ASR (阶跃星辰) — 4B MTP 极速引擎，1小时音频19秒转完，0.15元/小时。需阶跃 API Key",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF6C63FF),
+                            )
+                        }
                         if (sttEngine == "local") {
                             Text(
                                 text = "本地识别使用 Sherpa-ONNX 离线模型，无需联网，首次使用需下载模型",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextGrey,
                             )
+                        }
+
+                        // ★ 本地语音模型下载管理
+                        if (sttEngine == "local") {
+                            val sttModelManager = remember { ModelManager }
+                            val scope = rememberCoroutineScope()
+                            var downloadingModel by rememberSaveable { mutableStateOf<ModelType?>(null) }
+                            var downloadProgress by rememberSaveable { mutableStateOf(0f) }
+                            var downloadStatusText by rememberSaveable { mutableStateOf("") }
+                            var showDeleteConfirm by rememberSaveable { mutableStateOf<ModelType?>(null) }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                text = "本地模型",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+
+                            sttModelManager.AVAILABLE_MODELS.forEach { modelInfo ->
+                                val isDownloaded = sttModelManager.isModelDownloaded(context, modelInfo.type)
+                                val isDownloading = downloadingModel == modelInfo.type
+                                val sizeStr = if (modelInfo.sizeBytes < 1024 * 1024)
+                                    "${modelInfo.sizeBytes / 1024}KB"
+                                else
+                                    "${modelInfo.sizeBytes / (1024 * 1024)}MB"
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = when (modelInfo.type) {
+                                                    ModelType.PARAFORMER -> "Paraformer"
+                                                    ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
+                                                    ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
+                                                    else -> modelInfo.modelName
+                                                },
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 13.sp,
+                                            )
+                                            Spacer(Modifier.width(6.dp))
+                                            // 已下载标签 / 推荐标签
+                                            if (isDownloaded) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = Color(0xFF4CAF50).copy(alpha = 0.15f),
+                                                ) {
+                                                    Text(
+                                                        text = "已下载",
+                                                        fontSize = 10.sp,
+                                                        color = Color(0xFF4CAF50),
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                    )
+                                                }
+                                            } else if (modelInfo.type == sttModelManager.getRecommendedModel(context)) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                                ) {
+                                                    Text(
+                                                        text = "推荐",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = "$sizeStr | v${modelInfo.version} | 最低 ${modelInfo.minRamMB}MB RAM",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextGrey,
+                                            fontSize = 11.sp,
+                                        )
+
+                                        // 下载进度条
+                                        if (isDownloading && downloadProgress > 0f) {
+                                            LinearProgressIndicator(
+                                                progress = { downloadProgress },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(3.dp)
+                                                    .padding(top = 4.dp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            )
+                                            Text(
+                                                text = downloadStatusText,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
+
+                                    // 操作按钮
+                                    if (isDownloading) {
+                                        TextButton(onClick = { downloadingModel = null }) {
+                                            Text("取消", fontSize = 12.sp)
+                                        }
+                                    } else if (isDownloaded) {
+                                        IconButton(
+                                            onClick = { showDeleteConfirm = modelInfo.type },
+                                            modifier = Modifier.size(32.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.DeleteOutline,
+                                                contentDescription = "删除模型",
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.error,
+                                            )
+                                        }
+                                    } else {
+                                        FilledTonalButton(
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            onClick = {
+                                                downloadingModel = modelInfo.type
+                                                downloadProgress = 0f
+                                                downloadStatusText = "准备中..."
+                                                scope.launch {
+                                                    sttModelManager.downloadModel(context, modelInfo.type)
+                                                        .collect { progress ->
+                                                            when (progress) {
+                                                                is ModelManager.DownloadProgress.Downloading -> {
+                                                                    downloadProgress = progress.progress
+                                                                    downloadStatusText = "下载中 ${(progress.progress * 100).toInt()}%"
+                                                                }
+                                                                is ModelManager.DownloadProgress.Extracting -> {
+                                                                    downloadProgress = 0.9f + progress.progress * 0.1f
+                                                                    downloadStatusText = "解压中..."
+                                                                }
+                                                                is ModelManager.DownloadProgress.SourceSwitch -> {
+                                                                    downloadStatusText = "切换源: ${progress.sourceName} (${progress.current}/${progress.total})"
+                                                                }
+                                                                is ModelManager.DownloadProgress.Error -> {
+                                                                    downloadingModel = null
+                                                                    downloadStatusText = "失败: ${progress.message}"
+                                                                }
+                                                                is ModelManager.DownloadProgress.Complete -> {
+                                                                    downloadingModel = null
+                                                                    downloadStatusText = ""
+                                                                }
+                                                            }
+                                                        }
+                                                    downloadingModel = null
+                                                }
+                                            },
+                                        ) {
+                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("下载", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 删除确认弹窗
+                            if (showDeleteConfirm != null) {
+                                AlertDialog(
+                                    onDismissRequest = { showDeleteConfirm = null },
+                                    title = { Text("删除模型") },
+                                    text = { Text("确定要删除该语音模型吗？删除后如需使用需重新下载。") },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            sttModelManager.clearModelCache(context, showDeleteConfirm!!)
+                                            showDeleteConfirm = null
+                                        }) {
+                                            Text("确定删除", color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showDeleteConfirm = null }) {
+                                            Text("取消")
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -397,25 +631,45 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(text = "TTS 引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 FilterChip(
-                                    selected = !ttsMimoEnabled,
-                                    onClick = { ttsMimoEnabled = false },
+                                    selected = ttsEngine == "system",
+                                    onClick = { ttsEngine = "system" },
                                     label = { Text("系统 TTS", fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
                                 FilterChip(
-                                    selected = ttsMimoEnabled,
-                                    onClick = { ttsMimoEnabled = true },
+                                    selected = ttsEngine == "stepaudio",
+                                    onClick = { ttsEngine = "stepaudio" },
+                                    label = { Text("StepAudio TTS", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
+                                    selected = ttsEngine == "mimo",
+                                    onClick = { ttsEngine = "mimo" },
                                     label = { Text("MiMo TTS", fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
                             }
+                        }
+                        if (ttsEngine == "stepaudio") {
+                            Text(
+                                text = "StepAudio 2.5 TTS (阶跃星辰) — Global+Inline 双语境控制，Zero-shot 音色复刻，5.8元/万字符。需阶跃 API Key",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF6C63FF),
+                            )
+                        }
+                        if (ttsEngine == "mimo") {
+                            Text(
+                                text = "MiMo TTS 通过网络调用小米语音合成 API，支持音色克隆和导演模式",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFE67E22),
+                            )
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "自动朗读回答", modifier = Modifier.weight(1f))
                         Switch(checked = ttsAuto, onCheckedChange = { ttsAuto = it }, enabled = ttsEnabled)
                     }
-                    if (ttsEnabled && ttsAuto && ttsMimoEnabled) {
+                    if (ttsEnabled && ttsAuto && ttsEngine != "system") {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = "仅下载音频到本地", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Switch(
@@ -447,6 +701,69 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("中文") }
                         Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("英文") }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            Text("联网查询", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "联网查询", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "开启后 AI 对话中可搜索网络信息获取最新内容",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = webSearchEnabled, onCheckedChange = { webSearchEnabled = it; vm.saveWebSearchEnabled(it) })
+                    }
+                    if (webSearchEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "搜索引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = webSearchSource == "own",
+                                    onClick = { webSearchSource = "own"; vm.saveWebSearchSource("own") },
+                                    label = { Text("自有引擎", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
+                                    selected = webSearchSource == "provider",
+                                    onClick = { webSearchSource = "provider"; vm.saveWebSearchSource("provider") },
+                                    label = { Text("厂商内置", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                            }
+                        }
+                        if (webSearchSource == "own") {
+                            Text(
+                                text = "使用 Opedrgent 自有多引擎搜索（百度 / Bing / DuckDuckGo / Jina 等），支持自定义搜索引擎顺序和 API Key",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                            )
+                        }
+                        if (webSearchSource == "provider") {
+                            Text(
+                                text = "使用当前 LLM 模型厂商提供的内置联网搜索能力（如 DeepSeek / Mimo 等模型自带的搜索功能），无需额外配置",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFE67E22),
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "关闭后 AI 仅基于本地知识和已有笔记回答问题，不会发起任何网络请求",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF4CAF50),
+                        )
                     }
                 }
             }
