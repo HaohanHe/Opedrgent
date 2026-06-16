@@ -230,6 +230,72 @@ object ToolPrompts {
 - 音色克隆: mime_voiceclone_时间戳.wav
 """.trimIndent()
 
+            "load_skill" -> """
+## load_skill - 加载技能
+
+按需加载技能的完整指令。仅在任务匹配系统提示中列出的某个技能描述时调用。
+
+**使用场景：**
+- 用户请求与某个技能描述匹配时
+- 需要某个专业领域的能力时
+
+**行为约束：**
+- 不要预加载技能，只在需要时加载
+- 加载后严格按照技能指令执行
+- 加载失败时告知用户并继续正常回答
+""".trimIndent()
+
+            "todowrite" -> """
+## todowrite - 任务跟踪
+
+创建或更新结构化任务列表来跟踪多步骤工作进度。适用于3步以上的复杂任务。
+
+**使用场景：**
+- 复杂研究任务需要拆解步骤时
+- 多个搜索/分析步骤需要跟踪进度时
+- 用户要求完成一个需要多步操作的任务时
+
+**参数：**
+- `todos`: JSON 数组，每个元素包含：
+  - `content`: 任务描述（必填）
+  - `status`: pending/in_progress/completed/cancelled（必填）
+  - `priority`: high/medium/low（可选，默认 medium）
+
+**行为约束：**
+- 在遇到3步以上任务时主动调用
+- 完成一个步骤后更新状态
+- 最多10个任务
+- 不要为简单的单步问答创建任务列表
+
+**调用示例：**
+{"todos": [{"content": "搜索新能源汽车数据", "status": "completed", "priority": "high"}, {"content": "分析出口趋势", "status": "in_progress", "priority": "high"}, {"content": "生成分析报告", "status": "pending", "priority": "medium"}]}
+""".trimIndent()
+
+            "recall" -> """
+## recall - 跨会话记忆
+
+搜索或读取历史对话记录，实现跨会话记忆。当你需要回忆之前的讨论、查找之前的研究结果时使用。
+
+**两种模式：**
+1. **search** - 按关键词搜索历史会话标题和内容
+   - `query`: 搜索关键词（可选）
+   - `limit`: 结果数量上限（可选，默认10，最大20）
+
+2. **read** - 根据会话ID读取完整对话记录
+   - `session_id`: 会话ID（必填）
+
+**使用场景：**
+- 用户提到"上次讨论的..."、"之前说的..."
+- 需要查找之前研究过的信息
+- 建立跨会话的上下文关联
+
+**行为约束：**
+- 优先使用 search 模式找到相关会话
+- 找到后用 read 模式读取详细内容
+- 不要为每次回答都调用，只在确实需要回忆时使用
+- 输出内容较长，注意不要塞满上下文窗口
+""".trimIndent()
+
             else -> ""
         }
 
@@ -246,6 +312,9 @@ object ToolPrompts {
             "ask_question" to getToolPrompt("ask_question"),
             "ask_confirmation" to getToolPrompt("ask_confirmation"),
             "mimo_tts" to getToolPrompt("mimo_tts"),
+            "load_skill" to getToolPrompt("load_skill"),
+            "todowrite" to getToolPrompt("todowrite"),
+            "recall" to getToolPrompt("recall"),
         ).filter { it.value.isNotBlank() }
     }
 

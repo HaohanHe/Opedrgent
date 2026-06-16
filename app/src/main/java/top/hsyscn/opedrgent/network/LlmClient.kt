@@ -8,6 +8,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import okio.IOException
 import org.json.JSONArray
 import org.json.JSONObject
@@ -56,6 +57,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
     companion object {
         private val MULTIMODAL_MODELS = setOf(
             "mimo-v2.5",
+            // 阶跃星辰视觉理解模型 — 支持图像/视频多模态输入
+            "step-1o-turbo-vision",
         )
         private val WEB_SEARCH_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5",
@@ -67,10 +70,22 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2",
             "gemini-2.5",
             "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
+            // 阶跃星辰 Step Plan — 支持三档推理强度 low/medium/high
+            "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603",
         )
         private val DEEPSEEK_MODELS = setOf(
             "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4",
             "deepseek-chat", "deepseek-reasoner",
+        )
+        // Step Plan 智能路由模型（自动在 deepseek-v4-pro / step-3.5-flash 间切换）
+        private val JSON_MODE_MODELS = setOf(
+            // 阶跃星辰全系列模型支持 JSON Mode
+            "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603",
+            "step-1o-turbo-vision", "step-1x-medium", "step-2x-large",
+            "step-image-edit-2", "step-1x-edit", "stepaudio-2.5-realtime",
+        )
+        private val STEP_PLAN_MODELS = setOf(
+            "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603", "step-router-v1",
         )
         private const val DEEPSEEK_MAX_CONTEXT = 1_000_000
         private val MIMO_THINKING_MODELS = setOf(
@@ -97,6 +112,10 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
         }
 
+        fun isStepPlan(model: String): Boolean {
+            return STEP_PLAN_MODELS.any { model.contains(it, ignoreCase = true) }
+        }
+
         fun isDeepSeekV4(model: String): Boolean {
             return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
         }
@@ -108,7 +127,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
 
         fun requiresDefaultReasoning(model: String): Boolean {
-            return isDeepSeek(model) || isMiMoThinking(model)
+            return isDeepSeek(model) || isMiMoThinking(model) || isStepPlan(model)
+        }
+
+        /** 模型是否支持 JSON Mode (response_format: json_object) */
+        fun supportsJsonMode(model: String): Boolean {
+            return JSON_MODE_MODELS.any { model.contains(it, ignoreCase = true) }
+                || isStepPlan(model)  // Step Plan 全系列支持
         }
     }
 
@@ -160,6 +185,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
         thinkingEnabled: Boolean = false,
+        jsonMode: Boolean = false,  // JSON Mode: 强制模型返回合法 JSON
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -201,11 +227,17 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 },
             )
             val isDS = isDeepSeek(config.model)
+            val isSP = isStepPlan(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
                 if (thinkingEnabled || defaultReasoning) {
+                    // DeepSeek: max/high; Step Plan: low/medium/high
                     if (isDS) {
                         put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
+                    } else if (isSP) {
+                        put("reasoning_effort", "medium")  // Step Plan 默认 medium（性价比最优）
+                        // StepFun 默认返回 reasoning 字段，设为 deepseek-style 兼容现有解析逻辑
+                        put("reasoning_format", "deepseek-style")
                     }
                     put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
@@ -223,6 +255,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 if (!isDS) {
                     put("tool_choice", "auto")
                 }
+            }
+            // JSON Mode: 强制模型返回合法 JSON（适用于结构化数据提取场景）
+            // 注意: JSON Mode 与 tools 不能同时使用（会冲突），优先保证 tool calling
+            if (jsonMode && tools.isEmpty() && supportsJsonMode(config.model)) {
+                put("response_format", JSONObject().apply { put("type", "json_object") })
             }
         }
 
@@ -486,11 +523,17 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 },
             )
             val isDS = isDeepSeek(config.model)
+            val isSP = isStepPlan(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
                 if (thinkingEnabled || defaultReasoning) {
+                    // DeepSeek: max/high; Step Plan: low/medium/high
                     if (isDS) {
                         put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
+                    } else if (isSP) {
+                        put("reasoning_effort", "medium")  // Step Plan 默认 medium（性价比最优）
+                        // StepFun 默认返回 reasoning 字段，设为 deepseek-style 兼容现有解析逻辑
+                        put("reasoning_format", "deepseek-style")
                     }
                     put("thinking", JSONObject().apply { put("type", "enabled") })
                 } else {
@@ -809,6 +852,305 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
             DebugLog.i("chatCompletionsNativeSearch ← ${content.length} chars, ${annotations.size} citations")
             return NativeSearchResult(content = content, citations = annotations)
+        }
+    }
+
+    // ==================== Anthropic Messages API (阶跃星辰兼容) ====================
+
+    /**
+     * 通过 Anthropic Messages API 格式流式调用。
+     *
+     * 阶跃星辰同时支持 OpenAI Chat Completions 和 Anthropic Messages 两种协议。
+     * 本方法使用 Messages 协议（/messages 端点），适用于：
+     * - 阶跃星辰 Step Plan 通道的 Anthropic 模式
+     * - 需要 output_config.effort 推理强度控制的场景
+     * - 工具调用格式为 tool_use/tool_result 的场景
+     *
+     * @param config API 配置（baseUrl 应指向 messages 端点或自动追加 /messages）
+     * @param system 系统提示词（Messages API 的独立 system 参数）
+     * @param messages 对话消息列表
+     * @param tools 工具定义列表
+     * @param thinkingEnabled 是否启用推理模式
+     * @param onDelta 文本/推理增量回调
+     * @param onToolCallDelta 工具调用增量回调
+     * @param onDone 完成回调
+     * @param onError 错误回调
+     */
+    suspend fun streamMessages(
+        config: ApiConfig,
+        system: String,
+        messages: List<ChatMessage>,
+        tools: List<ToolDefinition> = emptyList(),
+        thinkingEnabled: Boolean = false,
+        onDelta: (StreamDelta) -> Unit,
+        onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
+        onDone: (StreamResult) -> Unit,
+        onError: (String) -> Unit,
+    ): Call = withContext(Dispatchers.IO) {
+        // 自动检测端点：如果 baseUrl 不含 /messages 则追加
+        val rawUrl = config.baseUrl.trimEnd('/')
+        val url = if (rawUrl.endsWith("/messages")) rawUrl else "$rawUrl/messages"
+
+        DebugLog.i("streamMessages → $url model=${config.model} msgs=${messages.size} tools=${tools.size}")
+
+        // 构建 Anthropic Messages 格式请求体
+        val json = JSONObject().apply {
+            put("model", config.model)
+            put("max_tokens", 8192)
+            put("stream", true)
+
+            // system 参数（独立于 messages，这是 Messages API 的特点）
+            if (system.isNotBlank()) {
+                put("system", system)
+            }
+
+            // messages — 使用 Content Block 数组格式
+            put("messages", buildAnthropicMessages(messages))
+
+            // tools — Anthropic 格式：name/description/input_schema
+            if (tools.isNotEmpty()) {
+                put("tools", JSONArray().apply { tools.forEach { put(toolToAnthropicJson(it)) } })
+            }
+
+            // 推理强度控制（output_config.effort，对应 Chat Completions 的 reasoning_effort）
+            val isSP = isStepPlan(config.model)
+            if (isThinkingModel(config.model) && (thinkingEnabled || requiresDefaultReasoning(config.model))) {
+                if (isSP) {
+                    put("output_config", JSONObject().put("effort", "medium"))
+                }
+            }
+        }
+
+        val req = buildRequest(url, json.toString(), config.apiKey)
+        val maskedBody = json.toString().replace(config.apiKey, "***")
+        DebugLog.d("streamMessages REQUEST: model=${config.model} body=$maskedBody")
+
+        val call = http.newCall(req)
+        call.enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                DebugLog.e("streamMessages FAILED: ${e.message}", e)
+                onError(e.message ?: "连接失败")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string().orEmpty()
+                    val errMsg = runCatching {
+                        JSONObject(errBody).optJSONObject("error")?.optString("message")
+                    }.getOrNull() ?: "HTTP ${response.code}"
+                    DebugLog.e("streamMessages HTTP $response.code: $errMsg")
+                    onError(errMsg)
+                    return
+                }
+
+                parseMessagesSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+            }
+        })
+
+        call
+    }
+
+    /**
+     * 将内部 ChatMessage 列表转换为 Anthropic Content Block 格式的 messages 数组。
+     */
+    private fun buildAnthropicMessages(messages: List<ChatMessage>): JSONArray {
+        return JSONArray().apply {
+            messages.forEach { m ->
+                when {
+                    m.toolCallId != null -> {
+                        // tool 结果回传 → role=user, type=tool_result
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("type", "tool_result")
+                                    put("tool_use_id", m.toolCallId)
+                                    put("content", m.content)
+                                })
+                            })
+                        })
+                    }
+                    m.apiToolCallsJson != null -> {
+                        // assistant 带工具调用 → role=assistant, content=[text?, tool_use]
+                        val blocks = JSONArray()
+                        if (m.content.isNotBlank()) {
+                            blocks.put(JSONObject().put("type", "text").put("text", m.content))
+                        }
+                        // 解析 tool_calls JSON 并转为 tool_use block
+                        runCatching {
+                            val calls = JSONArray(m.apiToolCallsJson)
+                            for (i in 0 until calls.length()) {
+                                val tc = calls.getJSONObject(i)
+                                val fn = tc.optJSONObject("function") ?: tc
+                                blocks.put(JSONObject().apply {
+                                    put("type", "tool_use")
+                                    put("id", tc.optString("id", "call_${System.currentTimeMillis()}_$i"))
+                                    put("name", fn.optString("name", ""))
+                                    put("input", runCatching { JSONObject(fn.optString("arguments", "{}")) }.getOrNull() ?: JSONObject())
+                                })
+                            }
+                        }
+                        if (blocks.length() > 0) {
+                            put(JSONObject().put("role", "assistant").put("content", blocks))
+                        }
+                    }
+                    else -> {
+                        // 普通 user/assistant 消息 → Content Block 数组
+                        put(JSONObject().apply {
+                            put("role", roleToApi(m.role))
+                            put("content", JSONArray().apply {
+                                put(JSONObject().put("type", "text").put("text", m.content))
+                            })
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 将 ToolDefinition 转换为 Anthropic 工具格式（name/description/input_schema）。
+     */
+    private fun toolToAnthropicJson(tool: ToolDefinition): JSONObject {
+        return JSONObject().apply {
+            put("name", tool.name)
+            put("description", tool.description)
+            put("input_schema", tool.parameters)
+        }
+    }
+
+    /**
+     * 解析 Messages API 的 SSE 流。
+     *
+     * Messages SSE 事件格式与 Chat Completions 不同：
+     * - event: message_start → 会话开始
+     * - event: content_block_start → 内容块开始（text / tool_use）
+     * - event: content_block_delta → 增量数据（delta.type=text_delta / input_json_delta）
+     * - event: content_block_stop → 内容块结束
+     * - event: message_delta → 消息级元数据（stop_reason, usage）
+     * - event: message_stop → 完全结束
+     */
+    private fun parseMessagesSseStream(
+        response: Response,
+        onDelta: (StreamDelta) -> Unit,
+        onToolCallDelta: ((ToolCallDelta) -> Unit)?,
+        onDone: (StreamResult) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        response.body?.use { body ->
+            val source = body.source()
+            try {
+                var fullContent = StringBuilder()
+                var fullReasoning = StringBuilder()
+                var currentToolName: String? = null
+                var currentToolId: String? = null
+                var currentToolInput = StringBuilder()
+                val toolCalls = mutableListOf<CompletedToolCall>()
+                var lastStopReason: String? = null
+
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+
+                    // 解析 event: 行
+                    var eventType = ""
+                    var dataLine = line
+
+                    if (line.startsWith("event: ")) {
+                        eventType = line.removePrefix("event: ").trim()
+                        dataLine = source.readUtf8Line() ?: break
+                    }
+
+                    // 解析 data: 行
+                    if (!dataLine.startsWith("data: ")) continue
+                    val data = dataLine.removePrefix("data: ").trim()
+                    if (data.isEmpty()) continue
+
+                    when (eventType) {
+                        "content_block_delta" -> {
+                            val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                            val delta = obj.optJSONObject("delta") ?: continue
+                            val deltaType = delta.optString("type", "")
+
+                            when (deltaType) {
+                                "text_delta" -> {
+                                    val text = delta.optString("text", "")
+                                    if (text.isNotEmpty()) {
+                                        fullContent.append(text)
+                                        onDelta(StreamDelta.TextDelta(text))
+                                    }
+                                }
+                                "thinking_delta" -> {
+                                    val thinking = delta.optString("thinking", "")
+                                    if (thinking.isNotEmpty()) {
+                                        fullReasoning.append(thinking)
+                                        onDelta(StreamDelta.ReasoningDelta(thinking))
+                                    }
+                                }
+                                "input_json_delta" -> {
+                                    // 工具调用的参数增量
+                                    val partialJson = delta.optString("partial_json", "")
+                                    if (partialJson.isNotEmpty()) {
+                                        currentToolInput.append(partialJson)
+                                    }
+                                }
+                            }
+                        }
+
+                        "content_block_start" -> {
+                            val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                            val block = obj.optJSONObject("content_block") ?: continue
+                            if (block.optString("type") == "tool_use") {
+                                currentToolName = block.optString("name", "")
+                                currentToolId = block.optString("id", "")
+                                currentToolInput = StringBuilder()
+                            }
+                        }
+
+                        "content_block_stop" -> {
+                            // 当前内容块结束，如果是 tool_use 则收集完整工具调用
+                            if (currentToolName != null && currentToolId != null) {
+                                val argsStr = currentToolInput.toString()
+                                toolCalls.add(CompletedToolCall(
+                                    id = currentToolId!!,
+                                    name = currentToolName!!,
+                                    arguments = argsStr.ifBlank { "{}" },
+                                ))
+                                onToolCallDelta?.invoke(ToolCallDelta(
+                                    id = currentToolId!!,
+                                    nameDelta = currentToolName!!,
+                                    argsDelta = argsStr,
+                                ))
+                                currentToolName = null
+                                currentToolId = null
+                            }
+                        }
+
+                        "message_delta" -> {
+                            val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                            lastStopReason = obj.optString("stop_reason", null)
+                        }
+                    }
+                }
+
+                val finalContent = fullContent.toString()
+                val finalReasoning = fullReasoning.toString()
+
+                if (finalContent.isBlank() && finalReasoning.isNotBlank()) {
+                    DebugLog.w("streamMessages: content empty but reasoning=${finalReasoning.take(100)}...")
+                }
+
+                onDone(StreamResult(
+                    content = if (finalContent.isNotBlank()) finalContent else finalReasoning,
+                    reasoning = finalReasoning,
+                    toolCalls = toolCalls,
+                    finishReason = lastStopReason,
+                ))
+                DebugLog.i("parseMessagesSse ← DONE, text=${finalContent.length} chars, reasoning=${finalReasoning.length} chars, tools=${toolCalls.size}")
+
+            } catch (e: Exception) {
+                DebugLog.e("parseMessagesSse 异常: ${e.message}", e)
+                onError("SSE 解析异常: ${e.message}")
+            }
         }
     }
 }

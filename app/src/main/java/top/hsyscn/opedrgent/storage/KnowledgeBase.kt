@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.docx.DocxProcessor
 import top.hsyscn.opedrgent.pdf.OcrEngine
+import top.hsyscn.opedrgent.storage.StepFileParserClient
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.UUID
@@ -183,12 +184,12 @@ class KnowledgeBase(private val context: Context) {
 
     // ---- 文档操作 ----
 
-    suspend fun addFile(uri: android.net.Uri, kbId: String = "default"): KbAddResult {
+    suspend fun addFile(uri: android.net.Uri, kbId: String = "default", cloudApiKey: String? = null): KbAddResult {
         return withContext(Dispatchers.IO) {
             try {
                 val tempFile = copyUriToTemp(uri)
                 try {
-                    addFileInternal(tempFile, kbId, uri.toString())
+                    addFileInternal(tempFile, kbId, uri.toString(), cloudApiKey)
                 } finally {
                     tempFile.delete()
                 }
@@ -199,14 +200,43 @@ class KnowledgeBase(private val context: Context) {
         }
     }
 
-    suspend fun addFile(filePath: String, kbId: String = "default"): KbAddResult {
+    suspend fun addFile(filePath: String, kbId: String = "default", cloudApiKey: String? = null): KbAddResult {
         return withContext(Dispatchers.IO) {
             try {
                 val file = File(filePath)
                 if (!file.exists()) return@withContext KbAddResult.error("文件不存在: $filePath")
-                addFileInternal(file, kbId, null)
+                addFileInternal(file, kbId, null, cloudApiKey)
             } catch (e: Exception) {
                 DebugLog.e(TAG, "添加文件失败: ${e.message}", e)
+                KbAddResult.error(e.message ?: "未知错误")
+            }
+        }
+    }
+
+    suspend fun addTextDocument(
+        title: String,
+        content: String,
+        kbId: String = "default",
+    ): KbAddResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                ensureDefaultKb()
+                val doc = KbDocument(
+                    title = title.ifBlank { "未命名文档" },
+                    fileName = "$title.txt",
+                    fileType = "txt",
+                    fileSizeBytes = content.toByteArray().size.toLong(),
+                    contentLength = content.length,
+                    addedAtMs = System.currentTimeMillis(),
+                    content = content,
+                    knowledgeBaseId = kbId,
+                    sourceUri = null,
+                )
+                saveDocument(doc)
+                DebugLog.i(TAG, "文本文档添加成功: ${doc.title}")
+                KbAddResult.success(doc)
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "添加文本文档失败: ${e.message}", e)
                 KbAddResult.error(e.message ?: "未知错误")
             }
         }
@@ -263,8 +293,15 @@ class KnowledgeBase(private val context: Context) {
 
     // ---- 内部方法 ----
 
-    private suspend fun addFileInternal(file: File, kbId: String, sourceUri: String?): KbAddResult {
-        val content = parseFile(file)
+    private suspend fun addFileInternal(file: File, kbId: String, sourceUri: String?, cloudApiKey: String? = null): KbAddResult {
+        var content = parseFile(file)
+
+        // 本地解析失败时，尝试阶跃云端解析作为回退
+        if (content.isBlank() && !cloudApiKey.isNullOrBlank()) {
+            DebugLog.i(TAG, "本地解析失败，尝试阶跃云端解析: ${file.name}")
+            content = parseFileWithCloud(file, cloudApiKey)
+        }
+
         if (content.isBlank()) return KbAddResult.error("无法从文件中提取有效内容")
 
         val doc = KbDocument(
@@ -339,6 +376,37 @@ class KnowledgeBase(private val context: Context) {
             result.text
         } catch (e: Exception) {
             DebugLog.w(TAG, "图片OCR失败: ${e.message}")
+            ""
+        }
+    }
+
+    /**
+     * 阶跃云端文件解析回退。
+     *
+     * 当本地解析器（PDF OCR / DOCX 提取等）失败或返回空结果时，
+     * 通过 StepFun File API 上传文件进行云端纯文本提取。
+     *
+     * 使用 file-extract intent: 上传 → 等待处理 → 获取文本内容 (一步完成)
+     */
+    private suspend fun parseFileWithCloud(file: File, apiKey: String): String {
+        return try {
+            val result = StepFileParserClient.uploadAndExtract(
+                apiKey = apiKey,
+                filePath = file.absolutePath,
+            )
+            if (result.success && !result.extractedText.isNullOrBlank()) {
+                DebugLog.i(TAG, "阶跃云端解析成功: ${file.name} (${result.extractedText.length} 字符)")
+                result.extractedText!!
+            } else if (result.success) {
+                // 上传成功但文本未就绪，返回占位信息
+                DebugLog.i(TAG, "阶跃云端上传成功(待处理): ${file.name} -> fileId=${result.fileId}")
+                "[已上传至阶跃云端解析中] fileId=${result.fileId} (${file.name}, ${file.length()} bytes)"
+            } else {
+                DebugLog.w(TAG, "阶跃云端解析失败: ${result.message}")
+                ""
+            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "阶跃云端解析异常: ${e.message}")
             ""
         }
     }

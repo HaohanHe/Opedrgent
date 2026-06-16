@@ -11,6 +11,15 @@ import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 
+private fun SttResult.applyVocabulary(vocabularyStore: VocabularyStore): SttResult {
+    return this.copy(
+        text = vocabularyStore.applyVocabulary(this.text),
+        segments = this.segments.map { seg ->
+            seg.copy(text = vocabularyStore.applyVocabulary(seg.text))
+        }
+    )
+}
+
 /**
  * 统一 ASR 管理器 — 消除三个入口的代码重复。
  *
@@ -35,6 +44,7 @@ class AsrManager(
 
     private val mutex = Mutex()
     private var engine: SpeechEngine? = null
+    private val vocabularyStore = VocabularyStore(context)
 
     // ==================== 公开 API ====================
 
@@ -45,7 +55,7 @@ class AsrManager(
     suspend fun transcribeFile(uri: Uri): SttResult = withContext(Dispatchers.IO) {
         val e = getOrCreateEngine()
         DebugLog.i(TAG, "transcribeFile(uri): engine=${e.engineType}, uri=$uri")
-        val result = e.recognizeFile(uri)
+        val result = e.recognizeFile(uri).applyVocabulary(vocabularyStore)
         DebugLog.i(TAG, "transcribeFile(uri) 结果: text=${result.text.length}字, confidence=${result.confidence}, segments=${result.segments.size}")
         if (result.text.isEmpty()) {
             DebugLog.w(TAG, "转写结果为空(uri)! processingTime=${result.processingTimeMs}ms, model=${result.modelUsed}")
@@ -59,7 +69,7 @@ class AsrManager(
     suspend fun transcribeFile(filePath: String): SttResult = withContext(Dispatchers.IO) {
         val e = getOrCreateEngine()
         DebugLog.i(TAG, "transcribeFile(path): engine=${e.engineType}, filePath=$filePath")
-        val result = e.recognizeFile(filePath)
+        val result = e.recognizeFile(filePath).applyVocabulary(vocabularyStore)
         DebugLog.i(TAG, "transcribeFile 结果: text=${result.text.length}字, confidence=${result.confidence}, segments=${result.segments.size}, duration=${result.durationMs}ms, engine=${result.engineType}")
         if (result.text.isEmpty()) {
             DebugLog.w(TAG, "转写结果为空! processingTime=${result.processingTimeMs}ms, model=${result.modelUsed}")
@@ -116,6 +126,7 @@ class AsrManager(
             EngineType.MIMO_ASR -> "MiMo ASR (在线)"
             EngineType.SHERPA_ONNX -> "Sherpa-ONNX (本地)"
             EngineType.ANDROID_SPEECH_RECOGNIZER -> "Android SpeechRecognizer"
+            EngineType.STEP_AUDIO_ASR -> "StepAudio 2.5 ASR (阶跃云端)"
             else -> "未初始化"
         }
     }
@@ -199,7 +210,31 @@ class AsrManager(
             }
         }
 
-        // 场景1：用户选择 MiMO 且有 API Key → 尝试创建 MiMO 引擎
+        // 场景1：用户选择 StepAudio 且有 API Key → 尝试创建 StepAudio 引擎
+        if (sttEngine == "stepaudio" && hasKey) {
+            try {
+                DebugLog.i(TAG, "尝试创建 StepAudio 2.5 ASR 引擎 (云端模式)")
+                val stepAudioEngine = StepAudioAsrEngine(context, apiSettings)
+                if (stepAudioEngine.initialize()) {
+                    DebugLog.i(TAG, "StepAudio 2.5 ASR 引擎创建成功")
+                    return stepAudioEngine
+                }
+                DebugLog.w(TAG, "StepAudio ASR 初始化返回 false，尝试降级到本地引擎...")
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "StepAudio ASR 初始化异常: ${e.message}，尝试降级到本地引擎...")
+            }
+
+            // 降级：StepAudio 失败 → 尝试本地引擎
+            return fallbackToLocalEngine("StepAudio ASR 初始化失败")
+        }
+
+        // 场景1b：用户选择 StepAudio 但无 API Key → 自动使用本地引擎
+        if (sttEngine == "stepaudio" && !hasKey) {
+            DebugLog.w(TAG, "sttEngine=stepaudio 但 API Key 未设置，自动降级到本地引擎")
+            return fallbackToLocalEngine("API Key 未设置")
+        }
+
+        // 场景2：用户选择 MiMo 且有 API Key → 尝试创建 MiMO 引擎
         if (sttEngine == "mimo" && hasKey) {
             try {
                 DebugLog.i(TAG, "尝试创建 MiMO ASR 引擎 (在线模式)")

@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -175,6 +176,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@Composable
+fun BadgeDot(
+    visible: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (visible) {
+        Box(
+            modifier = modifier
+                .size(8.dp)
+                .background(Color(0xFFFF4444), CircleShape)
+        )
+    }
+}
+
 enum class MainTab { HOME, NOTES, RECORDING, AI, SETTINGS }
 
 @Composable
@@ -193,7 +208,10 @@ fun AppRoot(
     val hippocampus = remember { HippocampusIndex(context) }
 
     // Inject hippocampus index into MainViewModel
-    LaunchedEffect(Unit) { vm.hippocampus = hippocampus }
+    LaunchedEffect(Unit) {
+        vm.hippocampus = hippocampus
+        vm.refreshPendingCounts()
+    }
 
     if (subScreen != null) {
         BackHandler {
@@ -260,7 +278,15 @@ fun AppRoot(
                     onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                    icon = {
+                        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Note, contentDescription = null)
+                            BadgeDot(
+                                visible = state.pendingSproutCount > 0,
+                                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                            )
+                        }
+                    },
                     label = { Text("笔记") },
                     selected = selectedTab == MainTab.NOTES,
                     onClick = { selectedTab = MainTab.NOTES; subScreen = null },
@@ -272,7 +298,15 @@ fun AppRoot(
                     onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                    icon = {
+                        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Chat, contentDescription = null)
+                            BadgeDot(
+                                visible = state.pendingMessageCount > 0,
+                                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                            )
+                        }
+                    },
                     label = { Text("AI") },
                     selected = selectedTab == MainTab.AI,
                     onClick = { selectedTab = MainTab.AI; subScreen = null },
@@ -299,7 +333,15 @@ fun AppRoot(
                             onClick = { selectedTab = MainTab.HOME; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                            icon = {
+                                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Note, contentDescription = null)
+                                    BadgeDot(
+                                        visible = state.pendingSproutCount > 0,
+                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                                    )
+                                }
+                            },
                             label = { Text("笔记") },
                             selected = selectedTab == MainTab.NOTES,
                             onClick = { selectedTab = MainTab.NOTES; subScreen = null },
@@ -311,7 +353,15 @@ fun AppRoot(
                             onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                            icon = {
+                                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Chat, contentDescription = null)
+                                    BadgeDot(
+                                        visible = state.pendingMessageCount > 0,
+                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                                    )
+                                }
+                            },
                             label = { Text("AI") },
                             selected = selectedTab == MainTab.AI,
                             onClick = { selectedTab = MainTab.AI; subScreen = null },
@@ -331,12 +381,23 @@ fun AppRoot(
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
                 "hippocampus" -> HippocampusScreen(hippocampus = hippocampus, onBack = { subScreen = null })
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
+                "vocabulary" -> VocabularySettingsScreen(onBack = { subScreen = null })
                 "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
                 "meeting" -> MeetingRecordScreen(
                     vm = vm,
                     onBack = { subScreen = null },
                     onSendToChat = { text ->
-                        vm.sendUserMessage("请帮我总结以下会议内容：\n\n$text")
+                        val structuredPrompt = buildString {
+                            appendLine("请对以下内容进行结构化总结，按以下四个部分输出，每部分用【标记】开头：")
+                            appendLine("【智能总结】用2-3句话概括核心内容")
+                            appendLine("【章节概要】按主题分段，每段配小标题")
+                            appendLine("【金句精选】提取3-5句关键原话")
+                            appendLine("【待办事项】列出所有需要后续跟进的事项")
+                            appendLine()
+                            appendLine("内容如下：")
+                            append(text)
+                        }
+                        vm.sendUserMessage(structuredPrompt)
                         selectedTab = MainTab.AI
                         subScreen = null
                     },
@@ -356,6 +417,14 @@ fun AppRoot(
                     },
                 )
                 "export" -> ExportScreen(vm = vm, onBack = { subScreen = null })
+                "voiceprint" -> VoiceprintSettingsScreen(
+                    onBack = { subScreen = null },
+                    onAddVoiceprint = { subScreen = "voiceprintEnroll" },
+                )
+                "voiceprintEnroll" -> VoiceprintEnrollmentScreen(
+                    onBack = { subScreen = "voiceprint" },
+                    onEnrollmentComplete = { subScreen = "voiceprint" },
+                )
                 "editorTeam" -> EditorTeamScreen(
                     vm = vm,
                     initialInput = editorTeamInitialInput,
@@ -371,8 +440,6 @@ fun AppRoot(
                     onSproutNote = { noteId -> subScreen = "noteSprout_$noteId" },
                     onGraphClick = { subScreen = "noteGraph" },
                     onSendToChat = { noteId ->
-                        // sendNoteToChat 内部会创建 session 并触发 navigateToSessionId
-                        // 先切到 AI Tab，LaunchedEffect 会自动打开会话
                         vm.sendNoteToChat(noteId)
                         selectedTab = MainTab.AI
                         subScreen = null
@@ -382,6 +449,21 @@ fun AppRoot(
                         selectedTab = MainTab.AI
                         subScreen = null
                     },
+                    onEditNote = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onAppendNote = { noteId -> subScreen = "noteEditor_$noteId" },
+                    onCorrectNote = { noteId ->
+                        vm.correctNote(noteId)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                    onAddToKnowledgeBase = { noteId -> vm.addNoteToKnowledgeBase(noteId) },
+                    onAddTag = { noteId -> subScreen = "noteEditor_$noteId" },
+                    aiSearchResults = vm.state.value.aiSearchResults,
+                    isAiSearching = vm.state.value.isAiSearching,
+                    onAiSearch = { vm.aiSearch(it) },
+                    onClearAiSearch = { vm.clearAiSearch() },
+                    searchHistory = vm.getSearchHistory(),
+                    onClearSearchHistory = { vm.clearSearchHistory() },
                 )
                 "noteGraph" -> NoteGraphScreen(
                     repository = vm.noteRepository,
@@ -417,6 +499,14 @@ fun AppRoot(
                             subScreen = "editorTeam"
                         },
                         onBack = { subScreen = "notes" },
+                        onCorrectNote = { noteId ->
+                            vm.correctNote(noteId)
+                            selectedTab = MainTab.AI
+                            subScreen = null
+                        },
+                        onAddToKnowledgeBase = { noteId -> vm.addNoteToKnowledgeBase(noteId) },
+                        onAddTag = { noteId -> /* 已在编辑器内处理 */ },
+                        onAppendNote = { noteId -> /* 已在编辑器内处理 */ },
                     )
                 }
                 null -> {
@@ -476,7 +566,21 @@ fun AppRoot(
                                 vm.sendNoteWithSkill(noteId, skillId)
                                 selectedTab = MainTab.AI
                             },
+                            onEditNote = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onAppendNote = { noteId -> subScreen = "noteEditor_$noteId" },
+                            onCorrectNote = { noteId ->
+                                vm.correctNote(noteId)
+                                selectedTab = MainTab.AI
+                            },
+                            onAddToKnowledgeBase = { noteId -> vm.addNoteToKnowledgeBase(noteId) },
+                            onAddTag = { noteId -> subScreen = "noteEditor_$noteId" },
                             showBackButton = false,
+                            aiSearchResults = vm.state.value.aiSearchResults,
+                            isAiSearching = vm.state.value.isAiSearching,
+                            onAiSearch = { vm.aiSearch(it) },
+                            onClearAiSearch = { vm.clearAiSearch() },
+                            searchHistory = vm.getSearchHistory(),
+                            onClearSearchHistory = { vm.clearSearchHistory() },
                         )
                         MainTab.RECORDING -> RecordingTab(
                             vm = vm,
@@ -501,6 +605,7 @@ fun AppRoot(
                             toMemory = { subScreen = "memory" },
                             toNotes = { subScreen = "notes" },
                             toHippocampus = { subScreen = "hippocampus" },
+                            toVoiceprint = { subScreen = "voiceprint" },
                             hippocampus = hippocampus,
                             showBackButton = false,
                         )
@@ -531,6 +636,14 @@ fun AppRoot(
                                         subScreen = "editorTeam"
                                     },
                                     onSaved = { id -> subScreen = "noteReader_$id" },
+                                    onCorrectNote = { id ->
+                                        vm.correctNote(id)
+                                        selectedTab = MainTab.AI
+                                        subScreen = null
+                                    },
+                                    onAddToKnowledgeBase = { id -> vm.addNoteToKnowledgeBase(id) },
+                                    onAddTag = { id -> subScreen = "noteEditor_$id" },
+                                    onAppendNote = { id -> subScreen = "noteEditor_$id" },
                                 )
                             }
                         }
@@ -556,6 +669,14 @@ fun AppRoot(
                                     subScreen = "editorTeam"
                                 },
                                 onBack = { subScreen = "notes" },
+                                onCorrectNote = { nid ->
+                                    vm.correctNote(nid)
+                                    selectedTab = MainTab.AI
+                                    subScreen = null
+                                },
+                                onAddToKnowledgeBase = { nid -> vm.addNoteToKnowledgeBase(nid) },
+                                onAddTag = { nid -> /* 已在编辑器内处理 */ },
+                                onAppendNote = { nid -> /* 已在编辑器内处理 */ },
                             )
                         }
                         subScreen?.startsWith("noteShare_") == true -> {

@@ -50,6 +50,32 @@ class ResearchStore(context: Context) {
         return session
     }
 
+    fun deleteSession(sessionId: String): Boolean {
+        synchronized(lock) {
+            val sessions = loadAllInternal()
+            val filtered = sessions.filter { it.id != sessionId }
+            if (filtered.size == sessions.size) return false
+            saveAllInternal(filtered)
+            return true
+        }
+    }
+
+    fun renameSession(sessionId: String, newTitle: String): Boolean {
+        synchronized(lock) {
+            val sessions = loadAllInternal()
+            val idx = sessions.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return false
+            val updated = sessions[idx].copy(
+                title = newTitle.trim().ifEmpty { sessions[idx].title },
+                updatedAt = System.currentTimeMillis(),
+            )
+            val newList = sessions.toMutableList()
+            newList[idx] = updated
+            saveAllInternal(newList)
+            return true
+        }
+    }
+
     fun addSource(
         sessionId: String,
         type: SourceType,

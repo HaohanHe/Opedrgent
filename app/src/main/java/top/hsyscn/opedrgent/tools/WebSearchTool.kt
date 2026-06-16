@@ -71,6 +71,93 @@ class WebSearchTool(
         return truncated
     }
 
+    /**
+     * 搜索查询词预处理。
+     *
+     * LLM 生成的搜索词常存在以下问题：
+     * 1. 多个关键词用空格/逗号/顿号拼接成一长串（如 "跨时代 人才 跃迁 计划 官方 文件"）
+     * 2. 夹杂无意义的停用词和语气词
+     * 3. 过长导致搜索引擎逐字匹配返回字典解释而非主题内容
+     *
+     * 本函数负责：
+     * - 去除首尾空白，折叠连续空格
+     * - 去除中文停用词（的/了/是/在/等无检索价值的字）
+     * - 截断过长的中文 query（保留前 N 个有意义的片段）
+     * - 去除重复关键词
+     */
+    private fun sanitizeQuery(raw: String): String {
+        var q = raw.trim()
+
+        if (q.isBlank()) return q
+
+        val original = q
+
+        // 1. 折叠连续空白（空格、全角空格、换行、制表符）
+        q = q.replace(Regex("[\\s\\u3000]+"), " ").trim()
+
+        // 2. 去除常见中文停用词
+        //    单字停用词（独立出现时无检索价值，不影响词语内部如"计划"）
+        val singleCharStopWords = setOf(
+            '的', '了', '是', '在', '我', '你', '他', '她', '它',
+            '这', '那', '有', '和', '与', '或', '等', '及', '中',
+            '上', '下', '以', '对', '为', '从', '到', '把', '被',
+            '让', '给', '向', '往', '比', '最', '更', '很', '太',
+            '也', '都', '就', '又', '再', '还', '会', '能', '可',
+            '要', '不', '没',
+        )
+        // 多字停用词（整个片段匹配时丢弃）
+        val multiWordStopWords = setOf("什么", "怎么", "如何", "为何")
+        // 按空格分词后，去掉纯停用词片段
+        val segments = q.split(" ").filter { it.isNotBlank() }
+        val cleanedSegments = segments.map { seg ->
+            if (seg in multiWordStopWords) return@map ""
+            if (seg.length == 1 && seg[0] in singleCharStopWords) return@map ""
+            seg
+        }.filter { it.isNotBlank() }
+
+        q = cleanedSegments.joinToString(" ")
+
+        // 3. 去重：如果相同关键词出现多次，只保留第一次
+        val seen = mutableSetOf<String>()
+        val deduped = mutableListOf<String>()
+        for (seg in q.split(" ")) {
+            val key = seg.lowercase()
+            if (key !in seen) {
+                seen.add(key)
+                deduped.add(seg)
+            }
+        }
+        q = deduped.joinToString(" ")
+
+        // 4. 中文 query 长度控制：
+        //    统计中文字符数，超过阈值时截取前几个最有意义的关键词片段
+        val chineseCharCount = q.count { it in '\u4e00'..'\u9fff' }
+        val maxChineseChars = 20 // 搜索引擎对中文的最佳输入长度
+        if (chineseCharCount > maxChineseChars) {
+            val parts = q.split(" ").toMutableList()
+            var accumulated = 0
+            val keep = mutableListOf<String>()
+            for (part in parts) {
+                val partCnCount = part.count { it in '\u4e00'..'\u9fff' }
+                if (accumulated + partCnCount > maxChineseChars && keep.isNotEmpty()) break
+                keep.add(part)
+                accumulated += partCnCount
+            }
+            val truncated = keep.joinToString(" ")
+            DebugLog.i("sanitizeQuery: 截断 '$q' -> '$truncated' (中文 ${chineseCharCount}->${accumulated} 字)")
+            q = truncated
+        }
+
+        // 5. 最终清理：确保没有残留的多余空格
+        q = q.replace(Regex("\\s+"), " ").trim()
+
+        if (q != original) {
+            DebugLog.i("sanitizeQuery: '$original' -> '$q'")
+        }
+
+        return q.ifBlank { original }
+    }
+
     private suspend fun translateQueryToEnglish(query: String, config: ApiConfig): String {
         val cached = translationCache[query]
         if (cached != null) {
@@ -123,7 +210,41 @@ class WebSearchTool(
         systemPrompt: String,
         useProviderSearch: Boolean,
     ): ToolResult {
-        val query = tp.state.input["query"] ?: tp.state.input["keyword"] ?: return emptyResult(tp, "缺少搜索关键词")
+        var query = tp.state.input["query"] ?: tp.state.input["keyword"] ?: return emptyResult(tp, "缺少搜索关键词")
+
+        // ★ Bugfix: LLM 有时将查询词包装为 JSON 字符串 {"query": "..."}，需要解包提取真实内容
+        val trimmed = query.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            runCatching {
+                val json = org.json.JSONObject(trimmed)
+                if (json.has("query")) {
+                    val extracted = json.getString("query")
+                    if (extracted.isNotBlank()) {
+                        DebugLog.i("web_search: 解包 JSON 查询词: '$query' -> '$extracted'")
+                        query = extracted
+                    }
+                }
+            }.onFailure { DebugLog.w("web_search: JSON 解包失败，使用原始查询词") }
+        }
+
+        // 二次解包：有些模型会双重嵌套
+        val trimmed2 = query.trim()
+        if (trimmed2.startsWith("{") && trimmed2.endsWith("}")) {
+            runCatching {
+                val json = org.json.JSONObject(trimmed2)
+                if (json.has("query")) {
+                    val extracted = json.getString("query")
+                    if (extracted.isNotBlank()) {
+                        DebugLog.i("web_search: 二次解包: '$query' -> '$extracted'")
+                        query = extracted
+                    }
+                }
+            }
+        }
+
+        // ★ 搜索查询词预处理：清洗空格、去除停用词、截断过长query、提取核心关键词
+        query = sanitizeQuery(query)
+
         val method = (tp.state.input["method"] ?: "ddg").lowercase().trim()
         DebugLog.i("web_search: query=$query method=$method useProvider=$useProviderSearch")
 
@@ -138,12 +259,13 @@ class WebSearchTool(
         }
 
         if (!useProviderSearch) {
-            DebugLog.i("web_search: using WebView builtin search (provider disabled)")
-            return webviewSearch(tp, query)
+            DebugLog.i("web_search: using provider native search (厂商内置模式)")
+            return providerNativeSearch(tp, query, config)
         }
 
         DebugLog.i("web_search: query='$query'")
-        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 3)
+        // ★ 修复：搜索结果从3条增加到5条，提供更多参考来源
+        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 5)
 
         val sourceLabel = if (searchResults.isNotEmpty()) {
             val first = searchResults.first()
@@ -170,7 +292,8 @@ class WebSearchTool(
             }
         }
 
-        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 1).coerceIn(1, 3)
+        // ★ 修复：max_fetch 默认值从1增加到2，获取更多网页正文
+        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 2).coerceIn(1, 3)
         val fetchedResults = mutableListOf<String>()
         val fetchedSources = mutableListOf<String>()
         val toFetch = searchResults.take(maxFetch)
@@ -238,7 +361,11 @@ class WebSearchTool(
         val results = runCatching { getWebViewAgent().searchQuery(query, maxResults = maxResults) }.getOrNull()
 
         if (results.isNullOrEmpty()) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "WebView 搜索完成，但未找到相关结果。", endTime = System.currentTimeMillis())))
+            // ★ BUG-03 修复：无结果时使用 ERROR 状态
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+                status = ToolStateType.ERROR,
+                error = "WebView 搜索未找到相关结果，请尝试其他关键词或搜索方式。",
+                endTime = System.currentTimeMillis())))
         }
 
         val formatted = buildString {

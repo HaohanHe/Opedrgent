@@ -31,7 +31,9 @@ data class SearchResult(
 )
 
 data class SearchConfig(
-    val providerOrder: String = "baidu,bing,360,sogou,yandex,ddg,jina",
+    // ★ Bugfix: 默认引擎顺序改为 Bing 优先（国内唯一稳定可用的免费引擎）
+    // 百度放第二（易触发 CAPTCHA 但中文结果质量高），DDG 第三，Jina 最后（需 API Key）
+    val providerOrder: String = "bing,baidu,ddg,jina",
     val searxngUrl: String? = null,
     val jinaApiKey: String? = null,
     val braveApiKey: String? = null,
@@ -1867,21 +1869,30 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
         val providers = config.providerOrder.split(",").map { it.trim().lowercase() }
 
+        // ★ Bugfix: 记录本次搜索尝试的引擎列表，方便排查静默失败
+        DebugLog.i("WebSearcher resilience: 启动 ${providers.size} 个引擎并行搜索: ${providers.joinToString(",")} (query=${q.take(60)})")
+
+        val engineStatus = mutableMapOf<String, String>()  // engine -> status
+
         coroutineScope {
             val deferredResults = providers.map { provider ->
                 async(Dispatchers.IO) {
                     concurrencyController.withEngineAccess(provider, priority) {
                         val breaker = circuitBreakerManager.getOrCreate(provider)
                         if (!breaker.allowRequest()) {
+                            engineStatus[provider] = "SKIPPED(circuit-open)"
                             DebugLog.w("WebSearcher: circuit OPEN for $provider, skipping")
                             return@withEngineAccess null
                         }
+
+                        // ★ 每个引擎启动时记录，排查 DDG 等静默跳过问题
+                        DebugLog.d("WebSearcher: 开始执行 $provider 引擎")
 
                         try {
                             val results = when (provider) {
                                 "searxng" -> {
                                     val url = config.searxngUrl ?: SEARXNG_BASE_URL
-                                    if (url.isBlank()) null
+                                    if (url.isBlank()) { engineStatus[provider] = "SKIP(no-url)"; null }
                                     else {
                                         val prev = SEARXNG_BASE_URL
                                         SEARXNG_BASE_URL = url
@@ -1893,19 +1904,39 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                                 "ddg", "duckduckgo" -> runCatching { searchDdg(q, limit) }.getOrNull()
                                 "baidu" -> runCatching { searchBaidu(q, limit) }.getOrNull()
                                 "bing" -> runCatching { searchBingCn(q, limit) }.getOrNull()
-                                "jina" -> runCatching { searchJina(query, limit, config.jinaApiKey) }.getOrNull()
-                                "brave" -> runCatching { searchBrave(query, limit, config.braveApiKey ?: "") }.getOrNull()
-                                "tavily" -> runCatching { searchTavily(query, limit, config.tavilyApiKey ?: "") }.getOrNull()
+                                "jina" -> {
+                                    // ★ Bugfix: 无 API Key 时跳过 Jina（必然超时）
+                                    val apiKey = config.jinaApiKey
+                                    if (apiKey.isNullOrBlank()) {
+                                        engineStatus[provider] = "SKIP(no-api-key)"
+                                        DebugLog.i("WebSearcher: Jina 跳过（未配置 API Key）")
+                                        null
+                                    } else {
+                                        runCatching { searchJina(query, limit, apiKey) }.getOrNull()
+                                    }
+                                }
+                                "brave" -> {
+                                    val key = config.braveApiKey ?: ""
+                                    if (key.isBlank()) { engineStatus[provider] = "SKIP(no-api-key)"; null }
+                                    else runCatching { searchBrave(query, limit, key) }.getOrNull()
+                                }
+                                "tavily" -> {
+                                    val key = config.tavilyApiKey ?: ""
+                                    if (key.isBlank()) { engineStatus[provider] = "SKIP(no-api-key)"; null }
+                                    else runCatching { searchTavily(query, limit, key) }.getOrNull()
+                                }
                                 "yandex" -> runCatching { searchYandex(query, limit) }.getOrNull()
                                 "sogou" -> runCatching { searchSogou(query, limit) }.getOrNull()
                                 "360", "so", "so.com" -> runCatching { search360(query, limit) }.getOrNull()
-                                else -> null
+                                else -> { engineStatus[provider] = "SKIP(unknown)"; null }
                             }
 
                             if (!results.isNullOrEmpty()) {
                                 breaker.recordSuccess()
+                                engineStatus[provider] = "OK(${results.size})"
                                 results
                             } else {
+                                engineStatus[provider] = "EMPTY"
                                 null
                             }
                         } catch (e: Exception) {
@@ -1913,6 +1944,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                             if (classifiedError.shouldTriggerCircuitBreaker) {
                                 breaker.recordFailure(e)
                             }
+                            engineStatus[provider] = "ERR(${classifiedError.type.name})"
                             DebugLog.w("WebSearcher $provider: ${errorClassifier.formatForLog(classifiedError)}")
                             null
                         }
@@ -1920,6 +1952,10 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 }
             }
             val allResults = deferredResults.awaitAll().filterNotNull()
+
+            // ★ 结果汇总日志：每个引擎的执行状态一目了然
+            DebugLog.i("WebSearcher resilience: 引擎状态汇总: ${engineStatus.entries.joinToString(",") { "${it.key}=${it.value}" }}")
+
             allResults.forEach { providerResults ->
                 if (providerResults.isNotEmpty()) {
                     val providerName = providerResults.firstOrNull()?.sourceEngines?.firstOrNull() ?: "unknown"
@@ -1930,10 +1966,15 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         }
 
         if (container.getSortedResults(limit).isEmpty()) {
-            DebugLog.w("WebSearcher resilience: all main engines failed, trying Jina fallback")
-            val jinaFallback = runCatching { searchJina(query, limit, null) }.getOrNull()
-            if (!jinaFallback.isNullOrEmpty()) {
-                container.addResults("jina-fallback", jinaFallback)
+            // ★ Bugfix: Jina 无 Key 时不做无效的 fallback 超时尝试
+            if (!config.jinaApiKey.isNullOrBlank()) {
+                DebugLog.w("WebSearcher resilience: all main engines failed, trying Jina fallback")
+                val jinaFallback = runCatching { searchJina(query, limit, config.jinaApiKey) }.getOrNull()
+                if (!jinaFallback.isNullOrEmpty()) {
+                    container.addResults("jina-fallback", jinaFallback)
+                }
+            } else {
+                DebugLog.w("WebSearcher resilience: 所有引擎均未返回结果，且无可用 fallback")
             }
         }
 
