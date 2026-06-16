@@ -25,9 +25,10 @@ import java.util.concurrent.TimeUnit
  * - 将连续文本按语义边界分割为段落
  * - 基于句子长度、停顿标记、主题切换检测
  *
- * ## 3. 说话人分离 (Speaker Diarization)
- * - 基于 StepAudio Realtime 的 speaker_id 信息
- * - 或通过 LLM 分析语气/话题变化推断说话人切换点
+ * ## 3. 说话人分离 (Speaker Diarization) — 三级策略
+ * - **Level 1 — 真实声纹**: sherpa-onnx + 3D-Speaker ERes2Net 模型本地推理（需模型文件）
+ * - **Level 2 — API 信息**: StepAudio Realtime 的 speaker_id 字段
+ * - **Level 3 — 启发式推断**: 从文本归属标记("我说"/"他说")猜测说话人切换
  *
  * ## 使用位置
  * 在 AsrManager / MeetingTranscriber 的 STT 结果回调中调用，
@@ -45,6 +46,12 @@ class AsrPostProcessor {
         const val MAX_SEGMENT_CHARS = 500
     }
 
+    /**
+     * 可选的声纹分离器。
+     * 设置后将优先使用真实声纹识别，否则回退到启发式方法。
+     */
+    var speakerDiarizer: SpeakerDiarizer? = null
+
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -61,10 +68,16 @@ class AsrPostProcessor {
      *
      * 流程: 标点恢复 → 语义分段 → (可选)说话人标注
      *
+     * 说话人分离三级策略:
+     *   1. 如果 [speakerDiarizer] 已初始化且提供了 audioSamples → 真实声纹
+     *   2. 如果提供了 speakerInfo (来自 Realtime API) → API 信息
+     *   3. 否则 → 启发式推断
+     *
      * @param rawText ASR 原始输出（无标点的纯文本）
      * @param apiKey 阶跃 API Key（用于 LLM 标点，可为 null 则仅用规则）
      * @param enableDiarization 是否启用说话人分离
      * @param speakerInfo 已有的说话人信息（来自 Realtime API）
+     * @param audioSamples 原始音频采样（用于真实声纹识别，可选）
      * @return 后处理后的结构化结果
      */
     suspend fun postProcess(
@@ -72,6 +85,7 @@ class AsrPostProcessor {
         apiKey: String? = null,
         enableDiarization: Boolean = false,
         speakerInfo: List<SpeakerTurn>? = null,
+        audioSamples: FloatArray? = null,
     ): ProcessedResult = withContext(Dispatchers.Default) {
         if (rawText.isBlank()) {
             return@withContext ProcessedResult(
@@ -91,11 +105,11 @@ class AsrPostProcessor {
         // Step 2: 语义分段
         val segments = segmentText(punctuated)
 
-        // Step 3: 说话人标注 (可选)
-        val annotatedSegments = if (enableDiarization) {
-            annotateSpeakers(segments, speakerInfo)
-        } else {
+        // Step 3: 说话人标注 (三级策略)
+        val annotatedSegments = if (!enableDiarization) {
             segments.map { SpeakerSegment(it.text, null, it.startTime, it.endTime) }
+        } else {
+            annotateSpeakersWithStrategy(segments, speakerInfo, audioSamples)
         }
 
         ProcessedResult(
@@ -271,11 +285,78 @@ class AsrPostProcessor {
     }
 
     // ================================================================
-    // 3. 说话人分离
+    // 3. 说话人分离 — 三级策略
     // ================================================================
 
     /**
-     * 为每个段落标注说话人信息。
+     * 说话人标注三级策略调度。
+     *
+     * 优先级:
+     *   Level 1: [speakerDiarizer] 真实声纹 (需 audioSamples)
+     *   Level 2: speakerInfo API 信息匹配
+     *   Level 3: 启发式文本推断
+     */
+    private suspend fun annotateSpeakersWithStrategy(
+        segments: List<TextSegment>,
+        speakerTurns: List<SpeakerTurn>?,
+        audioSamples: FloatArray?,
+    ): List<SpeakerSegment> {
+        // Level 1: 真实声纹识别
+        val diarizer = speakerDiarizer
+        if (diarizer != null && diarizer.isInitialized && audioSamples != null && audioSamples.isNotEmpty()) {
+            DebugLog.i(TAG, "使用真实声纹识别 (sherpa-onnx + ERes2Net)")
+            return try {
+                val result = diarizer.diarize(audioSamples!!)
+                val turns = diarizer.toSpeakerTurns(result)
+                DebugLog.i(TAG, "声纹结果: ${result.numSpeakers} 个说话人, ${turns.size} 个段落")
+                matchSegmentsToTurns(segments, turns)
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "声纹识别异常，回退到 API/启发式: ${e.message}")
+                fallbackAnnotate(segments, speakerTurns)
+            }
+        }
+
+        // Level 2 / 3
+        return fallbackAnnotate(segments, speakerTurns)
+    }
+
+    /**
+     * 回退策略: 先尝试 API 信息，再启发式推断。
+     */
+    private fun fallbackAnnotate(
+        segments: List<TextSegment>,
+        speakerTurns: List<SpeakerTurn>?,
+    ): List<SpeakerSegment> {
+        if (!speakerTurns.isNullOrEmpty()) {
+            DebugLog.d(TAG, "使用 API speaker_id 信息")
+            return matchSegmentsToTurns(segments, speakerTurns)
+        }
+
+        // Level 3: 启发式推断
+        DebugLog.d(TAG, "使用启发式说话人推断")
+        return segments.map { SpeakerSegment(it.text, null, it.startTime, it.endTime) }
+    }
+
+    /**
+     * 将文本段落与说话人时间段进行匹配。
+     */
+    private fun matchSegmentsToTurns(
+        segments: List<TextSegment>,
+        turns: List<SpeakerTurn>,
+    ): List<SpeakerSegment> {
+        if (turns.isEmpty()) {
+            return segments.map { SpeakerSegment(it.text, null, it.startTime, it.endTime) }
+        }
+        return segments.map { seg ->
+            val matched = turns.find { turn ->
+                turn.startTime <= seg.endTime && turn.endTime >= seg.startTime
+            }?.speakerId
+            SpeakerSegment(seg.text, matched, seg.startTime, seg.endTime)
+        }
+    }
+
+    /**
+     * 为每个段落标注说话人信息（旧接口保留兼容）。
      *
      * 如果提供了 speakerInfo（来自 Realtime API 的 speaker_id），
      * 则直接使用；否则尝试从文本特征推断。
@@ -283,21 +364,7 @@ class AsrPostProcessor {
     private fun annotateSpeakers(
         segments: List<TextSegment>,
         speakerTurns: List<SpeakerTurn>?,
-    ): List<SpeakerSegment> {
-        if (speakerTurns.isNullOrEmpty()) {
-            // 无说话人信息，全部标记为 null
-            return segments.map { SpeakerSegment(it.text, null, it.startTime, it.endTime) }
-        }
-
-        // 根据 time range 匹配说话人
-        return segments.map { seg ->
-            val matchedSpeaker = speakerTurns.find { turn ->
-                // 时间范围重叠检测
-                turn.startTime <= seg.endTime && turn.endTime >= seg.startTime
-            }?.speakerId
-            SpeakerSegment(seg.text, matchedSpeaker, seg.startTime, seg.endTime)
-        }
-    }
+    ): List<SpeakerSegment> = fallbackAnnotate(segments, speakerTurns)
 
     /**
      * 从纯文本推断可能的说话人切换点。
