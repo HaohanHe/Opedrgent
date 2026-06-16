@@ -26,6 +26,7 @@ import top.hsyscn.opedrgent.tools.RecallTool
 import top.hsyscn.opedrgent.tools.StepRagTool
 import top.hsyscn.opedrgent.tools.StepSearchTool
 import top.hsyscn.opedrgent.tools.StepMobileAgentTool
+import top.hsyscn.opedrgent.tools.StepVisionTool
 import top.hsyscn.opedrgent.tools.StepImageEditTool
 import top.hsyscn.opedrgent.tools.StepImageGenTool
 import top.hsyscn.opedrgent.storage.KnowledgeBase
@@ -86,6 +87,7 @@ class ToolExecutor(
         }
         register(StepSearchTool())
         register(StepMobileAgentTool(context))
+        register(StepVisionTool(context))
         register(StepImageEditTool(context))
         register(StepImageGenTool())
     }

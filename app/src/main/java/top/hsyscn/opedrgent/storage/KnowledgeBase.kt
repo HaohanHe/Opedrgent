@@ -264,6 +264,33 @@ class KnowledgeBase(private val context: Context) {
         return list
     }
 
+    /**
+     * 获取所有文档的轻量搜索副本（供 HybridSearchEngine BM25 索引使用）。
+     * 仅返回 id + title + content，不包含完整元数据。
+     */
+    fun getAllDocumentsForSearch(): List<SearchableDoc> {
+        val list = mutableListOf<SearchableDoc>()
+        db.query(TABLE_DOCS, arrayOf(DOC_ID, DOC_TITLE, DOC_CONTENT),
+                null, null, null, null, null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                list.add(SearchableDoc(
+                    id = cursor.getString(0) ?: "",
+                    title = cursor.getString(1) ?: "",
+                    content = cursor.getString(2) ?: "",
+                ))
+            }
+        }
+        return list
+    }
+
+    /** 搜索用轻量文档（BM25 索引不需要完整 KbDocument） */
+    data class SearchableDoc(
+        val id: String,
+        val title: String,
+        val content: String,
+    )
+
 
 
     fun deleteDocument(documentId: String): Boolean {
