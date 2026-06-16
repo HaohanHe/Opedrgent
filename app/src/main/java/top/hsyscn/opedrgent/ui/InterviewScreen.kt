@@ -116,6 +116,8 @@ import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.TextDark
 import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
 import top.hsyscn.opedrgent.ui.collectAsStateCompat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -338,7 +340,7 @@ private fun StepRecommendationBanner(
                     text = "Step",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = Color(0xFF6C63FF), // 阶跃紫
+                    color = InterviewPurple, // 阶跃紫
                 )
                 Text(
                     text = "Audio 2.5",
@@ -358,7 +360,7 @@ private fun StepRecommendationBanner(
                     letterSpacing = 2.sp,
                     modifier = Modifier
                         .background(
-                            color = Color(0xFF6C63FF),
+                            color = InterviewPurple,
                             shape = RoundedCornerShape(4.dp),
                         )
                         .padding(horizontal = 8.dp, vertical = 3.dp),
@@ -399,9 +401,9 @@ private fun StepRecommendationBanner(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6C63FF),
+                        focusedBorderColor = InterviewPurple,
                         unfocusedBorderColor = Color(0xFF333355),
-                        cursorColor = Color(0xFF6C63FF),
+                        cursorColor = InterviewPurple,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                     ),
@@ -435,7 +437,7 @@ private fun StepRecommendationBanner(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6C63FF),
+                                focusedBorderColor = InterviewPurple,
                                 unfocusedBorderColor = Color(0xFF333355),
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
@@ -474,7 +476,7 @@ private fun StepRecommendationBanner(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6C63FF),
+                                focusedBorderColor = InterviewPurple,
                                 unfocusedBorderColor = Color(0xFF333355),
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
@@ -510,7 +512,7 @@ private fun StepRecommendationBanner(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (canStart) Color(0xFF6C63FF) else Color(0xFF333355),
+                        containerColor = if (canStart) InterviewPurple else Color(0xFF333355),
                         contentColor = Color.White,
                         disabledContainerColor = Color(0xFF222233),
                         disabledContentColor = Color(0xFF555566),

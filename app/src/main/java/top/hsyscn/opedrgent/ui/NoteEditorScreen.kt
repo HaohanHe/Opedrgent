@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -11,10 +12,17 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +60,23 @@ import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.parseAiSummary
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.AccentPurple
+import top.hsyscn.opedrgent.ui.theme.TextPrimary
+import top.hsyscn.opedrgent.ui.theme.SurfaceLight
+import top.hsyscn.opedrgent.ui.theme.CardBackground
+import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.BorderLight
+import top.hsyscn.opedrgent.ui.theme.DisabledColor
+import top.hsyscn.opedrgent.ui.theme.DangerRed
+import top.hsyscn.opedrgent.ui.theme.ErrorBackground
+import top.hsyscn.opedrgent.ui.theme.ErrorBorder
+import top.hsyscn.opedrgent.ui.theme.DeleteConfirmRed
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.WarningBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.InputBorder
+import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.ui.components.AudioPlayer
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.SproutEmptyIllustration
@@ -77,6 +102,8 @@ fun NoteEditorScreen(
     onAddToKnowledgeBase: (Long) -> Unit = {},
     onAddTag: (Long) -> Unit = {},
     onAppendNote: (Long) -> Unit = {},
+    /** 智能补全请求回调：传入当前上下文文本，返回补全建议（异步）。未提供时使用本地启发式补全。 */
+    onRequestCompletion: (suspend (String) -> String)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -235,13 +262,13 @@ fun NoteEditorScreen(
                     ) {
                         tags.forEach { tag ->
                             Surface(
-                                color = Color(0xFFE67E22).copy(alpha = 0.1f),
+                                color = AccentOrange.copy(alpha = 0.1f),
                                 shape = RoundedCornerShape(12.dp),
                             ) {
                                 Text(
                                     tag,
                                     fontSize = 12.sp,
-                                    color = Color(0xFFE67E22),
+                                    color = AccentOrange,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 )
                             }
@@ -322,7 +349,7 @@ fun NoteEditorScreen(
                                                     )
                                                     runCatching { context.startActivity(intent) }
                                                 },
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F7FA)),
+                                            colors = CardDefaults.cardColors(containerColor = CardBackground),
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(16.dp),
@@ -600,13 +627,13 @@ fun NoteEditorScreen(
                                             if (section.ahaMoment.isNotBlank()) {
                                                 Spacer(Modifier.height(8.dp))
                                                 Surface(
-                                                    color = Color(0xFFFFF8E1),
+                                                    color = WarningBg,
                                                     shape = RoundedCornerShape(8.dp),
                                                 ) {
                                                     Text(
                                                         "Aha：${section.ahaMoment}",
                                                         style = MaterialTheme.typography.bodyMedium,
-                                                        color = Color(0xFFFF8F00),
+                                                        color = WarningColor,
                                                         modifier = Modifier.padding(12.dp),
                                                     )
                                                 }
@@ -674,13 +701,8 @@ fun NoteEditorScreen(
                             }
                         }
                         3 -> {
-                            // 追加笔记
-                            EmptyStateView(
-                                icon = { BalloonEmptyIllustration() },
-                                title = "暂无追加笔记",
-                                subtitle = "",
-                                modifier = Modifier.fillMaxSize(),
-                            )
+                            // 追加笔记 — 可编辑的笔记列表
+                            EditorAdditionalNotesTab()
                         }
                     }
 
@@ -756,7 +778,7 @@ fun NoteEditorScreen(
                                         Icon(
                                             Icons.Default.AutoAwesome,
                                             contentDescription = "发芽",
-                                            tint = Color(0xFF4CAF50),
+                                            tint = SuccessGreen,
                                             modifier = Modifier.size(22.dp),
                                         )
                                         Spacer(Modifier.height(2.dp))
@@ -807,7 +829,7 @@ fun NoteEditorScreen(
                             Text(
                                 "保存于 ${formatTimeAgo(lastSavedAt!!)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF4CAF50),
+                                color = SuccessGreen,
                                 modifier = Modifier.padding(start = 8.dp),
                             )
                         }
@@ -985,20 +1007,20 @@ fun NoteEditorScreen(
                     ) {
                         tags.forEach { tag ->
                             Surface(
-                                color = Color(0xFFE67E22).copy(alpha = 0.1f),
+                                color = AccentOrange.copy(alpha = 0.1f),
                                 shape = RoundedCornerShape(12.dp),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 ) {
-                                    Text(tag, fontSize = 12.sp, color = Color(0xFFE67E22))
+                                    Text(tag, fontSize = 12.sp, color = AccentOrange)
                                     Spacer(Modifier.width(4.dp))
                                     IconButton(
                                         onClick = { removeTag(tag) },
                                         modifier = Modifier.size(14.dp),
                                     ) {
-                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = Color(0xFFE67E22))
+                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = AccentOrange)
                                     }
                                 }
                             }
@@ -1009,14 +1031,14 @@ fun NoteEditorScreen(
 
                 // 标签输入框
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Label, "标签", tint = Color(0xFFE67E22), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Label, "标签", tint = AccentOrange, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     BasicTextField(
                         value = tagInput,
                         onValueChange = { tagInput = it },
                         textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
                         singleLine = true,
-                        cursorBrush = SolidColor(Color(0xFFE67E22)),
+                        cursorBrush = SolidColor(AccentOrange),
                         decorationBox = { innerTextField ->
                             Box {
                                 if (tagInput.isEmpty()) {
@@ -1031,7 +1053,7 @@ fun NoteEditorScreen(
                     )
                     if (tagInput.isNotEmpty()) {
                         IconButton(onClick = { addTag() }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = Color(0xFFE67E22))
+                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = AccentOrange)
                         }
                     }
                 }
@@ -1189,11 +1211,16 @@ fun NoteEditorScreen(
                             val shouldComplete = lastChar !in listOf("\n", "。", "！", "？", ".", "!", "?", ":", "：")
 
                             if (shouldComplete && contextText.trim().length > 3) {
-                                // TODO: 接入 LLM streaming API 获取智能补全
                                 isGhostTextActive = true
-                                // 实际应该调用 LLM streaming API，这里先留空字符串
-                                // 用户后续可以接入真正的 LLM 补全
-                                ghostText = ""
+                                // 优先使用 LLM 补全回调，否则使用本地启发式补全
+                                scope.launch {
+                                    val completion = if (onRequestCompletion != null) {
+                                        try { onRequestCompletion!!(contextText) } catch (_: Exception) { "" }
+                                    } else {
+                                        heuristicComplete(contextText)
+                                    }
+                                    ghostText = completion
+                                }
                             }
                         }
                     }
@@ -1222,7 +1249,7 @@ fun NoteEditorScreen(
                         Text(
                             "已保存 ${formatTimeAgo(lastSavedAt!!)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF4CAF50),
+                            color = SuccessGreen,
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
@@ -1251,7 +1278,7 @@ fun NoteEditorScreen(
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
                     }
-                    HorizontalDivider(color = Color(0xFFE0E0E0), modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
                     AIActionButton("AI 编辑团", "8人编辑团协作创作", "editor_team") {
                         showAiMenu = false
                         scope.launch { save() }
@@ -1440,6 +1467,212 @@ private fun MarkdownPreview(
     }
 }
 
+// ================================================================
+// 追加笔记 Tab — 笔记编辑器内置的追加笔记功能
+// ================================================================
+
+/** 单条编辑器内笔记 */
+private data class EditorNote(
+    val id: String,
+    val content: String,
+    val createdAtMs: Long = System.currentTimeMillis(),
+)
+
+@Composable
+private fun EditorAdditionalNotesTab() {
+    var notes by remember { mutableStateOf(listOf<EditorNote>()) }
+    var isEditing by remember { mutableStateOf(false) }
+    var inputText by remember { mutableStateOf("") }
+    var editingId by remember { mutableStateOf<String?>(null) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (notes.isEmpty() && !isEditing) {
+            // 可操作的空状态
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+            ) {
+                Text("暂无追加笔记", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                Text(
+                    "在此处添加对笔记内容的补充和批注",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SurfaceLight,
+                    onClick = { isEditing = true },
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    ) {
+                        Icon(Icons.Default.Add, null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("添加笔记", color = AccentPurple, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    }
+                }
+            }
+        } else {
+            // 笔记列表
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) {
+                itemsIndexed(notes) { _, note ->
+                    EditorNoteItemCard(
+                        note = note,
+                        onEdit = {
+                            editingId = note.id
+                            inputText = note.content
+                            isEditing = true
+                        },
+                        onDelete = { notes = notes.filter { it.id != note.id } },
+                    )
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
+
+        // 输入区域
+        if (isEditing) {
+            HorizontalDivider()
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = SurfaceElevated,
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (editingId != null) "编辑笔记" else "新建笔记",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { isEditing = false; inputText = ""; editingId = null }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, "关闭", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        placeholder = { Text("记录你的想法...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 120.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight,
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.End) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = Color.Transparent, onClick = { isEditing = false; inputText = ""; editingId = null }) {
+                            Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (inputText.isNotBlank()) AccentPurple else DisabledColor,
+                            onClick = {
+                                if (inputText.isNotBlank()) {
+                                    if (editingId != null) {
+                                        notes = notes.map { if (it.id == editingId) it.copy(content = inputText.trim()) else it }
+                                    } else {
+                                        notes = notes + EditorNote(System.nanoTime().toString(), inputText.trim())
+                                    }
+                                    isEditing = false
+                                    inputText = ""
+                                    editingId = null
+                                }
+                            },
+                        ) {
+                            Text(
+                                text = if (editingId != null) "保存" else "添加",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (notes.isNotEmpty()) {
+            // 浮动添加按钮
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, BorderLight),
+                onClick = { isEditing = true },
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Icon(Icons.Default.Add, null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("追加笔记...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+/** 编辑器内单条笔记卡片 */
+@Composable
+private fun EditorNoteItemCard(note: EditorNote, onEdit: () -> Unit, onDelete: () -> Unit) {
+    var showConfirm by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = SurfaceElevated,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = AccentPurple,
+                    modifier = Modifier.size(20.dp),
+                ) {}
+                Spacer(Modifier.width(8.dp))
+                Text(formatTimeAgo(note.createdAtMs), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 12.sp)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Edit, "编辑", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                }
+                IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Delete, "删除", tint = DangerRed, modifier = Modifier.size(14.dp))
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(note.content, fontSize = 14.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurface)
+
+            if (showConfirm) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = ErrorBackground,
+                    border = BorderStroke(1.dp, ErrorBorder),
+                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth(),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text("删除这条笔记?", color = DeleteConfirmRed, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Surface(shape = RoundedCornerShape(4.dp), color = Color.Transparent, onClick = { showConfirm = false }) {
+                            Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                        }
+                        Surface(shape = RoundedCornerShape(4.dp), color = DeleteConfirmRed, onClick = { onDelete(); showConfirm = false }) {
+                            Text("删除", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun formatTimeAgo(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
     return when {
@@ -1447,6 +1680,52 @@ private fun formatTimeAgo(timestamp: Long): String {
         diff < 3600_000L -> "${diff / 60_000}分钟前"
         diff < 86400_000L -> "${diff / 3600_000}小时前"
         else -> "${diff / 86400_000}天前"
+    }
+}
+
+/**
+ * 本地启发式文本补全（LLM 未接入时的 fallback）。
+ *
+ * 基于常见中文写作模式提供简单补全建议：
+ * - 常见动词后接宾语
+ * - 列表项自动补全下一项前缀
+ * - 标点后的常见接续词
+ */
+private fun heuristicComplete(context: String): String {
+    val trimmed = context.trimEnd()
+    if (trimmed.isEmpty()) return ""
+
+    // 列表模式检测：如果当前行以数字/符号开头，提示下一项
+    if (Regex("""^(\d+[\.\、]|\-|\*)\s+""").containsMatchIn(trimmed.split("\n").lastOrNull() ?: "")) {
+        val lines = trimmed.split("\n")
+        val lastLine = lines.lastOrNull() ?: ""
+        val match = Regex("""^(\d+[\.\、]|\-|\*)\s+""").find(lastLine)
+        if (match != null) {
+            val prefix = match.value
+            // 数字列表递增
+            val numMatch = Regex("""^(\d+)""").find(prefix)
+            if (numMatch != null) {
+                val nextNum = (numMatch.value.toInt() + 1).toString()
+                return prefix.replaceFirst(Regex("""^\d+"""), nextNum) + " "
+            }
+            return prefix
+        }
+    }
+
+    // 常见句尾补全
+    return when {
+        trimmed.endsWith("首先") -> "，其次"
+        trimmed.endsWith("其次") -> "，再次"
+        trimmed.endsWith("再次") -> "，最后"
+        trimmed.endsWith("一方面") -> "，另一方面"
+        trimmed.endsWith("例如") -> "，"
+        trimmed.endsWith("包括") -> "："
+        trimmed.endsWith("因为") -> "，所以"
+        trimmed.endsWith("虽然") -> "，但是"
+        trimmed.endsWith("不仅") -> "，而且"
+        trimmed.endsWith("总") -> "结"
+        trimmed.endsWith("具") -> "体来说"
+        else -> ""
     }
 }
 
