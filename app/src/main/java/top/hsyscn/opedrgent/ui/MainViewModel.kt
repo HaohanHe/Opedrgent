@@ -1212,11 +1212,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** 从文本创建笔记（录音转写 / AI 回复等场景），返回保存后的笔记 ID */
-    suspend fun createNoteFromText(title: String, content: String, type: NoteType = NoteType.TEXT): Long {
+    suspend fun createNoteFromText(
+        title: String,
+        content: String,
+        type: NoteType = NoteType.TEXT,
+        sourceUri: String? = null,
+        originalContent: String? = null,
+    ): Long {
         val note = Note(
             title = title,
             content = content,
             type = type,
+            sourceUri = sourceUri,
+            originalContent = originalContent ?: content,
             sourceType = when (type) {
                 NoteType.MEETING -> top.hsyscn.opedrgent.note.SourceType.MEETING_TRANSCRIPT
                 NoteType.ASR -> top.hsyscn.opedrgent.note.SourceType.ASR
@@ -4655,9 +4663,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                     _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
                                     DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
                                 }
-                                is ModelManager.DownloadProgress.Extracting -> {
-                                    _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
-                                }
                                 is ModelManager.DownloadProgress.SourceSwitch -> {
                                     DebugLog.d("MainViewModel: 切换下载源 ${progress.sourceName} (${progress.current}/${progress.total})")
                                 }
@@ -4958,11 +4963,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             withContext(Dispatchers.Main) {
                                 _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
                                 DebugLog.d("MainViewModel: 模型下载进度 ${(progress.progress * 100).toInt()}%")
-                            }
-                        }
-                        is ModelManager.DownloadProgress.Extracting -> {
-                            withContext(Dispatchers.Main) {
-                                _sttUiState.value = SttUiState.DownloadingModel(progress.progress, modelSizeMb)
                             }
                         }
                         is ModelManager.DownloadProgress.SourceSwitch -> {

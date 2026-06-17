@@ -21,6 +21,13 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
+
+        packaging {
+            jniLibs {
+                // sherpa-onnx 和 onnxruntime-android 都包含 libonnxruntime.so，取第一个
+                pickFirsts += "lib/*/libonnxruntime.so"
+            }
+        }
     }
 
     buildTypes {
@@ -85,6 +92,8 @@ dependencies {
     implementation(libs.commons.compress)
     // Sherpa-ONNX: 高性能离线语音识别框架 (Apache 2.0, via JitPack)
     implementation(libs.sherpa.onnx)
+    // ONNX Runtime for PP-OCRv6
+    implementation(libs.onnxruntime.android)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.media3.exoplayer)
     testImplementation(libs.junit)

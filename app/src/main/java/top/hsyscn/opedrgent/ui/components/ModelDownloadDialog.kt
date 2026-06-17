@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,12 +76,17 @@ fun ModelDownloadDialog(
     onConfirmCancel: () -> Unit,
 ) {
     var showCancelConfirm by remember { mutableStateOf(false) }
-    var currentQuoteIndex by remember { mutableIntStateOf(0) }
+    var shuffledIndices by remember { mutableStateOf(DownloadQuotes.ALL_QUOTES.indices.shuffled()) }
+    var quotePointer by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         while (true) {
             delay(10_000L)
-            currentQuoteIndex = (currentQuoteIndex + 1) % DownloadQuotes.ALL_QUOTES.size
+            quotePointer++
+            if (quotePointer >= shuffledIndices.size) {
+                shuffledIndices = DownloadQuotes.ALL_QUOTES.indices.shuffled()
+                quotePointer = 0
+            }
         }
     }
 
@@ -111,7 +117,7 @@ fun ModelDownloadDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             shape = RoundedCornerShape(20.dp),
-            color = CardWhite,
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
         ) {
             Column(
@@ -170,7 +176,7 @@ fun ModelDownloadDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                QuoteCard(currentQuoteIndex = currentQuoteIndex)
+                QuoteCard(currentQuoteIndex = shuffledIndices[quotePointer])
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -385,7 +391,7 @@ private fun QuoteCard(currentQuoteIndex: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Crossfade(
             targetState = quote,

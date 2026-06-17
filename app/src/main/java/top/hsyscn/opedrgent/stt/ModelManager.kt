@@ -8,82 +8,100 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import okio.buffer
+import okio.sink
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
 object ModelManager {
 
     private const val TAG = "ModelManager"
-    private const val MODEL_BASE_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
 
     /** 下载超时：连续 N 毫秒无进度则切换源 */
-    private const val STALL_TIMEOUT_MS = 10_000L
+    private const val STALL_TIMEOUT_MS = 5_000L
 
-    /** 国内镜像源（按优先级排序） */
-    private val MIRROR_SOURCES = listOf(
-        MirrorSource("GitCode", "https://gitcode.com/GitHub_Trending/sh/sherpa-onnx/releases/download"),
-        // ModelScope 魔搭的 sherpa-onnx 模型路径格式不同，暂不自动拼接
-        // 如需扩展可在此追加: MirrorSource("ModelScope", "..."),
-    )
+    /** ModelScope 国内直连 base */
+    private const val MODELSCOPE_BASE = "https://www.modelscope.cn/models"
 
-    data class MirrorSource(val name: String, val baseUrl: String)
+    /** 下载源类型 */
+    enum class DownloadSource(val label: String) {
+        MODELSCOPE("ModelScope"),
+        HUGGINGFACE("HuggingFace"),
+        GITHUB("GitHub"),
+    }
 
     data class ModelInfo(
         val type: ModelType,
         val modelName: String,
         val version: String,
         val sizeBytes: Long,
-        /** 官方 GitHub 下载地址 */
-        val officialUrl: String,
-        /** 各镜像源的相对路径（拼接到 mirror.baseUrl 后面） */
-        val releasePath: String,
         val minRamMB: Int,
-        /** 解压后的模型目录名（tar.bz2 内部可能包含子目录） */
-        val extractDirName: String = modelName,
+        /** 首选下载源 */
+        val primarySource: DownloadSource = DownloadSource.MODELSCOPE,
+        /** 仓库路径（根据 source 类型解释） */
+        val repoPath: String,
+        /** 需要下载的文件列表 (远程文件名 to 本地文件名) */
+        val files: List<Pair<String, String>>,
     ) {
-        /** 生成完整下载地址列表：官方优先，镜像在后 */
-        fun allDownloadUrls(): List<Pair<String, String>> {
-            val urls = mutableListOf<Pair<String, String>>()  // (sourceName, url)
-            urls.add("GitHub Official" to officialUrl)
-            for (mirror in MIRROR_SOURCES) {
-                urls.add(mirror.name to "${mirror.baseUrl}/${releasePath}")
+        /**
+         * 生成下载任务列表。
+         *
+         * - MODELSCOPE: https://www.modelscope.cn/models/{repoPath}/resolve/master/{file}
+         * - HUGGINGFACE: https://hf-mirror.com/{repoPath}/resolve/main/{file}
+         * - GITHUB: https://github.com/{repoPath}/releases/download/asr-models/{file}
+         */
+        fun downloadTasks(): List<Triple<String, String, String>> {
+            val baseUrl = when (primarySource) {
+                DownloadSource.MODELSCOPE -> "$MODELSCOPE_BASE/$repoPath/resolve/master"
+                DownloadSource.HUGGINGFACE -> "https://hf-mirror.com/$repoPath/resolve/main"
+                DownloadSource.GITHUB -> "https://github.com/$repoPath/releases/download/asr-models"
             }
-            return urls
+            return files.map { (remoteName, localName) ->
+                Triple(primarySource.label, "$baseUrl/$remoteName", localName)
+            }
         }
     }
 
     val AVAILABLE_MODELS = listOf(
         ModelInfo(
+            type = ModelType.SENSE_VOICE_SMALL,
+            modelName = "sherpa-onnx-sense-voice-zh",
+            version = "2024-07-17",
+            sizeBytes = 228 * 1024 * 1024L,   // model.int8.onnx ~228MB (INT8量化, sherpa-onnx官方导出含完整元数据)
+            minRamMB = 4 * 1024,
+            primarySource = DownloadSource.MODELSCOPE,
+            repoPath = "gomodels/sherpa",
+            files = listOf(
+                "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx" to "model.onnx",
+                "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt" to "tokens.txt",
+            ),
+        ),
+        ModelInfo(
             type = ModelType.PARAFORMER,
             modelName = "sherpa-onnx-paraformer-zh",
             version = "2024-03-09",
-            sizeBytes = 220 * 1024 * 1024L,
-            officialUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-paraformer-zh-2024-03-09.tar.bz2",
-            releasePath = "asr-models/sherpa-onnx-paraformer-zh-2024-03-09.tar.bz2",
+            sizeBytes = 110 * 1024 * 1024L,  // model.int8.onnx ~110MB
             minRamMB = 6 * 1024,
-        ),
-        ModelInfo(
-            type = ModelType.SENSE_VOICE_SMALL,
-            modelName = "sherpa-onnx-sense-voice-zh",
-            version = "2024-10-30",
-            sizeBytes = 240 * 1024 * 1024L,
-            officialUrl = "$MODEL_BASE_URL/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30.tar.bz2",
-            releasePath = "asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30.tar.bz2",
-            minRamMB = 4 * 1024,
-            extractDirName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-10-30",
+            primarySource = DownloadSource.MODELSCOPE,
+            repoPath = "csukuangfj/sherpa-onnx-paraformer-zh-2024-03-09",
+            files = listOf(
+                "model.int8.onnx" to "model.onnx",
+                "tokens.txt" to "tokens.txt",
+            ),
         ),
         ModelInfo(
             type = ModelType.FUNASR_NANO_INT8,
             modelName = "sherpa-onnx-funasr-nano-int8",
             version = "2025-12-01",
             sizeBytes = 20 * 1024 * 1024L,
-            officialUrl = "$MODEL_BASE_URL/asr-models/models/sherpa-onnx-funasr-nano-int8.tar.bz2",
-            releasePath = "asr-models/models/sherpa-onnx-funasr-nano-int8.tar.bz2",
             minRamMB = 0,
+            primarySource = DownloadSource.MODELSCOPE,
+            repoPath = "csukuangfj/sherpa-onnx-funasr-nano-int8",
+            files = listOf(
+                "model.int8.onnx" to "model.onnx",
+                "tokens.txt" to "tokens.txt",
+            ),
         ),
     )
 
@@ -91,6 +109,7 @@ object ModelManager {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)   // 大文件下载给更多时间
         .writeTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)               // GitHub/镜像源会 302 重定向到 CDN
         .build()
 
     fun getModelDirectory(context: Context): File {
@@ -99,48 +118,71 @@ object ModelManager {
         return dir
     }
 
+    /** 获取模型的独立存储子目录 */
+    private fun getModelSubDir(context: Context, modelInfo: ModelInfo): File {
+        val dir = File(getModelDirectory(context), modelInfo.modelName)
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    /** 缓存的推荐模型（RAM 不会变，只查一次） */
+    private var cachedRecommendedModel: ModelType? = null
+
     fun getRecommendedModel(context: Context): ModelType {
+        cachedRecommendedModel?.let { return it }
+
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
         val totalRamMB = memoryInfo.totalMem / (1024 * 1024)
 
-        DebugLog.i("$TAG: 设备总 RAM = ${totalRamMB}MB")
-
-        return when {
+        val result = when {
             totalRamMB >= 6 * 1024 -> ModelType.PARAFORMER
             totalRamMB >= 4 * 1024 -> ModelType.SENSE_VOICE_SMALL
             else -> ModelType.FUNASR_NANO_INT8
         }
+        cachedRecommendedModel = result
+        DebugLog.i("$TAG: 设备总 RAM = ${totalRamMB}MB, 推荐模型 = ${result.name}")
+        return result
     }
+
+    /** 下载状态缓存（modelType → 已下载），避免反复查文件系统 */
+    private val downloadStatusCache = mutableMapOf<ModelType, Boolean>()
 
     /**
-     * 检查模型是否已下载且已解压（目录中存在 model.onnx 或 tokens.txt）
+     * 检查模型是否已下载且文件完整。
+     * 对于 SenseVoice 等需要 tokens.json→tokens.txt 转换的模型，
+     * 同时检查 tokens.txt 是否已生成。
+     *
+     * 结果会被缓存，直到模型被删除或重新下载时才失效。
      */
     fun isModelDownloaded(context: Context, modelType: ModelType): Boolean {
+        downloadStatusCache[modelType]?.let { return it }
+
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: return false
-        val modelDir = getModelDir(context, modelInfo)
-        if (!modelDir.exists() || !modelDir.isDirectory) return false
-        // 确认解压产物存在（至少有模型文件或 token 文件）
-        return modelDir.listFiles()?.any {
-            it.name.endsWith(".onnx") || it.name == "tokens.txt" || it.name == "tokens"
-        } == true
+        val subDir = getModelSubDir(context, modelInfo)
+        val result = modelInfo.files.all { File(subDir, it.second).exists() } &&
+                ensureTokensTxtExists(subDir)
+        downloadStatusCache[modelType] = result
+        return result
     }
 
-    /** 获取模型的实际存储目录（考虑 tar.bz2 内部可能有子目录） */
+    /** 确保 tokens.txt 存在（从 tokens.json 转换或直接已有） */
+    private fun ensureTokensTxtExists(modelDir: File): Boolean {
+        val txtFile = File(modelDir, "tokens.txt")
+        if (txtFile.exists()) return true
+        val jsonFile = File(modelDir, "tokens.json")
+        if (!jsonFile.exists()) return true // 没有 tokens.json 的模型不需要转换
+        // 旧数据兼容：已下载但缺少 tokens.txt，执行延迟转换
+        DebugLog.w("$TAG: 检测到旧数据缺少 tokens.txt，执行延迟转换")
+        convertTokensJsonToTxt(modelDir)
+        return txtFile.exists()
+    }
+
+    /** 获取模型的存储目录 */
     fun getModelPath(context: Context, modelType: ModelType): File? {
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: return null
-        return getModelDir(context, modelInfo)
-    }
-
-    private fun getModelDir(context: Context, info: ModelInfo): File {
-        // 优先检查以 extractDirName 命名的子目录（tar.bz2 解压后通常有子目录）
-        val subDir = File(getModelDirectory(context), info.extractDirName)
-        if (subDir.exists() && subDir.isDirectory && subDir.listFiles()?.isNotEmpty() == true) {
-            return subDir
-        }
-        // 回退到以 modelName 命名的目录
-        return File(getModelDirectory(context), info.modelName)
+        return getModelSubDir(context, modelInfo).also { it.mkdirs() }
     }
 
     fun downloadModel(context: Context, modelType: ModelType): Flow<DownloadProgress> = flow {
@@ -155,63 +197,59 @@ object ModelManager {
             return@flow
         }
 
-        val sources = modelInfo.allDownloadUrls()
-        DebugLog.i("$TAG: 开始下载模型 ${modelInfo.modelName} (${formatSize(modelInfo.sizeBytes)}), 共 ${sources.size} 个候选源")
+        val tasks = modelInfo.downloadTasks()
+        val modelDir = getModelSubDir(context, modelInfo)
+        modelDir.mkdirs()
+        val totalBytes = modelInfo.sizeBytes
+        DebugLog.i("$TAG: 开始下载模型 ${modelInfo.modelName} (${formatSize(totalBytes)}), 共 ${tasks.size} 个文件")
 
-        var lastError: String? = null
+        for ((index, task) in tasks.withIndex()) {
+            val (sourceName, url, localName) = task
+            val localFile = File(modelDir, localName)
 
-        for ((index, pair) in sources.withIndex()) {
-            val (sourceName, url) = pair
-            DebugLog.i("$TAG: [${index + 1}/${sources.size}] 尝试源: $sourceName -> $url")
-            emit(DownloadProgress.SourceSwitch(sourceName, index + 1, sources.size))
+            DebugLog.i("$TAG: [${index + 1}/${tasks.size}] 下载 $localName <- $sourceName")
+            emit(DownloadProgress.SourceSwitch(sourceName, index + 1, tasks.size))
 
-            val result = tryDownloadFromSource(context, modelInfo, url)
+            // 下载文件并在循环中直接 emit 进度
+            val downloadResult = downloadWithProgress(url, localFile, totalBytes)
 
-            when (result) {
+            when (downloadResult) {
                 is DownloadResult.Success -> {
-                    // 下载成功，执行解压
-                    DebugLog.i("$TAG: 源 [$sourceName] 下载完成，开始解压")
-                    val extractOk = extractAndVerify(context, modelInfo, result.archiveFile) { progress ->
-                        emit(DownloadProgress.Extracting(progress))
-                    }
-                    if (extractOk) {
-                        DebugLog.i("$TAG: 模型 ${modelInfo.modelName} 安装完成（来自 $sourceName）")
-                        emit(DownloadProgress.Complete)
-                        return@flow
-                    } else {
-                        lastError = "解压验证失败"
-                        DebugLog.w("$TAG: 源 [$sourceName] 解压失败，尝试下一个源")
-                        continue
-                    }
+                    DebugLog.i("$TAG: $localName 下载完成 (${formatSize(localFile.length())})")
                 }
                 is DownloadResult.Stalled -> {
-                    lastError = result.reason
-                    DebugLog.w("$TAG: 源 [$sourceName] 卡住(${result.reason})，切换到下一个源")
-                    continue
+                    emit(DownloadProgress.Error("下载卡住: ${downloadResult.reason}"))
+                    return@flow
                 }
                 is DownloadResult.Failed -> {
-                    lastError = result.reason
-                    DebugLog.w("$TAG: 源 [$sourceName] 失败(${result.reason})，尝试下一个源")
-                    continue
+                    emit(DownloadProgress.Error("下载失败: ${downloadResult.reason}"))
+                    return@flow
                 }
             }
         }
 
-        // 所有源都失败了
-        emit(DownloadProgress.Error("所有下载源均失败。最后错误: $lastError"))
+        // 验证所有文件都存在
+        val allExist = tasks.all { File(modelDir, it.third).exists() }
+        if (allExist) {
+            // 后处理: 转换 tokens.json → tokens.txt（部分模型源提供 JSON 格式）
+            convertTokensJsonToTxt(modelDir)
+
+            downloadStatusCache[modelType] = true
+            DebugLog.i("$TAG: 模型 ${modelInfo.modelName} 安装完成")
+            emit(DownloadProgress.Complete)
+        } else {
+            emit(DownloadProgress.Error("部分文件缺失"))
+        }
     }.flowOn(Dispatchers.IO)
 
     /**
-     * 从指定 URL 下载模型文件。
-     * 返回下载结果：成功/卡住/失败。
+     * 下载文件并emit进度（在 Flow 上下文中调用）
      */
-    private suspend fun tryDownloadFromSource(
-        context: Context,
-        modelInfo: ModelInfo,
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<DownloadProgress>.downloadWithProgress(
         url: String,
+        localFile: File,
+        totalBytes: Long,
     ): DownloadResult {
-        val archiveFile = File(getModelDirectory(context), "${modelInfo.modelName}.tar.bz2")
-
         try {
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
@@ -222,161 +260,203 @@ object ModelManager {
 
             val body = response.body ?: return DownloadResult.Failed("响应体为空")
 
-            val totalBytes = body.contentLength()
-            FileOutputStream(archiveFile).use { output ->
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(16384)
-                    var bytesRead: Int
-                    var totalRead = 0L
-                    var lastProgressTime = System.currentTimeMillis()
-                    var lastProgressBytes = 0L
+            localFile.sink().buffer().use { sink ->
+                val source = body.source()
+                val buffer = ByteArray(8192)
+                var totalRead = 0L
+                var lastProgressTime = System.currentTimeMillis()
+                var lastProgressBytes = 0L
+                var lastEmitTime = 0L
 
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalRead += bytesRead
+                while (true) {
+                    val read = source.read(buffer)
+                    if (read == -1) break
+                    sink.write(buffer, 0, read)
+                    totalRead += read
 
-                        val now = System.currentTimeMillis()
-                        // 检测是否卡住：超过 STALL_TIMEOUT_MS 毫秒没有任何新数据
-                        if (totalRead > lastProgressBytes) {
-                            lastProgressTime = now
-                            lastProgressBytes = totalRead
-                        } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
-                            DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据，已下载 ${formatSize(totalRead)}")
-                            return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
-                        }
+                    val now = System.currentTimeMillis()
+                    // 每 300ms 上报一次进度
+                    if (now - lastEmitTime >= 300) {
+                        val progress = (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                        emit(DownloadProgress.Downloading(progress))
+                        lastEmitTime = now
+                    }
+
+                    if (totalRead > lastProgressBytes) {
+                        lastProgressTime = now
+                        lastProgressBytes = totalRead
+                    } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
+                        DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据")
+                        localFile.delete()
+                        return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
                     }
                 }
+                // 最终上报一次
+                val progress = (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                emit(DownloadProgress.Downloading(progress))
             }
 
-            // 验证文件大小合理性（至少 > 1KB）
-            if (archiveFile.length() < 1024) {
-                archiveFile.delete()
-                return DownloadResult.Failed("下载文件过小 (${archiveFile.length()} B)，可能不是有效压缩包")
+            if (localFile.length() < 1024) {
+                localFile.delete()
+                return DownloadResult.Failed("文件过小 (${localFile.length()} B)")
             }
 
-            return DownloadResult.Success(archiveFile)
-
+            return DownloadResult.Success(localFile)
         } catch (e: Exception) {
-            // 清理可能残留的不完整文件
-            if (archiveFile.exists()) archiveFile.delete()
+            if (localFile.exists()) localFile.delete()
             return DownloadResult.Failed(e.message ?: "未知异常")
         }
     }
 
     /**
-     * 解压并验证模型文件。
+     * 将 tokens.json 转换为 tokens.txt（sherpa-onnx 需要纯文本格式）。
+     *
+     * 支持两种 JSON 格式：
+     * 1. 数组格式（SenseVoice 实际使用）：["<unk>", "<s>", "</s>", "▁the", ...]
+     *    数组索引即为 token ID
+     * 2. 对象格式（备用）：{"token1": 0, "token2": 1, ...}
+     *
+     * 输出 TXT 格式：每行一个 token，按索引排列
      */
-    private suspend fun extractAndVerify(
-        context: Context,
-        modelInfo: ModelInfo,
-        archiveFile: File,
-        onProgress: suspend (Float) -> Unit,
-    ): Boolean {
-        return try {
-            extractTarBz2(archiveFile, getModelDirectory(context)) { progress ->
-                onProgress(progress)
+    private fun convertTokensJsonToTxt(modelDir: File) {
+        val jsonFile = File(modelDir, "tokens.json")
+        val txtFile = File(modelDir, "tokens.txt")
+
+        if (!jsonFile.exists() || txtFile.exists()) return
+
+        try {
+            val json = jsonFile.readText(Charsets.UTF_8).trim()
+            DebugLog.i("$TAG: 开始解析 tokens.json (${json.length} 字符)")
+
+            val tokens: List<String> = when {
+                // 格式1：JSON Array — ["<unk>", "<s>", ...]（SenseVoice 实际格式）
+                json.startsWith("[") -> parseJsonArrayTokens(json)
+                // 格式2：JSON Object — {"token": index, ...}
+                json.startsWith("{") -> parseJsonObjectTokens(json)
+                else -> {
+                    DebugLog.w("$TAG: tokens.json 不是有效的 JSON 格式")
+                    emptyList()
+                }
             }
 
-            // 删除压缩包释放空间
-            if (archiveFile.exists()) {
-                archiveFile.delete()
-                DebugLog.i("$TAG: 已删除压缩包 ${archiveFile.name}")
+            if (tokens.isEmpty()) {
+                DebugLog.w("$TAG: tokens.json 解析为空，跳过转换")
+                return
             }
 
-            // 验证解压结果
-            val modelDir = getModelDir(context, modelInfo)
-            if (!modelDir.exists() || modelDir.listFiles()?.isEmpty() != false) {
-                DebugLog.e("$TAG: 解压后未找到模型文件")
-                false
-            } else {
-                val fileCount = modelDir.listFiles()?.size ?: 0
-                DebugLog.i("$TAG: 模型解压完成 ($fileCount 个文件 in ${modelDir.name})")
-                true
+            txtFile.bufferedWriter().use { writer ->
+                for (token in tokens) {
+                    writer.write(token)
+                    writer.newLine()
+                }
             }
+
+            DebugLog.i("$TAG: tokens.json → tokens.txt 转换完成 (${tokens.size} 个 token)")
         } catch (e: Exception) {
-            DebugLog.e("$TAG: 解压异常: ${e.message}", e)
-            false
+            DebugLog.w("$TAG: tokens.json 转换失败: ${e.message}")
         }
+    }
+
+    /**
+     * 解析 JSON 数组格式的 tokens.json
+     * 输入: ["<unk>", "<s>", "</s>", "▁the", "s", "▁to", ...]
+     * 输出: 按数组顺序的 token 列表
+     */
+    private fun parseJsonArrayTokens(json: String): List<String> {
+        val tokens = mutableListOf<String>()
+        // 去掉首尾方括号
+        val content = json.removeSurrounding("[", "]").trim()
+        if (content.isEmpty()) return tokens
+
+        // 手动解析 JSON 数组元素（避免引入 JSON 库）
+        var i = 0
+        while (i < content.length) {
+            val ch = content[i]
+            when {
+                ch == '"' -> {
+                    // 解析字符串
+                    val end = findStringEnd(content, i + 1)
+                    if (end > i + 1) {
+                        // 处理转义字符
+                        val raw = content.substring(i + 1, end)
+                        tokens.add(unescapeJsonString(raw))
+                    }
+                    i = end + 1
+                }
+                ch == ',' -> { i++ }  // 跳过逗号分隔符
+                ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' -> { i++ }  // 跳过空白
+                else -> { i++ }  // 跳过其他字符
+            }
+        }
+        return tokens
+    }
+
+    /**
+     * 解析 JSON 对象格式的 tokens.json（备用格式）
+     * 输入: {"<unk>": 0, "<s>": 1, ...}
+     * 输出: 按索引值排序的 token 列表
+     */
+    private fun parseJsonObjectTokens(json: String): List<String> {
+        val tokens = mutableMapOf<String, Int>()
+        val cleaned = json.removeSurrounding("{", "}").trim()
+        val pairs = cleaned.split(",").map { it.trim() }
+        for (pair in pairs) {
+            val colonIdx = pair.indexOf(':')
+            if (colonIdx > 0) {
+                val keyRaw = pair.substring(0, colonIdx).trim().removeSurrounding("\"")
+                val key = unescapeJsonString(keyRaw)
+                val valueStr = pair.substring(colonIdx + 1).trim()
+                val value = valueStr.toIntOrNull()
+                if (value != null) {
+                    tokens[key] = value
+                }
+            }
+        }
+        return tokens.entries.sortedBy { it.value }.map { it.key }
+    }
+
+    /** 在 JSON 内容中找到字符串结束位置（处理转义引号） */
+    private fun findStringEnd(content: String, start: Int): Int {
+        var i = start
+        while (i < content.length) {
+            when (content[i]) {
+                '\\' -> i += 2  // 跳过转义字符
+                '"' -> return i
+                else -> i++
+            }
+        }
+        return content.length
+    }
+
+    /** 处理 JSON 字符串中的转义序列 */
+    private fun unescapeJsonString(raw: String): String {
+        return raw
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
+            .replace("\\/", "/")
     }
 
     /** 单次下载结果 */
     private sealed class DownloadResult {
-        data class Success(val archiveFile: File) : DownloadResult()
+        data class Success(val file: File) : DownloadResult()
         data class Stalled(val reason: String) : DownloadResult()
         data class Failed(val reason: String) : DownloadResult()
-    }
-
-    /**
-     * 解压 tar.bz2 文件到目标目录。
-     * 自动处理 tar 包内的顶层子目录（展平到目标目录）。
-     */
-    private suspend fun extractTarBz2(
-        archiveFile: File,
-        targetDir: File,
-        onProgress: suspend (Float) -> Unit,
-    ) {
-        val totalSize = archiveFile.length()
-        var bytesRead = 0L
-
-        archiveFile.inputStream().use { fis ->
-            BZip2CompressorInputStream(fis).use { bzis ->
-                TarArchiveInputStream(bzis).use { tis ->
-                    var entry = tis.nextTarEntry
-                    var processedEntries = 0
-
-                    while (entry != null) {
-                        if (entry.isFile) {
-                            val relativePath = stripTopLevelDir(entry.name)
-                            val outputFile = File(targetDir, relativePath)
-                            outputFile.parentFile?.mkdirs()
-
-                            FileOutputStream(outputFile).use { fos ->
-                                val buffer = ByteArray(8192)
-                                var read: Int
-                                while (tis.read(buffer).also { read = it } != -1) {
-                                    fos.write(buffer, 0, read)
-                                    bytesRead += read
-                                }
-                            }
-
-                            processedEntries++
-                            if (totalSize > 0) {
-                                onProgress((bytesRead.toFloat() / totalSize.toFloat()).coerceIn(0f, 0.99f))
-                            }
-                        }
-                        entry = tis.nextTarEntry
-                    }
-                }
-            }
-        }
-        onProgress(1f)
-    }
-
-    /**
-     * 去掉路径中的第一个目录层级。
-     * 例如: "sherpa-onnx-paraformer-zh-2024-03-09/model.onnx" → "model.onnx"
-     *       "model.onnx" → "model.onnx"
-     */
-    private fun stripTopLevelDir(path: String): String {
-        val normalized = path.replace("\\", "/").trimStart('/')
-        val firstSlash = normalized.indexOf('/')
-        return if (firstSlash > 0) normalized.substring(firstSlash + 1) else normalized
     }
 
     fun clearModelCache(context: Context, modelType: ModelType?) {
         if (modelType != null) {
             val modelInfo = AVAILABLE_MODELS.find { it.type == modelType }
             if (modelInfo != null) {
-                // 清除所有可能的目录
-                for (name in listOf(modelInfo.modelName, modelInfo.extractDirName)) {
-                    val dir = File(getModelDirectory(context), name)
-                    if (dir.exists()) dir.deleteRecursively()
-                }
-                // 也清除可能残留的压缩包
-                File(getModelDirectory(context), "${modelInfo.modelName}.tar.bz2").delete()
+                val subDir = getModelSubDir(context, modelInfo)
+                if (subDir.exists()) subDir.deleteRecursively()
             }
+            downloadStatusCache.remove(modelType)
         } else {
             getModelDirectory(context).deleteRecursively()
+            downloadStatusCache.clear()
         }
     }
 
@@ -390,7 +470,6 @@ object ModelManager {
 
     sealed class DownloadProgress {
         data class Downloading(val progress: Float) : DownloadProgress()   // 0..1
-        data class Extracting(val progress: Float) : DownloadProgress()   // 0..1
         /** 切换到新的下载源 */
         data class SourceSwitch(val sourceName: String, val current: Int, val total: Int) : DownloadProgress()
         data object Complete : DownloadProgress()
