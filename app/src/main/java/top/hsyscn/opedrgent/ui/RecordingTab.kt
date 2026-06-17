@@ -61,6 +61,10 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SettingsVoice
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -72,6 +76,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -87,6 +92,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -443,7 +449,7 @@ fun RecordingTab(
                     if (text.isNotBlank()) {
                         scope.launch {
                             val contentWithPhotos = text + formatPhotosForNote(capturedPhotos)
-                            vm.createNoteFromText(title, contentWithPhotos, NoteType.MEETING)
+                            vm.createNoteFromText(title, contentWithPhotos, NoteType.MEETING, sourceUri = playbackAudioUri)
                             savedToNote = true
                             showSaveDialog = false
                             snackbar.showSnackbar("已保存为笔记")
@@ -538,10 +544,12 @@ fun RecordingTab(
                                         snackbar.showSnackbar(transcriptResult!!.error!!)
                                     }
                                     if (recordingMode == RecordingMode.VOICE_MEMO && transcriptText.isNotBlank() && autoSaveEnabled) {
+                                        // 先设置音频路径（createNoteFromText 需要 sourceUri）
+                                        playbackAudioUri = wavFile.absolutePath
                                         try {
                                             val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
                                             val contentWithPhotos = transcriptText + formatPhotosForNote(capturedPhotos)
-                                            val noteId = vm.createNoteFromText(autoTitle, contentWithPhotos, NoteType.MEETING)
+                                            val noteId = vm.createNoteFromText(autoTitle, contentWithPhotos, NoteType.MEETING, sourceUri = playbackAudioUri)
                                             autoSaved = true
                                             autoSavedNoteId = noteId
                                             savedToNote = true
@@ -559,6 +567,22 @@ fun RecordingTab(
 
                                     playbackAudioUri = wavFile.absolutePath
                                     File(pcmPath).delete()
+
+                                    // 转录完成后自动生成智能总结（多人会议/课堂录音模式）
+                                    if (transcriptResult != null && transcriptResult!!.fullText.isNotBlank()
+                                        && recordingMode != RecordingMode.VOICE_MEMO) {
+                                        scope.launch {
+                                            try {
+                                                val apiConfig = vm.apiSettings.getApiConfig() ?: return@launch
+                                                val summary = vm.smartSummaryGenerator.generate(transcriptResult!!, apiConfig)
+                                                if (summary != null) {
+                                                    transcriptResult = transcriptResult!!.copy(smartSummary = summary)
+                                                }
+                                            } catch (e: Exception) {
+                                                DebugLog.e("RecordingTab", "智能总结生成失败: ${e.message}", e)
+                                            }
+                                        }
+                                    }
                                 } catch (e: Exception) {
                                     DebugLog.e("RecordingTab", "处理失败: ${e.message}", e)
                                     snackbar.showSnackbar("处理失败: ${e.message}")
@@ -1240,16 +1264,71 @@ private fun TranscriptResultCard(
             HorizontalDivider()
             Spacer(Modifier.height(12.dp))
 
-            Text(
-                text = result.fullText.ifBlank { "（无识别结果）" },
-                fontSize = 14.sp,
-                color = TextDark,
-                lineHeight = 22.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 300.dp)
-                    .verticalScroll(rememberScrollState()),
-            )
+            // 智能总结 Tab（仅多人会议/课堂录音模式且有总结数据时显示）
+            val summary = result.smartSummary
+            if (summary != null) {
+                var showSummaryTab by rememberSaveable { mutableStateOf(true) }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+                        color = if (showSummaryTab) AccentBlue.copy(alpha = 0.1f) else Color.Transparent,
+                        onClick = { showSummaryTab = true },
+                    ) {
+                        Text(
+                            "智能总结",
+                            fontSize = 13.sp,
+                            fontWeight = if (showSummaryTab) FontWeight.Bold else FontWeight.Normal,
+                            color = if (showSummaryTab) AccentBlue else TextGrey,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+                        color = if (!showSummaryTab) AccentBlue.copy(alpha = 0.1f) else Color.Transparent,
+                        onClick = { showSummaryTab = false },
+                    ) {
+                        Text(
+                            "原文",
+                            fontSize = 13.sp,
+                            fontWeight = if (!showSummaryTab) FontWeight.Bold else FontWeight.Normal,
+                            color = if (!showSummaryTab) AccentBlue else TextGrey,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+
+                if (showSummaryTab) {
+                    SmartSummaryContent(summary = summary)
+                } else {
+                    Text(
+                        text = result.fullText.ifBlank { "（无识别结果）" },
+                        fontSize = 14.sp,
+                        color = TextDark,
+                        lineHeight = 22.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState()),
+                    )
+                }
+            } else {
+                Text(
+                    text = result.fullText.ifBlank { "（无识别结果）" },
+                    fontSize = 14.sp,
+                    color = TextDark,
+                    lineHeight = 22.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
+            }
 
             if (capturedPhotos.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
@@ -1340,6 +1419,233 @@ private fun TranscriptResultCard(
                     Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("继续录音", fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 智能总结内容展示 — 对齐得到大脑「智能总结」Tab 的 5 层结构。
+ */
+@Composable
+private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // 1. 录音信息
+        SummaryMetaCard(meta = summary.metaInfo)
+
+        // 2. 录音总结
+        if (summary.summarySections.isNotEmpty()) {
+            SummarySectionsCard(sections = summary.summarySections)
+        }
+
+        // 3. 章节概要（带时间戳）
+        if (summary.chapters.isNotEmpty()) {
+            ChaptersCard(chapters = summary.chapters)
+        }
+
+        // 4. 金句精选
+        if (summary.quotes.isNotEmpty()) {
+            QuotesCard(quotes = summary.quotes)
+        }
+
+        // 5. 待办事项
+        if (summary.actionItems.isNotEmpty()) {
+            ActionItemsCard(items = summary.actionItems)
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = AccentBlue.copy(alpha = 0.06f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Info, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = buildString {
+                    if (meta.duration.isNotEmpty()) append("时长: ${meta.duration}")
+                    if (meta.participantCount > 0) append("  |  ${meta.participantCount}人")
+                    if (meta.contentType.isNotEmpty()) append("  |  ${meta.contentType}")
+                },
+                fontSize = 12.sp,
+                color = TextDark,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSummary.SummarySection>) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        sections.forEach { section ->
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFFAFAF5),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = section.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    section.content.forEach { para ->
+                        Text(
+                            text = para,
+                            fontSize = 13.sp,
+                            color = Color(0xFF4A4A4A),
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.ChapterItem>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        chapters.forEachIndexed { index, chapter ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    shape = CircleShape,
+                    color = AccentBlue,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .align(Alignment.Top),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Text("${index + 1}", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = chapter.title,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDark,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Surface(shape = RoundedCornerShape(4.dp), color = AccentBlue.copy(alpha = 0.1f)) {
+                            Text(
+                                chapter.timestampFormatted,
+                                fontSize = 10.sp,
+                                color = AccentBlue,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        text = chapter.summary,
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666),
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteItem>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        quotes.forEach { quote ->
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFFFFBEB),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(modifier = Modifier.padding(12.dp)) {
+                    Icon(
+                        Icons.Default.FormatQuote,
+                        contentDescription = null,
+                        tint = Color(0xFFF57C00),
+                        modifier = Modifier.size(18.dp).align(Alignment.Top),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = quote.text,
+                            fontSize = 13.sp,
+                            color = Color(0xFF333333),
+                            lineHeight = 19.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFF57C00).copy(alpha = 0.12f)) {
+                            Text(
+                                quote.category,
+                                fontSize = 10.sp,
+                                color = Color(0xFFF57C00),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.ActionItem>) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFF0F7FF),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.TaskAlt, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("待办事项", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            }
+            Spacer(Modifier.height(8.dp))
+            items.forEach { item ->
+                Row(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = AccentBlue.copy(alpha = 0.15f),
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                tint = AccentBlue,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = item.assignee, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AccentBlue)
+                    Spacer(Modifier.width(6.dp))
+                    Text(text = item.task, fontSize = 12.sp, color = Color(0xFF444444), modifier = Modifier.weight(1f))
                 }
             }
         }

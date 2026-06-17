@@ -75,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -84,8 +85,10 @@ import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
 import top.hsyscn.opedrgent.stt.ModelManager
 import top.hsyscn.opedrgent.stt.ModelType
+import top.hsyscn.opedrgent.service.SttDownloadService
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
+import top.hsyscn.opedrgent.ui.components.SttModelDownloadDialog
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.TextDark
@@ -454,6 +457,17 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             var downloadStatusText by rememberSaveable { mutableStateOf("") }
                             var showDeleteConfirm by rememberSaveable { mutableStateOf<ModelType?>(null) }
 
+                            // STT 下载弹窗状态
+                            var sttDialogVisible by rememberSaveable { mutableStateOf(false) }
+                            var sttDialogModelName by rememberSaveable { mutableStateOf("") }
+                            var sttDialogModelDesc by rememberSaveable { mutableStateOf("") }
+                            var sttDialogPercent by rememberSaveable { mutableStateOf(0) }
+                            var sttDialogDownloadedMb by rememberSaveable { mutableStateOf(0) }
+                            var sttDialogTotalMb by rememberSaveable { mutableStateOf(0) }
+                            var sttDialogSpeed by rememberSaveable { mutableStateOf("") }
+                            var sttDialogStatus by rememberSaveable { mutableStateOf("idle") }
+                            var sttDialogStatusDetail by rememberSaveable { mutableStateOf("") }
+
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Text(
                                 text = "本地模型",
@@ -475,7 +489,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         .padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    Column(modifier = Modifier.weight(1f, fill = false)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 text = when (modelInfo.type) {
@@ -486,6 +500,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 },
                                                 fontWeight = FontWeight.Medium,
                                                 fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
                                             )
                                             Spacer(Modifier.width(6.dp))
                                             // 已下载标签 / 推荐标签
@@ -516,7 +532,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             }
                                         }
                                         Text(
-                                            text = "$sizeStr | v${modelInfo.version} | 最低 ${modelInfo.minRamMB}MB RAM",
+                                            text = "$sizeStr | ${modelInfo.minRamMB}MB RAM",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextGrey,
                                             fontSize = 11.sp,
@@ -566,6 +582,25 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 downloadingModel = modelInfo.type
                                                 downloadProgress = 0f
                                                 downloadStatusText = "准备中..."
+
+                                                // 弹窗 + 通知栏
+                                                sttDialogModelName = when (modelInfo.type) {
+                                                    ModelType.PARAFORMER -> "Paraformer"
+                                                    ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
+                                                    ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
+                                                    else -> modelInfo.modelName
+                                                }
+                                                sttDialogModelDesc = "本地离线语音识别模型"
+                                                sttDialogPercent = 0
+                                                sttDialogDownloadedMb = 0
+                                                sttDialogTotalMb = (modelInfo.sizeBytes / (1024 * 1024)).toInt()
+                                                sttDialogSpeed = ""
+                                                sttDialogStatus = "downloading"
+                                                sttDialogStatusDetail = ""
+                                                sttDialogVisible = true
+
+                                                SttDownloadService.start(context, sttDialogModelName)
+
                                                 scope.launch {
                                                     sttModelManager.downloadModel(context, modelInfo.type)
                                                         .collect { progress ->
@@ -573,25 +608,36 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                                 is ModelManager.DownloadProgress.Downloading -> {
                                                                     downloadProgress = progress.progress
                                                                     downloadStatusText = "下载中 ${(progress.progress * 100).toInt()}%"
-                                                                }
-                                                                is ModelManager.DownloadProgress.Extracting -> {
-                                                                    downloadProgress = 0.9f + progress.progress * 0.1f
-                                                                    downloadStatusText = "解压中..."
+                                                                    sttDialogPercent = (progress.progress * 100).toInt()
+                                                                    sttDialogDownloadedMb = ((progress.progress * sttDialogTotalMb).toInt())
+                                                                    sttDialogStatus = "downloading"
+                                                                    SttDownloadService.updateProgress(
+                                                                        context, sttDialogModelName,
+                                                                        sttDialogPercent, sttDialogDownloadedMb, sttDialogTotalMb, 0L,
+                                                                    )
                                                                 }
                                                                 is ModelManager.DownloadProgress.SourceSwitch -> {
                                                                     downloadStatusText = "切换源: ${progress.sourceName} (${progress.current}/${progress.total})"
+                                                                    sttDialogStatus = "sourceSwitch"
+                                                                    sttDialogStatusDetail = "切换到 ${progress.sourceName} (${progress.current}/${progress.total})"
                                                                 }
                                                                 is ModelManager.DownloadProgress.Error -> {
                                                                     downloadingModel = null
                                                                     downloadStatusText = "失败: ${progress.message}"
+                                                                    sttDialogStatus = "error"
+                                                                    sttDialogStatusDetail = progress.message
+                                                                    SttDownloadService.fail(context, sttDialogModelName, progress.message)
                                                                 }
                                                                 is ModelManager.DownloadProgress.Complete -> {
                                                                     downloadingModel = null
                                                                     downloadStatusText = ""
+                                                                    sttDialogVisible = false
+                                                                    SttDownloadService.complete(context, sttDialogModelName)
                                                                 }
                                                             }
                                                         }
                                                     downloadingModel = null
+                                                    SttDownloadService.stop(context)
                                                 }
                                             },
                                         ) {
@@ -621,6 +667,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         TextButton(onClick = { showDeleteConfirm = null }) {
                                             Text("取消")
                                         }
+                                    },
+                                )
+                            }
+
+                            // STT 模型下载弹窗
+                            if (sttDialogVisible) {
+                                SttModelDownloadDialog(
+                                    modelName = sttDialogModelName,
+                                    modelDescription = sttDialogModelDesc,
+                                    percent = sttDialogPercent,
+                                    downloadedMb = sttDialogDownloadedMb,
+                                    totalMb = sttDialogTotalMb,
+                                    speedText = sttDialogSpeed,
+                                    status = sttDialogStatus,
+                                    statusDetail = sttDialogStatusDetail,
+                                    onDismiss = { sttDialogVisible = false },
+                                    onCancel = {
+                                        sttDialogVisible = false
+                                        downloadingModel = null
+                                        SttDownloadService.stop(context)
                                     },
                                 )
                             }
@@ -705,6 +771,87 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("中文") }
                         Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("英文") }
+                    }
+                }
+            }
+
+            // OCR 模型管理
+            HorizontalDivider()
+            Text("OCR 文字识别", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "PP-OCRv6 增强识别", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "百度第六代 OCR 模型，中英文识别精度更高（需下载 77MB）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                            )
+                        }
+                    }
+                    // OCR 模型下载状态
+                    val ocrModelManager = remember { top.hsyscn.opedrgent.ocr.OcrModelManager }
+                    val ocrModel = ocrModelManager.PP_OCR_V6
+                    val ocrDownloaded = remember { mutableStateOf(ocrModelManager.isModelDownloaded(context, ocrModel.id)) }
+                    val ocrDownloading = remember { mutableStateOf(false) }
+                    val ocrProgress = remember { mutableStateOf(0f) }
+                    val ocrStatusText = remember { mutableStateOf("") }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = ocrModel.displayName,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 13.sp,
+                        )
+                        if (ocrDownloaded.value) {
+                            Surface(shape = RoundedCornerShape(4.dp), color = SuccessGreen.copy(alpha = 0.15f)) {
+                                Text("已下载", fontSize = 10.sp, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            TextButton(onClick = {
+                                ocrModelManager.clearModelCache(context, ocrModel.id)
+                                ocrDownloaded.value = false
+                            }) { Text("删除", fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
+                        } else if (ocrDownloading.value) {
+                            LinearProgressIndicator(progress = { ocrProgress.value }, modifier = Modifier.weight(1f).height(3.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(ocrStatusText.value, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                        } else {
+                            FilledTonalButton(
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                onClick = {
+                                    ocrDownloading.value = true
+                                    scope.launch {
+                                        ocrModelManager.downloadModel(context, ocrModel.id).collect { progress ->
+                                            when (progress) {
+                                                is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Downloading -> {
+                                                    ocrProgress.value = progress.progress
+                                                    ocrStatusText.value = "下载中 ${(progress.progress * 100).toInt()}%"
+                                                }
+                                                is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.SourceSwitch -> {
+                                                    ocrStatusText.value = "准备下载..."
+                                                }
+                                                is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Complete -> {
+                                                    ocrDownloaded.value = true
+                                                    ocrDownloading.value = false
+                                                    ocrStatusText.value = ""
+                                                }
+                                                is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Error -> {
+                                                    ocrDownloading.value = false
+                                                    ocrStatusText.value = "失败: ${progress.message}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("下载", fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -876,7 +1023,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

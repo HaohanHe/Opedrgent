@@ -16,12 +16,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 /**
- * 通用OCR引擎 - 支持任意图片的文字识别（不仅限于PDF）
+ * 通用OCR引擎 - 支持 ML Kit 和 PP-OCRv6 双引擎
  * 
- * 使用 Google ML Kit Text Recognition API：
- * - 中文识别：ChineseTextRecognizerOptions（内置中文模型）
- * - 英文/拉丁文：默认 TextRecognizer
- * - 完全离线运行，无需网络
+ * ML Kit（默认）：Google 离线识别，开箱即用，无需下载
+ * PP-OCRv6（可选）：百度 PaddleOCR，需额外下载模型，精度更高
  */
 class OcrEngine(private val context: Context) {
 
@@ -30,25 +28,101 @@ class OcrEngine(private val context: Context) {
         private const val MAX_IMAGE_WIDTH = 1920
     }
 
-    // 中文文本识别器
+    /** OCR 引擎类型 */
+    enum class EngineType { ML_KIT, PP_OCR_V6 }
+
+    // 中文文本识别器（ML Kit）
     private val chineseRecognizer by lazy {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
-    // 默认文本识别器（英文/拉丁文）
+    // 默认文本识别器（ML Kit 英文/拉丁文）
     private val defaultRecognizer by lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
+    // PP-OCRv6 引擎（懒加载，首次识别时才初始化模型）
+    private val paddleEngine by lazy {
+        top.hsyscn.opedrgent.ocr.PaddleOcrEngine(context)
+    }
+    private var paddleEngineLoaded = false
+
+    /** 确保 PP-OCRv6 模型已加载（延迟到首次使用） */
+    private fun ensurePaddleEngineLoaded(): Boolean {
+        if (!paddleEngineLoaded) {
+            paddleEngineLoaded = paddleEngine.loadModel()
+        }
+        return paddleEngineLoaded
+    }
+
+    /**
+     * 获取当前推荐的引擎类型
+     * 如果 PP-OCRv6 模型已下载则推荐 PP-OCRv6，否则推荐 ML Kit
+     */
+    fun getRecommendedEngine(): EngineType {
+        return if (top.hsyscn.opedrgent.ocr.OcrModelManager.isModelDownloaded(context, "pp_ocrv6_medium")) {
+            EngineType.PP_OCR_V6
+        } else {
+            EngineType.ML_KIT
+        }
+    }
+
     /**
      * 从Bitmap进行OCR识别
-     * 自动缩放大图以提升性能和准确率
+     * @param engine 指定引擎类型，null 则使用推荐引擎
      */
-    suspend fun recognizeFromBitmap(bitmap: Bitmap, preferChinese: Boolean = true): OcrResult {
+    suspend fun recognizeFromBitmap(
+        bitmap: Bitmap,
+        preferChinese: Boolean = true,
+        engine: EngineType? = null,
+    ): OcrResult {
+        val selectedEngine = engine ?: getRecommendedEngine()
+
+        // PP-OCRv6 引擎
+        if (selectedEngine == EngineType.PP_OCR_V6) {
+            return recognizeWithPaddle(bitmap)
+        }
+
+        // ML Kit 引擎（默认）
+        return recognizeWithMlKit(bitmap, preferChinese)
+    }
+
+    private suspend fun recognizeWithPaddle(bitmap: Bitmap): OcrResult {
+        return withContext(Dispatchers.Default) {
+            try {
+                if (!ensurePaddleEngineLoaded()) {
+                    DebugLog.w(TAG, "PP-OCRv6 模型加载失败，回退到 ML Kit")
+                    return@withContext recognizeWithMlKit(bitmap, preferChinese = true)
+                }
+
+                val startTime = System.currentTimeMillis()
+                DebugLog.i(TAG, "使用 PP-OCRv6 引擎: ${bitmap.width}x${bitmap.height}")
+
+                val scaledBitmap = scaleBitmapIfNeeded(bitmap)
+                val text = paddleEngine.recognize(scaledBitmap)
+
+                val processingTimeMs = System.currentTimeMillis() - startTime
+                DebugLog.i(TAG, "PP-OCRv6 完成: ${text.length}字, 耗时=${processingTimeMs}ms")
+
+                OcrResult(
+                    text = text,
+                    lines = if (text.isNotEmpty()) listOf(OcrLine(text = text, confidence = 0.9f)) else emptyList(),
+                    language = "zh",
+                    processingTimeMs = processingTimeMs,
+                    engineUsed = "PP-OCRv6",
+                )
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "PP-OCRv6 识别失败，回退到 ML Kit: ${e.message}", e)
+                recognizeWithMlKit(bitmap, preferChinese = true)
+            }
+        }
+    }
+
+    private suspend fun recognizeWithMlKit(bitmap: Bitmap, preferChinese: Boolean): OcrResult {
         return withContext(Dispatchers.Default) {
             try {
                 val startTimeMs = System.currentTimeMillis()
-                DebugLog.i(TAG, "开始OCR识别: ${bitmap.width}x${bitmap.height}")
+                DebugLog.i(TAG, "使用 ML Kit 引擎: ${bitmap.width}x${bitmap.height}")
 
                 val scaledBitmap = scaleBitmapIfNeeded(bitmap)
                 val image = InputImage.fromBitmap(scaledBitmap, 0)
@@ -91,6 +165,7 @@ class OcrEngine(private val context: Context) {
                     lines = lines.toList(),
                     language = if (preferChinese) "zh" else "en",
                     processingTimeMs = processingTimeMs,
+                    engineUsed = "ML Kit",
                 )
 
             } catch (e: Exception) {
@@ -176,6 +251,7 @@ data class OcrResult(
     val language: String = "zh",
     val processingTimeMs: Long = 0,
     val error: String? = null,
+    val engineUsed: String = "ML Kit",
 ) {
     val isSuccess: Boolean get() = error == null && text.isNotEmpty()
 }
