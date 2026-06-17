@@ -60,7 +60,7 @@ fun ModelSelectorDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
             shape = RoundedCornerShape(20.dp),
-            color = CardWhite,
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
         ) {
             Column(
@@ -132,7 +132,7 @@ fun ModelSelectorDialog(
                         if (modelInfo != AvailableLocalModels.MODELS.last()) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 8.dp),
-                                color = Color(0xFFEEEEEE),
+                                color = MaterialTheme.colorScheme.outlineVariant,
                             )
                         }
                     }
@@ -229,10 +229,10 @@ private fun ModelCard(
             .fillMaxWidth()
             .then(
                 if (isSelected) Modifier.border(2.dp, BubbleBlue, RoundedCornerShape(12.dp))
-                else Modifier.border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp))
+                else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -317,9 +317,14 @@ private fun ModelCard(
                     CapabilityBadge("SD", Color(0xFF009688))
                     Spacer(modifier = Modifier.width(6.dp))
                 }
+            }
 
-                Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(8.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
                 ActionButton(
                     isDownloaded = isDownloaded.value,
                     isLoaded = isLoaded.value,

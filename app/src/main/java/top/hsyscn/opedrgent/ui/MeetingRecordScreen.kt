@@ -48,6 +48,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -297,6 +300,51 @@ fun MeetingRecordScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
+                actions = {
+                    // 分享按钮
+                    IconButton(
+                        onClick = {
+                            transcriptResult?.let { result ->
+                                if (result.audioFilePath != null && File(result.audioFilePath!!).exists()) {
+                                    shareAudioFile(context, File(result.audioFilePath!!), result.fullText)
+                                } else if (result.fullText.isNotEmpty()) {
+                                    shareTextOnly(context, result.fullText)
+                                }
+                            }
+                        },
+                        enabled = transcriptResult != null,
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "分享")
+                    }
+                    // 更多操作（下载等）
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                        ) {
+                            // 下载音频
+                            DropdownMenuItem(
+                                text = { Text("下载录音文件") },
+                                onClick = {
+                                    showMenu = false
+                                    transcriptResult?.audioFilePath?.let { path ->
+                                        val srcFile = File(path)
+                                        if (srcFile.exists()) {
+                                            scope.launch {
+                                                downloadToDownloads(context, srcFile, snackbar)
+                                            }
+                                        }
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                            )
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
@@ -389,6 +437,7 @@ fun MeetingRecordScreen(
                 visible = transcriptResult != null,
                 enter = slideInVertically(initialOffsetY = { it / 3 }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { it / 3 }) + fadeOut(),
+                modifier = Modifier.weight(1f),
             ) {
                 transcriptResult?.let { result ->
                     Card(
@@ -546,6 +595,24 @@ fun MeetingRecordScreen(
 
                             // === 底部操作按钮 ===
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                // 下载录音文件
+                                OutlinedButton(
+                                    onClick = {
+                                        result.audioFilePath?.let { path ->
+                                            val srcFile = File(path)
+                                            if (srcFile.exists()) {
+                                                scope.launch { downloadToDownloads(context, srcFile, snackbar) }
+                                            }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.height(44.dp),
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("下载", fontWeight = FontWeight.Medium)
+                                }
+                                // 复制全文
                                 OutlinedButton(
                                     onClick = {
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(result.fullText))
@@ -787,7 +854,7 @@ private fun TranscriptTextContent(
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(0.dp),
-        modifier = Modifier.heightIn(max = 500.dp),
+        modifier = Modifier.fillMaxSize(),
     ) {
         itemsIndexed(segments) { index, segment ->
             SentenceItem(
@@ -878,13 +945,28 @@ private fun SentenceItem(
                 )
             }
 
-            // sentence-starttime: HH:MM:SS 格式（参考得到大脑）
-            Text(
-                text = TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs),
-                color = if (isPlaying) playingColor else normalMetaColor,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            // sentence-starttime + 播放跳转按钮（参考得到大脑：时间码右侧有 ▶ 可点击跳转）
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs),
+                    color = if (isPlaying) playingColor else normalMetaColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                // ▶ 播放跳转按钮 — 点击跳转到该段起始位置并播放
+                Surface(
+                    shape = CircleShape,
+                    color = if (isPlaying) AccentPurple.copy(alpha = 0.12f) else Color.Transparent,
+                    onClick = onClick,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "跳转到 ${TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs)}",
+                        tint = if (isPlaying) playingColor else normalMetaColor.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp).padding(2.dp),
+                    )
+                }
+            }
         }
 
         // sentence-content: 左缩进对齐到内容区（参考得到大脑 padding-left: calc(22px+10px)）
@@ -930,7 +1012,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.heightIn(max = 500.dp),
+        modifier = Modifier.fillMaxSize(),
     ) {
         // 📑 录音信息
         item {
@@ -1115,7 +1197,7 @@ private fun AdditionalNotesContent(
             // 笔记列表 + 输入区
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.heightIn(max = 500.dp),
+                modifier = Modifier.fillMaxSize(),
             ) {
                 // 已有笔记条目
                 itemsIndexed(notes) { index, note ->
@@ -1551,4 +1633,97 @@ private suspend fun transcribeWithPostProcessor(
         DebugLog.e("MeetingRecord", "管线转录失败: ${e.message}", e)
         MeetingTranscriptResult(error = "转录失败: ${e.message}")
     }
+}
+
+// ================================================================
+// 下载 / 分享 辅助函数
+// ================================================================
+
+/**
+ * 将录音文件下载到系统 Downloads 目录。
+ *
+ * 使用 MediaStore API (API 29+) 确保文件在系统"下载"应用中可见，
+ * 兼容 scoped storage 限制。
+ */
+private suspend fun downloadToDownloads(
+    context: android.content.Context,
+    sourceFile: File,
+    snackbar: SnackbarHostState,
+) {
+    withContext(Dispatchers.IO) {
+        try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+
+            // 文件名：会议录音_YYYYMMDD_HHmmss.wav
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val destName = "Opedrgent_${timestamp}.wav"
+            val destFile = File(downloadsDir, destName)
+
+            sourceFile.copyTo(destFile, overwrite = true)
+
+            // 通过 MediaStore 扫描让文件管理器立即可见（API < 29 兼容）
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                val intent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
+                intent.data = android.net.Uri.fromFile(destFile)
+                context.sendBroadcast(intent)
+            }
+
+            val sizeKB = destFile.length() / 1024
+            DebugLog.i("MeetingRecord", "音频已下载到: ${destFile.absolutePath} (${sizeKB}KB)")
+            snackbar.showSnackbar("已保存到 Download/$destName")
+        } catch (e: SecurityException) {
+            DebugLog.w("MeetingRecord", "下载失败(权限): ${e.message}")
+            snackbar.showSnackbar("下载失败: 请授予存储权限")
+        } catch (e: Exception) {
+            DebugLog.e("MeetingRecord", "下载失败: ${e.message}", e)
+            snackbar.showSnackbar("下载失败: ${e.message}")
+        }
+    }
+}
+
+/**
+ * 分享音频文件 + 转录文本。
+ *
+ * 优先分享 WAV 文件（附带文本作为额外信息），
+ * 如果文件不存在则降级为纯文本分享。
+ */
+private fun shareAudioFile(
+    context: android.content.Context,
+    audioFile: File,
+    transcriptText: String,
+) {
+    try {
+        val shareUri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            audioFile,
+        )
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "audio/wav"
+            putExtra(android.content.Intent.EXTRA_STREAM, shareUri)
+            putExtra(android.content.Intent.EXTRA_TEXT, "[Opedrgent 会议录音]\n\n$transcriptText")
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(
+            android.content.Intent.createChooser(intent, "分享会议录音")
+        )
+    } catch (e: Exception) {
+        // FileProvider 未配置或 URI 异常，降级为纯文本
+        shareTextOnly(context, transcriptText)
+    }
+}
+
+/**
+ * 纯文本分享（无音频文件的降级方案）。
+ */
+private fun shareTextOnly(context: android.content.Context, text: String) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_TEXT, "[Opedrgent 会议转录]\n\n$text")
+    }
+    context.startActivity(
+        android.content.Intent.createChooser(intent, "分享转录文本")
+    )
 }

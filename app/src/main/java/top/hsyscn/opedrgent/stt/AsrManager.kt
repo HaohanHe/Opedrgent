@@ -291,40 +291,46 @@ class AsrManager(
 
     /**
      * 创建本地 Sherpa-ONNX 引擎。
+     * 按优先级遍历所有已下载的模型，找到第一个可用的。
      *
      * @return 本地引擎实例
-     * @throws IllegalStateException 如果模型未下载或初始化失败
+     * @throws IllegalStateException 如果没有任何模型已下载
      */
     private fun createLocalEngine(): SpeechEngine {
-        val recommendedModel = ModelManager.getRecommendedModel(context)
-        val modelDir = ModelManager.getModelPath(context, recommendedModel)
-        
-        DebugLog.i(
-            TAG,
-            "创建 Sherpa-ONNX 引擎: model=$recommendedModel, " +
-            "dir=${modelDir?.absolutePath}, " +
-            "已下载=${modelDir != null && ModelManager.isModelDownloaded(context, recommendedModel)}"
+        // 按优先级遍历：推荐模型优先，然后是其他已下载的模型
+        val recommended = ModelManager.getRecommendedModel(context)
+        val allModels = listOf(recommended) + ModelManager.AVAILABLE_MODELS
+            .map { it.type }
+            .filter { it != recommended }
+
+        for (modelType in allModels) {
+            val modelDir = ModelManager.getModelPath(context, modelType)
+            val downloaded = modelDir != null && ModelManager.isModelDownloaded(context, modelType)
+
+            DebugLog.i(TAG, "尝试模型 $modelType: dir=${modelDir?.absolutePath}, 已下载=$downloaded")
+
+            if (!downloaded || modelDir == null) continue
+
+            val engine = SherpaOnnxEngine(context, SttConfig(modelType = modelType))
+            if (engine.initialize(modelDir)) {
+                DebugLog.i(TAG, "Sherpa-ONNX 引擎创建成功 (model=$modelType)")
+                return engine
+            } else {
+                DebugLog.w(TAG, "模型 $modelType 初始化失败，尝试下一个")
+            }
+        }
+
+        // 所有模型都失败了
+        val availableModels = ModelManager.AVAILABLE_MODELS.filter {
+            ModelManager.isModelDownloaded(context, it.type)
+        }.joinToString { it.modelName }
+
+        throw IllegalStateException(
+            if (availableModels.isEmpty()) {
+                "语音识别模型未下载。\n请在设置页下载模型后重试。"
+            } else {
+                "已下载的模型均初始化失败。\n已下载: $availableModels"
+            }
         )
-
-        // 检查模型是否已下载
-        if (modelDir == null || !ModelManager.isModelDownloaded(context, recommendedModel)) {
-            throw IllegalStateException(
-                "语音识别模型未下载（推荐模型: $recommendedModel）。\n" +
-                "请在设置页下载模型后重试。\n" +
-                "当前设备 RAM 可支持的模型: ${recommendedModel.name}"
-            )
-        }
-
-        // 创建并初始化引擎
-        val engine = SherpaOnnxEngine(context, SttConfig(modelType = recommendedModel))
-        if (!engine.initialize(modelDir)) {
-            throw IllegalStateException(
-                "Sherpa-ONNX 引擎初始化失败（模型: $recommendedModel）。\n" +
-                "可能原因：模型文件损坏、存储空间不足或设备不兼容。"
-            )
-        }
-
-        DebugLog.i(TAG, "Sherpa-ONNX 引擎创建成功 (model=$recommendedModel)")
-        return engine
     }
 }

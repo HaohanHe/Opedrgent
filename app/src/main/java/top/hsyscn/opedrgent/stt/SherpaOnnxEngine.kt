@@ -5,11 +5,13 @@ import android.net.Uri
 import com.k2fsa.sherpa.onnx.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
@@ -32,22 +34,21 @@ class SherpaOnnxEngine(
         private const val TAG = "SherpaOnnxEngine"
         private const val TARGET_SAMPLE_RATE = 16000
         private const val DEFAULT_SEGMENT_SAMPLES = TARGET_SAMPLE_RATE * 30 // 30秒
-        private const val STREAMING_CHUNK_MS = 200L       // 每 200ms 喂入一次音频
+        private const val STREAMING_CHUNK_MS = 200L       // 后台轮询间隔
         private const val WAV_HEADER_SIZE = 44
+
+        // 伪流式分段参数
+        private const val MIN_CHUNK_MS = 1500L            // 最少累积 1.5 秒才识别
+        private const val MAX_CHUNK_MS = 4000L            // 超过 4 秒强制提交
+        private const val CHUNK_OVERLAP_MS = 200L         // 段间重叠 200ms 避免断词
 
         /**
          * 检测最佳推理后端。
-         * 优先级: NNAPI (NPU/GPU) > XNNPACK (CPU优化) > CPU
+         * sherpa-onnx 的 CPU (XNNPACK) 后端在大多数 Android 设备上是最稳定且快速的选项。
+         * NNAPI 在很多设备上有兼容性问题或反而更慢，因此默认使用 CPU。
          */
         fun resolveBestProvider(): Pair<String, String> {
-            // Android 8.1+ (API 27) 支持 NNAPI
-            return try {
-                // 尝试创建 NNAPI provider（如果设备支持）
-                Pair("nnapi", "nnapi")
-            } catch (_: Exception) {
-                // 回退到 XNNPACK（比纯 CPU 快 2-5x）
-                Pair("xnnpack", "cpu")
-            }
+            return Pair("cpu", "cpu")
         }
     }
 
@@ -58,15 +59,18 @@ class SherpaOnnxEngine(
     private var currentModelDir: File? = null
 
     // ==================== 伪流式识别状态 ====================
-    /** 累积音频缓冲区（用于伪流式识别） */
+    /** 待识别的音频缓冲区（线程安全访问） */
     @Volatile
-    private var streamingBuffer = FloatArray(0)
-    /** 上次识别结果文本（用于去重） */
+    private var pendingBuffer = FloatArray(0)
+    /** 已确认的文本（分段提交后追加，不再变化） */
     @Volatile
-    private var lastRecognizedText = ""
+    private var confirmedText = StringBuilder()
     /** 流式识别结果通道（由 startStreamingRecognition 创建） */
     @Volatile
     private var streamingChannel: kotlinx.coroutines.channels.SendChannel<StreamingRecognitionState>? = null
+    /** 后台识别协程 */
+    @Volatile
+    private var streamingJob: Job? = null
 
     override val engineType = EngineType.SHERPA_ONNX
 
@@ -94,9 +98,12 @@ class SherpaOnnxEngine(
             val (provider, deviceType) = resolveBestProvider()
             DebugLog.i(TAG, "推理后端: provider=$provider device=$deviceType")
 
-            // 创建离线识别器（文件转录用）
+            // 创建离线识别器
+            // 注意：模型文件在磁盘绝对路径上，必须传 null 给 assetManager
+            // 否则 sherpa-onnx 会尝试用 AAssetManager 打开磁盘文件 → 崩溃
+            // 参考: https://github.com/k2-fsa/sherpa-onnx/issues/2562
             val offlineConfig = buildOfflineRecognizerConfig(modelDir, numThreads, provider, deviceType)
-            offlineRecognizer = OfflineRecognizer(context.assets, offlineConfig)
+            offlineRecognizer = OfflineRecognizer(null, offlineConfig)
 
             currentModelDir = modelDir
             _isInitialized.set(true)
@@ -208,14 +215,12 @@ class SherpaOnnxEngine(
     /**
      * 启动伪流式识别（实时语音输入）。
      *
-     * 使用 OfflineRecognizer 实现增量识别：
-     * - 外部通过 [feedAudioData] 持续喂入音频采样点
-     * - 每收到音频就累积到缓冲区，达到阈值时触发离线识别
-     * - 对比上次结果，只发送变化部分（去重）
-     * - 停止时输出最终结果
-     *
-     * 这种方案兼容所有离线模型（Paraformer/SenseVoice/FunASR），
-     * 用户体验接近真正的流式识别（边说边出文字）。
+     * 采用分段提交策略：
+     * - 外部通过 [feedAudioData] 持续喂入音频采样点（非阻塞，仅追加到缓冲区）
+     * - 后台协程定期检查缓冲区，满足条件时取一段音频做离线识别
+     * - 识别结果追加到 confirmedText，文本只增长不回退（不闪烁）
+     * - 超过 MAX_CHUNK_MS 时强制提交当前段，避免缓冲区无限增长
+     * - 停止时识别剩余音频，输出最终结果
      */
     override fun startStreamingRecognition(): Flow<StreamingRecognitionState> {
         return callbackFlow {
@@ -226,16 +231,81 @@ class SherpaOnnxEngine(
             }
 
             // 重置流式状态
-            streamingBuffer = FloatArray(0)
-            lastRecognizedText = ""
+            pendingBuffer = FloatArray(0)
+            confirmedText = StringBuilder()
             streamingActive.set(true)
             streamingChannel = this
 
             trySend(StreamingRecognitionState.Listening)
-            DebugLog.i(TAG, "伪流式识别已启动 (chunk=${STREAMING_CHUNK_MS}ms)")
+            DebugLog.i(TAG, "伪流式识别已启动 (minChunk=${MIN_CHUNK_MS}ms, maxChunk=${MAX_CHUNK_MS}ms)")
+
+            // 启动后台识别协程
+            streamingJob = launch(Dispatchers.IO) {
+                try {
+                    while (isActive && streamingActive.get()) {
+                        delay(STREAMING_CHUNK_MS)
+
+                        val buffer = pendingBuffer
+                        val bufferMs = buffer.size.toLong() * 1000L / TARGET_SAMPLE_RATE
+
+                        if (bufferMs < MIN_CHUNK_MS) continue
+
+                        // 取出缓冲区进行识别
+                        val chunkToRecognize = pendingBuffer
+                        pendingBuffer = FloatArray(0)
+
+                        // 识别当前段
+                        val chunkText = decodeSegment(offlineRecognizer!!, chunkToRecognize).trim()
+
+                        if (chunkText.isNotEmpty()) {
+                            if (confirmedText.isNotEmpty()) {
+                                confirmedText.append(" ")
+                            }
+                            confirmedText.append(chunkText)
+                            val displayText = vocabularyStore.applyVocabulary(confirmedText.toString())
+                            trySend(StreamingRecognitionState.Recognizing(displayText))
+                            DebugLog.d(TAG, "分段识别(${bufferMs}ms): ${chunkText.take(40)} → 累计${confirmedText.length}字")
+                        }
+                    }
+
+                    // 会话结束：识别剩余缓冲区
+                    val remaining = pendingBuffer
+                    if (remaining.isNotEmpty()) {
+                        val remainingText = decodeSegment(offlineRecognizer!!, remaining).trim()
+                        if (remainingText.isNotEmpty()) {
+                            if (confirmedText.isNotEmpty()) {
+                                confirmedText.append(" ")
+                            }
+                            confirmedText.append(remainingText)
+                        }
+                    }
+
+                    val finalText = vocabularyStore.applyVocabulary(confirmedText.toString().trim())
+                    if (finalText.isNotEmpty()) {
+                        trySend(StreamingRecognitionState.FinalResult(finalText))
+                        DebugLog.i(TAG, "伪流式最终结果: ${finalText.length}字")
+                    } else {
+                        trySend(StreamingRecognitionState.Stopped)
+                    }
+                } catch (e: CancellationException) {
+                    DebugLog.i(TAG, "流式识别被取消")
+                    val partial = vocabularyStore.applyVocabulary(confirmedText.toString().trim())
+                    if (partial.isNotEmpty()) {
+                        trySend(StreamingRecognitionState.FinalResult(partial))
+                    } else {
+                        trySend(StreamingRecognitionState.Stopped)
+                    }
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "流式识别异常: ${e.message}", e)
+                    trySend(StreamingRecognitionState.Error("流式识别错误: ${e.message}"))
+                } finally {
+                    streamingActive.set(false)
+                }
+            }
 
             awaitClose {
                 streamingActive.set(false)
+                streamingJob?.cancel()
                 streamingChannel = null
                 DebugLog.i(TAG, "伪流式识别 Flow 已关闭")
             }
@@ -245,87 +315,23 @@ class SherpaOnnxEngine(
     /**
      * 喂入音频数据到流式识别缓冲区。
      *
-     * 外部录音模块每采集一批采样点就调用此方法。
+     * 非阻塞：仅将音频追加到缓冲区，识别由后台协程定期执行。
      * 音频格式要求：16kHz, mono, float32 [-1.0, 1.0]
-     *
-     * 当累积音频达到 [STREAMING_CHUNK_MS] 的整数倍时，自动触发一次识别。
      */
     fun feedAudioData(samples: FloatArray) {
         if (!streamingActive.get() || samples.isEmpty()) return
 
-        // 追加到缓冲区
-        val oldBuffer = streamingBuffer
-        val newBuffer = FloatArray(oldBuffer.size + samples.size)
-        System.arraycopy(oldBuffer, 0, newBuffer, 0, oldBuffer.size)
-        System.arraycopy(samples, 0, newBuffer, oldBuffer.size, samples.size)
-        streamingBuffer = newBuffer
-
-        // 计算缓冲区时长（毫秒）
-        val bufferDurationMs = (newBuffer.size.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-
-        // 每累积 STREAMING_CHUNK_MS 的整数倍时触发识别
-        val chunkSamples = (TARGET_SAMPLE_RATE * STREAMING_CHUNK_MS / 1000).toInt()
-        if (newBuffer.size >= chunkSamples) {
-            triggerIncrementalRecognition(newBuffer, bufferDurationMs)
-        }
-    }
-
-    /**
-     * 触发增量识别：对累积缓冲区执行离线识别，与上次结果对比后发送变化部分。
-     */
-    private fun triggerIncrementalRecognition(buffer: FloatArray, bufferDurationMs: Long) {
-        val recognizer = offlineRecognizer ?: return
-        val channel = streamingChannel ?: return
-
-        try {
-            val currentText = decodeSegment(recognizer, buffer).trim()
-
-            if (currentText.isNotEmpty() && currentText != lastRecognizedText) {
-                lastRecognizedText = currentText
-                channel.trySend(StreamingRecognitionState.Recognizing(currentText))
-                DebugLog.d(TAG, "伪流式中间结果: ${currentText.takeLast(40)} (${bufferDurationMs}ms)")
-            }
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "增量识别异常: ${e.message}")
-        }
-    }
-
-    /**
-     * 标记流式识别结束，触发最终结果。
-     * 外部录音模块停止录音后调用。
-     */
-    fun finishStreaming() {
-        if (!streamingActive.compareAndSet(true, false)) return
-
-        val channel = streamingChannel ?: return
-        val buffer = streamingBuffer
-
-        if (buffer.isNotEmpty()) {
-            try {
-                val recognizer = offlineRecognizer
-                if (recognizer != null) {
-                    val finalText = vocabularyStore.applyVocabulary(decodeSegment(recognizer, buffer).trim())
-                    if (finalText.isNotEmpty()) {
-                        channel.trySend(StreamingRecognitionState.FinalResult(finalText))
-                        DebugLog.i(TAG, "伪流式最终结果: ${finalText.length}字")
-                    }
-                }
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "最终识别异常: ${e.message}", e)
-            }
-        }
-
-        channel.trySend(StreamingRecognitionState.Stopped)
-
-        // 清理
-        streamingBuffer = FloatArray(0)
-        lastRecognizedText = ""
-        streamingChannel = null
+        val old = pendingBuffer
+        val newBuffer = FloatArray(old.size + samples.size)
+        System.arraycopy(old, 0, newBuffer, 0, old.size)
+        System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
+        pendingBuffer = newBuffer
     }
 
     override fun stopStreamingRecognition() {
         DebugLog.i(TAG, "停止流式识别信号已发送")
-        finishStreaming()
+        // 设置标志位，后台协程会在下一次轮询时退出并输出最终结果
+        streamingActive.set(false)
     }
 
     override fun close() {
@@ -667,6 +673,9 @@ class SherpaOnnxEngine(
             ModelType.SENSE_VOICE_SMALL -> buildSenseVoiceModelConfig(modelDir)
             ModelType.FUNASR_NANO_INT8 -> buildFunasrNanoModelConfig(modelDir)
         }
+        // 将线程数和推理后端传入配置（之前漏掉了，导致始终用默认值 1 线程 + cpu）
+        modelConfig.numThreads = numThreads
+        modelConfig.provider = provider
 
         return OfflineRecognizerConfig(
             featConfig = featConfig,
@@ -688,7 +697,7 @@ class SherpaOnnxEngine(
 
     private fun buildSenseVoiceModelConfig(modelDir: File): OfflineModelConfig {
         val modelFile = findModelFile(modelDir, "model.onnx", "model.int8.onnx")
-        val tokensFile = findModelFile(modelDir, "tokens.txt", "tokens", "lang.txt", "itn.tokens")
+        val tokensFile = findModelFile(modelDir, "tokens.txt", "tokens.json", "tokens")
 
         DebugLog.d(TAG, "SenseVoice 模型配置: model=$modelFile tokens=$tokensFile")
 
