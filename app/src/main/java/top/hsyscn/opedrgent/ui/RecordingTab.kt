@@ -132,6 +132,7 @@ import top.hsyscn.opedrgent.storage.NotificationHelper
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.service.FloatingWindowService
 import top.hsyscn.opedrgent.service.MediaProjectionService
+import top.hsyscn.opedrgent.service.RecordingForegroundService
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.FileOutputStream
@@ -141,6 +142,7 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 
 private val CoralRed = Color(0xFFFF5A5A)
 private val CoralLight = Color(0xFFFFEAEA)
@@ -221,13 +223,39 @@ fun RecordingTab(
         }
     }
 
+    // STT 进度状态（导入音视频转录）
+    val sttProgress by vm.sttProgress.collectAsState()
+    val sttUiState by vm.sttUiState.collectAsState()
+    var isImportingAudio by remember { mutableStateOf(false) }
+
     // 导入音视频文件选择器
     val importAudioVideoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: Exception) {}
+            isImportingAudio = true
             vm.startSpeechToText(uri)
+        }
+    }
+
+    // STT 完成/错误反馈
+    LaunchedEffect(sttProgress) {
+        when (sttProgress) {
+            SttProgressState.DONE -> {
+                if (isImportingAudio) {
+                    isImportingAudio = false
+                    snackbar.showSnackbar("转录完成")
+                }
+            }
+            SttProgressState.ERROR -> {
+                if (isImportingAudio) {
+                    isImportingAudio = false
+                    val errorMsg = vm.sttError.value
+                    snackbar.showSnackbar(errorMsg ?: "转录失败")
+                }
+            }
+            else -> {}
         }
     }
 
@@ -255,6 +283,7 @@ fun RecordingTab(
         }
     }
 
+    var showOverlayPermissionDialog by remember { mutableStateOf(false) }
     var recordingState by remember { mutableStateOf<RecordingState?>(null) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var amplitude by remember { mutableFloatStateOf(0f) }
@@ -296,6 +325,7 @@ fun RecordingTab(
             systemAudioRecorder = null
             recordingState = RecordingState.PROCESSING
             FloatingWindowService.stop(context)
+            RecordingForegroundService.stop(context)
         }
         onDispose {
             FloatingWindowService.onPauseResume = null
@@ -328,6 +358,7 @@ fun RecordingTab(
     val startRecordingPipeline: (AudioRecord) -> Unit = { recorder ->
         recordingState = RecordingState.RECORDING
         elapsedSeconds = 0
+        RecordingForegroundService.start(context, recordingMode.label)
         amplitude = 0f
         transcriptResult = null
         savedToNote = false
@@ -445,10 +476,12 @@ fun RecordingTab(
             while (isActive) {
                 delay(1000)
                 elapsedSeconds++
-                // 同步到悬浮窗
+                // 同步到悬浮窗和通知
                 val m = elapsedSeconds / 60
                 val s = elapsedSeconds % 60
-                FloatingWindowService.updateTimer("%02d:%02d".format(m, s))
+                val timerText = "%02d:%02d".format(m, s)
+                FloatingWindowService.updateTimer(timerText)
+                RecordingForegroundService.updateTimer(context, timerText)
             }
         }
     }
@@ -468,6 +501,9 @@ fun RecordingTab(
             } catch (_: Exception) {}
             try {
                 FloatingWindowService.stop(context)
+            } catch (_: Exception) {}
+            try {
+                RecordingForegroundService.stop(context)
             } catch (_: Exception) {}
             MediaProjectionService.stop(context)
         }
@@ -513,6 +549,35 @@ fun RecordingTab(
         )
     }
 
+    // 悬浮窗权限请求对话框
+    if (showOverlayPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showOverlayPermissionDialog = false },
+            title = { Text("需要悬浮窗权限") },
+            text = {
+                Text(
+                    text = "内录模式需要悬浮窗权限来显示录制控制面板，以便在切换到其他应用时控制录制。\n\n是否前往设置开启？",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showOverlayPermissionDialog = false
+                    try {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                }) { Text("前往设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOverlayPermissionDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbar) },
         containerColor = themeBgGray(),
@@ -542,6 +607,7 @@ fun RecordingTab(
                             try {
                                 FloatingWindowService.stop(context)
                                 MediaProjectionService.stop(context)
+                                RecordingForegroundService.stop(context)
                             } catch (_: Exception) {}
                             try {
                                 audioRecord.value?.stop()
@@ -656,6 +722,7 @@ fun RecordingTab(
                         },
                         onCancel = {
                             recordingState = null
+                            RecordingForegroundService.stop(context)
                             try {
                                 audioRecord.value?.stop()
                                 audioRecord.value?.release()
@@ -795,16 +862,7 @@ fun RecordingTab(
                                     } else {
                                         // 检查悬浮窗权限
                                         if (!Settings.canDrawOverlays(context)) {
-                                            scope.launch {
-                                                snackbar.showSnackbar("请先授予悬浮窗权限")
-                                                try {
-                                                    val intent = Intent(
-                                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                        android.net.Uri.parse("package:${context.packageName}")
-                                                    )
-                                                    context.startActivity(intent)
-                                                } catch (_: Exception) {}
-                                            }
+                                            showOverlayPermissionDialog = true
                                         } else {
                                             scope.launch { snackbar.showSnackbar("请播放你要记录的视频或音频，系统将自动录制") }
                                             val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -820,6 +878,33 @@ fun RecordingTab(
                         onSttDisabled = { scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") } },
                     )
                 }
+            }
+
+            // 导入音视频转录进度对话框
+            if (isImportingAudio && sttProgress != SttProgressState.IDLE && sttProgress != SttProgressState.DONE) {
+                val downloadProg = (sttUiState as? SttUiState.DownloadingModel)?.progress
+                val phaseText = when (sttUiState) {
+                    is SttUiState.Validating -> "正在验证文件..."
+                    is SttUiState.DecodingAudio -> "正在解码音频..."
+                    is SttUiState.Recognizing -> {
+                        val r = sttUiState as SttUiState.Recognizing
+                        if (r.totalSegments > 0) "正在识别语音... ${r.currentSegment}/${r.totalSegments}"
+                        else "正在识别语音..."
+                    }
+                    else -> null
+                }
+                SttProgressDialog(
+                    progressState = sttProgress,
+                    downloadProgress = downloadProg,
+                    currentPhase = phaseText,
+                    onCancel = {
+                        vm.cancelStt()
+                        isImportingAudio = false
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Center),
+                )
             }
         }
     }
