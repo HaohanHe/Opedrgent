@@ -31,10 +31,8 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.*
 import top.hsyscn.opedrgent.service.ModelDownloadService
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
-import top.hsyscn.opedrgent.ui.theme.BgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun ModelSelectorDialog(
@@ -81,11 +79,11 @@ fun ModelSelectorDialog(
                         text = "本地模型管理",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = TextGrey)
+                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = themeTextGrey())
                     }
                 }
 
@@ -93,7 +91,7 @@ fun ModelSelectorDialog(
 
                 Text(
                     text = "选择要下载和使用的 Gemma 4 本地模型。模型将在设备上完全离线运行。",
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                 )
@@ -143,7 +141,7 @@ fun ModelSelectorDialog(
                 val usedSpace = remember { downloadManager.getTotalUsedSpaceMb() }
                 Text(
                     text = "已使用空间: ${usedSpace} MB | 数据存储于应用私有目录",
-                    color = TextGrey.copy(alpha = 0.7f),
+                    color = themeTextGrey().copy(alpha = 0.7f),
                     fontSize = 11.sp,
                 )
 
@@ -245,13 +243,13 @@ private fun ModelCard(
                         text = modelInfo.displayName,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = modelInfo.description,
                         fontSize = 12.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -270,13 +268,13 @@ private fun ModelCard(
                 Icon(
                     Icons.Default.Storage,
                     contentDescription = null,
-                    tint = TextGrey,
+                    tint = themeTextGrey(),
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
                     text = "${modelInfo.sizeMb} MB",
                     fontSize = 12.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -356,12 +354,12 @@ private fun ModelCard(
                     Text(
                         text = "${throttledProgress!!.downloadedMb.toInt()} MB / ${throttledProgress!!.totalMb.toInt()} MB",
                         fontSize = 10.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                     Text(
                         text = formatSpeed(throttledProgress!!.speedBytesPerSec),
                         fontSize = 10.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                 }
             }
@@ -379,11 +377,11 @@ private fun StatusBadge(
         isLoaded -> Triple("运行中", BubbleBlue, Color.White)
         isDownloaded -> Triple("已下载", Color(0xFF4CAF50), Color.White)
         status == DownloadStatus.DOWNLOADING -> Triple("下载中", Color(0xFFFF9800), Color.White)
-        status == DownloadStatus.QUEUED -> Triple("排队中", TextGrey.copy(alpha = 0.8f), Color.White)
+        status == DownloadStatus.QUEUED -> Triple("排队中", themeTextGrey().copy(alpha = 0.8f), Color.White)
         status == DownloadStatus.PAUSED -> Triple("已暂停", Color(0xFF9E9E9E), Color.White)
-        status == DownloadStatus.CANCELLED -> Triple("已取消", TextGrey.copy(alpha = 0.6f), Color.White)
+        status == DownloadStatus.CANCELLED -> Triple("已取消", themeTextGrey().copy(alpha = 0.6f), Color.White)
         status == DownloadStatus.FAILED -> Triple("失败", Color(0xFFF44336), Color.White)
-        else -> Triple(null, Color.Transparent, TextGrey)
+        else -> Triple(null, Color.Transparent, themeTextGrey())
     }
 
     if (text != null) {

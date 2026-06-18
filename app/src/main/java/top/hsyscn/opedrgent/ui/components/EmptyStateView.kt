@@ -12,8 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun EmptyStateView(
@@ -37,7 +37,7 @@ fun EmptyStateView(
         Text(
             text = title,
             fontSize = 16.sp,
-            color = TextDark,
+            color = themeTextDark(),
             fontWeight = FontWeight.Medium
         )
         if (subtitle.isNotEmpty()) {
@@ -45,7 +45,7 @@ fun EmptyStateView(
             Text(
                 text = subtitle,
                 fontSize = 13.sp,
-                color = TextGrey
+                color = themeTextGrey()
             )
         }
     }

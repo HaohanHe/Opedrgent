@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
 
 @Composable
 fun ConfirmationDialog(
@@ -98,7 +98,7 @@ fun ConfirmationDialog(
                     text = request.message,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                 )
             }

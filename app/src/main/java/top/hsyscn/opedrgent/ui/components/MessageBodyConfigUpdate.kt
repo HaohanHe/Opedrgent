@@ -25,7 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun MessageBodyConfigUpdate(
@@ -38,7 +38,7 @@ fun MessageBodyConfigUpdate(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFE8F5E9))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -64,7 +64,7 @@ fun MessageBodyConfigUpdate(
                     append(newValue)
                 }
             },
-            color = TextGrey,
+            color = themeTextGrey(),
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )

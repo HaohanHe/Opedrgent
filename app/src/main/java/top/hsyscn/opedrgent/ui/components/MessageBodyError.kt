@@ -58,7 +58,7 @@ fun MessageBodyError(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFFFEBEE))
+            .background(MaterialTheme.colorScheme.errorContainer)
             .combinedClickable(
                 onClick = { },
                 onLongClick = {
@@ -105,7 +105,7 @@ fun MessageBodyError(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFFFCDD2))
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f))
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                         .clickable { expanded = true },
                 )

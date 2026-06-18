@@ -3,12 +3,15 @@ package top.hsyscn.opedrgent.ui
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -104,6 +107,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -115,6 +119,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.stt.EngineType
 import top.hsyscn.opedrgent.stt.MeetingSegment
@@ -125,14 +130,17 @@ import top.hsyscn.opedrgent.ui.components.AudioPlayer
 import top.hsyscn.opedrgent.ui.components.RecordingState
 import top.hsyscn.opedrgent.storage.NotificationHelper
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.service.FloatingWindowService
+import top.hsyscn.opedrgent.service.MediaProjectionService
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private val CoralRed = Color(0xFFFF5A5A)
 private val CoralLight = Color(0xFFFFEAEA)
@@ -194,19 +202,32 @@ fun RecordingTab(
         hasCameraPermission = granted
     }
 
-    var pendingMediaProjection by remember { mutableStateOf<android.media.projection.MediaProjection?>(null) }
+    var pendingMediaProjection by remember { mutableStateOf<MediaProjection?>(null) }
 
     val mediaProjectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val mediaProjection = mediaProjectionManager.getMediaProjection(result.resultCode, result.data!!)
-            if (mediaProjection != null) {
-                pendingMediaProjection = mediaProjection
-            } else {
-                scope.launch { snackbar.showSnackbar("无法获取屏幕录制权限") }
+            // 通过前台服务获取 MediaProjection（Android 14+ 要求）
+            MediaProjectionService.onReady = { projection ->
+                pendingMediaProjection = projection
+                // 启动悬浮窗
+                FloatingWindowService.start(context)
             }
+            MediaProjectionService.onError = { error ->
+                scope.launch { snackbar.showSnackbar(error) }
+            }
+            MediaProjectionService.start(context, result.resultCode, result.data!!)
         } else {
             scope.launch { snackbar.showSnackbar("未获得录制权限") }
+        }
+    }
+
+    // 导入音视频文件选择器
+    val importAudioVideoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: Exception) {}
+            vm.startSpeechToText(uri)
         }
     }
 
@@ -260,6 +281,27 @@ fun RecordingTab(
     val audioRecord = remember { mutableStateOf<AudioRecord?>(null) }
     val tempFilePath = remember { mutableStateOf<String?>(null) }
     var systemAudioRecorder by remember { mutableStateOf<SystemAudioRecorder?>(null) }
+
+    // 悬浮窗回调接线
+    DisposableEffect(Unit) {
+        FloatingWindowService.onPauseResume = {
+            if (recordingState == RecordingState.RECORDING) {
+                recordingState = RecordingState.PAUSED
+            } else if (recordingState == RecordingState.PAUSED) {
+                recordingState = RecordingState.RECORDING
+            }
+        }
+        FloatingWindowService.onStop = {
+            systemAudioRecorder?.stopRecording()
+            systemAudioRecorder = null
+            recordingState = RecordingState.PROCESSING
+            FloatingWindowService.stop(context)
+        }
+        onDispose {
+            FloatingWindowService.onPauseResume = null
+            FloatingWindowService.onStop = null
+        }
+    }
 
     // 波形动画条
     var waveformBars by remember { mutableStateOf(List(24) { 0.2f }) }
@@ -403,6 +445,10 @@ fun RecordingTab(
             while (isActive) {
                 delay(1000)
                 elapsedSeconds++
+                // 同步到悬浮窗
+                val m = elapsedSeconds / 60
+                val s = elapsedSeconds % 60
+                FloatingWindowService.updateTimer("%02d:%02d".format(m, s))
             }
         }
     }
@@ -420,6 +466,10 @@ fun RecordingTab(
             try {
                 vm.asrManager.stopStreaming()
             } catch (_: Exception) {}
+            try {
+                FloatingWindowService.stop(context)
+            } catch (_: Exception) {}
+            MediaProjectionService.stop(context)
         }
     }
 
@@ -428,15 +478,15 @@ fun RecordingTab(
         var noteTitle by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            title = { Text("保存为笔记") },
+            title = { Text(stringResource(R.string.recording_save_as_note)) },
             text = {
                 Column {
-                    Text("将录音转写结果保存为笔记", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.recording_save_as_note_desc), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(12.dp))
                     androidx.compose.material3.OutlinedTextField(
                         value = noteTitle,
                         onValueChange = { noteTitle = it },
-                        label = { Text("笔记标题（可选）") },
+                        label = { Text(stringResource(R.string.recording_note_title_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
@@ -452,20 +502,20 @@ fun RecordingTab(
                             vm.createNoteFromText(title, contentWithPhotos, NoteType.MEETING, sourceUri = playbackAudioUri)
                             savedToNote = true
                             showSaveDialog = false
-                            snackbar.showSnackbar("已保存为笔记")
+                            snackbar.showSnackbar(context.getString(R.string.msg_saved_as_note))
                         }
                     }
-                }) { Text("保存") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveDialog = false }) { Text("取消") }
+                TextButton(onClick = { showSaveDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Box(
@@ -477,6 +527,7 @@ fun RecordingTab(
                 // ==================== 录音中 / 暂停 ====================
                 recordingState == RecordingState.RECORDING || recordingState == RecordingState.PAUSED -> {
                     RecordingScreen(
+                        vm = vm,
                         mode = recordingMode,
                         state = recordingState!!,
                         elapsedSeconds = elapsedSeconds,
@@ -488,6 +539,10 @@ fun RecordingTab(
                         onDone = {
                             recordingState = RecordingState.PROCESSING
                             isProcessing = true
+                            try {
+                                FloatingWindowService.stop(context)
+                                MediaProjectionService.stop(context)
+                            } catch (_: Exception) {}
                             try {
                                 audioRecord.value?.stop()
                                 audioRecord.value?.release()
@@ -618,6 +673,7 @@ fun RecordingTab(
                             }
                             capturedPhotos = emptyList()
                         },
+                        snackbarHostState = snackbar,
                     )
                 }
 
@@ -635,11 +691,11 @@ fun RecordingTab(
                     ) {
                         // 顶部标题
                         Text(
-                            text = "录音",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
-                        )
+                        text = stringResource(R.string.recording_title),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
+                    )
 
                         // 模式标签
                         Row(
@@ -656,7 +712,7 @@ fun RecordingTab(
                             Text(
                                 text = recordingMode.label,
                                 fontSize = 14.sp,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
 
@@ -692,7 +748,7 @@ fun RecordingTab(
                                             append(result.fullText)
                                         }
                                         vm.sendUserMessage(structuredPrompt)
-                                        scope.launch { snackbar.showSnackbar("已发送给 AI 总结") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_sent_to_ai)) }
                                     },
                                     onDiscardAutoSave = {
                                         scope.launch {
@@ -700,7 +756,7 @@ fun RecordingTab(
                                             autoSaved = false
                                             autoSavedNoteId = 0L
                                             savedToNote = false
-                                            snackbar.showSnackbar("已撤销保存")
+                                            snackbar.showSnackbar(context.getString(R.string.msg_save_undone))
                                         }
                                     },
                                     onContinueRecording = {
@@ -728,6 +784,7 @@ fun RecordingTab(
                 // ==================== 空闲状态：模式选择 ====================
                 else -> {
                     IdleModeSelection(
+                        vm = vm,
                         selectedMode = recordingMode,
                         onModeSelected = { recordingMode = it },
                         onStartRecording = {
@@ -736,14 +793,31 @@ fun RecordingTab(
                                     if (Build.VERSION.SDK_INT < 29) {
                                         scope.launch { snackbar.showSnackbar("需要 Android 10+") }
                                     } else {
-                                        scope.launch { snackbar.showSnackbar("请播放你要记录的视频或音频，系统将自动录制") }
-                                        val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                        mediaProjectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+                                        // 检查悬浮窗权限
+                                        if (!Settings.canDrawOverlays(context)) {
+                                            scope.launch {
+                                                snackbar.showSnackbar("请先授予悬浮窗权限")
+                                                try {
+                                                    val intent = Intent(
+                                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                        android.net.Uri.parse("package:${context.packageName}")
+                                                    )
+                                                    context.startActivity(intent)
+                                                } catch (_: Exception) {}
+                                            }
+                                        } else {
+                                            scope.launch { snackbar.showSnackbar("请播放你要记录的视频或音频，系统将自动录制") }
+                                            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                            mediaProjectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+                                        }
                                     }
                                 }
                                 else -> startRecording()
                             }
                         },
+                        onImportAudioVideo = { importAudioVideoLauncher.launch(arrayOf("audio/*", "video/*")) },
+                        isSttEnabled = vm.isSttEnabled(),
+                        onSttDisabled = { scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") } },
                     )
                 }
             }
@@ -755,9 +829,13 @@ fun RecordingTab(
 
 @Composable
 private fun IdleModeSelection(
+    vm: MainViewModel,
     selectedMode: RecordingMode,
     onModeSelected: (RecordingMode) -> Unit,
     onStartRecording: () -> Unit,
+    onImportAudioVideo: () -> Unit,
+    isSttEnabled: Boolean,
+    onSttDisabled: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -767,29 +845,31 @@ private fun IdleModeSelection(
     ) {
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "选择录音模式",
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-            color = TextDark,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "根据场景选择合适的录音方式",
-            fontSize = 14.sp,
-            color = TextGrey,
-        )
+                        text = stringResource(R.string.recording_select_mode),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        color = themeTextDark(),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.recording_select_mode_desc),
+                        fontSize = 14.sp,
+                        color = themeTextGrey(),
+                    )
         Spacer(Modifier.height(20.dp))
 
         // 2x2 模式卡片网格
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModeCard(
+                    vm = vm,
                     mode = RecordingMode.VOICE_MEMO,
                     isSelected = selectedMode == RecordingMode.VOICE_MEMO,
                     onClick = { onModeSelected(RecordingMode.VOICE_MEMO) },
                     modifier = Modifier.weight(1f),
                 )
                 ModeCard(
+                    vm = vm,
                     mode = RecordingMode.MEETING,
                     isSelected = selectedMode == RecordingMode.MEETING,
                     onClick = { onModeSelected(RecordingMode.MEETING) },
@@ -798,12 +878,14 @@ private fun IdleModeSelection(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModeCard(
+                    vm = vm,
                     mode = RecordingMode.INTERNAL,
                     isSelected = selectedMode == RecordingMode.INTERNAL,
                     onClick = { onModeSelected(RecordingMode.INTERNAL) },
                     modifier = Modifier.weight(1f),
                 )
                 ModeCard(
+                    vm = vm,
                     mode = RecordingMode.CLASSROOM,
                     isSelected = selectedMode == RecordingMode.CLASSROOM,
                     onClick = { onModeSelected(RecordingMode.CLASSROOM) },
@@ -820,9 +902,9 @@ private fun IdleModeSelection(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "最长可录 ${selectedMode.maxHours} 小时",
+                text = run { val h = vm.getRecordingMaxHours(selectedMode.name); if (h == 0) "最长可录 无限制" else "最长可录 ${h}小时" },
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             Box(
@@ -834,25 +916,42 @@ private fun IdleModeSelection(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "开始录音",
-                    tint = Color.White,
-                    modifier = Modifier.size(36.dp),
-                )
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = stringResource(R.string.cd_start_recording),
+                        tint = Color.White,
+                        modifier = Modifier.size(36.dp),
+                    )
             }
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "点击开始录音",
                 fontSize = 14.sp,
-                color = TextGrey,
-                modifier = Modifier.padding(bottom = 32.dp),
+                color = themeTextGrey(),
+                modifier = Modifier.padding(bottom = 8.dp),
             )
+
+            // 导入音视频按钮
+            OutlinedButton(
+                onClick = {
+                    if (isSttEnabled) {
+                        onImportAudioVideo()
+                    } else {
+                        onSttDisabled()
+                    }
+                },
+                modifier = Modifier.padding(bottom = 32.dp),
+            ) {
+                Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("导入音视频", fontSize = 14.sp)
+            }
         }
     }
 }
 
 @Composable
 private fun ModeCard(
+    vm: MainViewModel,
     mode: RecordingMode,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -878,7 +977,7 @@ private fun ModeCard(
             Icon(
                 imageVector = mode.icon,
                 contentDescription = null,
-                tint = if (isSelected) CoralRed else TextGrey,
+                tint = if (isSelected) CoralRed else themeTextGrey(),
                 modifier = Modifier.size(28.dp),
             )
             Column {
@@ -886,13 +985,13 @@ private fun ModeCard(
                     text = mode.label,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "${mode.maxHours}h",
+                    text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "无限制" else "${h}小时" },
                     fontSize = 12.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
         }
@@ -901,6 +1000,7 @@ private fun ModeCard(
 
 @Composable
 private fun RecordingScreen(
+    vm: MainViewModel,
     mode: RecordingMode,
     state: RecordingState,
     elapsedSeconds: Int,
@@ -912,7 +1012,11 @@ private fun RecordingScreen(
     onDone: () -> Unit,
     onTakePhoto: () -> Unit,
     onCancel: () -> Unit,
+    snackbarHostState: SnackbarHostState,
 ) {
+    val context = LocalContext.current
+    var bookmarks by remember { mutableStateOf<List<Long>>(emptyList()) }
+    val scope = rememberCoroutineScope()
     val timeText = remember(elapsedSeconds) {
         val m = elapsedSeconds / 60
         val s = elapsedSeconds % 60
@@ -943,13 +1047,13 @@ private fun RecordingScreen(
                 Text(
                     text = mode.label,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
             }
             Text(
-                text = "最长 ${mode.maxHours} 小时",
+                text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "最长 无限制" else "最长 ${h}小时" },
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
 
@@ -959,7 +1063,7 @@ private fun RecordingScreen(
                 .weight(1f)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
             Box(
@@ -969,14 +1073,14 @@ private fun RecordingScreen(
             ) {
                 if (streamingText.isBlank()) {
                     val hintText = if (mode == RecordingMode.INTERNAL) {
-                        "正在录制系统音频，请播放你要记录的内容..."
+                        stringResource(R.string.recording_system_audio_hint)
                     } else {
-                        "正在聆听，请开始说话..."
+                        stringResource(R.string.recording_listening_hint)
                     }
                     Text(
                         text = hintText,
                         fontSize = 18.sp,
-                        color = TextGrey.copy(alpha = 0.5f),
+                        color = themeTextGrey().copy(alpha = 0.5f),
                         lineHeight = (18 * 1.8).sp,
                         modifier = Modifier.align(Alignment.Center),
                     )
@@ -989,7 +1093,7 @@ private fun RecordingScreen(
                         Text(
                             text = streamingText,
                             fontSize = 18.sp,
-                            color = TextDark,
+                            color = themeTextDark(),
                             lineHeight = (18 * 1.8).sp,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -1009,7 +1113,7 @@ private fun RecordingScreen(
                 text = timeText,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(Modifier.height(8.dp))
             WaveformBars(bars = waveformBars, color = CoralRed)
@@ -1029,17 +1133,17 @@ private fun RecordingScreen(
                     onClick = onCancel,
                     modifier = Modifier
                         .size(48.dp)
-                        .background(Color(0xFFF5F5F5), CircleShape),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消",
-                        tint = TextGrey,
+                        contentDescription = stringResource(R.string.action_cancel),
+                        tint = themeTextGrey(),
                         modifier = Modifier.size(24.dp),
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("取消", fontSize = 12.sp, color = TextGrey)
+                Text(stringResource(R.string.action_cancel), fontSize = 12.sp, color = themeTextGrey())
             }
 
             // 大圆录音/暂停按钮
@@ -1056,14 +1160,14 @@ private fun RecordingScreen(
                 if (state == RecordingState.RECORDING) {
                     Icon(
                         imageVector = Icons.Default.Pause,
-                        contentDescription = "暂停",
+                        contentDescription = stringResource(R.string.action_pause),
                         tint = Color.White,
                         modifier = Modifier.size(32.dp),
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "继续",
+                        contentDescription = stringResource(R.string.action_resume),
                         tint = Color.White,
                         modifier = Modifier.size(32.dp),
                     )
@@ -1076,17 +1180,17 @@ private fun RecordingScreen(
                     onClick = onDone,
                     modifier = Modifier
                         .size(48.dp)
-                        .background(Color(0xFFF5F5F5), CircleShape),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "完成",
+                        contentDescription = stringResource(R.string.action_done),
                         tint = AccentBlue,
                         modifier = Modifier.size(24.dp),
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("完成", fontSize = 12.sp, color = TextGrey)
+                Text(stringResource(R.string.action_done), fontSize = 12.sp, color = themeTextGrey())
             }
         }
 
@@ -1100,9 +1204,20 @@ private fun RecordingScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ToolIcon(icon = Icons.Default.PhotoCamera, label = "拍照", onClick = onTakePhoto)
-            ToolIcon(icon = Icons.Default.Bookmark, label = "标记")
-            ToolIcon(icon = Icons.Default.Edit, label = "随手记")
+            ToolIcon(icon = Icons.Default.PhotoCamera, label = stringResource(R.string.recording_photo_tool), onClick = onTakePhoto)
+            ToolIcon(icon = Icons.Default.Bookmark, label = stringResource(R.string.recording_bookmark_tool), onClick = {
+                bookmarks = bookmarks + elapsedSeconds.toLong()
+                scope.launch {
+                    val m = elapsedSeconds / 60
+                    val s = elapsedSeconds % 60
+                    snackbarHostState.showSnackbar(context.getString(R.string.recording_bookmark_format, "%d:%02d".format(m, s)))
+                }
+            })
+            ToolIcon(icon = Icons.Default.Edit, label = stringResource(R.string.recording_quick_note_tool), onClick = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.msg_note_point_added))
+                }
+            })
         }
     }
 }
@@ -1116,11 +1231,11 @@ private fun ToolIcon(icon: ImageVector, label: String, onClick: (() -> Unit)? = 
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = TextGrey,
+            tint = themeTextGrey(),
             modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 11.sp, color = TextGrey)
+        Text(label, fontSize = 11.sp, color = themeTextGrey())
     }
 }
 
@@ -1188,7 +1303,7 @@ private fun SkeletonLoadingScreen() {
         Text(
             text = "生成笔记中..",
             fontSize = 14.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -1208,7 +1323,7 @@ private fun TranscriptResultCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -1224,15 +1339,15 @@ private fun TranscriptResultCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (autoSaved) "已自动保存" else "转录结果",
+                    text = if (autoSaved) stringResource(R.string.recording_auto_saved) else stringResource(R.string.recording_transcript_result),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = if (autoSaved) Color(0xFF4CAF50) else TextDark,
+                    color = if (autoSaved) Color(0xFF4CAF50) else themeTextDark(),
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "${result.segments.size} 段",
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     fontSize = 12.sp,
                 )
             }
@@ -1253,7 +1368,7 @@ private fun TranscriptResultCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "笔记已自动保存，可直接编辑或继续录音",
+                        text = stringResource(R.string.recording_auto_saved_hint),
                         fontSize = 12.sp,
                         color = Color(0xFF4CAF50),
                     )
@@ -1284,7 +1399,7 @@ private fun TranscriptResultCard(
                             "智能总结",
                             fontSize = 13.sp,
                             fontWeight = if (showSummaryTab) FontWeight.Bold else FontWeight.Normal,
-                            color = if (showSummaryTab) AccentBlue else TextGrey,
+                            color = if (showSummaryTab) AccentBlue else themeTextGrey(),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
@@ -1297,7 +1412,7 @@ private fun TranscriptResultCard(
                             "原文",
                             fontSize = 13.sp,
                             fontWeight = if (!showSummaryTab) FontWeight.Bold else FontWeight.Normal,
-                            color = if (!showSummaryTab) AccentBlue else TextGrey,
+                            color = if (!showSummaryTab) AccentBlue else themeTextGrey(),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
@@ -1309,7 +1424,7 @@ private fun TranscriptResultCard(
                     Text(
                         text = result.fullText.ifBlank { "（无识别结果）" },
                         fontSize = 14.sp,
-                        color = TextDark,
+                        color = themeTextDark(),
                         lineHeight = 22.sp,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1321,7 +1436,7 @@ private fun TranscriptResultCard(
                 Text(
                     text = result.fullText.ifBlank { "（无识别结果）" },
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     lineHeight = 22.sp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1360,7 +1475,7 @@ private fun TranscriptResultCard(
                         ) {
                             Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("编辑", fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
                         }
                     } else {
                         Button(
@@ -1371,7 +1486,7 @@ private fun TranscriptResultCard(
                         ) {
                             Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("保存笔记", fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
                         }
                     }
                 } else {
@@ -1383,7 +1498,7 @@ private fun TranscriptResultCard(
                     ) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("AI 总结", fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1397,7 +1512,7 @@ private fun TranscriptResultCard(
                         modifier = Modifier.weight(1f).height(44.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE57373)),
                     ) {
-                        Text("撤销保存", fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_undo_save), fontWeight = FontWeight.Medium)
                     }
                     OutlinedButton(
                         onClick = onContinueRecording,
@@ -1406,7 +1521,7 @@ private fun TranscriptResultCard(
                     ) {
                         Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("继续录音", fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
                     }
                 }
             } else {
@@ -1418,7 +1533,7 @@ private fun TranscriptResultCard(
                 ) {
                     Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("继续录音", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -1481,7 +1596,7 @@ private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo
                     if (meta.contentType.isNotEmpty()) append("  |  ${meta.contentType}")
                 },
                 fontSize = 12.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
         }
     }
@@ -1501,7 +1616,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
                         text = section.title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     Spacer(Modifier.height(6.dp))
                     section.content.forEach { para ->
@@ -1542,7 +1657,7 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                             text = chapter.title,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
-                            color = TextDark,
+                            color = themeTextDark(),
                         )
                         Spacer(Modifier.width(8.dp))
                         Surface(shape = RoundedCornerShape(4.dp), color = AccentBlue.copy(alpha = 0.1f)) {
@@ -1557,7 +1672,7 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                     Text(
                         text = chapter.summary,
                         fontSize = 12.sp,
-                        color = Color(0xFF666666),
+                        color = themeTextGrey(),
                         lineHeight = 18.sp,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -1620,7 +1735,7 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.TaskAlt, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("待办事项", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("待办事项", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = themeTextDark())
             }
             Spacer(Modifier.height(8.dp))
             items.forEach { item ->
@@ -1658,7 +1773,7 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
         Text(
             text = "拍摄的照片 (${photos.size}张)",
             fontSize = 13.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(8.dp))
@@ -1684,7 +1799,7 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
                     Text(
                         text = "拍摄于 %02d:%02d".format(minutes, seconds),
                         fontSize = 11.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                 }
             }

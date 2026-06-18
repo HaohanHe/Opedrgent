@@ -43,14 +43,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.VoiceprintManager
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+
+private val SherpaGreen = Color(0xFF4CAF50)
+private val StatGrey = Color(0xFF9E9E9E)
 
 @Composable
 fun VoiceprintSettingsScreen(
@@ -65,10 +70,10 @@ fun VoiceprintSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("声纹识别", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_voiceprint), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -81,7 +86,7 @@ fun VoiceprintSettingsScreen(
                 Icon(Icons.Default.Add, contentDescription = "添加声纹", tint = Color.White)
             }
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -93,7 +98,7 @@ fun VoiceprintSettingsScreen(
                 text = "已注册说话人",
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(Modifier.height(12.dp))
 
@@ -108,6 +113,8 @@ fun VoiceprintSettingsScreen(
                         SpeakerCard(
                             name = speaker.name,
                             sampleCount = speaker.samplePaths.size,
+                            embeddingType = speaker.embeddingType,
+                            embeddingDim = speaker.embeddingDim,
                             onDelete = {
                                 showDeleteDialog = speaker.id
                             },
@@ -133,12 +140,12 @@ fun VoiceprintSettingsScreen(
                         showDeleteDialog = null
                     },
                 ) {
-                    Text("删除", color = Color(0xFFE53935))
+                    Text(stringResource(R.string.action_delete), color = Color(0xFFE53935))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -149,14 +156,18 @@ fun VoiceprintSettingsScreen(
 private fun SpeakerCard(
     name: String,
     sampleCount: Int,
+    embeddingType: String = VoiceprintManager.EMBEDDING_TYPE_STATISTICAL,
+    embeddingDim: Int = VoiceprintManager.EMBEDDING_DIM,
     onDelete: () -> Unit,
 ) {
+    val isSherpa = embeddingType == VoiceprintManager.EMBEDDING_TYPE_SHERPA_ONNX
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(11.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White,
-            contentColor = TextDark,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = themeTextDark(),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
@@ -169,7 +180,7 @@ private fun SpeakerCard(
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
-                tint = AccentBlue,
+                tint = if (isSherpa) SherpaGreen else AccentBlue,
                 modifier = Modifier.size(28.dp),
             )
             Spacer(Modifier.width(12.dp))
@@ -178,19 +189,29 @@ private fun SpeakerCard(
                     text = name,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    text = "$sampleCount 个样本",
-                    fontSize = 12.sp,
-                    color = TextGrey,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "$sampleCount 个样本",
+                        fontSize = 12.sp,
+                        color = themeTextGrey(),
+                    )
+                    Text(
+                        text = if (isSherpa) "Sherpa-ONNX ${embeddingDim}d" else "统计特征 ${embeddingDim}d",
+                        fontSize = 11.sp,
+                        color = if (isSherpa) SherpaGreen else StatGrey,
+                    )
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.cd_delete),
                     tint = Color.Gray,
                     modifier = Modifier.size(20.dp),
                 )
@@ -209,18 +230,18 @@ private fun EmptySpeakerList() {
         Icon(
             imageVector = Icons.Default.Person,
             contentDescription = null,
-            tint = TextGrey.copy(alpha = 0.4f),
+            tint = themeTextGrey().copy(alpha = 0.4f),
             modifier = Modifier.size(64.dp),
         )
         Text(
             text = "暂无已注册说话人",
             fontSize = 16.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
         Text(
             text = "点击右下角 + 按钮添加声纹",
             fontSize = 13.sp,
-            color = TextGrey.copy(alpha = 0.7f),
+            color = themeTextGrey().copy(alpha = 0.7f),
         )
     }
 }

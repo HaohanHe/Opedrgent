@@ -38,8 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.Automation
 import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
@@ -60,7 +62,7 @@ fun AutomationsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("自动化/心跳") },
+                title = { Text(stringResource(R.string.title_automations)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "back")
@@ -169,7 +171,7 @@ private fun CreateAutomationDialog(
                 }
             }) { Text("创建") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
         title = { Text("新建自动化") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -219,12 +221,12 @@ private fun EditAutomationDialog(
                         updatedAt = System.currentTimeMillis(),
                     ),
                 )
-            }) { Text("保存") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDelete) { Text("删除") }
-                TextButton(onClick = onDismiss) { Text("取消") }
+                TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         },
         title = { Text("编辑自动化") },

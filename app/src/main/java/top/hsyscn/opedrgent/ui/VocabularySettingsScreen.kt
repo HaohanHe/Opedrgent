@@ -43,14 +43,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.VocabularyStore
-import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun VocabularySettingsScreen(onBack: () -> Unit) {
@@ -70,10 +72,10 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("语音词库", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_vocabulary), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -87,7 +89,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 Icon(Icons.Default.Add, contentDescription = "添加术语", tint = androidx.compose.ui.graphics.Color.White)
             }
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -117,7 +119,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "暂无自定义术语，点击下方按钮添加",
-                            color = TextGrey,
+                            color = themeTextGrey(),
                             fontSize = 14.sp,
                         )
                     }
@@ -144,7 +146,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                                 Text(
                                     text = term,
                                     fontSize = 15.sp,
-                                    color = TextDark,
+                                    color = themeTextDark(),
                                     modifier = Modifier.weight(1f),
                                 )
                                 IconButton(
@@ -205,7 +207,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                         newTerm = ""
                     },
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )

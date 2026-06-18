@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
 
 /**
  * 播放速度选择 Bottom Sheet。
@@ -59,7 +59,7 @@ fun PlaybackSpeedSheet(
                 text = "播放速度",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = TextDark,
+                color = themeTextDark(),
                 modifier = Modifier.padding(vertical = 12.dp),
             )
 
@@ -91,7 +91,7 @@ fun PlaybackSpeedSheet(
                     Text(
                         text = label,
                         fontSize = 16.sp,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     if (selected) {
                         Spacer(Modifier.weight(1f))

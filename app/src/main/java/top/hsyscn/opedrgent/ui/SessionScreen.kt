@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -90,7 +91,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,17 +105,9 @@ import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.ui.SttProgressState
 import top.hsyscn.opedrgent.ui.SttUiState
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BarBg
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.CardWhite
 import top.hsyscn.opedrgent.ui.theme.GreenDot
 import top.hsyscn.opedrgent.ui.theme.LightBlueBg
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
-import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
-import top.hsyscn.opedrgent.ui.theme.CardBackground
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
-import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.ui.theme.InputBorder
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
@@ -129,8 +124,14 @@ import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
-
-private data class QuickAction(val label: String, val emoji: String, val prompt: String)
+import top.hsyscn.opedrgent.ui.theme.themeBarBg
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeCardBackground
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun SessionScreen(
@@ -155,7 +156,7 @@ fun SessionScreen(
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
-            scope.launch { snackbar.showSnackbar("未授予录音权限") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_audio_permission_required)) }
         }
     }
 
@@ -180,7 +181,7 @@ fun SessionScreen(
                         if (session != null) {
                             vm.sendUserMessage("请分析这张图片的内容：\n[图片已选择，URI: $uri]")
                         } else {
-                            snackbar.showSnackbar("请先创建一个对话")
+                            snackbar.showSnackbar(context.getString(R.string.msg_create_session_first))
                         }
                     }
                     mimeType?.startsWith("audio/") == true || mimeType?.startsWith("video/") == true -> {
@@ -225,7 +226,7 @@ fun SessionScreen(
 
     val session = state.current
 
-    Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
+    Box(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
         var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -238,18 +239,18 @@ fun SessionScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { vm.closeSession(); onBack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "back", tint = TextDark)
+                Icon(Icons.Default.ArrowBack, contentDescription = "back", tint = themeTextDark())
             }
             Text(
                 text = session?.title ?: "Opedrgent",
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = TextDark,
+                color = themeTextDark(),
                 modifier = Modifier.weight(1f),
             )
             Card(
                 shape = CircleShape,
-                colors = CardDefaults.cardColors(containerColor = BarBg),
+                colors = CardDefaults.cardColors(containerColor = themeBarBg()),
                 modifier = Modifier
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
@@ -257,13 +258,13 @@ fun SessionScreen(
                 onClick = { actionSheetOpen = true },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = "more", tint = TextDark, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.MoreHoriz, contentDescription = "more", tint = themeTextDark(), modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
             Card(
                 shape = CircleShape,
-                colors = CardDefaults.cardColors(containerColor = BarBg),
+                colors = CardDefaults.cardColors(containerColor = themeBarBg()),
                 modifier = Modifier
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
@@ -271,13 +272,10 @@ fun SessionScreen(
                 onClick = onOpenSettings,
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.Settings, contentDescription = "settings", tint = TextDark, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Settings, contentDescription = "settings", tint = themeTextDark(), modifier = Modifier.size(18.dp))
                 }
             }
         }
-
-        // AI 助手状态指示器条
-        AiStatusBar(isStreaming = state.isStreaming)
 
         if (session == null) {
             Column(
@@ -285,7 +283,7 @@ fun SessionScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("选择一个会话开始对话", color = TextGrey)
+                Text("选择一个会话开始对话", color = themeTextGrey())
             }
         } else {
             val msgCount = session.messages.size + if (state.isStreaming) 1 else 0
@@ -377,7 +375,7 @@ fun SessionScreen(
                             onCopy = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("发芽结果", sproutResult ?: ""))
-                                scope.launch { snackbar.showSnackbar("已复制到剪贴板") }
+                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard)) }
                             },
                             onContinueChat = {
                                 // 可以添加继续对话的逻辑，比如询问关于发芽结果的问题
@@ -416,49 +414,12 @@ fun SessionScreen(
                 }
             }
 
-            // Quick action chips
-            val quickActions = listOf(
-                QuickAction("发芽一下", "\uD83C\uDF31", "请基于我们的对话内容，帮我进行知识发芽，发掘深层联系和新视角。"),
-                QuickAction("点评一下", "\u2B50", "请点评我上面的想法，找出闪光点和可以改进的地方。"),
-                QuickAction("润色一下", "\u2728", "请帮我润色上面的内容，使其表达更清晰、更专业。"),
-                QuickAction("拷问一下", "\uD83D\uDD17", "请对我上面的观点进行深度拷问，找出逻辑漏洞和盲点。"),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            ) {
-                quickActions.forEach { action ->
-                    Surface(
-                        onClick = { vm.sendUserMessage(action.prompt) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = DividerColor,
-                        modifier = Modifier.height(32.dp),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp),
-                        ) {
-                            Text(action.emoji, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                action.label,
-                                fontSize = 12.sp,
-                                color = TextDark,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                    }
-                }
-            }
-
             // Input bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Scope selector
@@ -510,9 +471,9 @@ fun SessionScreen(
                 Card(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(11.dp)),
-                    shape = RoundedCornerShape(11.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
+                        .clip(RoundedCornerShape(14.dp)),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = themeSurfaceElevated()),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
@@ -521,16 +482,18 @@ fun SessionScreen(
                         OutlinedTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
-                            placeholder = { Text("输入消息...", color = TextGrey) },
-                            modifier = Modifier.weight(1f),
+                            placeholder = { Text(stringResource(R.string.msg_type_message), color = themeTextGrey()) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 37.dp, max = 120.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
                             ),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            maxLines = 5,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                             keyboardActions = KeyboardActions(onSend = {
                                 if (!isSending && prompt.isNotBlank()) {
                                     isSending = true
@@ -545,7 +508,7 @@ fun SessionScreen(
                         )
                         // Camera/Files button
                         IconButton(onClick = { filePicker.launch(arrayOf("image/*", "audio/*", "video/*", "application/pdf")) }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = "attach file", tint = TextGrey, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.CameraAlt, contentDescription = "attach file", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
                         }
                         // Microphone button
                         if (vm.isSttEnabled()) {
@@ -591,7 +554,7 @@ fun SessionScreen(
                                 Icon(
                                     Icons.Default.Mic,
                                     contentDescription = "stt",
-                                    tint = if (listening) AccentBlue else TextGrey,
+                                    tint = if (listening) AccentBlue else themeTextGrey(),
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -664,105 +627,6 @@ fun SessionScreen(
                             modifier = Modifier.padding(bottom = 16.dp),
                         )
 
-                        // Import audio/video
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    showMoreOptionsSheet = false
-                                    if (vm.isSttEnabled()) {
-                                        audioFilePicker.launch(arrayOf("audio/*", "video/*"))
-                                    } else {
-                                        scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") }
-                                    }
-                                },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    Icons.Default.AudioFile,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "导入音视频",
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                    Text(
-                                        text = "支持 MP3、WAV、M4A、AMR、AAC、AVI、MOV 等格式",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Paste link
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    showMoreOptionsSheet = false
-                                    // 读取剪贴板内容并作为消息发送
-                                    val clipText = clipboard.getText()?.text ?: ""
-                                    if (clipText.isBlank()) {
-                                        scope.launch { snackbar.showSnackbar("剪贴板为空") }
-                                    } else if (isValidUrl(clipText.trim())) {
-                                        prompt = clipText.trim()
-                                        if (!isSending && prompt.isNotBlank()) {
-                                            isSending = true
-                                            vm.sendUserMessage(prompt)
-                                            prompt = ""
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(500)
-                                                isSending = false
-                                            }
-                                        }
-                                    } else {
-                                        // 非链接内容也支持粘贴发送
-                                        prompt = clipText.trim()
-                                        scope.launch { snackbar.showSnackbar("已粘贴到输入框") }
-                                    }
-                                },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    Icons.Default.Link,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "粘贴链接",
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                    Text(
-                                        text = "公众号/抖音/B站/小红书等，一键总结",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
-                                    )
-                                }
-                            }
-                        }
-
                         // Photo/Image
                         Card(
                             modifier = Modifier
@@ -772,7 +636,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     filePicker.launch(arrayOf("image/*"))
                                 },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            colors = CardDefaults.cardColors(containerColor = themeCardBackground()),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -795,45 +659,7 @@ fun SessionScreen(
                                     Text(
                                         text = "白板记录/课堂笔记/日常饮食，秒变笔记",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Meeting recording
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    showMoreOptionsSheet = false
-                                    onOpenSubScreen("meeting")
-                                },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    Icons.Default.Mic,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "会议录音",
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                    Text(
-                                        text = "实时录音 + 说话人分离 + AI 总结",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
+                                        color = themeTextGrey(),
                                     )
                                 }
                             }
@@ -848,7 +674,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("knowledge")
                                 },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            colors = CardDefaults.cardColors(containerColor = themeCardBackground()),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -871,7 +697,7 @@ fun SessionScreen(
                                     Text(
                                         text = "导入文档/PDF/图片，AI 可检索引用",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
+                                        color = themeTextGrey(),
                                     )
                                 }
                             }
@@ -886,7 +712,7 @@ fun SessionScreen(
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("editorTeam")
                                 },
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            colors = CardDefaults.cardColors(containerColor = themeCardBackground()),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -908,7 +734,7 @@ fun SessionScreen(
                                     Text(
                                         text = "AI 动态规划编辑团队",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextGrey,
+                                        color = themeTextGrey(),
                                     )
                                 }
                             }
@@ -965,7 +791,7 @@ fun SessionScreen(
                                 Text(
                                     text = description,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextGrey,
+                                    color = themeTextGrey(),
                                 )
                             }
                         }
@@ -1061,7 +887,7 @@ fun SessionScreen(
         ModalBottomSheet(
             onDismissRequest = { actionSheetOpen = false },
             sheetState = sheetState,
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -1075,7 +901,7 @@ fun SessionScreen(
                         onClick = {
                             scope.launch {
                                 val f = vm.exportMarkdown()
-                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar(context.getString(R.string.msg_export_failed))
                             }
                             actionSheetOpen = false
                         },
@@ -1086,7 +912,7 @@ fun SessionScreen(
                         onClick = {
                             scope.launch {
                                 val f = vm.exportContextZip()
-                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar("导出失败")
+                                if (f != null) shareFile(context, vm.getPackageNameForShare(context), f) else snackbar.showSnackbar(context.getString(R.string.msg_export_failed))
                             }
                             actionSheetOpen = false
                         },
@@ -1102,73 +928,12 @@ fun SessionScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(11.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CardBackground, contentColor = TextDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = themeCardBackground(), contentColor = themeTextDark()),
                 ) { Text("完整导出中心") }
 
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
-    }
-}
-
-/**
- * AI 助手状态指示器条。
- * 显示在 SessionScreen 顶部栏下方，增强 AI 在线感。
- */
-@Composable
-private fun AiStatusBar(isStreaming: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse",
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(CardWhite)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // AI 头像
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(AccentBlue),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Default.ChatBubble,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(14.sp.value.dp.coerceAtLeast(14.dp)),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // 状态文字
-        Text(
-            text = if (isStreaming) "思考中..." else "我在",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = AccentBlue,
-        )
-
-        // 在线指示灯
-        Box(
-            modifier = Modifier
-                .padding(start = 6.dp)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(GreenDot.copy(alpha = pulseAlpha)),
-        )
     }
 }
 

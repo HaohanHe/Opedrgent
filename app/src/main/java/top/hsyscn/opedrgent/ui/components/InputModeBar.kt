@@ -33,7 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 enum class InputMode(val label: String, val icon: ImageVector) {
     CHAT("对话", Icons.Default.ChatBubble),
@@ -67,7 +67,7 @@ fun SearchScopeChips(
                 label = "bg",
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue else TextGrey,
+                targetValue = if (isSelected) AccentBlue else themeTextGrey(),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "content",
             )
@@ -109,7 +109,7 @@ fun InputModeBar(
                 label = "bg",
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue else TextGrey,
+                targetValue = if (isSelected) AccentBlue else themeTextGrey(),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "content",
             )

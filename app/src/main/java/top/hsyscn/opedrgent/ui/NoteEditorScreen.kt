@@ -60,13 +60,8 @@ import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.parseAiSummary
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.TextPrimary
-import top.hsyscn.opedrgent.ui.theme.SurfaceLight
-import top.hsyscn.opedrgent.ui.theme.CardBackground
-import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
-import top.hsyscn.opedrgent.ui.theme.BorderLight
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.DangerRed
 import top.hsyscn.opedrgent.ui.theme.ErrorBackground
@@ -77,7 +72,6 @@ import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.WarningBg
 import top.hsyscn.opedrgent.ui.theme.WarningColor
 import top.hsyscn.opedrgent.ui.theme.InputBorder
-import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.ui.theme.SproutQuoteBg
 import top.hsyscn.opedrgent.ui.theme.SproutSeedText
 import top.hsyscn.opedrgent.ui.theme.SproutChipBg
@@ -87,6 +81,14 @@ import top.hsyscn.opedrgent.ui.components.SproutEmptyIllustration
 import top.hsyscn.opedrgent.ui.components.BalloonEmptyIllustration
 import java.text.SimpleDateFormat
 import java.util.*
+import top.hsyscn.opedrgent.ui.theme.themeBorderLight
+import top.hsyscn.opedrgent.ui.theme.themeCardBackground
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +110,8 @@ fun NoteEditorScreen(
     onAppendNote: (Long) -> Unit = {},
     /** 智能补全请求回调：传入当前上下文文本，返回补全建议（异步）。未提供时使用本地启发式补全。 */
     onRequestCompletion: (suspend (String) -> String)? = null,
+    /** 编辑器模式："richtext" 或 "markdown" */
+    editorMode: String = "richtext",
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -121,6 +125,7 @@ fun NoteEditorScreen(
     var isPreviewMode by remember { mutableStateOf(false) }
     var showFormatToolbar by remember { mutableStateOf(true) }
     var showAiMenu by remember { mutableStateOf(false) }
+    var spansJson by remember { mutableStateOf("") }
 
     // Ghost Text AI 补全
     var ghostText by remember { mutableStateOf("") }           // 预测的补全文字
@@ -153,6 +158,7 @@ fun NoteEditorScreen(
                 originalContent = currentNote?.originalContent,
                 sourceUrl = currentNote?.sourceUrl ?: "",
                 sourceType = currentNote?.sourceType ?: top.hsyscn.opedrgent.note.SourceType.MANUAL,
+                spans = spansJson,
             )
             note.setTags(tags)
             val id = repository.saveNote(note)
@@ -203,11 +209,12 @@ fun NoteEditorScreen(
                 tags = existing.getTags()
                 lastSavedAt = existing.updatedAt
                 currentNote = existing
+                spansJson = existing.spans
             }
         }
     }
 
-    LaunchedEffect(title, content.text) {
+    LaunchedEffect(title, content.text, spansJson) {
         if (noteId != null && content.text.isNotEmpty()) {
             kotlinx.coroutines.delay(1000L)
             save()
@@ -238,9 +245,9 @@ fun NoteEditorScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                        }
-                    },
-                    actions = {
+                    }
+                },
+                actions = {
                         IconButton(onClick = { showReaderMenu = true }) {
                             Icon(Icons.Default.MoreVert, "更多操作")
                         }
@@ -354,7 +361,7 @@ fun NoteEditorScreen(
                                                     )
                                                     runCatching { context.startActivity(intent) }
                                                 },
-                                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                                            colors = CardDefaults.cardColors(containerColor = themeCardBackground()),
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(16.dp),
@@ -370,7 +377,7 @@ fun NoteEditorScreen(
                                                     Text(
                                                         "来源链接",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = TextGrey,
+                                                        color = themeTextGrey(),
                                                     )
                                                     Text(
                                                         url,
@@ -383,7 +390,7 @@ fun NoteEditorScreen(
                                                 Icon(
                                                     Icons.Default.OpenInNew,
                                                     contentDescription = "打开链接",
-                                                    tint = TextGrey,
+                                                    tint = themeTextGrey(),
                                                 )
                                             }
                                         }
@@ -1046,8 +1053,8 @@ fun NoteEditorScreen(
         if (showDeleteDialog && noteId != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                title = { Text("删除笔记") },
-                text = { Text("确定要删除这条笔记吗？此操作不可撤销。") },
+                title = { Text(stringResource(R.string.note_editor_delete_title)) },
+                text = { Text(stringResource(R.string.note_editor_delete_confirm)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -1055,10 +1062,10 @@ fun NoteEditorScreen(
                             scope.launch { repository.deleteNote(noteId) }
                             onBack()
                         },
-                    ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                    ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) }
                 },
             )
         }
@@ -1070,7 +1077,7 @@ fun NoteEditorScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text(if (noteId == null) "新建笔记" else "编辑笔记") },
+                    title = { Text(if (noteId == null) stringResource(R.string.note_editor_new) else stringResource(R.string.note_editor_edit)) },
                     navigationIcon = {
                         IconButton(onClick = {
                             // 检测是否有未保存的更改
@@ -1083,7 +1090,7 @@ fun NoteEditorScreen(
                                 scope.launch { save() }
                                 onBack()
                             }
-                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back)) }
                     },
                     actions = {
                         // 预览/编辑模式切换
@@ -1112,7 +1119,7 @@ fun NoteEditorScreen(
                             enabled = !isSaving && content.text.isNotBlank(),
                         ) {
                             if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AccentBlue)
-                            else Text("保存", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                        else Text(stringResource(R.string.action_save), fontWeight = FontWeight.SemiBold, color = AccentBlue)
                         }
 
                         // 在聊天中讨论按钮
@@ -1126,7 +1133,7 @@ fun NoteEditorScreen(
                             ) {
                                 Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
                                 Spacer(Modifier.width(4.dp))
-                                Text("讨论", fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                                Text(stringResource(R.string.note_editor_discuss), fontWeight = FontWeight.SemiBold, color = AccentBlue)
                             }
                         }
                     },
@@ -1228,8 +1235,8 @@ fun NoteEditorScreen(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
 
-            // 格式化工具栏
-            if (showFormatToolbar && !isPreviewMode) {
+            // 格式化工具栏（仅 Markdown 模式显示）
+            if (showFormatToolbar && !isPreviewMode && editorMode == "markdown") {
                 MarkdownFormatToolbar(
                     onBold = { insertFormatting("**", "**") },
                     onItalic = { insertFormatting("*", "*") },
@@ -1256,8 +1263,25 @@ fun NoteEditorScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
+            } else if (editorMode == "richtext") {
+                // 富文本编辑模式（Notally 风格）
+                RichTextEditor(
+                    initialText = content.text,
+                    initialSpans = spansJson,
+                    onTextChange = { newText ->
+                        content = TextFieldValue(newText, TextRange(newText.length))
+                    },
+                    onSpansChange = { newSpans ->
+                        spansJson = newSpans
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    placeholder = "开始书写...\n\n选中文字即可加粗、斜体、代码等格式",
+                )
             } else {
-                // 编辑模式
+                // Markdown 编辑模式
                 BasicTextField(
                     value = content,
                     onValueChange = { content = it },
@@ -1431,7 +1455,7 @@ fun NoteEditorScreen(
     if (showAiMenu && noteId != null) {
         AlertDialog(
             onDismissRequest = { showAiMenu = false },
-            title = { Text("AI 操作") },
+            title = { Text(stringResource(R.string.note_editor_ai_action)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     AIActionButton("点评", "识别亮点，正向强化", "insight_review") {
@@ -1446,7 +1470,7 @@ fun NoteEditorScreen(
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
                     }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(color = themeDividerColor(), modifier = Modifier.padding(vertical = 4.dp))
                     AIActionButton("AI 编辑团", "8人编辑团协作创作", "editor_team") {
                         showAiMenu = false
                         scope.launch { save() }
@@ -1462,10 +1486,10 @@ fun NoteEditorScreen(
     if (showUnsavedDialog) {
         AlertDialog(
             onDismissRequest = { showUnsavedDialog = false },
-            title = { Text("未保存的更改") },
+            title = { Text(stringResource(R.string.note_editor_unsaved_title)) },
             text = {
                 Text(
-                    "您有尚未保存的内容。是否要在离开前保存？",
+                    stringResource(R.string.note_editor_unsaved_desc),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -1476,13 +1500,13 @@ fun NoteEditorScreen(
                         save(showGraphInfo = true)
                         onBack()
                     }
-                }) { Text("保存并离开", fontWeight = FontWeight.SemiBold, color = AccentBlue) }
+                }) { Text(stringResource(R.string.note_editor_save_leave), fontWeight = FontWeight.SemiBold, color = AccentBlue) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showUnsavedDialog = false
                     onBack()
-                }) { Text("不保存") }
+                }) { Text(stringResource(R.string.note_editor_no_save)) }
             },
         )
     }
@@ -1672,7 +1696,7 @@ private fun EditorAdditionalNotesTab() {
                 Spacer(Modifier.height(16.dp))
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = SurfaceLight,
+                    color = themeSurfaceLight(),
                     onClick = { isEditing = true },
                 ) {
                     Row(
@@ -1711,7 +1735,7 @@ private fun EditorAdditionalNotesTab() {
             HorizontalDivider()
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = SurfaceElevated,
+                color = themeSurfaceElevated(),
                 modifier = Modifier.padding(12.dp).fillMaxWidth(),
             ) {
                 Column {
@@ -1734,7 +1758,7 @@ private fun EditorAdditionalNotesTab() {
                         modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 120.dp),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AccentPurple,
-                            unfocusedBorderColor = BorderLight,
+                            unfocusedBorderColor = themeBorderLight(),
                         ),
                         shape = RoundedCornerShape(8.dp),
                     )
@@ -1775,7 +1799,7 @@ private fun EditorAdditionalNotesTab() {
             // 浮动添加按钮
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderLight),
+                border = BorderStroke(1.dp, themeBorderLight()),
                 onClick = { isEditing = true },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
             ) {
@@ -1796,7 +1820,7 @@ private fun EditorNoteItemCard(note: EditorNote, onEdit: () -> Unit, onDelete: (
 
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = SurfaceElevated,
+        color = themeSurfaceElevated(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
