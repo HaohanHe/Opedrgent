@@ -21,7 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun MessageBodyInfo(
@@ -32,7 +32,7 @@ fun MessageBodyInfo(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFE8EAF6))
+            .background(MaterialTheme.colorScheme.primaryContainer)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -46,7 +46,7 @@ fun MessageBodyInfo(
         Spacer(Modifier.width(4.dp))
         Text(
             text = message,
-            color = TextGrey,
+            color = themeTextGrey(),
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )

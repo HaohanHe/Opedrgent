@@ -51,21 +51,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,16 +82,16 @@ fun ExportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("导出", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_export), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -116,7 +118,7 @@ fun ExportScreen(
                         if (file != null) {
                             shareFile(context, vm.getPackageNameForShare(context), file, "text/markdown")
                         } else {
-                            snackbar.showSnackbar("没有可导出的会话")
+                            snackbar.showSnackbar(context.getString(R.string.msg_no_sessions_to_export))
                         }
                     }
                 },
@@ -132,7 +134,7 @@ fun ExportScreen(
                         if (file != null) {
                             shareFile(context, vm.getPackageNameForShare(context), file, "text/plain")
                         } else {
-                            snackbar.showSnackbar("没有可导出的会话")
+                            snackbar.showSnackbar(context.getString(R.string.msg_no_sessions_to_export))
                         }
                     }
                 },
@@ -178,9 +180,9 @@ fun ExportScreen(
                             val text = file.readText()
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("export", text))
-                            snackbar.showSnackbar("已复制到剪贴板")
+                            snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard))
                         } else {
-                            snackbar.showSnackbar("没有可复制的内容")
+                            snackbar.showSnackbar(context.getString(R.string.msg_nothing_to_copy))
                         }
                     }
                 },
@@ -197,9 +199,9 @@ fun ExportScreen(
                             val text = file.readText()
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("export", text))
-                            snackbar.showSnackbar("已复制到剪贴板")
+                            snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard))
                         } else {
-                            snackbar.showSnackbar("没有可复制的内容")
+                            snackbar.showSnackbar(context.getString(R.string.msg_nothing_to_copy))
                         }
                     }
                 },
@@ -228,7 +230,7 @@ fun ExportScreen(
                         if (file != null) {
                             shareFile(context, vm.getPackageNameForShare(context), file, "text/markdown")
                         } else {
-                            snackbar.showSnackbar("没有可分享的文件")
+                            snackbar.showSnackbar(context.getString(R.string.msg_no_files_to_share))
                         }
                     }
                 },
@@ -248,7 +250,7 @@ fun ExportScreen(
                             htmlFile.writeText(html, Charsets.UTF_8)
                             shareFile(context, vm.getPackageNameForShare(context), htmlFile, "text/html")
                         } else {
-                            snackbar.showSnackbar("没有可分享的文件")
+                            snackbar.showSnackbar(context.getString(R.string.msg_no_files_to_share))
                         }
                     }
                 },
@@ -267,7 +269,7 @@ private fun ExportOptionCard(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
@@ -296,12 +298,12 @@ private fun ExportOptionCard(
                     text = title,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
                 Text(
                     text = description,
                     fontSize = 12.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
         }

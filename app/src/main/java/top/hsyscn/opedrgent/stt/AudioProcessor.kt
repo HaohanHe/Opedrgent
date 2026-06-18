@@ -656,7 +656,7 @@ object AudioProcessor {
             when {
                 metadata == null -> Pair(false, "无法读取音频文件或格式不支持。支持 MP3/AAC/WAV/M4A/OGG 及常见视频封装中的音频轨道。")
                 metadata.durationMs == 0L -> Pair(false, "音频文件时长为 0 或无法获取时长，文件可能损坏。")
-                metadata.durationMs > 1800_000L -> Pair(false, "音频时长超过 30 分钟限制 (${String.format(Locale.US, "%.1f", metadata.durationMs / 1000.0)}秒)。建议先裁剪再处理。")
+                metadata.durationMs > 14_400_000L -> Pair(false, "音频时长超过 4 小时限制 (${String.format(Locale.US, "%.1f", metadata.durationMs / 1000.0)}秒)。建议先裁剪再处理。")
                 metadata.sampleRate < 8000 || metadata.sampleRate > 192000 -> Pair(false, "采样率异常 (${metadata.sampleRate}Hz)，文件可能损坏。")
                 else -> Pair(true, null)
             }
@@ -778,7 +778,7 @@ object AudioProcessor {
 
         val trackResult = selectAudioTrack(extractor)
         if (trackResult == null) {
-            DebugLog.w(TAG, "未找到音频轨道")
+            DebugLog.w(TAG, "未找到音频轨道 uri=$uri trackCount=${extractor.trackCount}")
             extractor.release()
             return null
         }
@@ -786,7 +786,12 @@ object AudioProcessor {
         val (trackIndex, format) = trackResult
         extractor.selectTrack(trackIndex)
 
-        val mime = format.getString(MediaFormat.KEY_MIME) ?: return null
+        val mime = format.getString(MediaFormat.KEY_MIME)
+        if (mime == null) {
+            DebugLog.e(TAG, "音频轨道缺少 MIME 类型信息 uri=$uri")
+            extractor.release()
+            return null
+        }
         val srcSampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE)
         val srcChannels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS)
         val durationUs = format.getLong(MediaFormat.KEY_DURATION, -1L)
@@ -795,7 +800,7 @@ object AudioProcessor {
         val codec = try {
             MediaCodec.createDecoderByType(mime)
         } catch (e: Exception) {
-            DebugLog.e(TAG, "不支持的编解码器: $mime。建议使用 WAV (PCM) 或 MP3 格式。", e)
+            DebugLog.e(TAG, "无法创建解码器: mime=$mime uri=$uri (${e.message})。该格式可能需要设备不支持的硬件解码器。", e)
             extractor.release()
             return null
         }
@@ -876,7 +881,7 @@ object AudioProcessor {
             DebugLog.i(TAG, "MediaCodec 解码完成 mime=$mime raw=${shortSamples.size} out=${processed.size}")
             Pair(processed, outMeta)
         } catch (e: Exception) {
-            DebugLog.e(TAG, "MediaCodec 解码过程异常: ${e.message}", e)
+            DebugLog.e(TAG, "MediaCodec 解码过程异常: mime=$mime uri=$uri srcRate=${srcSampleRate}Hz srcCh=$srcChannels (${e.message})", e)
             null
         } finally {
             try { codec.stop(); codec.release() } catch (_: Exception) {}

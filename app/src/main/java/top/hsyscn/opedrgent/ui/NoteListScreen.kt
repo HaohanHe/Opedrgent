@@ -41,8 +41,6 @@ import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +48,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.note.SourceType
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /**
  * 笔记列表页。
@@ -158,7 +158,7 @@ fun NoteListScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(BgGray)) {
+    Box(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -188,7 +188,7 @@ fun NoteListScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = BgGray,
+                    containerColor = themeBgGray(),
                 ),
             )
 
@@ -843,7 +843,7 @@ private fun NoteCard(
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(note.sourceUrl))
                             runCatching { ctx.startActivity(intent) }
                         },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F7FA)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Row(
@@ -868,13 +868,13 @@ private fun NoteCard(
                             Text(
                                 text = "来源链接",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Icon(
                             imageVector = Icons.Default.OpenInNew,
                             contentDescription = "打开链接",
-                            tint = TextGrey,
+                            tint = themeTextGrey(),
                             modifier = Modifier.size(16.dp)
                         )
                     }

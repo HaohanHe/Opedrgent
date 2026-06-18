@@ -58,9 +58,8 @@ import top.hsyscn.opedrgent.llm.DownloadProgress
 import top.hsyscn.opedrgent.llm.DownloadStatus
 import top.hsyscn.opedrgent.llm.LocalModelInfo
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private val BubbleBlue = Color(0xFF2B68DE)
 
@@ -141,7 +140,7 @@ fun ModelDownloadDialog(
                     text = "正在下载 ${modelInfo.displayName}",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -150,7 +149,7 @@ fun ModelDownloadDialog(
                 Text(
                     text = modelInfo.description,
                     fontSize = 14.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -183,7 +182,7 @@ fun ModelDownloadDialog(
                 Text(
                     text = "好东西，就要来了...",
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -239,12 +238,12 @@ private fun ProgressSection(progress: DownloadProgress) {
             Text(
                 text = "${progress.downloadedMb.toInt()} MB / ${progress.totalMb.toInt()} MB",
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
             Text(
                 text = formatSpeed(progress.speedBytesPerSec),
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
     }
@@ -265,7 +264,7 @@ private fun PausedSection(progress: DownloadProgress?) {
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
-                        color = TextGrey,
+                        color = themeTextGrey(),
                         trackColor = BubbleBlue.copy(alpha = 0.15f),
                     )
                 }
@@ -274,7 +273,7 @@ private fun PausedSection(progress: DownloadProgress?) {
                     text = "${progress.progressPercent.toInt()}%",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
 
@@ -283,7 +282,7 @@ private fun PausedSection(progress: DownloadProgress?) {
             Text(
                 text = "${progress.downloadedMb.toInt()} MB / ${progress.totalMb.toInt()} MB",
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
 
@@ -293,7 +292,7 @@ private fun PausedSection(progress: DownloadProgress?) {
             text = "已暂停",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -309,7 +308,7 @@ private fun QueuedSection() {
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp)),
-            color = TextGrey.copy(alpha = 0.5f),
+            color = themeTextGrey().copy(alpha = 0.5f),
             trackColor = BubbleBlue.copy(alpha = 0.15f),
         )
 
@@ -319,7 +318,7 @@ private fun QueuedSection() {
             text = "排队中...",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -351,7 +350,7 @@ private fun FailedSection(error: String) {
         Text(
             text = error,
             fontSize = 13.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -379,7 +378,7 @@ private fun IdleSection(totalMb: Long) {
         Text(
             text = "准备下载 ($totalMb MB)",
             fontSize = 14.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -409,7 +408,7 @@ private fun QuoteCard(currentQuoteIndex: Int) {
                 Text(
                     text = currentQuote.text,
                     fontSize = 16.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                     lineHeight = 26.sp,
                 )
@@ -419,7 +418,7 @@ private fun QuoteCard(currentQuoteIndex: Int) {
                 Text(
                     text = "-- ${currentQuote.author}",
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -489,7 +488,7 @@ private fun ActionButtons(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(vertical = 12.dp),
                 ) {
-                    Text(text = "--", fontSize = 14.sp, color = TextGrey)
+                    Text(text = "--", fontSize = 14.sp, color = themeTextGrey())
                 }
             }
         }

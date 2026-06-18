@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /**
  * STT 语音模型下载弹窗 — 对齐 Gemma 4 ModelDownloadDialog 的视觉风格，
@@ -109,7 +109,7 @@ fun SttModelDownloadDialog(
                     text = "正在下载 $modelName",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -118,7 +118,7 @@ fun SttModelDownloadDialog(
                 Text(
                     text = modelDescription,
                     fontSize = 14.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -147,7 +147,7 @@ fun SttModelDownloadDialog(
                                 text = statusDetail.ifEmpty { "解压中..." },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = TextDark,
+                                color = themeTextDark(),
                             )
                         }
                     }
@@ -161,7 +161,7 @@ fun SttModelDownloadDialog(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = TextGrey.copy(alpha = 0.5f),
+                                color = themeTextGrey().copy(alpha = 0.5f),
                                 trackColor = Color(0xFF2B68DE).copy(alpha = 0.15f),
                             )
                             Spacer(modifier = Modifier.height(12.dp))
@@ -169,7 +169,7 @@ fun SttModelDownloadDialog(
                                 text = statusDetail.ifEmpty { "切换下载源..." },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                     }
@@ -190,7 +190,7 @@ fun SttModelDownloadDialog(
                             Text(
                                 text = statusDetail.ifEmpty { "未知错误" },
                                 fontSize = 13.sp,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
                             )
@@ -213,7 +213,7 @@ fun SttModelDownloadDialog(
                             Text(
                                 text = if (totalMb > 0) "准备下载 ($totalMb MB)" else "准备中...",
                                 fontSize = 14.sp,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                     }
@@ -229,7 +229,7 @@ fun SttModelDownloadDialog(
                 Text(
                     text = "好东西，就要来了...",
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.Center,
                 )
 
@@ -282,7 +282,7 @@ private fun SttQuoteCard(currentQuoteIndex: Int) {
                 Text(
                     text = currentQuote.text,
                     fontSize = 16.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                     lineHeight = 26.sp,
                 )
@@ -292,7 +292,7 @@ private fun SttQuoteCard(currentQuoteIndex: Int) {
                 Text(
                     text = "-- ${currentQuote.author}",
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -344,13 +344,13 @@ private fun SttProgressSection(
             Text(
                 text = if (totalMb > 0) "${downloadedMb} MB / ${totalMb} MB" else "${downloadedMb} MB",
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
             if (speedText.isNotEmpty()) {
                 Text(
                     text = speedText,
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
         }

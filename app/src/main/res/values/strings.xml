@@ -1,4 +1,419 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">Opedrgent</string>
     <string name="widget_description">Opedrgent 快捷方式 — 一键进入 AI 助手、会议录音、新对话</string>
+
+    <!-- Tab labels -->
+    <string name="tab_home">首页</string>
+    <string name="tab_notes">笔记</string>
+    <string name="tab_recording">录音</string>
+    <string name="tab_ai">AI</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Common actions -->
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_back">返回</string>
+    <string name="action_save">保存</string>
+    <string name="action_share">分享</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_send">发送</string>
+    <string name="action_done">完成</string>
+    <string name="action_retry">重试</string>
+    <string name="action_expand">展开</string>
+    <string name="action_collapse">收起</string>
+    <string name="action_download">下载</string>
+    <string name="action_pause">暂停</string>
+    <string name="action_resume">继续</string>
+    <string name="action_confirm">确认</string>
+    <string name="action_close">关闭</string>
+    <string name="action_stop">停止</string>
+    <string name="action_start">开始</string>
+    <string name="action_copy">复制</string>
+    <string name="action_create">创建</string>
+    <string name="action_add">添加</string>
+    <string name="action_search">搜索</string>
+    <string name="action_select">选择</string>
+    <string name="action_enable">启用</string>
+    <string name="action_disable">禁用</string>
+    <string name="action_refresh">刷新</string>
+    <string name="action_import">导入</string>
+    <string name="action_export">导出</string>
+    <string name="action_upload">上传</string>
+    <string name="action_load">加载</string>
+
+    <!-- Screen titles -->
+    <string name="title_settings">设置</string>
+    <string name="title_notes">笔记</string>
+    <string name="title_recording">录音</string>
+    <string name="title_meeting_recording">会议录音</string>
+    <string name="title_interview_mode">面试模式</string>
+    <string name="title_interview_report">面试报告</string>
+    <string name="title_knowledge_graph">知识图谱</string>
+    <string name="title_hippocampus">海马体记忆</string>
+    <string name="title_voiceprint">声纹识别</string>
+    <string name="title_vocabulary">语音词库</string>
+    <string name="title_memory_management">记忆管理</string>
+    <string name="title_skills_library">技能库</string>
+    <string name="title_automations">自动化/心跳</string>
+    <string name="title_export">导出</string>
+    <string name="title_import_file">导入文件</string>
+    <string name="title_invisible_partner">无感伙伴模式</string>
+    <string name="title_sprout_report">发芽报告</string>
+    <string name="title_share_note">分享笔记</string>
+    <string name="title_note_editor">笔记编辑器</string>
+    <string name="title_new_note">新建笔记</string>
+    <string name="title_new_session">新对话</string>
+    <string name="title_model_manager">模型管理</string>
+    <string name="title_local_model">本地模型</string>
+
+    <!-- Messages / Feedback -->
+    <string name="msg_copied_to_clipboard">已复制到剪贴板</string>
+    <string name="msg_export_failed">导出失败</string>
+    <string name="msg_saved_as_note">已保存为笔记</string>
+    <string name="msg_sent_to_ai">已发送给 AI 总结</string>
+    <string name="msg_create_session_first">请先创建一个对话</string>
+    <string name="msg_audio_permission_required">未授予录音权限</string>
+    <string name="msg_no_share_app">未找到可分享应用</string>
+    <string name="msg_no_calendar_app">未找到日历应用</string>
+    <string name="msg_import_success">导入成功</string>
+    <string name="msg_import_failed">导入失败</string>
+    <string name="msg_no_sessions_to_export">没有可导出的会话</string>
+    <string name="msg_nothing_to_copy">没有可复制的内容</string>
+    <string name="msg_no_files_to_share">没有可分享的文件</string>
+    <string name="msg_stopped">已停止</string>
+    <string name="msg_save_undone">已撤销保存</string>
+    <string name="msg_params_saved">参数已保存，下次加载模型生效</string>
+    <string name="msg_download_model_first">请先下载模型</string>
+    <string name="msg_switched_to_offline">已切换到离线模式</string>
+    <string name="msg_thanks_feedback">感谢反馈!</string>
+    <string name="msg_bookmark_added">已标记</string>
+    <string name="msg_note_point_added">已记录笔记点</string>
+    <string name="msg_recording_saved">录音已保存</string>
+    <string name="msg_processing">处理中…</string>
+    <string name="msg_loading">加载中…</string>
+    <string name="msg_network_error">网络错误，请检查连接</string>
+    <string name="msg_type_message">输入消息…</string>
+    <string name="msg_model_not_ready">模型未就绪</string>
+    <string name="msg_permission_denied">权限被拒绝</string>
+    <string name="msg_file_not_found">文件未找到</string>
+    <string name="msg_unsupported_format">不支持的格式</string>
+    <string name="msg_feature_under_development">功能开发中</string>
+
+    <!-- Recording modes -->
+    <string name="recording_mode_voice_memo">语音速记</string>
+    <string name="recording_mode_meeting">多人会议</string>
+    <string name="recording_mode_internal">手机内录</string>
+    <string name="recording_mode_classroom">课堂录音</string>
+    <string name="recording_unlimited">无限制</string>
+    <string name="recording_max_hours">最长可录 %1$d 小时</string>
+    <string name="recording_max_unlimited">最长可录 无限制</string>
+    <string name="recording_max_label">最长 %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_recording_duration">录音时长限制</string>
+    <string name="settings_api_config">API 配置</string>
+    <string name="settings_voice">语音设置</string>
+    <string name="settings_tts">文字转语音</string>
+    <string name="settings_stt">语音转文字</string>
+    <string name="settings_local_model">本地模型</string>
+    <string name="settings_advanced">高级设置</string>
+    <string name="settings_about">关于</string>
+
+    <!-- Note types -->
+    <string name="note_type_text">文本</string>
+    <string name="note_type_quick">速记</string>
+    <string name="note_type_link">链接</string>
+    <string name="note_type_image">图片</string>
+    <string name="note_type_pdf">PDF</string>
+    <string name="note_type_audio">音频</string>
+
+    <!-- STT -->
+    <string name="stt_engine_local">本地识别</string>
+    <string name="stt_engine_cloud">云端识别</string>
+    <string name="stt_listening">正在听写…</string>
+    <string name="stt_processing">正在转写…</string>
+    <string name="stt_complete">转写完成</string>
+    <string name="stt_failed">转写失败</string>
+    <string name="stt_tips_title">语音转文字提示</string>
+    <string name="stt_tips_content">1. 确保网络连接稳定\n2. 说话清晰，语速适中\n3. 支持中英文混合识别\n4. 环境安静效果更佳\n5. 文件格式支持：MP3/WAV/M4A/AAC/FLAC</string>
+
+    <!-- Content descriptions (accessibility) -->
+    <string name="cd_back">返回</string>
+    <string name="cd_delete">删除</string>
+    <string name="cd_share">分享</string>
+    <string name="cd_edit">编辑</string>
+    <string name="cd_copy">复制</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">收起</string>
+    <string name="cd_play">播放</string>
+    <string name="cd_pause">暂停</string>
+    <string name="cd_stop">停止</string>
+    <string name="cd_bookmark">标记</string>
+    <string name="cd_more">更多</string>
+    <string name="cd_close">关闭</string>
+    <string name="cd_download">下载</string>
+    <string name="cd_settings">设置</string>
+    <string name="cd_microphone">麦克风</string>
+
+    <!-- Duration format -->
+    <string name="duration_hours_minutes">%1$d小时%2$d分钟</string>
+    <string name="duration_minutes_seconds">%1$d:%2$02d</string>
+    <string name="duration_hours">%1$d小时</string>
+
+    <!-- Additional messages -->
+    <string name="msg_location_permission_denied">未授予位置权限</string>
+    <string name="msg_record_init_failed">无法初始化录音设备</string>
+    <string name="msg_system_audio_init_failed">无法初始化系统音频录制</string>
+    <string name="msg_recording_permission_denied">未获得录制权限</string>
+    <string name="msg_recording_file_not_found">录音文件不存在</string>
+    <string name="msg_copied">已复制</string>
+    <string name="msg_note_copied">已复制到剪贴板</string>
+    <string name="msg_need_android_10">需要 Android 10+</string>
+    <string name="msg_need_overlay_permission">请先授予悬浮窗权限</string>
+    <string name="msg_play_media_hint">请播放你要记录的视频或音频，系统将自动录制</string>
+    <string name="msg_select_model_first">请先选择并下载模型</string>
+    <string name="msg_switched_to_api">已切换到 API 模式</string>
+    <string name="msg_model_load_error">模型加载失败: %s</string>
+    <string name="msg_model_file_not_exist">模型文件不存在</string>
+    <string name="msg_model_loaded">已加载 %s</string>
+    <string name="msg_load_failed">加载失败: %s</string>
+    <string name="msg_switched_offline_detail">已切换到离线模式: %s</string>
+    <string name="msg_delete_model">删除模型</string>
+    <string name="msg_delete_model_confirm">确定要删除该语音模型吗？删除后如需使用需重新下载。</string>
+    <string name="msg_confirm_delete">确定删除</string>
+    <string name="msg_still_try">仍要尝试</string>
+    <string name="msg_memory_insufficient">内存不足警告</string>
+    <string name="msg_memory_insufficient_desc">可用内存不足，无法加载此模型。</string>
+    <string name="msg_save_params">保存参数</string>
+    <string name="msg_local_mode_running">本地模式运行中</string>
+    <string name="msg_local_mode_desc">当前使用 Gemma 4 离线模型，API 配置已暂停</string>
+
+    <!-- Additional content descriptions -->
+    <string name="cd_add">添加</string>
+    <string name="cd_save">保存</string>
+    <string name="cd_new">新建</string>
+    <string name="cd_start_recording">开始录音</string>
+    <string name="cd_expand_model">展开模型</string>
+    <string name="cd_enter">进入</string>
+
+    <!-- Memory Manager -->
+    <string name="memory_empty">暂无记忆条目</string>
+    <string name="memory_empty_hint">点击右上角 + 添加记忆，AI 会自动参考这些内容。</string>
+    <string name="memory_no_title">（无标题）</string>
+    <string name="memory_new">新建记忆</string>
+    <string name="memory_edit">编辑记忆</string>
+    <string name="memory_title_hint">标题（例如：用户偏好、项目背景）</string>
+    <string name="memory_content_hint">内容（AI 会自动参考）</string>
+
+    <!-- Skills Screen -->
+    <string name="skills_import_from_url">从 URL 加载</string>
+    <string name="skills_import_from_file">从文件导入</string>
+    <string name="skills_create_manual">手动创建</string>
+    <string name="skills_gallery_title">Gallery 技能</string>
+    <string name="skills_gallery_subtitle">支持 JS 沙箱 / Native Intent / 纯提示词</string>
+    <string name="skills_custom_title">自定义技能</string>
+    <string name="skills_custom_subtitle">纯提示词快捷方式</string>
+    <string name="skills_empty">暂无技能</string>
+    <string name="skills_empty_hint">点击右下角 + 按钮，可从 URL / 文件导入 Gallery 技能\n或手动创建自定义提示词技能</string>
+    <string name="skills_url_import_title">从 URL 导入 Skill</string>
+    <string name="skills_url_import_desc">输入 SKILL.md 文件的远程 URL，应用将下载并验证后导入到本地。</string>
+    <string name="skills_url_input_hint">请输入 SKILL.md 的 URL</string>
+    <string name="skills_new_custom">新建自定义技能</string>
+    <string name="skills_edit_custom">编辑自定义技能</string>
+    <string name="skills_name_label">名称</string>
+    <string name="skills_content_hint">内容（会作为 User 消息发送）</string>
+
+    <!-- Sessions Screen -->
+    <string name="sessions_search_hint">搜索</string>
+    <string name="sessions_new_research">新建研究</string>
+    <string name="sessions_title_label">标题</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_model_provider">模型供应商</string>
+    <string name="settings_provider_custom">自定义</string>
+    <string name="settings_memory_management">记忆管理</string>
+    <string name="settings_memory_entries">记忆条目</string>
+    <string name="settings_memory_count">共 %d 条记忆</string>
+    <string name="settings_notes_management">笔记管理</string>
+    <string name="settings_my_notes">我的笔记</string>
+    <string name="settings_notes_desc">支持文本/语音/图片/链接/PDF笔记，带标签分类</string>
+    <string name="settings_voiceprint_section">声纹识别</string>
+    <string name="settings_voiceprint_desc">注册说话人声纹，会议录音自动识别发言人</string>
+    <string name="settings_stt_label">语音转文字</string>
+    <string name="settings_stt_engine">识别引擎</string>
+    <string name="settings_local_sherpa">本地 Sherpa</string>
+    <string name="settings_mimo_asr_desc">MiMo ASR 通过网络调用小米语音识别 API，需联网，支持中/英/日/韩等多语种</string>
+    <string name="settings_stepaudio_asr_desc">StepAudio 2.5 ASR (阶跃星辰) — 4B MTP 极速引擎，1小时音频19秒转完，0.15元/小时。需阶跃 API Key</string>
+    <string name="settings_local_stt_desc">本地识别使用 Sherpa-ONNX 离线模型，无需联网，首次使用需下载模型</string>
+    <string name="settings_local_models_label">本地模型</string>
+    <string name="settings_model_downloaded">已下载</string>
+    <string name="settings_model_recommended">推荐</string>
+    <string name="settings_delete_model_cd">删除模型</string>
+    <string name="settings_preparing">准备中…</string>
+    <string name="settings_tts_section">TTS 朗读</string>
+    <string name="settings_tts_engine">TTS 引擎</string>
+    <string name="settings_system_tts">系统 TTS</string>
+    <string name="settings_stepaudio_tts_desc">StepAudio 2.5 TTS (阶跃星辰) — Global+Inline 双语境控制，Zero-shot 音色复刻，5.8元/万字符。需阶跃 API Key</string>
+    <string name="settings_mimo_tts_desc">MiMo TTS 通过网络调用小米语音合成 API，支持音色克隆和导演模式</string>
+    <string name="settings_auto_read">自动朗读回答</string>
+    <string name="settings_download_audio_only">仅下载音频到本地</string>
+    <string name="settings_download_audio_hint">开启后自动朗读时仅保存音频文件，不自动播放</string>
+    <string name="settings_play_audio_hint">关闭后自动朗读时直接播放音频</string>
+    <string name="settings_speed">语速</string>
+    <string name="settings_speed_slow">慢</string>
+    <string name="settings_speed_normal">正常</string>
+    <string name="settings_speed_fast">快</string>
+    <string name="settings_language">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+    <string name="language_japanese">日本語</string>
+    <string name="settings_chinese">中文</string>
+    <string name="settings_english">英文</string>
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_visit_website">访问 hsyscn.top</string>
+    <string name="about_visit_project">访问项目首页</string>
+    <string name="about_open_source">开源软件声明</string>
+    <string name="about_open_source_desc">本项目基于以下开源项目构建</string>
+    <string name="about_view_open_source">查看开源软件声明 (20个项目)</string>
+    <string name="settings_voice_memo">语音速记</string>
+    <string name="settings_meeting">多人会议</string>
+    <string name="settings_internal">手机内录</string>
+    <string name="settings_classroom">课堂录音</string>
+    <string name="settings_no_limit">无限制</string>
+    <string name="settings_hours_format">%d小时</string>
+    <string name="settings_duration_desc">设置各录音模式的最大录制时长，超过后自动停止</string>
+    <string name="settings_ocr_section">OCR 文字识别</string>
+    <string name="settings_web_search_section">联网查询</string>
+    <string name="settings_web_search_label">联网查询</string>
+    <string name="settings_web_search_desc">开启后 AI 对话中可搜索网络信息获取最新内容</string>
+    <string name="settings_search_engine">搜索引擎</string>
+    <string name="settings_own_engine">自有引擎</string>
+    <string name="settings_provider_builtin">厂商内置</string>
+    <string name="settings_own_engine_desc">使用 Opedrgent 自有多引擎搜索（百度 / Bing / DuckDuckGo / Jina 等），支持自定义搜索引擎顺序和 API Key</string>
+    <string name="settings_provider_builtin_desc">使用当前 LLM 模型厂商提供的内置联网搜索能力（如 DeepSeek / Mimo 等模型自带的搜索功能），无需额外配置</string>
+    <string name="settings_web_search_off_desc">关闭后 AI 仅基于本地知识和已有笔记回答问题，不会发起任何网络请求</string>
+    <string name="settings_bg_run_section">后台运行</string>
+    <string name="settings_bg_run_label">后台运行</string>
+    <string name="settings_bg_run_desc">开启后应用将在后台持续运行，定时任务和自动化不会中断</string>
+    <string name="settings_bg_run_hint">提示：开启后建议同时允许自启动和关闭电池优化，否则系统可能在后台杀掉应用</string>
+    <string name="settings_location_env_section">位置与环境</string>
+    <string name="settings_location">位置感知</string>
+    <string name="settings_location_desc">AI 可感知你的位置，用于本地天气/新闻/餐厅等回答</string>
+    <string name="settings_deep_thinking">深度思考</string>
+    <string name="settings_deep_thinking_desc">启用后模型会展示推理思考过程（支持 thinking 的模型）</string>
+    <string name="settings_debug_mode">Debug 模式</string>
+    <string name="settings_debug_mode_desc">开启后在 logcat 中输出详细日志（标签: Opedrgent）</string>
+    <string name="settings_local_model_title">本地模型 (Gemma 4 离线)</string>
+    <string name="settings_local_model_offline_desc">下载 Gemma 4 模型到设备，完全离线运行，无需网络连接</string>
+    <string name="settings_select_model">选择模型 / 下载</string>
+    <string name="settings_inference_params">推理参数</string>
+    <string name="settings_advanced_options">高级选项</string>
+    <string name="settings_hippocampus_index">海马体索引</string>
+    <string name="settings_invisible_partner">无感伙伴模式</string>
+    <string name="settings_invisible_partner_desc">录音自动保存 / 智能发芽 / 每日收获</string>
+    <string name="settings_api_key_label">API Key</string>
+    <string name="settings_api_key_optional">Jina API Key (可选)</string>
+    <string name="settings_clear_api_key">清除 API Key</string>
+    <string name="settings_api_key_hint">API Key 留空表示不修改。</string>
+    <string name="settings_saved_key_hint">已保存 Key（不显示）。如需更换，重新填写并保存。</string>
+    <string name="settings_not_set_key">未设置 Key。</string>
+    <string name="settings_ocr_enhanced">PP-OCRv6 增强识别</string>
+    <string name="settings_ocr_enhanced_desc">百度第六代 OCR 模型，中英文识别精度更高（需下载 77MB）</string>
+    <string name="settings_delete_ocr">删除</string>
+
+    <!-- Recording Tab - additional -->
+    <string name="recording_title">录音</string>
+    <string name="recording_select_mode">选择录音模式</string>
+    <string name="recording_select_mode_desc">根据场景选择合适的录音方式</string>
+    <string name="recording_start_hint">点击开始录音</string>
+    <string name="recording_listening_hint">正在聆听，请开始说话…</string>
+    <string name="recording_system_audio_hint">正在录制系统音频，请播放你要记录的内容…</string>
+    <string name="recording_generating_note">生成笔记中…</string>
+    <string name="recording_auto_saved">已自动保存</string>
+    <string name="recording_transcript_result">转录结果</string>
+    <string name="recording_auto_saved_hint">笔记已自动保存，可直接编辑或继续录音</string>
+    <string name="recording_no_result">（无识别结果）</string>
+    <string name="recording_copy">复制</string>
+    <string name="recording_edit_btn">编辑</string>
+    <string name="recording_save_note">保存笔记</string>
+    <string name="recording_ai_summary">AI 总结</string>
+    <string name="recording_undo_save">撤销保存</string>
+    <string name="recording_continue">继续录音</string>
+    <string name="recording_smart_summary">智能总结</string>
+    <string name="recording_original_text">原文</string>
+    <string name="recording_todo_items">待办事项</string>
+    <string name="recording_save_as_note">保存为笔记</string>
+    <string name="recording_save_as_note_desc">将录音转写结果保存为笔记</string>
+    <string name="recording_note_title_hint">笔记标题（可选）</string>
+    <string name="recording_photo_tool">拍照</string>
+    <string name="recording_quick_note_tool">随手记</string>
+    <string name="recording_bookmark_tool">标记</string>
+    <string name="recording_bookmark_format">已标记 %1$s</string>
+
+    <!-- Note Editor - additional -->
+    <string name="note_editor_new">新建笔记</string>
+    <string name="note_editor_edit">编辑笔记</string>
+    <string name="note_editor_title_hint">标题（可选）</string>
+    <string name="note_editor_tag_hint">添加标签（最多200个，每个40字符）</string>
+    <string name="note_editor_preview">预览</string>
+    <string name="note_editor_discuss">讨论</string>
+    <string name="note_editor_title_placeholder">无标题</string>
+    <string name="note_editor_delete_title">删除笔记</string>
+    <string name="note_editor_delete_confirm">确定要删除这条笔记吗？此操作不可撤销。</string>
+    <string name="note_editor_unsaved_title">未保存的更改</string>
+    <string name="note_editor_unsaved_desc">您有尚未保存的内容。是否要在离开前保存？</string>
+    <string name="note_editor_save_leave">保存并离开</string>
+    <string name="note_editor_no_save">不保存</string>
+    <string name="note_editor_ai_action">AI 操作</string>
+    <string name="note_editor_no_sprout">暂无发芽</string>
+    <string name="note_editor_generating_sprout">正在汲取养分…</string>
+    <string name="note_editor_no_original_text">暂无原始转录文本</string>
+    <string name="note_editor_source_link">来源链接</string>
+    <string name="note_editor_saved_at">保存于 %s</string>
+    <string name="note_editor_saved_ago">已保存 %s</string>
+    <string name="note_editor_word_count">%d 字</string>
+    <string name="note_editor_reading_minutes">阅读约 %d 分钟</string>
+    <string name="note_editor_core_insight">核心洞察</string>
+    <string name="note_editor_action_suggestion">行动建议</string>
+    <string name="note_editor_related_concepts">相关概念</string>
+    <string name="note_editor_key_points">关键要点</string>
+    <string name="note_editor_tab_original">原文</string>
+    <string name="note_editor_tab_content">笔记内容</string>
+    <string name="note_editor_tab_sprout">发芽</string>
+    <string name="note_editor_tab_append">追加笔记</string>
+
+    <!-- Knowledge Base - additional -->
+    <string name="kb_search_hint">搜索知识库…</string>
+    <string name="kb_search_doc_hint">搜索文档内容…</string>
+    <string name="kb_empty">暂无知识库</string>
+    <string name="kb_empty_hint">点击下方 + 新建你的第一个知识库</string>
+    <string name="kb_no_match">未找到匹配的知识库</string>
+    <string name="kb_new">新建知识库</string>
+    <string name="kb_documents">文档</string>
+    <string name="kb_title">知识库</string>
+    <string name="kb_name_label">名称</string>
+    <string name="kb_desc_hint">描述（可选）</string>
+    <string name="kb_cover_color">封面颜色</string>
+    <string name="kb_create_success">知识库「%s」创建成功</string>
+    <string name="kb_edit_title">编辑知识库</string>
+    <string name="kb_desc_label">描述</string>
+    <string name="kb_delete_title">删除知识库</string>
+    <string name="kb_delete_confirm">确定要删除「%s」吗？其中的所有文档也将被删除。此操作不可撤销。</string>
+    <string name="kb_delete_success">已删除: %s</string>
+    <string name="kb_no_documents">暂无文档</string>
+    <string name="kb_no_match_documents">未找到匹配文档</string>
+    <string name="kb_importing">正在导入…</string>
+    <string name="kb_add_file_hint">点击右下角 + 添加文件</string>
+    <string name="kb_import_success">已添加: %s</string>
+    <string name="kb_import_failed">添加失败: %s</string>
+    <string name="kb_filter_all">全部</string>
+    <string name="kb_filter_text">文本</string>
+    <string name="kb_filter_image">图片</string>
+    <string name="kb_docs_format">%d 篇</string>
+    <string name="kb_doc_info">文档: %s (%s, %d字节)</string>
+    <string name="kb_share_developing">分享功能开发中</string>
+    <string name="kb_sort_label">排序</string>
 </resources>

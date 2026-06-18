@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,6 +42,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,10 +54,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.SttProgressState
 
 @Composable
@@ -117,7 +123,7 @@ fun SttProgressDialog(
                     Text(
                         text = when (progressState) {
                             SttProgressState.ERROR -> "关闭"
-                            else -> "取消"
+                            else -> stringResource(R.string.action_cancel)
                         },
                         fontWeight = FontWeight.Medium,
                     )
@@ -283,6 +289,8 @@ private fun RecognizingPhase(currentPhase: String?) {
 
 @Composable
 private fun ErrorPhase(onRetry: () -> Unit) {
+    var showHelpDialog by remember { mutableStateOf(false) }
+
     Icon(
         imageVector = Icons.Default.Error,
         contentDescription = "错误图标",
@@ -317,9 +325,27 @@ private fun ErrorPhase(onRetry: () -> Unit) {
         ) {
             Text("重试", fontWeight = FontWeight.Medium)
         }
-        TextButton(onClick = {}) {
+        TextButton(onClick = { showHelpDialog = true }) {
             Text("查看帮助", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+
+    if (showHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = false },
+            title = { Text(stringResource(R.string.stt_tips_title)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.stt_tips_content),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = false }) {
+                    Text("确定")
+                }
+            },
+        )
     }
 }
 

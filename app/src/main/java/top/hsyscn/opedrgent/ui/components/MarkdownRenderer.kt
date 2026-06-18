@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
 
@@ -228,7 +231,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                         Text(
                             text = buildAnnotatedString { appendMarkdownInline(quoteText) },
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                            color = Color(0xFF666666),
+                            color = themeTextGrey(),
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -263,7 +266,7 @@ private fun RenderCodeBlock(code: String, lang: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Column {
             if (lang.isNotEmpty()) {
@@ -300,7 +303,7 @@ fun MarkdownTable(tableLines: List<String>) {
             cells.forEach { cell ->
                 Card(
                     shape = RoundedCornerShape(4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F4FD))
+                    colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.08f))
                 ) {
                     Text(
                         text = cell.trim(),
@@ -344,7 +347,7 @@ fun MarkdownTable(tableLines: List<String>) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         shape = RoundedCornerShape(11.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             MarkdownTableRow(headers, aligns, isHeader = true)
@@ -459,7 +462,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(text: String) {
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     color = AccentBlue,
-                    background = Color(0xFFF0F0F0),
+                    background = Color(0xFF2A2D33),
                 )) {
                     append(first.groupValues[1])
                 }

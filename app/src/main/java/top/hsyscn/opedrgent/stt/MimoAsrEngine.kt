@@ -125,8 +125,30 @@ class MimoAsrEngine(
         val startTimeMs = System.currentTimeMillis()
         try {
             val tempFile = copyUriToTempFile(uri)
-            try { recognizeFileInternal(tempFile, startTimeMs) }
-            finally { tempFile.delete() }
+            try {
+                // 检查是否为 WAV 文件；非 WAV（MP3/AAC/FLAC 等）先转为临时 WAV
+                val wavFile = if (isWavFile(tempFile)) {
+                    tempFile
+                } else {
+                    DebugLog.i(TAG, "非 WAV 格式，通过 MediaCodec 解码: ${tempFile.name}")
+                    val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(tempFile))
+                    if (pair != null && pair.first.isNotEmpty()) {
+                        val outFile = java.io.File(context.cacheDir, "mimo_decode_${System.currentTimeMillis()}.wav")
+                        AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                        outFile
+                    } else {
+                        DebugLog.e(TAG, "MediaCodec 解码失败，返回空结果")
+                        return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = "音频解码失败")
+                    }
+                }
+                try {
+                    recognizeFileInternal(wavFile, startTimeMs)
+                } finally {
+                    if (wavFile != tempFile) wavFile.delete()
+                }
+            } finally {
+                tempFile.delete()
+            }
         } catch (e: Exception) {
             DebugLog.e(TAG, "URI 识别失败: ${e.message}", e)
             SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = e.message)
@@ -136,7 +158,31 @@ class MimoAsrEngine(
     override suspend fun recognizeFile(filePath: String): SttResult = withContext(Dispatchers.IO) {
         ensureInitialized()
         val startTimeMs = System.currentTimeMillis()
-        try { recognizeFileInternal(File(filePath), startTimeMs) }
+        try {
+            val file = File(filePath)
+            // Check format: non-WAV files need MediaCodec conversion before recognition.
+            // Previously this passed non-WAV files directly to recognizeFileInternal()
+            // which assumes WAV input, causing silent failures (empty results).
+            val wavFile = if (isWavFile(file)) {
+                file
+            } else {
+                DebugLog.i(TAG, "非 WAV 格式 (filePath), 通过 MediaCodec 解码: ${file.name}")
+                val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
+                if (pair != null && pair.first.isNotEmpty()) {
+                    val outFile = java.io.File(context.cacheDir, "mimo_decode_path_${System.currentTimeMillis()}.wav")
+                    AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                    outFile
+                } else {
+                    DebugLog.e(TAG, "MediaCodec 解码失败 (filePath), 返回空结果")
+                    return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = "音频解码失败")
+                }
+            }
+            try {
+                recognizeFileInternal(wavFile, startTimeMs)
+            } finally {
+                if (wavFile != file) wavFile.delete()
+            }
+        }
         catch (e: Exception) {
             DebugLog.e(TAG, "文件路径识别失败: ${e.message}", e)
             SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = e.message)
@@ -692,16 +738,63 @@ class MimoAsrEngine(
         }
     }
 
+    /** 检查文件是否为 WAV 格式（通过读取 RIFF 头） */
+    private fun isWavFile(file: java.io.File): Boolean {
+        if (file.length() < 12) return false
+        return try {
+            file.inputStream().use { fis ->
+                val header = ByteArray(4)
+                fis.read(header)
+                val riff = String(header, Charsets.US_ASCII) == "RIFF"
+                fis.skip(4)
+                val wave = String(ByteArray(4).also { fis.read(it) }, Charsets.US_ASCII) == "WAVE"
+                riff && wave
+            }
+        } catch (_: Exception) { false }
+    }
+
     private suspend fun copyUriToTempFile(uri: Uri): File = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
             ?: throw IllegalStateException("无法打开 URI: $uri")
-        val tempFile = File(context.cacheDir, "mimo_asr_${System.currentTimeMillis()}.wav")
+        // Infer the correct file extension from the URI's MIME type
+        // so that isWavFile() and downstream format detection work correctly.
+        val ext = inferExtensionFromUri(uri)
+        val tempFile = File(context.cacheDir, "mimo_asr_${System.currentTimeMillis()}.$ext")
         try {
             tempFile.outputStream().use { output -> inputStream.use { input -> input.copyTo(output) } }
+            DebugLog.d(TAG, "URI 已复制到临时文件: ${tempFile.absolutePath} (ext=$ext, ${tempFile.length()} bytes)")
             tempFile
         } catch (e: Exception) {
             if (tempFile.exists()) tempFile.delete()
             throw e
+        }
+    }
+
+    /**
+     * Infer the file extension from a content URI's MIME type.
+     * Falls back to "wav" if the MIME type cannot be resolved.
+     */
+    private fun inferExtensionFromUri(uri: Uri): String {
+        val mimeType = context.contentResolver.getType(uri) ?: return "wav"
+        return when (mimeType) {
+            "audio/mpeg" -> "mp3"
+            "audio/mp3" -> "mp3"
+            "audio/flac" -> "flac"
+            "audio/aac", "audio/mp4", "audio/x-m4a" -> "m4a"
+            "audio/ogg", "audio/opus" -> "ogg"
+            "audio/amr", "audio/amr-wb" -> "amr"
+            "audio/wav", "audio/wave", "audio/x-wav" -> "wav"
+            "audio/x-raw" -> "pcm"
+            "video/mp4" -> "mp4"
+            "video/x-matroska", "video/mkv" -> "mkv"
+            "video/avi", "video/x-msvideo" -> "avi"
+            "video/quicktime" -> "mov"
+            "video/webm" -> "webm"
+            "video/3gpp" -> "3gp"
+            else -> {
+                val subtype = mimeType.substringAfter("/", "")
+                if (subtype.isNotEmpty() && subtype.length <= 5) subtype else "wav"
+            }
         }
     }
 

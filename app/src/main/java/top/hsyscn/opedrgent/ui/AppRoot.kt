@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -163,6 +164,8 @@ import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.ui.components.UserBubble
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.components.InputMode
 import top.hsyscn.opedrgent.ui.components.InputModeBar
 import top.hsyscn.opedrgent.ui.components.RecordingState
@@ -276,10 +279,10 @@ fun AppRoot(
 
     Row(modifier = Modifier.fillMaxSize().background(BgGray)) {
         if (isLandscape) {
-            NavigationRail(containerColor = Color.White) {
+            NavigationRail(containerColor = BgGray) {
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    label = { Text("首页") },
+                    label = { Text(stringResource(R.string.tab_home)) },
                     selected = selectedTab == MainTab.HOME,
                     onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
@@ -293,13 +296,13 @@ fun AppRoot(
                             )
                         }
                     },
-                    label = { Text("笔记") },
+                    label = { Text(stringResource(R.string.tab_notes)) },
                     selected = selectedTab == MainTab.NOTES,
                     onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                 )
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                    label = { Text("录音") },
+                    label = { Text(stringResource(R.string.tab_recording)) },
                     selected = selectedTab == MainTab.RECORDING,
                     onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                 )
@@ -313,13 +316,13 @@ fun AppRoot(
                             )
                         }
                     },
-                    label = { Text("AI") },
+                    label = { Text(stringResource(R.string.tab_ai)) },
                     selected = selectedTab == MainTab.AI,
                     onClick = { selectedTab = MainTab.AI; subScreen = null },
                 )
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("设置") },
+                    label = { Text(stringResource(R.string.tab_settings)) },
                     selected = selectedTab == MainTab.SETTINGS,
                     onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
                 )
@@ -328,13 +331,18 @@ fun AppRoot(
         Scaffold(
             modifier = Modifier.weight(1f),
             containerColor = BgGray,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 if (!isLandscape) {
-                    NavigationBar(containerColor = Color.White) {
+                    NavigationBar(
+                        containerColor = BgGray,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0, 0, 0, 0)
+                    ) {
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                            label = { Text("首页") },
+                            label = { Text(stringResource(R.string.tab_home)) },
                             selected = selectedTab == MainTab.HOME,
                             onClick = { selectedTab = MainTab.HOME; subScreen = null },
                         )
@@ -348,13 +356,13 @@ fun AppRoot(
                                     )
                                 }
                             },
-                            label = { Text("笔记") },
+                            label = { Text(stringResource(R.string.tab_notes)) },
                             selected = selectedTab == MainTab.NOTES,
                             onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                         )
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                            label = { Text("录音") },
+                            label = { Text(stringResource(R.string.tab_recording)) },
                             selected = selectedTab == MainTab.RECORDING,
                             onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                         )
@@ -368,13 +376,13 @@ fun AppRoot(
                                     )
                                 }
                             },
-                            label = { Text("AI") },
+                            label = { Text(stringResource(R.string.tab_ai)) },
                             selected = selectedTab == MainTab.AI,
                             onClick = { selectedTab = MainTab.AI; subScreen = null },
                         )
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            label = { Text("设置") },
+                            label = { Text(stringResource(R.string.tab_settings)) },
                             selected = selectedTab == MainTab.SETTINGS,
                             onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
                         )
@@ -386,6 +394,7 @@ fun AppRoot(
             when (subScreen) {
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
                 "hippocampus" -> HippocampusScreen(hippocampus = hippocampus, onBack = { subScreen = null })
+                "opensource" -> OpenSourceScreen(onBack = { subScreen = null })
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
                 "vocabulary" -> VocabularySettingsScreen(onBack = { subScreen = null })
                 "automations" -> top.hsyscn.opedrgent.ui.AutomationsScreen(onBack = { subScreen = null })
@@ -513,6 +522,7 @@ fun AppRoot(
                         onAddToKnowledgeBase = { noteId -> vm.addNoteToKnowledgeBase(noteId) },
                         onAddTag = { noteId -> /* 已在编辑器内处理 */ },
                         onAppendNote = { noteId -> /* 已在编辑器内处理 */ },
+                        editorMode = vm.getEditorMode(),
                     )
                 }
                 null -> {
@@ -614,6 +624,7 @@ fun AppRoot(
                             toVoiceprint = { subScreen = "voiceprint" },
                             hippocampus = hippocampus,
                             showBackButton = false,
+                            toOpenSource = { subScreen = "opensource" },
                         )
                     }
                 }
@@ -683,6 +694,7 @@ fun AppRoot(
                                 onAddToKnowledgeBase = { nid -> vm.addNoteToKnowledgeBase(nid) },
                                 onAddTag = { nid -> /* 已在编辑器内处理 */ },
                                 onAppendNote = { nid -> /* 已在编辑器内处理 */ },
+                                editorMode = vm.getEditorMode(),
                             )
                         }
                         subScreen?.startsWith("noteShare_") == true -> {
@@ -765,7 +777,7 @@ fun SessionsScreen(
             OutlinedTextField(
                 value = q,
                 onValueChange = { q = it; vm.setSessionSearchQuery(it) },
-                label = { Text("搜索") },
+                label = { Text(stringResource(R.string.sessions_search_hint)) },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(11.dp),
@@ -804,15 +816,15 @@ fun SessionsScreen(
                     vm.createSessionAndNavigate(title)
                     title = ""
                     createOpen = false
-                }) { Text("创建") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { createOpen = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { createOpen = false }) { Text(stringResource(R.string.action_cancel)) } },
             title = { Text("新建研究") },
             text = {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("标题") },
+                    label = { Text(stringResource(R.string.sessions_title_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -837,10 +849,10 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("记忆管理") },
+                title = { Text(stringResource(R.string.title_memory_management)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -851,7 +863,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         selectedType = "USER"
                         editorOpen = true
                     }) {
-                        Icon(Icons.Default.Add, contentDescription = "add")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add))
                     }
                 },
             )
@@ -869,8 +881,8 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("暂无记忆条目", style = MaterialTheme.typography.bodyLarge)
-                        Text("点击右上角 + 添加记忆，AI 会自动参考这些内容。", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.memory_empty), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.memory_empty_hint), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -888,14 +900,14 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = entry.title.ifBlank { "（无标题）" }, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(text = entry.title.ifBlank { stringResource(R.string.memory_no_title) }, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             AssistChip(
                                 onClick = {},
                                 label = { Text(entry.type.label, style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.height(24.dp),
                             )
                             IconButton(onClick = { vm.deleteMemory(entry.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
                             }
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -923,7 +935,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         vm.addMemory(t, c, memType)
                     }
                     editorOpen = false
-                }) { Text("保存") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -931,12 +943,12 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         TextButton(onClick = {
                             vm.deleteMemory(editingId!!)
                             editorOpen = false
-                        }) { Text("删除") }
+                        }) { Text(stringResource(R.string.action_delete)) }
                     }
-                    TextButton(onClick = { editorOpen = false }) { Text("取消") }
+                    TextButton(onClick = { editorOpen = false }) { Text(stringResource(R.string.action_cancel)) }
                 }
             },
-            title = { Text(if (editingId == null) "新建记忆" else "编辑记忆") },
+            title = { Text(if (editingId == null) stringResource(R.string.memory_new) else stringResource(R.string.memory_edit)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -951,14 +963,14 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
-                        label = { Text("标题（例如：用户偏好、项目背景）") },
+                        label = { Text(stringResource(R.string.memory_title_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
                     OutlinedTextField(
                         value = content,
                         onValueChange = { content = it },
-                        label = { Text("内容（AI 会自动参考）") },
+                        label = { Text(stringResource(R.string.memory_content_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
                     )
@@ -1016,10 +1028,10 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("技能库") },
+                title = { Text(stringResource(R.string.title_skills_library)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -1047,7 +1059,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         // ① 从 URL 加载
                         ImportFabOption(
                             icon = Icons.Default.Link,
-                            label = "从 URL 加载",
+                            label = stringResource(R.string.skills_import_from_url),
                             onClick = {
                                 showImportMenu = false
                                 urlInput = ""
@@ -1058,7 +1070,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         // ② 从本地文件导入
                         ImportFabOption(
                             icon = Icons.Default.AttachFile,
-                            label = "从文件导入",
+                            label = stringResource(R.string.skills_import_from_file),
                             onClick = {
                                 showImportMenu = false
                                 filePickerLauncher.launch("application/octet-stream")
@@ -1067,7 +1079,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         // ③ 手动创建（原有功能）
                         ImportFabOption(
                             icon = Icons.Default.Add,
-                            label = "手动创建",
+                            label = stringResource(R.string.skills_create_manual),
                             onClick = {
                                 showImportMenu = false
                                 editingId = null
@@ -1086,7 +1098,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     Icon(
                         imageVector = if (showImportMenu) Icons.Default.Close else Icons.Default.Add,
-                        contentDescription = if (showImportMenu) "收起" else "添加技能",
+                        contentDescription = if (showImportMenu) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                     )
                 }
             }
@@ -1102,8 +1114,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             if (gallerySkills.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Gallery 技能",
-                        subtitle = "支持 JS 沙箱 / Native Intent / 纯提示词",
+                        title = stringResource(R.string.skills_gallery_title),
+                        subtitle = stringResource(R.string.skills_gallery_subtitle),
                         count = gallerySkills.size,
                     )
                 }
@@ -1145,8 +1157,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             if (state.skills.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "自定义技能",
-                        subtitle = "纯提示词快捷方式",
+                        title = stringResource(R.string.skills_custom_title),
+                        subtitle = stringResource(R.string.skills_custom_subtitle),
                         count = state.skills.size,
                     )
                 }
@@ -1210,10 +1222,10 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 tint = Color.LightGray,
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = "暂无技能", color = TextGrey, fontSize = 16.sp)
+                            Text(text = stringResource(R.string.skills_empty), color = TextGrey, fontSize = 16.sp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "点击右下角 + 按钮，可从 URL / 文件导入 Gallery 技能\n或手动创建自定义提示词技能",
+                                text = stringResource(R.string.skills_empty_hint),
                                 color = TextGrey,
                                 fontSize = 13.sp,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1269,19 +1281,19 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text("加载")
+                    Text(stringResource(R.string.action_download))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { if (!isImporting) showUrlImportDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
             title = { Text("从 URL 导入 Skill") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "输入 SKILL.md 文件的远程 URL，应用将下载并验证后导入到本地。",
+                        text = stringResource(R.string.skills_url_import_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = TextGrey,
                     )
@@ -1321,7 +1333,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }) {
                     Icon(Icons.Default.Save, contentDescription = "save")
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("保存")
+                    Text(stringResource(R.string.action_save))
                 }
             },
             dismissButton = {
@@ -1331,25 +1343,25 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             val id = editingId
                             if (id != null) vm.deleteSkill(id)
                             editorOpen = false
-                        }) { Text("删除") }
+                        }) { Text(stringResource(R.string.action_delete)) }
                     }
-                    TextButton(onClick = { editorOpen = false }) { Text("取消") }
+                    TextButton(onClick = { editorOpen = false }) { Text(stringResource(R.string.action_cancel)) }
                 }
             },
-            title = { Text(if (editingId == null) "新建自定义技能" else "编辑自定义技能") },
+            title = { Text(if (editingId == null) stringResource(R.string.skills_new_custom) else stringResource(R.string.skills_edit_custom)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("名称") },
+                        label = { Text(stringResource(R.string.skills_name_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
                     OutlinedTextField(
                         value = prompt,
                         onValueChange = { prompt = it },
-                        label = { Text("内容（会作为 User 消息发送）") },
+                        label = { Text(stringResource(R.string.skills_content_hint)) },
                         modifier = Modifier.fillMaxSize(),
                         minLines = 4,
                     )
@@ -1522,11 +1534,11 @@ private fun GallerySkillCard(
                             modifier = Modifier.size(28.dp),
                         ) {
                             Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "删除",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(16.dp),
-                            )
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.action_delete),
+                            tint = Color.Gray,
+                            modifier = Modifier.size(16.dp),
+                        )
                         }
                     }
                 }
@@ -1555,7 +1567,7 @@ fun shareFile(context: android.content.Context, packageName: String, file: File,
     if (ok) {
         runCatching { context.startActivity(chooser) }
     } else {
-        Toast.makeText(context, "未找到可分享应用", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.msg_no_share_app), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -1571,6 +1583,6 @@ fun openCalendarInsert(context: android.content.Context, e: top.hsyscn.opedrgent
     if (ok) {
         runCatching { context.startActivity(intent) }
     } else {
-        Toast.makeText(context, "未找到日历应用", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.msg_no_calendar_app), Toast.LENGTH_SHORT).show()
     }
 }

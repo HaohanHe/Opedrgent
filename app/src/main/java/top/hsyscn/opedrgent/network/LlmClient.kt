@@ -186,6 +186,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         tools: List<ToolDefinition> = emptyList(),
         thinkingEnabled: Boolean = false,
         jsonMode: Boolean = false,  // JSON Mode: 强制模型返回合法 JSON
+        maxOutputTokens: Int = 0,
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -199,6 +200,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
         val json = JSONObject().apply {
             put("model", config.model)
+            if (maxOutputTokens > 0) {
+                put("max_tokens", maxOutputTokens)
+            }
             put("stream", true)
             put(
                 "messages",
@@ -896,7 +900,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         // 构建 Anthropic Messages 格式请求体
         val json = JSONObject().apply {
             put("model", config.model)
-            put("max_tokens", 8192)
+            put("max_tokens", 16384)
             put("stream", true)
 
             // system 参数（独立于 messages，这是 Messages API 的特点）

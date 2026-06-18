@@ -34,7 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,9 +52,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.isSystemInDarkTheme
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import androidx.compose.material3.Text
 
 enum class RecordingState {
     RECORDING,
@@ -77,7 +79,7 @@ fun RecordingCard(
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
@@ -136,7 +138,7 @@ fun RecordingCard(
                         text = formatElapsed(elapsedSeconds),
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark,
+                        color = themeTextDark(),
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
                     // 录音状态指示文字
@@ -147,14 +149,14 @@ fun RecordingCard(
                             else -> fileName
                         },
                         fontSize = if (recordingState == RecordingState.RECORDING) 13.sp else 12.sp,
-                        color = if (recordingState == RecordingState.RECORDING) Color(0xFFE53935) else TextGrey,
+                        color = if (recordingState == RecordingState.RECORDING) Color(0xFFE53935) else themeTextGrey(),
                         fontWeight = if (recordingState == RecordingState.RECORDING) FontWeight.Medium else FontWeight.Normal,
                     )
                     if (recordingState != RecordingState.RECORDING) {
                         Text(
                             text = fileName,
                             fontSize = 11.sp,
-                            color = TextGrey.copy(alpha = 0.7f),
+                            color = themeTextGrey().copy(alpha = 0.7f),
                             maxLines = 1,
                         )
                     }
@@ -165,7 +167,7 @@ fun RecordingCard(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "取消录音",
-                        tint = TextGrey,
+                        tint = themeTextGrey(),
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -194,14 +196,14 @@ fun RecordingCard(
                     Surface(
                         onClick = onPause,
                         shape = CircleShape,
-                        color = Color(0xFFF5F5F5),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Pause,
                                 contentDescription = "暂停",
-                                tint = TextDark,
+                                tint = themeTextDark(),
                                 modifier = Modifier.size(24.dp),
                             )
                         }
@@ -270,13 +272,13 @@ fun RecordingCard(
                         color = AccentBlue,
                     )
                     Spacer(Modifier.width(12.dp))
-                    Text("处理中...", color = TextGrey, fontSize = 13.sp)
+                    Text("处理中...", color = themeTextGrey(), fontSize = 13.sp)
                 }
             }
 
             if (recordingState == RecordingState.PAUSED) {
                 Spacer(Modifier.height(8.dp))
-                Text("已暂停", color = TextGrey, fontSize = 12.sp)
+                Text("已暂停", color = themeTextGrey(), fontSize = 12.sp)
             }
         }
     }
@@ -289,7 +291,7 @@ private fun WaveformVisualizer(
     modifier: Modifier = Modifier,
 ) {
     val accentBlue = AccentBlue
-    val greyLight = Color(0xFFE0E0E0)
+    val greyLight = if (isSystemInDarkTheme()) Color(0xFF444444) else Color(0xFFE0E0E0)
 
     Canvas(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
         val barCount = 48

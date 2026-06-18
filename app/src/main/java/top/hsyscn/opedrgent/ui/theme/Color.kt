@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // ========== Material tonal palette tokens ==========
@@ -12,12 +14,12 @@ val BlueGrey40 = Color(0xFF5A6A7E)
 val Teal40 = Color(0xFF4A9A8A)
 
 // ========== Core semantic (legacy compat) ==========
-val DarkBackground = Color(0xFFF3F3F3)
-val DarkSurface = Color(0xFFFFFFFF)
-val DarkText = Color(0xFF1E242A)
-val DarkTextGrey = Color(0xFF7D7984)
+val DarkBackground = Color(0xFFF5F5F6)    // 得到大脑背景色
+val DarkSurface = Color(0xFFFCFCFC)        // 得到大脑卡片背景
+val DarkText = Color(0xFF1D2129)           // 得到大脑主文字
+val DarkTextGrey = Color(0xFF8A8F99)       // 得到大脑次要文字
 
-val AccentBlue = Color(0xFF1449E2)
+val AccentBlue = Color(0xFF08A1F9)         // 得到大脑链接蓝
 val LightBlueBg = Color(0xFFD1D7FE)
 val ButtonBg = Color(0xFFEDF2FE)
 val GreenDot = Color(0xFF2B7F47)
@@ -27,11 +29,11 @@ val UserBubbleEnd = Color(0xFF194CF0)
 val BubbleBlue = Color(0xFF2B68DE)
 val BubbleBlueEnd = Color(0xFF194CF0)
 val CitationBg = Color(0xFFD1D7FE)
-val BgGray = Color(0xFFF3F3F3)
-val CardWhite = Color(0xFFFFFFFF)
-val TextDark = Color(0xFF1E242A)
-val TextGrey = Color(0xFF7D7984)
-val BarBg = Color(0xFFF7F7F7)
+val BgGray = Color(0xFFF5F5F6)             // 得到大脑背景色
+val CardWhite = Color(0xFFFCFCFC)          // 得到大脑卡片背景
+val TextDark = Color(0xFF1D2129)           // 得到大脑主文字
+val TextGrey = Color(0xFF8A8F99)           // 得到大脑次要文字
+val BarBg = Color(0xFFF5F5F6)              // 得到大脑背景色
 
 // ========== 得到大脑风格扩展色板 ==========
 // Primary accent purple (得到大脑 brand color)
@@ -86,3 +88,27 @@ val SproutChipBg = Color(0xFFF0EAD6)         // 标签暖色背景
 val SproutDivider = Color(0xFFE8E2D8)        // 暖色分割线（加深以确保可见）
 val SproutSeedText = Color(0xFF6B6B6B)       // 种子引文（比 #777 深，确保可读）
 val SproutMetaText = Color(0xFF9A9590)       // 元信息（日期/图标，比 #888 深）
+
+// ========== Dark mode variants ==========
+val BgGray_Dark = Color(0xFF121212)
+val CardWhite_Dark = Color(0xFF1E1E1E)
+val TextDark_Dark = Color(0xFFE8E8E8)
+val TextGrey_Dark = Color(0xFF9E9E9E)
+val BarBg_Dark = Color(0xFF1A1A1A)
+val SurfaceElevated_Dark = Color(0xFF252525)
+val SurfaceLight_Dark = Color(0xFF1C1C1C)
+val CardBackground_Dark = Color(0xFF1E1E1E)
+val BorderLight_Dark = Color(0xFF333333)
+val DividerColor_Dark = Color(0xFF2A2A2A)
+
+// ========== Theme-aware composable helpers ==========
+@Composable fun themeBgGray() = if (isSystemInDarkTheme()) BgGray_Dark else BgGray
+@Composable fun themeCardWhite() = if (isSystemInDarkTheme()) CardWhite_Dark else CardWhite
+@Composable fun themeTextDark() = if (isSystemInDarkTheme()) TextDark_Dark else TextDark
+@Composable fun themeTextGrey() = if (isSystemInDarkTheme()) TextGrey_Dark else TextGrey
+@Composable fun themeBarBg() = if (isSystemInDarkTheme()) BarBg_Dark else BarBg
+@Composable fun themeSurfaceElevated() = if (isSystemInDarkTheme()) SurfaceElevated_Dark else SurfaceElevated
+@Composable fun themeSurfaceLight() = if (isSystemInDarkTheme()) SurfaceLight_Dark else SurfaceLight
+@Composable fun themeCardBackground() = if (isSystemInDarkTheme()) CardBackground_Dark else CardBackground
+@Composable fun themeBorderLight() = if (isSystemInDarkTheme()) BorderLight_Dark else BorderLight
+@Composable fun themeDividerColor() = if (isSystemInDarkTheme()) DividerColor_Dark else DividerColor

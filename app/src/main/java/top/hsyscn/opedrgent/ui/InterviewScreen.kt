@@ -91,12 +91,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.interview.InterviewConfig
 import top.hsyscn.opedrgent.interview.StepRealtimeClient
 import top.hsyscn.opedrgent.interview.InterviewPhase
@@ -111,10 +113,6 @@ import top.hsyscn.opedrgent.interview.Verdict
 import top.hsyscn.opedrgent.interview.EvaluationDimension
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
 import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
 import top.hsyscn.opedrgent.ui.theme.InterviewPurple
@@ -122,6 +120,13 @@ import top.hsyscn.opedrgent.ui.collectAsStateCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeBorderLight
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.WarningBg
 
 // ==================== 主入口 ====================
 
@@ -178,18 +183,18 @@ private fun InterviewSetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("面试模式", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_interview_mode), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -203,13 +208,13 @@ private fun InterviewSetupScreen(
                 text = "选择面试模式，直接开始对话",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
 
             Text(
                 text = "AI会通过对话了解你的需求，无需提前填写信息",
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
 
             // ===== 阶跃星辰 Step 3.7 Flash 推荐横幅 =====
@@ -250,20 +255,20 @@ private fun InterviewSetupScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = CardWhite),
+                colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "其他场景",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         text = "投资路演、英语口语、销售谈判... 任何对话场景都可以",
                         fontSize = 13.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                     Spacer(Modifier.height(12.dp))
                     Button(
@@ -546,7 +551,7 @@ private fun ModeSelectionCard(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) AccentBlue.copy(alpha = 0.08f) else CardWhite,
+            containerColor = if (isSelected) AccentBlue.copy(alpha = 0.08f) else themeCardWhite(),
         ),
         border = if (isSelected) {
             androidx.compose.foundation.BorderStroke(2.dp, AccentBlue)
@@ -583,12 +588,12 @@ private fun ModeSelectionCard(
                 text = title,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Text(
                 text = description,
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
                 textAlign = TextAlign.Center,
                 lineHeight = 16.sp,
             )
@@ -609,7 +614,7 @@ private fun InterviewPreparingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgGray),
+            .background(themeBgGray()),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -641,7 +646,7 @@ private fun InterviewPreparingScreen(
                 text = "AI 正在分析您的材料...",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextDark,
+                color = themeTextDark(),
             )
 
             // 显示分析结果（如果有）
@@ -649,7 +654,7 @@ private fun InterviewPreparingScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = CardWhite),
+                    colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 ) {
                     Column(
@@ -660,7 +665,7 @@ private fun InterviewPreparingScreen(
                             text = "材料分析结果",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
-                            color = TextDark,
+                            color = themeTextDark(),
                         )
 
                         // 关键点
@@ -675,7 +680,7 @@ private fun InterviewPreparingScreen(
                                 Text(
                                     text = "• $point",
                                     fontSize = 13.sp,
-                                    color = TextDark,
+                                    color = themeTextDark(),
                                     lineHeight = 18.sp,
                                 )
                             }
@@ -683,7 +688,7 @@ private fun InterviewPreparingScreen(
 
                         // 建议提问方向
                         if (analysisResult.suggestedQuestions.isNotEmpty()) {
-                            HorizontalDivider(color = Color(0xFFF0F0F0))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
                                 text = "建议关注方向",
                                 fontWeight = FontWeight.SemiBold,
@@ -694,7 +699,7 @@ private fun InterviewPreparingScreen(
                                 Text(
                                     text = "• $q",
                                     fontSize = 13.sp,
-                                    color = TextDark,
+                                    color = themeTextDark(),
                                     lineHeight = 18.sp,
                                 )
                             }
@@ -702,7 +707,7 @@ private fun InterviewPreparingScreen(
 
                         // 风险点
                         if (analysisResult.riskAreas.isNotEmpty()) {
-                            HorizontalDivider(color = Color(0xFFF0F0F0))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
                                 text = "可能被深挖的点",
                                 fontWeight = FontWeight.SemiBold,
@@ -713,7 +718,7 @@ private fun InterviewPreparingScreen(
                                 Text(
                                     text = "• $risk",
                                     fontSize = 13.sp,
-                                    color = TextDark,
+                                    color = themeTextDark(),
                                     lineHeight = 18.sp,
                                 )
                             }
@@ -725,7 +730,7 @@ private fun InterviewPreparingScreen(
             Text(
                 text = "即将开始面试...",
                 fontSize = 13.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
     }
@@ -800,14 +805,14 @@ private fun InterviewSessionScreen(
                             Text(
                                 text = "第 ${interviewState.questionCount}/${config.questionCount} 题",
                                 fontSize = 12.sp,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -822,11 +827,11 @@ private fun InterviewSessionScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -974,13 +979,13 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                     text = feedback.quickFeedback.ifBlank { "教练建议" },
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = if (expanded) "▼" else "▶",
                     fontSize = 12.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
 
@@ -1007,7 +1012,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                         Text(
                             text = "STAR法则评分: %.1f/10".format(starScore),
                             fontSize = 12.sp,
-                            color = TextDark.copy(alpha = 0.7f),
+                            color = themeTextDark().copy(alpha = 0.7f),
                         )
                     }
 
@@ -1017,7 +1022,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                             text = feedback.detailedFeedback,
                             fontSize = 13.sp,
                             lineHeight = 19.sp,
-                            color = TextDark,
+                            color = themeTextDark(),
                         )
                     }
                 }
@@ -1039,7 +1044,7 @@ private fun ScoreBadge(label: String, score: Float) {
         Text(
             text = label,
             fontSize = 10.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -1098,7 +1103,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                     )
                 )
                 .background(
-                    if (isInterviewer) androidx.compose.ui.graphics.SolidColor(CardWhite) else Brush.linearGradient(
+                    if (isInterviewer) androidx.compose.ui.graphics.SolidColor(themeCardWhite()) else Brush.linearGradient(
                         colors = listOf(UserBubbleStart, UserBubbleStart)
                     )
                 )
@@ -1112,7 +1117,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                 text = message.content,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
-                color = if (isInterviewer) TextDark else Color.White,
+                color = if (isInterviewer) themeTextDark() else Color.White,
             )
         }
 
@@ -1164,7 +1169,7 @@ private fun ThinkingIndicator() {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
-                .background(CardWhite)
+                .background(themeCardWhite())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -1199,7 +1204,7 @@ private fun InterviewInputBar(
             .fillMaxWidth()
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
@@ -1226,10 +1231,10 @@ private fun InterviewInputBar(
                             Icons.Default.Description,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = if (!useVoice) AccentBlue else TextGrey,
+                            tint = if (!useVoice) AccentBlue else themeTextGrey(),
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("文字", fontSize = 12.sp, color = if (!useVoice) AccentBlue else TextGrey)
+                        Text("文字", fontSize = 12.sp, color = if (!useVoice) AccentBlue else themeTextGrey())
                     }
 
                     // 语音输入模式
@@ -1246,10 +1251,10 @@ private fun InterviewInputBar(
                             Icons.Default.Mic,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = if (useVoice) AccentBlue else TextGrey,
+                            tint = if (useVoice) AccentBlue else themeTextGrey(),
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("语音", fontSize = 12.sp, color = if (useVoice) AccentBlue else TextGrey)
+                        Text("语音", fontSize = 12.sp, color = if (useVoice) AccentBlue else themeTextGrey())
                     }
                 }
 
@@ -1291,7 +1296,7 @@ private fun InterviewInputBar(
                         placeholder = { Text("输入你的回答...", fontSize = 14.sp) },
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = Color(0xFFE4E4E4),
+                            unfocusedBorderColor = themeBorderLight(),
                             focusedBorderColor = AccentBlue,
                         ),
                         maxLines = 4,
@@ -1330,7 +1335,7 @@ private fun VoiceInputArea(
             .fillMaxWidth()
             .height(80.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isListening) Color(0xFFFEE2E2) else Color(0xFFF5F5F5)),
+            .background(if (isListening) Color(0xFFFEE2E2) else MaterialTheme.colorScheme.surfaceContainerLow),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -1354,7 +1359,7 @@ private fun VoiceInputArea(
             Text(
                 text = if (isListening) "录音中... 点击停止" else "点击开始语音输入",
                 fontSize = 12.sp,
-                color = if (isListening) Color(0xFFE53935) else TextGrey,
+                color = if (isListening) Color(0xFFE53935) else themeTextGrey(),
             )
         }
     }
@@ -1390,13 +1395,13 @@ private fun DuplexStatusBar(
         isMuted || duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> Color(0xFFE53935)
         duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> AccentBlue
         duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> Color(0xFF4CAF50)
-        else -> TextGrey
+        else -> themeTextGrey()
     }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -1431,7 +1436,7 @@ private fun DuplexControlPanel(
             .fillMaxWidth()
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         Column(
@@ -1449,8 +1454,8 @@ private fun DuplexControlPanel(
                     onClick = onToggleMute,
                     shape = CircleShape,
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = if (isMuted) Color(0xFFE53935) else Color(0xFFF5F5F5),
-                        contentColor = if (isMuted) Color.White else TextDark,
+                        containerColor = if (isMuted) Color(0xFFE53935) else MaterialTheme.colorScheme.surfaceContainerLow,
+                        contentColor = if (isMuted) Color.White else themeTextDark(),
                     ),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
                 ) {
@@ -1477,14 +1482,14 @@ private fun DuplexControlPanel(
                         text = String.format(Locale.getDefault(), "%02d:%02d / --:--", minutes, seconds),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark,
+                        color = themeTextDark(),
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
                     // 题目进度
                     Text(
                         text = "第 $questionCount / $totalQuestions 题",
                         fontSize = 11.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                 }
 
@@ -1518,7 +1523,7 @@ private fun DuplexControlPanel(
                 Text(
                     "改用文字输入 →",
                     fontSize = 12.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
         }
@@ -1542,7 +1547,7 @@ private fun DuplexTextInputBar(
             .fillMaxWidth()
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
@@ -1605,7 +1610,7 @@ private fun InterviewTimer(elapsedSeconds: Int) {
     Text(
         text = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds),
         fontSize = 13.sp,
-        color = TextGrey,
+        color = themeTextGrey(),
         modifier = Modifier.padding(end = 8.dp),
         fontWeight = FontWeight.Medium,
     )
@@ -1630,18 +1635,18 @@ private fun InterviewReportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("面试报告", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_interview_report), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         if (report == null) {
@@ -1657,7 +1662,7 @@ private fun InterviewReportScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     CircularProgressIndicator(color = AccentBlue)
-                    Text("正在生成面试报告...", color = TextGrey)
+                    Text("正在生成面试报告...", color = themeTextGrey())
                 }
             }
         } else {
@@ -1796,7 +1801,7 @@ private fun ScoreCard(report: InterviewReport) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
@@ -1818,7 +1823,7 @@ private fun ScoreCard(report: InterviewReport) {
                 text = "${report.overallScore.toInt()} 分",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(4.dp))
             // 评级描述
@@ -1832,7 +1837,7 @@ private fun ScoreCard(report: InterviewReport) {
             Text(
                 text = gradeDesc,
                 fontSize = 14.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
     }
@@ -1845,7 +1850,7 @@ private fun SummaryCard(summary: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1853,14 +1858,14 @@ private fun SummaryCard(summary: String) {
                 text = "总体评价",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = summary,
                 fontSize = 14.sp,
                 lineHeight = 22.sp,
-                color = TextDark.copy(alpha = 0.8f),
+                color = themeTextDark().copy(alpha = 0.8f),
             )
         }
     }
@@ -1873,7 +1878,7 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1881,7 +1886,7 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
                 text = "各维度评分",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -1914,7 +1919,7 @@ private fun DimensionBar(dimension: EvaluationDimension) {
                 text = dimension.name,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextDark,
+                color = themeTextDark(),
                 modifier = Modifier.weight(1f),
             )
             Text(
@@ -1930,7 +1935,7 @@ private fun DimensionBar(dimension: EvaluationDimension) {
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFF0F0F0)),
+                .background(MaterialTheme.colorScheme.outlineVariant),
         ) {
             Box(
                 modifier = Modifier
@@ -1944,7 +1949,7 @@ private fun DimensionBar(dimension: EvaluationDimension) {
             Text(
                 text = dimension.feedback,
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
                 lineHeight = 16.sp,
             )
         }
@@ -1962,7 +1967,7 @@ private fun EvaluationSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1970,7 +1975,7 @@ private fun EvaluationSection(
                 text = title,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             items.forEachIndexed { index, item ->
@@ -1989,14 +1994,14 @@ private fun EvaluationSection(
                         text = item,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
-                        color = TextDark.copy(alpha = 0.8f),
+                        color = themeTextDark().copy(alpha = 0.8f),
                         modifier = Modifier.weight(1f),
                     )
                 }
                 if (index < items.lastIndex) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        color = Color(0xFFF0F0F0),
+                        color = themeDividerColor(),
                     )
                 }
             }
@@ -2013,7 +2018,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -2027,7 +2032,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                     text = "完整对话记录 (${transcript.size} 条)",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -2064,12 +2069,12 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                                     text = turn.content,
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
-                                    color = TextDark,
+                                    color = themeTextDark(),
                                 )
                             }
                         }
                         if (turn != transcript.last()) {
-                            HorizontalDivider(color = Color(0xFFF5F5F5))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }

@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">Opedrgent</string>
+    <string name="widget_description">Opedrgent ショートカット — AIアシスタント・会議録音・新しいチャットにワンタッチアクセス</string>
+
+    <!-- Tab labels -->
+    <string name="tab_home">ホーム</string>
+    <string name="tab_notes">ノート</string>
+    <string name="tab_recording">録音</string>
+    <string name="tab_ai">AI</string>
+    <string name="tab_settings">設定</string>
+
+    <!-- Common actions -->
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_delete">削除</string>
+    <string name="action_back">戻る</string>
+    <string name="action_save">保存</string>
+    <string name="action_share">共有</string>
+    <string name="action_edit">編集</string>
+    <string name="action_send">送信</string>
+    <string name="action_done">完了</string>
+    <string name="action_retry">リトライ</string>
+    <string name="action_expand">展開</string>
+    <string name="action_collapse">折りたたむ</string>
+    <string name="action_download">ダウンロード</string>
+    <string name="action_pause">一時停止</string>
+    <string name="action_resume">再開</string>
+    <string name="action_confirm">確認</string>
+    <string name="action_close">閉じる</string>
+    <string name="action_stop">停止</string>
+    <string name="action_start">開始</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_create">作成</string>
+    <string name="action_add">追加</string>
+    <string name="action_search">検索</string>
+    <string name="action_select">選択</string>
+    <string name="action_enable">有効にする</string>
+    <string name="action_disable">無効にする</string>
+    <string name="action_refresh">更新</string>
+    <string name="action_import">インポート</string>
+    <string name="action_export">エクスポート</string>
+    <string name="action_upload">アップロード</string>
+    <string name="action_load">読み込み</string>
+
+    <!-- Screen titles -->
+    <string name="title_settings">設定</string>
+    <string name="title_notes">ノート</string>
+    <string name="title_recording">録音</string>
+    <string name="title_meeting_recording">会議録音</string>
+    <string name="title_interview_mode">面接モード</string>
+    <string name="title_interview_report">面接レポート</string>
+    <string name="title_knowledge_graph">ナレッジグラフ</string>
+    <string name="title_hippocampus">海馬体メモリ</string>
+    <string name="title_voiceprint">声紋認証</string>
+    <string name="title_vocabulary">音声辞書</string>
+    <string name="title_memory_management">メモリ管理</string>
+    <string name="title_skills_library">スキルライブラリ</string>
+    <string name="title_automations">オートメーション</string>
+    <string name="title_export">エクスポート</string>
+    <string name="title_import_file">ファイルインポート</string>
+    <string name="title_invisible_partner">不可視パートナー</string>
+    <string name="title_sprout_report">スプラウトレポート</string>
+    <string name="title_share_note">ノートを共有</string>
+    <string name="title_note_editor">ノートエディタ</string>
+    <string name="title_new_note">新規ノート</string>
+    <string name="title_new_session">新しいチャット</string>
+    <string name="title_model_manager">モデル管理</string>
+    <string name="title_local_model">ローカルモデル</string>
+
+    <!-- Messages / Feedback -->
+    <string name="msg_copied_to_clipboard">クリップボードにコピーしました</string>
+    <string name="msg_export_failed">エクスポート失敗</string>
+    <string name="msg_saved_as_note">ノートとして保存しました</string>
+    <string name="msg_sent_to_ai">AIに送信して要約しました</string>
+    <string name="msg_create_session_first">先にチャットを作成してください</string>
+    <string name="msg_audio_permission_required">録音権限が未許可です</string>
+    <string name="msg_no_share_app">共有可能なアプリが見つかりません</string>
+    <string name="msg_no_calendar_app">カレンダーアプリが見つかりません</string>
+    <string name="msg_import_success">インポート成功</string>
+    <string name="msg_import_failed">インポート失敗</string>
+    <string name="msg_no_sessions_to_export">エクスポートするセッションがありません</string>
+    <string name="msg_nothing_to_copy">コピーする内容がありません</string>
+    <string name="msg_no_files_to_share">共有するファイルがありません</string>
+    <string name="msg_stopped">停止しました</string>
+    <string name="msg_save_undone">保存を元に戻しました</string>
+    <string name="msg_params_saved">設定を保存しました。次回のモデル読み込みで有効になります</string>
+    <string name="msg_download_model_first">先にモデルをダウンロードしてください</string>
+    <string name="msg_switched_to_offline">オフラインモードに切り替えました</string>
+    <string name="msg_thanks_feedback">フィードバックありがとう！</string>
+    <string name="msg_bookmark_added">ブックマーク済み</string>
+    <string name="msg_note_point_added">ノートポイントを記録しました</string>
+    <string name="msg_recording_saved">録音を保存しました</string>
+    <string name="msg_processing">処理中…</string>
+    <string name="msg_loading">読み込み中…</string>
+    <string name="msg_network_error">ネットワークエラー、接続を確認してください</string>
+    <string name="msg_type_message">メッセージを入力…</string>
+    <string name="msg_model_not_ready">モデルが準備できていません</string>
+    <string name="msg_permission_denied">権限が拒否されました</string>
+    <string name="msg_file_not_found">ファイルが見つかりません</string>
+    <string name="msg_unsupported_format">サポートされていない形式です</string>
+    <string name="msg_feature_under_development">開発中</string>
+
+    <!-- Recording modes -->
+    <string name="recording_mode_voice_memo">ボイスメモ</string>
+    <string name="recording_mode_meeting">会議</string>
+    <string name="recording_mode_internal">内部音声</string>
+    <string name="recording_mode_classroom">教室録音</string>
+    <string name="recording_unlimited">無制限</string>
+    <string name="recording_max_hours">最長 %1$d 時間録音可能</string>
+    <string name="recording_max_unlimited">最長 無制限</string>
+    <string name="recording_max_label">最長 %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_recording_duration">録音時間の制限</string>
+    <string name="settings_api_config">API設定</string>
+    <string name="settings_voice">音声設定</string>
+    <string name="settings_tts">テキスト読み上げ</string>
+    <string name="settings_stt">音声認識</string>
+    <string name="settings_local_model">ローカルモデル</string>
+    <string name="settings_advanced">詳細設定</string>
+    <string name="settings_about">バージョン情報</string>
+
+    <!-- Note types -->
+    <string name="note_type_text">テキスト</string>
+    <string name="note_type_quick">速記</string>
+    <string name="note_type_link">リンク</string>
+    <string name="note_type_image">画像</string>
+    <string name="note_type_pdf">PDF</string>
+    <string name="note_type_audio">音声</string>
+
+    <!-- STT -->
+    <string name="stt_engine_local">ローカル認識</string>
+    <string name="stt_engine_cloud">クラウド認識</string>
+    <string name="stt_listening">書き起こし中…</string>
+    <string name="stt_processing">変換中…</string>
+    <string name="stt_complete">変換完了</string>
+    <string name="stt_failed">変換失敗</string>
+    <string name="stt_tips_title">音声認識のヒント</string>
+    <string name="stt_tips_content">1. 安定したネットワーク接続を確保してください\n2. 明確に話し、適度な速度でお願いします\n3. 日本語/英語の混在にも対応しています\n4. 静かな環境の方が認識精度が上がります\n5. 対応フォーマット: MP3/WAV/M4A/AAC/FLAC</string>
+
+    <!-- Content descriptions (accessibility) -->
+    <string name="cd_back">戻る</string>
+    <string name="cd_delete">削除</string>
+    <string name="cd_share">共有</string>
+    <string name="cd_edit">編集</string>
+    <string name="cd_copy">コピー</string>
+    <string name="cd_expand">展開</string>
+    <string name="cd_collapse">折りたたむ</string>
+    <string name="cd_play">再生</string>
+    <string name="cd_pause">一時停止</string>
+    <string name="cd_stop">停止</string>
+    <string name="cd_bookmark">ブックマーク</string>
+    <string name="cd_more">その他</string>
+    <string name="cd_close">閉じる</string>
+    <string name="cd_download">ダウンロード</string>
+    <string name="cd_settings">設定</string>
+    <string name="cd_microphone">マイク</string>
+
+    <!-- Duration format -->
+    <string name="duration_hours_minutes">%1$d時間%2$d分</string>
+    <string name="duration_minutes_seconds">%1$d:%2$02d</string>
+    <string name="duration_hours">%1$d時間</string>
+
+    <!-- Additional messages -->
+    <string name="msg_location_permission_denied">位置情報権限が未許可です</string>
+    <string name="msg_record_init_failed">録音デバイスを初期化できません</string>
+    <string name="msg_system_audio_init_failed">システム音声録音を初期化できません</string>
+    <string name="msg_recording_permission_denied">録音権限が未取得です</string>
+    <string name="msg_recording_file_not_found">録音ファイルが存在しません</string>
+    <string name="msg_copied">コピーしました</string>
+    <string name="msg_note_copied">クリップボードにコピーしました</string>
+    <string name="msg_need_android_10">Android 10以上が必要です</string>
+    <string name="msg_need_overlay_permission">先にオーバーレイ権限を許可してください</string>
+    <string name="msg_play_media_hint">記録したい動画や音声を再生してください。システムが自動的に録音します</string>
+    <string name="msg_select_model_first">先にモデルを選択してダウンロードしてください</string>
+    <string name="msg_switched_to_api">APIモードに切り替えました</string>
+    <string name="msg_model_load_error">モデル読み込み失敗: %s</string>
+    <string name="msg_model_file_not_exist">モデルファイルが存在しません</string>
+    <string name="msg_model_loaded">%s を読み込みました</string>
+    <string name="msg_load_failed">読み込み失敗: %s</string>
+    <string name="msg_switched_offline_detail">オフラインモードに切り替えました: %s</string>
+    <string name="msg_delete_model">モデルを削除</string>
+    <string name="msg_delete_model_confirm">この音声モデルを削除しますか？削除後に使用するには再ダウンロードが必要です。</string>
+    <string name="msg_confirm_delete">削除を確認</string>
+    <string name="msg_still_try">それでも試す</string>
+    <string name="msg_memory_insufficient">メモリ不足の警告</string>
+    <string name="msg_memory_insufficient_desc">利用可能なメモリが不足しているため、このモデルを読み込めません。</string>
+    <string name="msg_save_params">パラメータを保存</string>
+    <string name="msg_local_mode_running">ローカルモードで実行中</string>
+    <string name="msg_local_mode_desc">Gemma 4 オフラインモデルを使用中。API設定は一時停止されています</string>
+
+    <!-- Additional content descriptions -->
+    <string name="cd_add">追加</string>
+    <string name="cd_save">保存</string>
+    <string name="cd_new">新規</string>
+    <string name="cd_start_recording">録音開始</string>
+    <string name="cd_expand_model">モデルを展開</string>
+    <string name="cd_enter">入る</string>
+
+    <!-- Memory Manager -->
+    <string name="memory_empty">メモリ項目はまだありません</string>
+    <string name="memory_empty_hint">右上の + をタップしてメモリを追加してください。AIがこれらの内容を自動的に参照します。</string>
+    <string name="memory_no_title">（無題）</string>
+    <string name="memory_new">新しいメモリ</string>
+    <string name="memory_edit">メモリを編集</string>
+    <string name="memory_title_hint">タイトル（例：ユーザーの好み、プロジェクト背景）</string>
+    <string name="memory_content_hint">内容（AIが自動的に参照します）</string>
+
+    <!-- Skills Screen -->
+    <string name="skills_import_from_url">URLから読み込み</string>
+    <string name="skills_import_from_file">ファイルからインポート</string>
+    <string name="skills_create_manual">手動で作成</string>
+    <string name="skills_gallery_title">Gallery スキル</string>
+    <string name="skills_gallery_subtitle">JSサンドボックス / Native Intent / プロンプトのみに対応</string>
+    <string name="skills_custom_title">カスタムスキル</string>
+    <string name="skills_custom_subtitle">プロロンプトショートカット</string>
+    <string name="skills_empty">スキルはまだありません</string>
+    <string name="skills_empty_hint">右下の + ボタンをタップして、URL / ファイルからGallery スキルをインポート\nまたはカスタムプロロンプトスキルを手動で作成できます</string>
+    <string name="skills_url_import_title">URLからSkillをインポート</string>
+    <string name="skills_url_import_desc">SKILL.mdファイルのリモートURLを入力してください。アプリがダウンロード・検証後にローカルにインポートします。</string>
+    <string name="skills_url_input_hint">SKILL.mdのURLを入力してください</string>
+    <string name="skills_new_custom">新しいカスタムスキル</string>
+    <string name="skills_edit_custom">カスタムスキルを編集</string>
+    <string name="skills_name_label">名前</string>
+    <string name="skills_content_hint">内容（ユーザーメッセージとして送信されます）</string>
+
+    <!-- Sessions Screen -->
+    <string name="sessions_search_hint">検索</string>
+    <string name="sessions_new_research">新しいリサーチ</string>
+    <string name="sessions_title_label">タイトル</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_model_provider">モデルプロバイダー</string>
+    <string name="settings_provider_custom">カスタム</string>
+    <string name="settings_memory_management">メモリ管理</string>
+    <string name="settings_memory_entries">メモリ項目</string>
+    <string name="settings_memory_count">メモリ %d 件</string>
+    <string name="settings_notes_management">ノート管理</string>
+    <string name="settings_my_notes">マイノート</string>
+    <string name="settings_notes_desc">テキスト/音声/画像/リンク/PDFノートに対応、タグ分類付き</string>
+    <string name="settings_voiceprint_section">声紋認証</string>
+    <string name="settings_voiceprint_desc">話者の声紋を登録し、会議録音で話者を自動識別します</string>
+    <string name="settings_stt_label">音声認識</string>
+    <string name="settings_stt_engine">認識エンジン</string>
+    <string name="settings_local_sherpa">ローカル Sherpa</string>
+    <string name="settings_mimo_asr_desc">MiMo ASR はネットワーク経由で小米音声認識APIを呼び出します。インターネット接続が必要で、中国語/英語/日本語/韓国語などの多言語に対応しています</string>
+    <string name="settings_stepaudio_asr_desc">StepAudio 2.5 ASR (阶跃星辰) — 4B MTP高速エンジン、1時間の音声を19秒で変換、0.15元/時間。阶跃 API Keyが必要</string>
+    <string name="settings_local_stt_desc">ローカル認識はSherpa-ONNXオフラインモデルを使用し、インターネット接続不要。初回使用時にモデルのダウンロードが必要です</string>
+    <string name="settings_local_models_label">ローカルモデル</string>
+    <string name="settings_model_downloaded">ダウンロード済み</string>
+    <string name="settings_model_recommended">おすすめ</string>
+    <string name="settings_delete_model_cd">モデルを削除</string>
+    <string name="settings_preparing">準備中…</string>
+    <string name="settings_tts_section">TTS 読み上げ</string>
+    <string name="settings_tts_engine">TTSエンジン</string>
+    <string name="settings_system_tts">システムTTS</string>
+    <string name="settings_stepaudio_tts_desc">StepAudio 2.5 TTS (阶跃星辰) — Global+Inlineデュアルコンテキスト制御、Zero-shot音色複製、5.8元/万字。阶跃 API Keyが必要</string>
+    <string name="settings_mimo_tts_desc">MiMo TTS はネットワーク経由で小米音声合成APIを呼び出します。音色クローンとディレクターモードに対応</string>
+    <string name="settings_auto_read">回答を自動読み上げ</string>
+    <string name="settings_download_audio_only">音声のみローカルにダウンロード</string>
+    <string name="settings_download_audio_hint">有効にすると、自動読み上げ時に音声ファイルのみ保存され、自動再生されません</string>
+    <string name="settings_play_audio_hint">無効にすると、自動読み上げ時に音声が直接再生されます</string>
+    <string name="settings_speed">速度</string>
+    <string name="settings_speed_slow">遅い</string>
+    <string name="settings_speed_normal">標準</string>
+    <string name="settings_speed_fast">速い</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_chinese">中国語</string>
+    <string name="settings_english">英語</string>
+    <string name="settings_voice_memo">ボイスメモ</string>
+    <string name="settings_meeting">会議</string>
+    <string name="settings_internal">内部音声</string>
+    <string name="settings_classroom">教室録音</string>
+    <string name="settings_no_limit">無制限</string>
+    <string name="settings_hours_format">%d時間</string>
+    <string name="settings_duration_desc">各録音モードの最大録音時間を設定します。超過後に自動停止します</string>
+    <string name="settings_ocr_section">OCR 文字認識</string>
+    <string name="settings_web_search_section">ネット検索</string>
+    <string name="settings_web_search_label">ネット検索</string>
+    <string name="settings_web_search_desc">有効にすると、AIチャットでネットワーク情報を検索して最新コンテンツを取得できます</string>
+    <string name="settings_search_engine">検索エンジン</string>
+    <string name="settings_own_engine">自社エンジン</string>
+    <string name="settings_provider_builtin">ベンダー内蔵</string>
+    <string name="settings_own_engine_desc">Opedrgent独自のマルチエンジン検索を使用（Bing / DuckDuckGo / Jinaなど）。検索エンジンの順序とAPI Keyのカスタマイズに対応</string>
+    <string name="settings_provider_builtin_desc">現在のLLMモデルベンダーが提供する内蔵ネット検索機能を使用（DeepSeek / Mimoなどのモデルに搭載）。追加設定は不要です</string>
+    <string name="settings_web_search_off_desc">無効にすると、AIはローカルナレッジと既存ノートのみに基づいて回答し、ネットリクエストは行いません</string>
+    <string name="settings_bg_run_section">バックグラウンド実行</string>
+    <string name="settings_bg_run_label">バックグラウンド実行</string>
+    <string name="settings_bg_run_desc">有効にすると、アプリがバックグラウンドで継続的に実行され、定時タスクやオートメーションが中断されません</string>
+    <string name="settings_bg_run_hint">ヒント: 有効にした場合は、オート起動の許可とバッテリー最適化の無効化も同時にお願いします。さもないとシステムがバックグラウンドでアプリを終了する場合があります</string>
+    <string name="settings_location_env_section">位置情報と環境</string>
+    <string name="settings_location">位置認識</string>
+    <string name="settings_location_desc">AIがあなたの位置を認識し、ローカル天気/ニュース/レストランなどの回答に使用します</string>
+    <string name="settings_deep_thinking">深層思考</string>
+    <string name="settings_deep_thinking_desc">有効にすると、モデルが推論思考プロセスを表示します（thinking対応モデルのみ）</string>
+    <string name="settings_debug_mode">Debugモード</string>
+    <string name="settings_debug_mode_desc">有効にすると、logcatに詳細なログを出力します（タグ: Opedrgent）</string>
+    <string name="settings_local_model_title">ローカルモデル (Gemma 4 オフライン)</string>
+    <string name="settings_local_model_offline_desc">Gemma 4 モデルをデバイスにダウンロードし、完全オフラインで動作します。ネット接続不要</string>
+    <string name="settings_select_model">モデルを選択 / ダウンロード</string>
+    <string name="settings_inference_params">推論パラメータ</string>
+    <string name="settings_advanced_options">詳細オプション</string>
+    <string name="settings_hippocampus_index">海馬体インデックス</string>
+    <string name="settings_invisible_partner">不可視パートナー</string>
+    <string name="settings_invisible_partner_desc">録音の自動保存 / インテリジェントスプラウト / 日次リポート</string>
+    <string name="settings_api_key_label">API Key</string>
+    <string name="settings_api_key_optional">Jina API Key (オプション)</string>
+    <string name="settings_clear_api_key">API Keyをクリア</string>
+    <string name="settings_api_key_hint">API Keyを空のままにすると変更されません。</string>
+    <string name="settings_saved_key_hint">保存済みKey（非表示）。変更する場合は、再入力して保存してください。</string>
+    <string name="settings_not_set_key">Keyが未設定です。</string>
+    <string name="settings_ocr_enhanced">PP-OCRv6 拡張認識</string>
+    <string name="settings_ocr_enhanced_desc">百度第6世代OCRモデル、中英語の認識精度がさらに向上（77MBのダウンロードが必要）</string>
+    <string name="settings_delete_ocr">削除</string>
+
+    <!-- Recording Tab - additional -->
+    <string name="recording_title">録音</string>
+    <string name="recording_select_mode">録音モードを選択</string>
+    <string name="recording_select_mode_desc">シナリオに応じて適切な録音方法を選択してください</string>
+    <string name="recording_start_hint">タップして録音開始</string>
+    <string name="recording_listening_hint">聞きました。話し始めてください…</string>
+    <string name="recording_system_audio_hint">システム音声を録音中です。記録したい内容を再生してください…</string>
+    <string name="recording_generating_note">ノートを生成中…</string>
+    <string name="recording_auto_saved">自動保存済み</string>
+    <string name="recording_transcript_result">転写結果</string>
+    <string name="recording_auto_saved_hint">ノートは自動保存されました。直接編集するか、録音を続行できます</string>
+    <string name="recording_no_result">（認識結果なし）</string>
+    <string name="recording_copy">コピー</string>
+    <string name="recording_edit_btn">編集</string>
+    <string name="recording_save_note">ノートを保存</string>
+    <string name="recording_ai_summary">AI要約</string>
+    <string name="recording_undo_save">保存を取消</string>
+    <string name="recording_continue">録音を続行</string>
+    <string name="recording_smart_summary">スマート要約</string>
+    <string name="recording_original_text">原文</string>
+    <string name="recording_todo_items">TODOリスト</string>
+    <string name="recording_save_as_note">ノートとして保存</string>
+    <string name="recording_save_as_note_desc">録音転写結果をノートとして保存</string>
+    <string name="recording_note_title_hint">ノートタイトル（オプション）</string>
+    <string name="recording_photo_tool">写真撮影</string>
+    <string name="recording_quick_note_tool">クイックメモ</string>
+    <string name="recording_bookmark_tool">ブックマーク</string>
+    <string name="recording_bookmark_format">%1$s をブックマークしました</string>
+
+    <!-- Note Editor - additional -->
+    <string name="note_editor_new">新規ノート</string>
+    <string name="note_editor_edit">ノートを編集</string>
+    <string name="note_editor_title_hint">タイトル（オプション）</string>
+    <string name="note_editor_tag_hint">タグを追加（最大200個、各40文字）</string>
+    <string name="note_editor_preview">プレビュー</string>
+    <string name="note_editor_discuss">ディスカッション</string>
+    <string name="note_editor_title_placeholder">無題</string>
+    <string name="note_editor_delete_title">ノートを削除</string>
+    <string name="note_editor_delete_confirm">このノートを削除しますか？この操作は取り消せません。</string>
+    <string name="note_editor_unsaved_title">未保存の変更</string>
+    <string name="note_editor_unsaved_desc">保存されていない内容があります。保存してから終了しますか？</string>
+    <string name="note_editor_save_leave">保存して終了</string>
+    <string name="note_editor_no_save">保存しない</string>
+    <string name="note_editor_ai_action">AIアクション</string>
+    <string name="note_editor_no_sprout">スプラウトはまだありません</string>
+    <string name="note_editor_generating_sprout">栄養を吸収中…</string>
+    <string name="note_editor_no_original_text">元の転写テキストはまだありません</string>
+    <string name="note_editor_source_link">ソースリンク</string>
+    <string name="note_editor_saved_at">%s に保存</string>
+    <string name="note_editor_saved_ago">%s 前に保存</string>
+    <string name="note_editor_word_count">%d 文字</string>
+    <string name="note_editor_reading_minutes">読了時間 約 %d 分</string>
+    <string name="note_editor_core_insight">コアインサイト</string>
+    <string name="note_editor_action_suggestion">アクション提案</string>
+    <string name="note_editor_related_concepts">関連概念</string>
+    <string name="note_editor_key_points">重要ポイント</string>
+    <string name="note_editor_tab_original">原文</string>
+    <string name="note_editor_tab_content">ノート内容</string>
+    <string name="note_editor_tab_sprout">スプラウト</string>
+    <string name="note_editor_tab_append">ノートを追加</string>
+
+    <!-- Knowledge Base - additional -->
+    <string name="kb_search_hint">ナレッジベースを検索…</string>
+    <string name="kb_search_doc_hint">ドキュメント内容を検索…</string>
+    <string name="kb_empty">ナレッジベースはまだありません</string>
+    <string name="kb_empty_hint">下の + をタップして最初のナレッジベースを作成してください</string>
+    <string name="kb_no_match">一致するナレッジベースが見つかりません</string>
+    <string name="kb_new">新しいナレッジベース</string>
+    <string name="kb_documents">ドキュメント</string>
+    <string name="kb_title">ナレッジベース</string>
+    <string name="kb_name_label">名前</string>
+    <string name="kb_desc_hint">説明（オプション）</string>
+    <string name="kb_cover_color">カバー色</string>
+    <string name="kb_create_success">ナレッジベース「%s」を作成しました</string>
+    <string name="kb_edit_title">ナレッジベースを編集</string>
+    <string name="kb_desc_label">説明</string>
+    <string name="kb_delete_title">ナレッジベースを削除</string>
+    <string name="kb_delete_confirm">「%s」を削除しますか？含まれるすべてのドキュメントも削除されます。この操作は取り消せません。</string>
+    <string name="kb_delete_success">削除しました: %s</string>
+    <string name="kb_no_documents">ドキュメントはまだありません</string>
+    <string name="kb_no_match_documents">一致するドキュメントが見つかりません</string>
+    <string name="kb_importing">インポート中…</string>
+    <string name="kb_add_file_hint">右下の + をタップしてファイルを追加</string>
+    <string name="kb_import_success">追加しました: %s</string>
+    <string name="kb_import_failed">追加失敗: %s</string>
+    <string name="kb_filter_all">すべて</string>
+    <string name="kb_filter_text">テキスト</string>
+    <string name="kb_filter_image">画像</string>
+    <string name="kb_docs_format">%d 件</string>
+    <string name="kb_doc_info">ドキュメント: %s (%s, %dバイト)</string>
+    <string name="kb_share_developing">共有機能は開発中です</string>
+    <string name="kb_sort_label">並べ替え</string>
+    <string name="about_open_source">オープンソースライセンス</string>
+    <string name="about_open_source_desc">このプロジェクトは以下のオープンソースプロジェクトに基づいています</string>
+    <string name="about_view_open_source">オープンソースライセンスを見る (20プロジェクト)</string>
+</resources>

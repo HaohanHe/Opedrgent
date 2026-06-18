@@ -61,8 +61,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun QuestionDock(
@@ -105,7 +105,7 @@ fun QuestionDock(
                     text = if (collapsed) "选择题 (${questions.size})" else (if (isMultiQuestion) "问题 ${currentQuestionIndex + 1}/${questions.size}" else questions[currentQuestionIndex].header),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(
@@ -115,7 +115,7 @@ fun QuestionDock(
                     Icon(
                         imageVector = if (collapsed) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (collapsed) "展开" else "折叠",
-                        tint = TextGrey,
+                        tint = themeTextGrey(),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -126,7 +126,7 @@ fun QuestionDock(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "取消",
-                        tint = TextGrey,
+                        tint = themeTextGrey(),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -144,12 +144,12 @@ fun QuestionDock(
                         text = currentQ.question,
                         fontWeight = FontWeight.Medium,
                         fontSize = 15.sp,
-                        color = TextDark,
+                        color = themeTextDark(),
                         lineHeight = 22.sp,
                     )
 
                     if (currentQ.multiple) {
-                        Text("（可多选）", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                        Text("（可多选）", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                     }
 
                     val focusManager = LocalFocusManager.current
@@ -219,7 +219,7 @@ fun QuestionDock(
                         OutlinedTextField(
                             value = customInputs.getOrDefault(currentQuestionIndex, ""),
                             onValueChange = { customInputs[currentQuestionIndex] = it },
-                            placeholder = { Text("输入自定义答案...", color = TextGrey, fontSize = 13.sp) },
+                            placeholder = { Text("输入自定义答案...", color = themeTextGrey(), fontSize = 13.sp) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
@@ -270,7 +270,7 @@ fun QuestionDock(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("取消", color = TextGrey)
+                            Text("取消", color = themeTextGrey())
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -334,8 +334,8 @@ private fun OptionRow(
 ) {
     val bgColor = if (selected) BubbleBlue.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
     val borderColor = if (selected) BubbleBlue else Color.Transparent
-    val textColor = if (selected) BubbleBlue else TextDark
-    val descColor = if (selected) BubbleBlue.copy(alpha = 0.8f) else TextGrey
+    val textColor = if (selected) BubbleBlue else themeTextDark()
+    val descColor = if (selected) BubbleBlue.copy(alpha = 0.8f) else themeTextGrey()
 
     Card(
         shape = RoundedCornerShape(10.dp),

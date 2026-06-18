@@ -49,16 +49,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /**
  * 导入文件屏幕。
@@ -157,13 +159,13 @@ fun ImportFileScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         topBar = {
             TopAppBar(
-                title = { Text("导入文件", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_import_file), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -185,13 +187,13 @@ fun ImportFileScreen(
                 text = "选择要导入的文件",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark,
+                color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "支持文本文件(.txt)、PDF、图片等格式\n导入后将自动创建为笔记",
                 fontSize = 14.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -251,7 +253,7 @@ fun ImportFileScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     ) {
                         Column(
                             modifier = Modifier.padding(32.dp),
@@ -259,9 +261,9 @@ fun ImportFileScreen(
                         ) {
                             CircularProgressIndicator(color = AccentBlue)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("正在导入...", color = TextGrey)
+                            Text("正在导入...", color = themeTextGrey())
                             importedFileName?.let { name ->
-                                Text(name, fontSize = 12.sp, color = TextGrey)
+                                Text(name, fontSize = 12.sp, color = themeTextGrey())
                             }
                         }
                     }
@@ -278,7 +280,7 @@ fun ImportFileScreen(
                         ) {
                             Text("导入失败", fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(importError!!, fontSize = 13.sp, color = TextGrey)
+                            Text(importError!!, fontSize = 13.sp, color = themeTextGrey())
                         }
                     }
                 }
@@ -286,7 +288,7 @@ fun ImportFileScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
@@ -294,7 +296,7 @@ fun ImportFileScreen(
                         ) {
                             Text("导入成功", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(importedFileName ?: "", fontSize = 13.sp, color = TextGrey)
+                            Text(importedFileName ?: "", fontSize = 13.sp, color = themeTextGrey())
                             Spacer(modifier = Modifier.height(12.dp))
                             TextButton(onClick = onBack) {
                                 Text("返回")
@@ -323,7 +325,7 @@ private fun ImportFileTypeCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -339,9 +341,9 @@ private fun ImportFileTypeCard(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = themeTextDark())
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = description, fontSize = 12.sp, color = TextGrey)
+                Text(text = description, fontSize = 12.sp, color = themeTextGrey())
             }
         }
     }

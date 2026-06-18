@@ -79,15 +79,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.stt.SpeakerDiarizer
+import top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor
 import top.hsyscn.opedrgent.stt.VoiceprintManager
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.sqrt
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private const val TOTAL_SAMPLES = 5
 private const val SAMPLE_RATE = 16000
@@ -103,6 +105,25 @@ fun VoiceprintEnrollmentScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val voiceprintManager = remember { VoiceprintManager(context) }
+
+    // 初始化 Sherpa-ONNX 声纹嵌入提取器（尝试加载模型）
+    val embeddingExtractor = remember {
+        SpeakerEmbeddingExtractor(context).also { extractor ->
+            if (extractor.checkApiAvailability()) {
+                // 尝试从 SpeakerDiarizer 的模型目录初始化
+                val modelDir = File(context.filesDir, SpeakerDiarizer.MODEL_ASSET_DIR)
+                if (modelDir.exists()) {
+                    extractor.initialize(modelDir)
+                }
+            }
+        }
+    }
+    var useSherpaEmbedding by remember { mutableStateOf(embeddingExtractor.isAvailable) }
+    var isProcessingEmbedding by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose { embeddingExtractor.release() }
+    }
 
     var speakerName by remember { mutableStateOf("") }
     var currentStep by remember { mutableIntStateOf(0) } // 0 = 输入姓名, 1~5 = 录音阶段, 6 = 完成
@@ -229,9 +250,69 @@ fun VoiceprintEnrollmentScreen(
 
     fun completeEnrollment() {
         if (speakerName.isBlank() || savedSamplePaths.isEmpty()) return
-        voiceprintManager.enrollSpeaker(speakerName, savedSamplePaths.toList())
-        scope.launch { snackbar.showSnackbar("声纹注册完成: $speakerName") }
-        onEnrollmentComplete()
+        isProcessingEmbedding = true
+
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    // 尝试使用 Sherpa-ONNX 提取真实声纹嵌入
+                    if (useSherpaEmbedding && embeddingExtractor.isAvailable) {
+                        DebugLog.i("VoiceprintEnrollment", "尝试使用 Sherpa-ONNX 提取声纹嵌入")
+                        val allEmbeddings = mutableListOf<FloatArray>()
+                        for (path in savedSamplePaths) {
+                            val embedding = embeddingExtractor.extractFromFile(File(path))
+                            if (embedding != null) {
+                                allEmbeddings.add(embedding)
+                                DebugLog.d("VoiceprintEnrollment", "嵌入提取成功: ${File(path).name} (dim=${embedding.size})")
+                            } else {
+                                DebugLog.w("VoiceprintEnrollment", "嵌入提取失败: ${File(path).name}")
+                            }
+                        }
+
+                        if (allEmbeddings.isNotEmpty()) {
+                            // 对多个样本的嵌入取平均
+                            val avgEmbedding = FloatArray(allEmbeddings[0].size)
+                            for (emb in allEmbeddings) {
+                                for (i in avgEmbedding.indices) {
+                                    avgEmbedding[i] += emb[i]
+                                }
+                            }
+                            for (i in avgEmbedding.indices) {
+                                avgEmbedding[i] /= allEmbeddings.size
+                            }
+                            // 归一化
+                            var norm = 0f
+                            for (v in avgEmbedding) norm += v * v
+                            norm = sqrt(norm.toDouble()).toFloat().coerceAtLeast(1e-8f)
+                            for (i in avgEmbedding.indices) avgEmbedding[i] /= norm
+
+                            voiceprintManager.enrollWithSherpaEmbedding(
+                                speakerName,
+                                savedSamplePaths.toList(),
+                                avgEmbedding,
+                            )
+                            DebugLog.i("VoiceprintEnrollment", "Sherpa-ONNX 声纹注册完成: $speakerName, 有效嵌入: ${allEmbeddings.size}/${savedSamplePaths.size}")
+                        } else {
+                            // Sherpa-ONNX 全部失败，降级到统计特征
+                            DebugLog.w("VoiceprintEnrollment", "Sherpa-ONNX 嵌入提取全部失败，降级到统计特征")
+                            voiceprintManager.enrollSpeaker(speakerName, savedSamplePaths.toList())
+                        }
+                    } else {
+                        // Sherpa-ONNX 不可用，使用统计特征
+                        DebugLog.i("VoiceprintEnrollment", "Sherpa-ONNX 不可用，使用统计特征注册")
+                        voiceprintManager.enrollSpeaker(speakerName, savedSamplePaths.toList())
+                    }
+                } catch (e: Exception) {
+                    DebugLog.e("VoiceprintEnrollment", "声纹注册异常: ${e.message}", e)
+                    // 最终 fallback
+                    voiceprintManager.enrollSpeaker(speakerName, savedSamplePaths.toList())
+                }
+            }
+            isProcessingEmbedding = false
+            val method = if (useSherpaEmbedding && embeddingExtractor.isAvailable) "Sherpa-ONNX" else "统计特征"
+            snackbar.showSnackbar("声纹注册完成 ($method): $speakerName")
+            onEnrollmentComplete()
+        }
     }
 
     BackHandler {
@@ -264,7 +345,7 @@ fun VoiceprintEnrollmentScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -312,9 +393,13 @@ fun VoiceprintEnrollmentScreen(
                     CompletionStep(
                         speakerName = speakerName,
                         sampleCount = savedSamplePaths.size,
+                        isProcessing = isProcessingEmbedding,
+                        isSherpaAvailable = useSherpaEmbedding && embeddingExtractor.isAvailable,
                         onDone = {
-                            completeEnrollment()
-                            onBack()
+                            if (!isProcessingEmbedding) {
+                                completeEnrollment()
+                                onBack()
+                            }
                         },
                     )
                 }
@@ -398,13 +483,13 @@ private fun NameInputStep(
             text = "请输入说话人姓名",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = themeTextDark(),
         )
         Spacer(Modifier.height(8.dp))
         Text(
             text = "注册后，系统将在会议录音中自动识别此说话人",
             fontSize = 13.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
@@ -450,7 +535,7 @@ private fun RecordingStep(
         Text(
             text = "第 $step / $total 段",
             fontSize = 14.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(8.dp))
@@ -470,14 +555,14 @@ private fun RecordingStep(
                 Text(
                     text = "请清晰朗读以下句子",
                     fontSize = 13.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "你好，我是$speakerName",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = themeTextDark(),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -491,19 +576,19 @@ private fun RecordingStep(
             Text(
                 text = "点击按钮开始录音",
                 fontSize = 14.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
         Spacer(Modifier.height(16.dp))
         WaveformBars(
             bars = waveformBars,
-            color = if (isRecording) CoralRed else TextGrey.copy(alpha = 0.4f),
+            color = if (isRecording) CoralRed else themeTextGrey().copy(alpha = 0.4f),
         )
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (isRecording) "正在录音..." else "等待开始",
             fontSize = 13.sp,
-            color = if (isRecording) CoralRed else TextGrey,
+            color = if (isRecording) CoralRed else themeTextGrey(),
         )
 
         Spacer(Modifier.height(32.dp))
@@ -539,7 +624,7 @@ private fun RecordingStep(
         Text(
             text = if (isRecording) "点击停止" else "点击录音",
             fontSize = 14.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
     }
 }
@@ -548,6 +633,8 @@ private fun RecordingStep(
 private fun CompletionStep(
     speakerName: String,
     sampleCount: Int,
+    isProcessing: Boolean = false,
+    isSherpaAvailable: Boolean = false,
     onDone: () -> Unit,
 ) {
     Column(
@@ -558,40 +645,62 @@ private fun CompletionStep(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF4CAF50)),
+                .background(if (isProcessing) AccentBlue else Color(0xFF4CAF50)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(36.dp),
-            )
+            if (isProcessing) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
         }
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "声纹注册完成",
+            text = if (isProcessing) "正在提取声纹特征..." else "声纹注册完成",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = themeTextDark(),
         )
         Spacer(Modifier.height(8.dp))
         Text(
             text = "说话人: $speakerName",
             fontSize = 15.sp,
-            color = TextDark,
+            color = themeTextDark(),
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text = "已录制 $sampleCount 个样本",
             fontSize = 13.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (isProcessing) {
+                "正在使用 Sherpa-ONNX 提取 192 维声纹嵌入..."
+            } else if (isSherpaAvailable) {
+                "特征提取: Sherpa-ONNX (192 维声纹嵌入)"
+            } else {
+                "特征提取: 统计特征 (16 维音频指纹)"
+            },
+            fontSize = 12.sp,
+            color = themeTextGrey().copy(alpha = 0.7f),
         )
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(11.dp),
+            enabled = !isProcessing,
         ) {
             Text("完成", fontSize = 16.sp)
         }

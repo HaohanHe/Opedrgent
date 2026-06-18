@@ -153,25 +153,33 @@ class SpeechToTextTool(
             runCatching {
                 val startTime = System.currentTimeMillis()
 
-                updateProgress(ProcessingPhase.DECODING, 5, "验证文件...")
+                updateProgress(ProcessingPhase.DECODING, 5, "检测媒体类型...")
 
-                val (isValid, validationError) = AudioProcessor.validateAudioFile(context, uri)
-                if (!isValid) {
-                    return@withContext emptyResult(tp, buildValidationError(validationError))
+                // Detect media type FIRST, before validation.
+                // validateAudioFile() rejects files that MediaExtractor can't parse as audio,
+                // which includes video files. Video files contain valid audio tracks and should
+                // be processed via the video extraction path, not rejected.
+                val mediaType = detectMediaType(context, uri)
+                DebugLog.i(TAG, "媒体类型: $mediaType")
+
+                // Only run audio-specific validation for AUDIO type files.
+                // Video files will be validated during audio track extraction.
+                if (mediaType == MediaType.AUDIO) {
+                    updateProgress(ProcessingPhase.DECODING, 8, "验证音频文件...")
+
+                    val (isValid, validationError) = AudioProcessor.validateAudioFile(context, uri)
+                    if (!isValid) {
+                        return@withContext emptyResult(tp, buildValidationError(validationError))
+                    }
                 }
 
-                updateProgress(ProcessingPhase.DECODING, 10, "读取元数据...")
+                updateProgress(ProcessingPhase.DECODING, 12, "读取元数据...")
 
                 val metadata = AudioProcessor.getAudioMetadata(context, uri)
                 if (metadata != null) {
                     DebugLog.i(TAG, "元数据: duration=${AudioProcessor.formatDuration(metadata.durationMs)} sampleRate=${metadata.sampleRate} channels=${metadata.channels} format=${metadata.format}")
                     validateFileSize(metadata)
                 }
-
-                updateProgress(ProcessingPhase.DECODING, 15, "检测媒体类型...")
-
-                val mediaType = detectMediaType(context, uri)
-                DebugLog.i(TAG, "媒体类型: $mediaType")
 
                 when (mediaType) {
                     MediaType.VIDEO -> processVideoFile(uri, tp, metadata)

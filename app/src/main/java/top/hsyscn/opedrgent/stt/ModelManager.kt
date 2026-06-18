@@ -61,6 +61,22 @@ object ModelManager {
                 Triple(primarySource.label, "$baseUrl/$remoteName", localName)
             }
         }
+
+        /** GitHub 超时时的 ModelScope 备用下载地址 */
+        fun fallbackTasks(): List<Triple<String, String, String>>? {
+            if (primarySource == DownloadSource.MODELSCOPE) return null
+            // ModelScope 备用：单文件仓库 pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en
+            val fallbackRepo = when (type) {
+                ModelType.STREAMING_PARAFORMER -> "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
+                else -> return null
+            }
+            val baseUrl = "$MODELSCOPE_BASE/$fallbackRepo/resolve/master"
+            return files.map { (remoteName, localName) ->
+                // ModelScope 单文件仓库的文件名不带子目录前缀
+                val msRemoteName = remoteName.substringAfterLast("/")
+                Triple("ModelScope(备用)", "$baseUrl/$msRemoteName", localName)
+            }
+        }
     }
 
     val AVAILABLE_MODELS = listOf(
@@ -101,6 +117,20 @@ object ModelManager {
             files = listOf(
                 "model.int8.onnx" to "model.onnx",
                 "tokens.txt" to "tokens.txt",
+            ),
+        ),
+        ModelInfo(
+            type = ModelType.STREAMING_PARAFORMER,
+            modelName = "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+            version = "2024-08-14",
+            sizeBytes = 237 * 1024 * 1024L,  // encoder.int8 165MB + decoder.int8 72MB
+            minRamMB = 6 * 1024,
+            primarySource = DownloadSource.GITHUB,
+            repoPath = "k2-fsa/sherpa-onnx",
+            files = listOf(
+                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/encoder.int8.onnx" to "encoder.int8.onnx",
+                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/decoder.int8.onnx" to "decoder.int8.onnx",
+                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/tokens.txt" to "tokens.txt",
             ),
         ),
     )
@@ -211,7 +241,18 @@ object ModelManager {
             emit(DownloadProgress.SourceSwitch(sourceName, index + 1, tasks.size))
 
             // 下载文件并在循环中直接 emit 进度
-            val downloadResult = downloadWithProgress(url, localFile, totalBytes)
+            var downloadResult = downloadWithProgress(url, localFile, totalBytes)
+
+            // GitHub 超时/失败时，尝试 ModelScope 备用源
+            if (downloadResult is DownloadResult.Stalled || downloadResult is DownloadResult.Failed) {
+                val fallback = modelInfo.fallbackTasks()
+                if (fallback != null && index < fallback.size) {
+                    val (_, fbUrl, _) = fallback[index]
+                    DebugLog.w("$TAG: 主源下载失败，切换到 ModelScope 备用: $fbUrl")
+                    emit(DownloadProgress.SourceSwitch("ModelScope(备用)", index + 1, tasks.size))
+                    downloadResult = downloadWithProgress(fbUrl, localFile, totalBytes)
+                }
+            }
 
             when (downloadResult) {
                 is DownloadResult.Success -> {

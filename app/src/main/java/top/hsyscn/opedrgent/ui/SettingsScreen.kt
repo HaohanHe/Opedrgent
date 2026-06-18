@@ -4,13 +4,17 @@ package top.hsyscn.opedrgent.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -65,6 +70,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,7 +80,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,18 +97,20 @@ import top.hsyscn.opedrgent.service.SttDownloadService
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import top.hsyscn.opedrgent.ui.components.SttModelDownloadDialog
-import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.InterviewPurple
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
-import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.utils.LocaleHelper
+import androidx.compose.ui.res.painterResource
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, toVocabulary: () -> Unit = {}, toVoiceprint: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, toVocabulary: () -> Unit = {}, toVoiceprint: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}, toOpenSource: () -> Unit = {}) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -130,7 +140,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var localModelId by rememberSaveable { mutableStateOf(vm.getLocalModelId()) }
     var providerMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var modelMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    val state by vm.state.collectAsStateCompat()
+    val memoryCount by remember { derivedStateOf { vm.state.value.memories.size } }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
@@ -158,31 +168,74 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_settings), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (showBackButton) {
-                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "back") }
+                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back)) }
                     }
                 },
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
-                .padding(padding)
-                .padding(12.dp)
-                .padding(bottom = 80.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(padding),
+            contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("模型供应商", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+        item {
+            // ── 语言设置 ──
+            var appLanguage by rememberSaveable { mutableStateOf(vm.getAppLanguage()) }
+
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = stringResource(R.string.settings_language), fontWeight = FontWeight.Bold, color = themeTextDark())
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    val languageOptions = listOf(
+                        "system" to stringResource(R.string.language_system),
+                        "zh" to stringResource(R.string.language_chinese),
+                        "en" to stringResource(R.string.language_english),
+                        "ja" to stringResource(R.string.language_japanese),
+                    )
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        languageOptions.forEach { (tag, label) ->
+                            FilterChip(
+                                selected = appLanguage == tag,
+                                onClick = {
+                                    if (appLanguage == tag) return@FilterChip
+                                    appLanguage = tag
+                                    vm.saveAppLanguage(tag)
+                                    LocaleHelper.setLocale(context, tag)
+                                    // 仅在语言真正改变时才 recreate，避免无谓卡顿
+                                    (context as? Activity)?.let { activity ->
+                                        activity.recreate()
+                                    }
+                                },
+                                label = { Text(label, fontSize = 13.sp) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            HorizontalDivider()
+
+            Text(stringResource(R.string.settings_model_provider), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             if (isLocalMode) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(11.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = BubbleBlue.copy(alpha = 0.06f)),
                 ) {
                     Row(
@@ -192,8 +245,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text("本地模式运行中", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BubbleBlue)
-                            Text("当前使用 Gemma 4 离线模型，API 配置已暂停", color = TextGrey, fontSize = 11.sp)
+                            Text(stringResource(R.string.msg_local_mode_running), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BubbleBlue)
+                            Text(stringResource(R.string.msg_local_mode_desc), color = themeTextGrey(), fontSize = 11.sp)
                         }
                     }
                 }
@@ -281,14 +334,16 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                 singleLine = true,
             )
             }
+        }
 
+        item {
             HorizontalDivider()
 
-            Text("记忆管理", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_memory_management), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = toMemory,
-                shape = RoundedCornerShape(11.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -299,99 +354,71 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("记忆条目", fontWeight = FontWeight.SemiBold)
-                        Text("共 ${state.memories.size} 条记忆", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.settings_memory_entries), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_memory_count, memoryCount), style = MaterialTheme.typography.bodySmall)
                     }
-                    Icon(Icons.Default.ArrowForward, contentDescription = "进入")
+                    Icon(Icons.Default.ArrowForward, contentDescription = stringResource(R.string.cd_enter))
                 }
             }
+        }
 
+        item {
             Spacer(Modifier.height(12.dp))
 
-            Text("笔记管理", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            // 编辑器模式设置
+            var editorMode by rememberSaveable { mutableStateOf(vm.getEditorMode()) }
+
+            Text("编辑器模式", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = toNotes,
-                shape = RoundedCornerShape(11.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("我的笔记", fontWeight = FontWeight.SemiBold)
-                        Text("支持文本/语音/图片/链接/PDF笔记，带标签分类", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Icon(Icons.Default.ArrowForward, contentDescription = "进入")
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // 无感伙伴模式入口
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onInvisiblePartner() },
-                shape = RoundedCornerShape(11.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp), tint = BubbleBlue)
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("无感伙伴模式", fontWeight = FontWeight.SemiBold)
-                        Text("录音自动保存 / 智能发芽 / 每日收获", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "笔记编辑器的默认输入模式",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = editorMode == "richtext",
+                            onClick = {
+                                editorMode = "richtext"
+                                vm.saveEditorMode("richtext")
+                            },
+                            label = { Text("富文本（推荐）", fontSize = 13.sp) },
+                        )
+                        FilterChip(
+                            selected = editorMode == "markdown",
+                            onClick = {
+                                editorMode = "markdown"
+                                vm.saveEditorMode("markdown")
+                            },
+                            label = { Text("Markdown", fontSize = 13.sp) },
+                        )
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = "进入")
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        if (editorMode == "richtext") "Notally 风格，选中文字即可加格式" else "适合开发者，手写语法",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
                 }
             }
+        }
 
+        item {
             Spacer(Modifier.height(12.dp))
 
-            // [降级] 海马体入口已移至底部"高级选项"折叠区，不再在一级设置列表显示
-            // 原入口保留在页面底部的 advancedOptions 区域，深层路由 AppRoot.hipposcampus 仍可用
-
-            HorizontalDivider()
-
-            Text("声纹识别", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = toVoiceprint,
-                shape = RoundedCornerShape(11.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp), tint = BubbleBlue)
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("声纹识别", fontWeight = FontWeight.SemiBold)
-                        Text("注册说话人声纹，会议录音自动识别发言人", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                    }
-                    Icon(Icons.Default.ChevronRight, contentDescription = "进入")
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Text("语音", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+            Text(stringResource(R.string.settings_voice), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -399,17 +426,20 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "语音转文字", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(text = stringResource(R.string.settings_stt_label), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = sttEnabled, onCheckedChange = { sttEnabled = it })
                     }
                     if (sttEnabled) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "识别引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(text = stringResource(R.string.settings_stt_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            ) {
                                 FilterChip(
                                     selected = sttEngine == "local",
                                     onClick = { sttEngine = "local" },
-                                    label = { Text("本地 Sherpa", fontSize = 12.sp) },
+                                    label = { Text(stringResource(R.string.settings_local_sherpa), fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
                                 FilterChip(
@@ -428,23 +458,23 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                         if (sttEngine == "mimo") {
                             Text(
-                                text = "MiMo ASR 通过网络调用小米语音识别 API，需联网，支持中/英/日/韩等多语种",
+                                text = stringResource(R.string.settings_mimo_asr_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE67E22),
                             )
                         }
                         if (sttEngine == "stepaudio") {
                             Text(
-                                text = "StepAudio 2.5 ASR (阶跃星辰) — 4B MTP 极速引擎，1小时音频19秒转完，0.15元/小时。需阶跃 API Key",
+                                text = stringResource(R.string.settings_stepaudio_asr_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InterviewPurple,
                             )
                         }
                         if (sttEngine == "local") {
                             Text(
-                                text = "本地识别使用 Sherpa-ONNX 离线模型，无需联网，首次使用需下载模型",
+                                text = stringResource(R.string.settings_local_stt_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
 
@@ -470,7 +500,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Text(
-                                text = "本地模型",
+                                text = stringResource(R.string.settings_local_models_label),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -496,6 +526,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                     ModelType.PARAFORMER -> "Paraformer"
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
+                                                    ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
                                                     else -> modelInfo.modelName
                                                 },
                                                 fontWeight = FontWeight.Medium,
@@ -534,7 +565,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         Text(
                                             text = "$sizeStr | ${modelInfo.minRamMB}MB RAM",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = TextGrey,
+                                            color = themeTextGrey(),
                                             fontSize = 11.sp,
                                         )
 
@@ -581,13 +612,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             onClick = {
                                                 downloadingModel = modelInfo.type
                                                 downloadProgress = 0f
-                                                downloadStatusText = "准备中..."
+                                                downloadStatusText = context.getString(R.string.settings_preparing)
 
                                                 // 弹窗 + 通知栏
                                                 sttDialogModelName = when (modelInfo.type) {
                                                     ModelType.PARAFORMER -> "Paraformer"
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
+                                                    ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
                                                     else -> modelInfo.modelName
                                                 }
                                                 sttDialogModelDesc = "本地离线语音识别模型"
@@ -643,7 +675,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         ) {
                                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
                                             Spacer(Modifier.width(4.dp))
-                                            Text("下载", fontSize = 12.sp)
+                                            Text(stringResource(R.string.action_download), fontSize = 12.sp)
                                         }
                                     }
                                 }
@@ -653,19 +685,19 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             if (showDeleteConfirm != null) {
                                 AlertDialog(
                                     onDismissRequest = { showDeleteConfirm = null },
-                                    title = { Text("删除模型") },
-                                    text = { Text("确定要删除该语音模型吗？删除后如需使用需重新下载。") },
+                                    title = { Text(stringResource(R.string.msg_delete_model)) },
+                                    text = { Text(stringResource(R.string.msg_delete_model_confirm)) },
                                     confirmButton = {
                                         TextButton(onClick = {
                                             sttModelManager.clearModelCache(context, showDeleteConfirm!!)
                                             showDeleteConfirm = null
                                         }) {
-                                            Text("确定删除", color = MaterialTheme.colorScheme.error)
+                                            Text(stringResource(R.string.msg_confirm_delete), color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { showDeleteConfirm = null }) {
-                                            Text("取消")
+                                            Text(stringResource(R.string.action_cancel))
                                         }
                                     },
                                 )
@@ -693,13 +725,16 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "TTS 朗读", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(text = stringResource(R.string.settings_tts_section), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = ttsEnabled, onCheckedChange = { ttsEnabled = it })
                     }
                     if (ttsEnabled) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "TTS 引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(text = stringResource(R.string.settings_tts_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            ) {
                                 FilterChip(
                                     selected = ttsEngine == "system",
                                     onClick = { ttsEngine = "system" },
@@ -722,26 +757,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                         if (ttsEngine == "stepaudio") {
                             Text(
-                                text = "StepAudio 2.5 TTS (阶跃星辰) — Global+Inline 双语境控制，Zero-shot 音色复刻，5.8元/万字符。需阶跃 API Key",
+                                text = stringResource(R.string.settings_stepaudio_tts_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InterviewPurple,
                             )
                         }
                         if (ttsEngine == "mimo") {
                             Text(
-                                text = "MiMo TTS 通过网络调用小米语音合成 API，支持音色克隆和导演模式",
+                                text = stringResource(R.string.settings_mimo_tts_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE67E22),
                             )
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "自动朗读回答", modifier = Modifier.weight(1f))
+                        Text(text = stringResource(R.string.settings_auto_read), modifier = Modifier.weight(1f))
                         Switch(checked = ttsAuto, onCheckedChange = { ttsAuto = it }, enabled = ttsEnabled)
                     }
                     if (ttsEnabled && ttsAuto && ttsEngine != "system") {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "仅下载音频到本地", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Text(text = stringResource(R.string.settings_download_audio_only), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Switch(
                                 checked = ttsDownloadOnly,
                                 onCheckedChange = { ttsDownloadOnly = it },
@@ -749,36 +784,95 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                         if (ttsDownloadOnly) {
                             Text(
-                                text = "开启后自动朗读时仅保存音频文件，不自动播放",
+                                text = stringResource(R.string.settings_download_audio_hint),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         } else {
                             Text(
-                                text = "关闭后自动朗读时直接播放音频",
+                                text = stringResource(R.string.settings_play_audio_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = SuccessGreen,
                             )
                         }
                     }
-                    Text(text = "语速")
+                    Text(text = stringResource(R.string.settings_speed))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("慢") }
-                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("正常") }
-                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("快") }
+                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_slow)) }
+                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_normal)) }
+                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_fast)) }
                     }
-                    Text(text = "语言")
+                    Text(text = stringResource(R.string.settings_language))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("中文") }
-                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text("英文") }
+                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_chinese)) }
+                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_english)) }
                     }
                 }
             }
+        }
 
+        item {
+            // 录音时长限制
+            Spacer(Modifier.height(12.dp))
+            Text("录音时长限制", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_duration_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                    listOf("语音速记" to "VOICE_MEMO", "多人会议" to "MEETING", "手机内录" to "INTERNAL", "课堂录音" to "CLASSROOM").forEach { (label, modeKey) ->
+                        var expanded by rememberSaveable { mutableStateOf(false) }
+                        val currentHours = rememberSaveable { mutableStateOf(vm.getRecordingMaxHours(modeKey)) }
+                        val hoursOptions = listOf(0, 1, 2, 3, 5, 8, 12, 24)
+                        val hoursLabels = listOf("无限制", "1小时", "2小时", "3小时", "5小时", "8小时", "12小时", "24小时")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Box {
+                                OutlinedButton(
+                                    onClick = { expanded = true },
+                                    shape = RoundedCornerShape(11.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                ) {
+                                    Text(
+                                        text = if (currentHours.value == 0) "无限制" else "${currentHours.value}小时",
+                                        fontSize = 13.sp,
+                                    )
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                    hoursOptions.forEachIndexed { index, h ->
+                                        DropdownMenuItem(
+                                            text = { Text(hoursLabels[index]) },
+                                            onClick = {
+                                                currentHours.value = h
+                                                vm.saveRecordingMaxHours(modeKey, h)
+                                                expanded = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             // OCR 模型管理
             HorizontalDivider()
-            Text("OCR 文字识别", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+            Text(stringResource(R.string.settings_ocr_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -787,7 +881,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = "百度第六代 OCR 模型，中英文识别精度更高（需下载 77MB）",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                     }
@@ -807,7 +901,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         )
                         if (ocrDownloaded.value) {
                             Surface(shape = RoundedCornerShape(4.dp), color = SuccessGreen.copy(alpha = 0.15f)) {
-                                Text("已下载", fontSize = 10.sp, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                Text(stringResource(R.string.settings_model_downloaded), fontSize = 10.sp, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                             }
                             Spacer(Modifier.width(6.dp))
                             TextButton(onClick = {
@@ -849,17 +943,19 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             ) {
                                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("下载", fontSize = 12.sp)
+                                Text(stringResource(R.string.action_download), fontSize = 12.sp)
                             }
                         }
                     }
                 }
             }
+        }
 
+        item {
             HorizontalDivider()
 
-            Text("联网查询", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+            Text(stringResource(R.string.settings_web_search_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -868,9 +964,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "联网查询", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_web_search_label), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "开启后 AI 对话中可搜索网络信息获取最新内容",
+                                text = stringResource(R.string.settings_web_search_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -879,50 +975,55 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                     if (webSearchEnabled) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "搜索引擎", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(text = stringResource(R.string.settings_search_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            ) {
                                 FilterChip(
                                     selected = webSearchSource == "own",
                                     onClick = { webSearchSource = "own"; vm.saveWebSearchSource("own") },
-                                    label = { Text("自有引擎", fontSize = 12.sp) },
+                                    label = { Text(stringResource(R.string.settings_own_engine), fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
                                 FilterChip(
                                     selected = webSearchSource == "provider",
                                     onClick = { webSearchSource = "provider"; vm.saveWebSearchSource("provider") },
-                                    label = { Text("厂商内置", fontSize = 12.sp) },
+                                    label = { Text(stringResource(R.string.settings_provider_builtin), fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
                             }
                         }
                         if (webSearchSource == "own") {
                             Text(
-                                text = "使用 Opedrgent 自有多引擎搜索（百度 / Bing / DuckDuckGo / Jina 等），支持自定义搜索引擎顺序和 API Key",
+                                text = stringResource(R.string.settings_own_engine_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         if (webSearchSource == "provider") {
                             Text(
-                                text = "使用当前 LLM 模型厂商提供的内置联网搜索能力（如 DeepSeek / Mimo 等模型自带的搜索功能），无需额外配置",
+                                text = stringResource(R.string.settings_provider_builtin_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE67E22),
                             )
                         }
                     } else {
                         Text(
-                            text = "关闭后 AI 仅基于本地知识和已有笔记回答问题，不会发起任何网络请求",
+                            text = stringResource(R.string.settings_web_search_off_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = SuccessGreen,
                         )
                     }
                 }
             }
+        }
 
+        item {
             HorizontalDivider()
 
-            Text("后台运行", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp),
+            Text(stringResource(R.string.settings_bg_run_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -931,9 +1032,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "后台运行", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_bg_run_label), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "开启后应用将在后台持续运行，定时任务和自动化不会中断",
+                                text = stringResource(R.string.settings_bg_run_desc),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -955,24 +1056,31 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                     if (!bgRunning) {
                         Text(
-                            text = "提示：开启后建议同时允许自启动和关闭电池优化，否则系统可能在后台杀掉应用",
+                            text = stringResource(R.string.settings_bg_run_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+        }
 
+        item {
             HorizontalDivider()
 
-            Text("位置与环境", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Text(stringResource(R.string.settings_location_env_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "位置感知", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_location), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "AI 可感知你的位置，用于本地天气/新闻/餐厅等回答",
+                                text = stringResource(R.string.settings_location_desc),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -987,9 +1095,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "深度思考", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_deep_thinking), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "启用后模型会展示推理思考过程（支持 thinking 的模型）",
+                                text = stringResource(R.string.settings_deep_thinking_desc),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -1003,9 +1111,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Debug 模式", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_debug_mode), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "开启后在 logcat 中输出详细日志（标签: Opedrgent）",
+                                text = stringResource(R.string.settings_debug_mode_desc),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -1016,7 +1124,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                 }
             }
+        }
 
+        item {
             HorizontalDivider()
 
             Text("本地模型", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
@@ -1029,7 +1139,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("本地模型 (Gemma 4 离线)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextDark)
+                        Text(stringResource(R.string.settings_local_model_title), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = themeTextDark())
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -1038,8 +1148,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         text = if (isLocalMode && localModelId != null) {
                             val info = AvailableLocalModels.findById(localModelId!!)
                             "当前使用: ${info?.displayName ?: localModelId}"
-                        } else "下载 Gemma 4 模型到设备，完全离线运行，无需网络连接",
-                        color = TextGrey,
+                        } else stringResource(R.string.settings_local_model_offline_desc),
+                        color = themeTextGrey(),
                         fontSize = 13.sp,
                     )
 
@@ -1091,7 +1201,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         } else {
                                             isLocalMode = false
                                             vm.saveLocalModelEnabled(false)
-                                            scope.launch { snackbar.showSnackbar("请先下载模型") }
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_download_model_first)) }
                                         }
                                     } else {
                                         isLocalMode = false
@@ -1115,14 +1225,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         ) {
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = BubbleBlue)
                             Spacer(Modifier.width(6.dp))
-                            Text("选择模型 / 下载", fontSize = 12.sp, color = BubbleBlue)
+                            Text(stringResource(R.string.settings_select_model), fontSize = 12.sp, color = BubbleBlue)
                         }
                     }
 
                     val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
                     if (isLocalMode && currentInfo != null) {
                         Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = DividerColor)
+                        HorizontalDivider(color = themeDividerColor())
                         Spacer(Modifier.height(10.dp))
 
                         var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }
@@ -1130,14 +1240,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         var localTopP by rememberSaveable { mutableStateOf(vm.getLocalTopP()) }
                         var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
 
-                        Text("推理参数", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextDark)
-                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", fontSize = 11.sp, color = TextGrey)
+                        Text(stringResource(R.string.settings_inference_params), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = themeTextDark())
+                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", fontSize = 11.sp, color = themeTextGrey())
 
                         Spacer(Modifier.height(8.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Temperature", fontSize = 11.sp, color = TextGrey)
+                                Text("Temperature", fontSize = 11.sp, color = themeTextGrey())
                                 Slider(
                                     value = localTemp,
                                     onValueChange = { localTemp = it },
@@ -1145,10 +1255,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     steps = 39,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTemp)}", fontSize = 10.sp, color = TextGrey)
+                                Text("${String.format("%.2f", localTemp)}", fontSize = 10.sp, color = themeTextGrey())
                             }
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top P", fontSize = 11.sp, color = TextGrey)
+                                Text("Top P", fontSize = 11.sp, color = themeTextGrey())
                                 Slider(
                                     value = localTopP,
                                     onValueChange = { localTopP = it },
@@ -1156,7 +1266,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     steps = 17,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTopP)}", fontSize = 10.sp, color = TextGrey)
+                                Text("${String.format("%.2f", localTopP)}", fontSize = 10.sp, color = themeTextGrey())
                             }
                         }
 
@@ -1164,7 +1274,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top K: $localTopK", fontSize = 11.sp, color = TextGrey)
+                                Text("Top K: $localTopK", fontSize = 11.sp, color = themeTextGrey())
                                 Slider(
                                     value = localTopK.toFloat(),
                                     onValueChange = { localTopK = it.toInt() },
@@ -1187,18 +1297,21 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         OutlinedButton(
                             onClick = {
                                 vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
-                                scope.launch { snackbar.showSnackbar("参数已保存，下次加载模型生效") }
+                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_params_saved)) }
                             },
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         ) {
                             Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
                             Spacer(Modifier.width(4.dp))
-                            Text("保存参数", fontSize = 11.sp, color = BubbleBlue)
+                            Text(stringResource(R.string.msg_save_params), fontSize = 11.sp, color = BubbleBlue)
                         }
                     }
                 }
             }
+        }
+
+        item {
 Spacer(Modifier.height(12.dp))
 
             // ── 高级选项（折叠区）──
@@ -1207,7 +1320,7 @@ Spacer(Modifier.height(12.dp))
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 ),
@@ -1217,12 +1330,12 @@ Spacer(Modifier.height(12.dp))
                     modifier = Modifier.padding(14.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("高级选项", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextGrey, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_advanced_options), fontWeight = FontWeight.Medium, fontSize = 13.sp, color = themeTextGrey(), modifier = Modifier.weight(1f))
                     Icon(
                         imageVector = if (showAdvanced) Icons.Default.ArrowDropDown else Icons.Default.ArrowForward,
-                        contentDescription = if (showAdvanced) "收起" else "展开",
+                        contentDescription = if (showAdvanced) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                         modifier = Modifier.size(18.dp),
-                        tint = TextGrey,
+                        tint = themeTextGrey(),
                     )
                 }
                 androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
@@ -1231,7 +1344,7 @@ Spacer(Modifier.height(12.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = toHippocampus,
-                            shape = RoundedCornerShape(9.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 contentColor = MaterialTheme.colorScheme.onSurface
@@ -1244,8 +1357,8 @@ Spacer(Modifier.height(12.dp))
                                 Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("海马体索引", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("共 ${hippocampus?.count() ?: 0} 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                                    Text(stringResource(R.string.settings_hippocampus_index), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("共 ${hippocampus?.count() ?: 0} 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                                 }
                                 Icon(Icons.Default.ArrowForward, contentDescription = "进入", modifier = Modifier.size(16.dp))
                             }
@@ -1253,8 +1366,110 @@ Spacer(Modifier.height(12.dp))
                     }
                 }
             }
+        }
+
+        item {
 Spacer(Modifier.height(12.dp))
 
+            // ── 关于 ──
+            HorizontalDivider()
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = stringResource(R.string.settings_about), fontWeight = FontWeight.Bold, color = themeTextDark())
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Opedrgent", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = themeTextDark())
+                            Text(
+                                text = stringResource(R.string.about_version, "1.0.0"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey()
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "hsyscn.top",
+                        color = BubbleBlue,
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://hsyscn.top")))
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "BI4MIB.CN",
+                        color = BubbleBlue,
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bi4mib.cn")))
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = stringResource(R.string.about_visit_project),
+                        color = BubbleBlue,
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/HaohanHe/Opedrgent")))
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = stringResource(R.string.about_open_source),
+                        fontWeight = FontWeight.Bold,
+                        color = themeTextDark()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.about_open_source_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 跳转到独立开源声明页
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = toOpenSource,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.about_view_open_source),
+                                modifier = Modifier.weight(1f),
+                                fontWeight = FontWeight.SemiBold,
+                                color = themeTextDark(),
+                            )
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = themeTextGrey())
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             Button(
                 onClick = {
                     vm.saveTts(
@@ -1296,15 +1511,15 @@ Spacer(Modifier.height(12.dp))
                 Text("清除 API Key")
             }
             Button(onClick = toSkills, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                Text("技能库")
+                Text(stringResource(R.string.title_skills_library))
             }
             Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                Text("自动化/心跳")
+                Text(stringResource(R.string.title_automations))
             }
             if (vm.hasApiKey()) {
-                Text("已保存 Key（不显示）。如需更换，重新填写并保存。")
+                Text(stringResource(R.string.settings_saved_key_hint))
             } else {
-                Text("未设置 Key。")
+                Text(stringResource(R.string.settings_not_set_key))
             }
         }
     }
@@ -1330,7 +1545,7 @@ Spacer(Modifier.height(12.dp))
                             snackbar.showSnackbar("加载失败: $errorMsg")
                         }
                     } else {
-                        snackbar.showSnackbar("请先下载模型")
+                        snackbar.showSnackbar(context.getString(R.string.msg_download_model_first))
                     }
                 }
             },
@@ -1338,13 +1553,14 @@ Spacer(Modifier.height(12.dp))
             localEngine = localEngine,
             currentModelId = localModelId,
         )
+        } // item - settings content
     }
 
     showMemoryWarning?.let { msg ->
         AlertDialog(
             onDismissRequest = { showMemoryWarning = null },
-            title = { Text("内存不足警告") },
-            text = { Text(msg ?: "可用内存不足，无法加载此模型。") },
+            title = { Text(stringResource(R.string.msg_memory_insufficient)) },
+            text = { Text(msg ?: stringResource(R.string.msg_memory_insufficient_desc)) },
             confirmButton = {
                 Button(onClick = {
                     showMemoryWarning = null
@@ -1366,14 +1582,14 @@ Spacer(Modifier.height(12.dp))
                             }
                         }
                     }
-                }) { Text("仍要尝试") }
+                }) { Text(stringResource(R.string.msg_still_try)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showMemoryWarning = null
                     isLocalMode = false
                     vm.saveLocalModelEnabled(false)
-                }) { Text("取消") }
+                }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

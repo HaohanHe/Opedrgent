@@ -66,9 +66,9 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.service.AutoSproutWorker
 import top.hsyscn.opedrgent.service.DailyDigestNotifier
 import top.hsyscn.opedrgent.storage.PersonaDetector
-import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 // DataStore 单例扩展
 val Context.invisiblePartnerDataStore by preferencesDataStore(name = "invisible_partner_settings")
@@ -250,7 +250,7 @@ fun InvisiblePartnerSettingsScreen(
                 },
             )
         },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -286,7 +286,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "根据时间、内容和日程自动选择模式",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Switch(
@@ -354,7 +354,7 @@ fun InvisiblePartnerSettingsScreen(
                         Text(
                             text = "系统会根据时间、内容和日程自动调整",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGrey,
+                            color = themeTextGrey(),
                         )
                     } else {
                         // 手动模式：原有行为，RadioButton 可点击
@@ -402,7 +402,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "录音结束后自动转写并保存为笔记",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Switch(
@@ -429,7 +429,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "每天夜间自动分析当天内容，次日晨间推送发芽报告",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Switch(
@@ -485,7 +485,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "每天早上推送昨日记录摘要",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Switch(
@@ -541,7 +541,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "每次保存笔记后 AI 给一句有温度的回应",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Switch(
@@ -569,7 +569,7 @@ fun InvisiblePartnerSettingsScreen(
                             Text(
                                 text = "每日最多自动生成几篇发芽报告",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = themeTextGrey(),
                             )
                         }
                         Text(
@@ -601,7 +601,7 @@ fun InvisiblePartnerSettingsScreen(
                 Text(
                     text = "无感伙伴模式让 AI 在后台默默为你工作。打开开关后，系统会在指定时间自动完成录音转写、内容分析、发芽报告生成和每日摘要推送，无需手动操作。所有数据仅存储在本地设备上。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     lineHeight = 18.sp,
                 )
             }

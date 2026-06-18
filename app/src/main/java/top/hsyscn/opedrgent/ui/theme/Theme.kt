@@ -14,8 +14,29 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = Blue80,
+    onPrimary = Color.White,
+    primaryContainer = Blue40.copy(alpha = 0.2f),
     secondary = BlueGrey80,
+    onSecondary = Color.White,
+    secondaryContainer = SurfaceLight_Dark,
     tertiary = Teal80,
+    background = BgGray_Dark,
+    onBackground = TextDark_Dark,
+    surface = CardWhite_Dark,
+    onSurface = TextDark_Dark,
+    surfaceVariant = Color(0xFF2A2D33),
+    onSurfaceVariant = TextGrey_Dark,
+    outline = BorderLight_Dark,
+    outlineVariant = DividerColor_Dark,
+    error = DangerRed,
+    errorContainer = ErrorBackground,
+    // Extended semantic (used via MaterialTheme.colorScheme)
+    surfaceContainerLow = SurfaceElevated_Dark,
+    surfaceContainer = CardBackground_Dark,
+    surfaceContainerHigh = SurfaceLight_Dark,
+    inverseSurface = InterviewDarkBg,
+    inverseOnSurface = TextDark_Dark,
+    inversePrimary = InterviewPurple,
 )
 
 private val LightColorScheme = lightColorScheme(

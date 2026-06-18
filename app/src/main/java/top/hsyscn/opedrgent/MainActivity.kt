@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,14 +9,21 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import top.hsyscn.opedrgent.ui.AppRoot
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
+import top.hsyscn.opedrgent.utils.LocaleHelper
 
 class MainActivity : ComponentActivity() {
     private val pendingShareText = mutableStateOf<String?>(null)
     private val pendingAction = mutableStateOf<String?>(null)
 
+    override fun attachBaseContext(newBase: Context?) {
+        newBase?.let { LocaleHelper.captureSystemLocale(it) }
+        super.attachBaseContext(newBase?.let { LocaleHelper.onAttach(it) })
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.navigationBarColor = android.graphics.Color.parseColor("#FFF5F5F6")
         pendingShareText.value = extractSharedText(intent)
         pendingAction.value = extractAction(intent)
         setContent {

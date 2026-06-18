@@ -49,9 +49,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import kotlin.math.roundToLong
+import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /**
  * 全功能音频播放器组件。
@@ -129,7 +130,7 @@ fun AudioPlayer(
             Text(
                 text = formatTime(displayPosition),
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
                 modifier = Modifier.width(40.dp),
             )
 
@@ -158,7 +159,7 @@ fun AudioPlayer(
             Text(
                 text = formatTime(duration),
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
                 modifier = Modifier.width(40.dp),
             )
         }
@@ -186,7 +187,7 @@ fun AudioPlayer(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, Color.LightGray, CircleShape)
                     .clickable {
                         if (isPlaying) {
@@ -200,7 +201,7 @@ fun AudioPlayer(
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
-                    tint = TextDark,
+                    tint = themeTextDark(),
                     modifier = Modifier.size(28.dp),
                 )
             }
@@ -221,7 +222,7 @@ fun AudioPlayer(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .border(1.dp, TextGrey.copy(alpha = 0.4f), CircleShape)
+                    .border(1.dp, themeTextGrey().copy(alpha = 0.4f), CircleShape)
                     .clickable { showSpeedSheet = true },
                 contentAlignment = Alignment.Center,
             ) {
@@ -229,7 +230,7 @@ fun AudioPlayer(
                     text = "${playbackSpeed.formatSpeed()}x",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
             }
         }
@@ -347,7 +348,7 @@ private fun SkipButton(
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .border(1.dp, TextGrey.copy(alpha = 0.4f), CircleShape)
+            .border(1.dp, themeTextGrey().copy(alpha = 0.4f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -404,7 +405,7 @@ private fun SkipButton(
             text = label,
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = themeTextDark(),
         )
     }
 }

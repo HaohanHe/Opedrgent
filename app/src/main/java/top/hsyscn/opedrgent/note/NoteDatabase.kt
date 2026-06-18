@@ -19,7 +19,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "opedrgent_notes.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         const val TABLE_NOTES = "notes"
 
         // 列名
@@ -40,6 +40,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_ORIGINAL_CONTENT = "original_content"
         const val COL_SOURCE_URL = "source_url"
         const val COL_SOURCE_TYPE = "source_type"
+        const val COL_SPANS = "spans"
 
         // 单例
         @Volatile
@@ -70,7 +71,8 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_SPROUT_REPORT_JSON TEXT,
                 $COL_ORIGINAL_CONTENT TEXT,
                 $COL_SOURCE_URL TEXT DEFAULT '',
-                $COL_SOURCE_TYPE TEXT DEFAULT 'MANUAL'
+                $COL_SOURCE_TYPE TEXT DEFAULT 'MANUAL',
+                $COL_SPANS TEXT DEFAULT ''
             )
         """.trimIndent())
 
@@ -84,6 +86,9 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $COL_SOURCE_URL TEXT DEFAULT ''")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $COL_SPANS TEXT DEFAULT ''")
         }
     }
 
@@ -107,6 +112,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
             originalContent = cursor.getString(cursor.getColumnIndexOrThrow(COL_ORIGINAL_CONTENT)),
             sourceUrl = cursor.getString(cursor.getColumnIndexOrThrow(COL_SOURCE_URL)) ?: "",
             sourceType = try { SourceType.valueOf(cursor.getString(cursor.getColumnIndexOrThrow(COL_SOURCE_TYPE))) } catch (_: Exception) { SourceType.MANUAL },
+            spans = cursor.getString(cursor.getColumnIndexOrThrow(COL_SPANS)) ?: "",
         )
     }
 }

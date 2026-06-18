@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.ArticleSection
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -46,15 +48,12 @@ import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.TextPrimary
 import top.hsyscn.opedrgent.ui.theme.TextSecondary
-import top.hsyscn.opedrgent.ui.theme.BorderLight
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.ChipWarningText
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
-import top.hsyscn.opedrgent.ui.theme.DividerColor
 import top.hsyscn.opedrgent.ui.theme.SproutBackground
 import top.hsyscn.opedrgent.ui.theme.SproutQuoteBg
 import top.hsyscn.opedrgent.ui.theme.SproutChipBg
@@ -64,6 +63,7 @@ import top.hsyscn.opedrgent.ui.theme.SproutMetaText
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
 /**
  * 笔记发芽报告页 — Opedrgent 核心特色（v2 叙事式）
@@ -127,10 +127,10 @@ fun NoteSproutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("发芽报告") },
+                title = { Text(stringResource(R.string.title_sprout_report)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -175,7 +175,7 @@ fun NoteSproutScreen(
                             DropdownMenuItem(
                                 text = { Text("添加标签") },
                                 onClick = {
-                                    Toast.makeText(context, "标签功能开发中", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.msg_feature_under_development), Toast.LENGTH_SHORT).show()
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.Label, null) },
@@ -186,7 +186,7 @@ fun NoteSproutScreen(
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     val text = article?.toMarkdownText() ?: ""
                                     ClipData.newPlainText("发芽报告", text).let { clipboard.setPrimaryClip(it) }
-                                    Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.msg_copied_to_clipboard), Toast.LENGTH_SHORT).show()
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
@@ -529,7 +529,7 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
             if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = AccentBlue)
         }
         if (items.isNotEmpty()) {
-            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = 8.dp), color = SuccessGreen, trackColor = DividerColor)
+            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = 8.dp), color = SuccessGreen, trackColor = themeDividerColor())
         }
         items.forEachIndexed { idx, item ->
             val done = idx in completed
