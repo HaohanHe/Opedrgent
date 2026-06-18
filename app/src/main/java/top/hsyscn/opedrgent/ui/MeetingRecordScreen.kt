@@ -88,7 +88,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -108,17 +110,10 @@ import top.hsyscn.opedrgent.stt.SpeakerColorPalette
 import top.hsyscn.opedrgent.stt.TranscriptTimeFormatter
 import top.hsyscn.opedrgent.ui.components.RecordingCard
 import top.hsyscn.opedrgent.ui.components.RecordingState
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.TextPrimary
 import top.hsyscn.opedrgent.ui.theme.TextSecondary
 import top.hsyscn.opedrgent.ui.theme.TextTertiary
-import top.hsyscn.opedrgent.ui.theme.SurfaceLight
-import top.hsyscn.opedrgent.ui.theme.CardBackground
-import top.hsyscn.opedrgent.ui.theme.SurfaceElevated
-import top.hsyscn.opedrgent.ui.theme.BorderLight
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.DangerRed
 import top.hsyscn.opedrgent.ui.theme.ErrorBackground
@@ -127,6 +122,13 @@ import top.hsyscn.opedrgent.ui.theme.DeleteConfirmRed
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.FileOutputStream
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeBorderLight
+import top.hsyscn.opedrgent.ui.theme.themeCardBackground
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /** Tab 类型定义（参考得到大脑 4-Tab 系统） */
 enum class TranscriptTab(val displayName: String) {
@@ -291,13 +293,13 @@ fun MeetingRecordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("会议录音", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_meeting_recording), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         recordingState = RecordingState.DONE
                         onBack()
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -314,7 +316,7 @@ fun MeetingRecordScreen(
                         },
                         enabled = transcriptResult != null,
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = "分享")
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_share))
                     }
                     // 更多操作（下载等）
                     var showMenu by remember { mutableStateOf(false) }
@@ -348,7 +350,7 @@ fun MeetingRecordScreen(
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
@@ -442,7 +444,7 @@ fun MeetingRecordScreen(
                 transcriptResult?.let { result ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -465,7 +467,7 @@ fun MeetingRecordScreen(
                                 Spacer(Modifier.weight(1f))
                                 Text(
                                     text = "${result.segments.size} 段 · ${result.speakers.size} 人 · ${TranscriptTimeFormatter.formatDuration(result.durationMs)}",
-                                    color = TextGrey,
+                                    color = themeTextGrey(),
                                     fontSize = 12.sp,
                                 )
                             }
@@ -610,7 +612,7 @@ fun MeetingRecordScreen(
                                 ) {
                                     Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("下载", fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.action_download), fontWeight = FontWeight.Medium)
                                 }
                                 // 复制全文
                                 OutlinedButton(
@@ -713,7 +715,7 @@ private fun AudioPlayerBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(SurfaceLight)
+                .background(themeSurfaceLight())
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             // -15s 按钮
@@ -933,7 +935,7 @@ private fun SentenceItem(
             // sentence-speaker: 圆角 pill badge（参考得到大脑 rounded 8px, bg #f5f7fa）
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = CardBackground,
+                color = themeCardBackground(),
             ) {
                 Text(
                     text = SpeakerColorPalette.formatSpeakerName(segment.speakerLabel),
@@ -997,12 +999,12 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         ) {
             Text(
                 text = "暂无智能总结",
-                color = TextGrey,
+                color = themeTextGrey(),
                 fontSize = 14.sp,
             )
             Text(
                 text = "切换到「文字记录」查看完整转录文本",
-                color = TextGrey.copy(alpha = 0.6f),
+                color = themeTextGrey().copy(alpha = 0.6f),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -1037,7 +1039,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             Spacer(Modifier.height(8.dp))
             Text(text = section.title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             section.content.forEach { para ->
-                Text(text = para, fontSize = 14.sp, color = TextDark, lineHeight = 22.sp)
+                Text(text = para, fontSize = 14.sp, color = themeTextDark(), lineHeight = 22.sp)
             }
         }
 
@@ -1069,7 +1071,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 Text(
                     text = chapter.summary,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     lineHeight = 22.sp,
                     modifier = Modifier.padding(start = 4.dp),
                 )
@@ -1092,7 +1094,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                         lineHeight = 22.sp,
                         modifier = Modifier.weight(1f),
                     )
-                    Text(text = " \u201D (${quote.category})", color = TextGrey, fontSize = 12.sp)
+                    Text(text = " \u201D (${quote.category})", color = themeTextGrey(), fontSize = 12.sp)
                 }
             }
         }
@@ -1120,7 +1122,7 @@ private fun summaryInfoLine(label: String, value: String) {
     Text(
         text = "$label: $value",
         fontSize = 14.sp,
-        color = TextDark,
+        color = themeTextDark(),
     )
 }
 
@@ -1169,10 +1171,10 @@ private fun AdditionalNotesContent(
                     .fillMaxWidth()
                     .padding(vertical = 40.dp),
             ) {
-                Text(text = "暂无追加的笔记", color = TextGrey, fontSize = 14.sp)
+                Text(text = "暂无追加的笔记", color = themeTextGrey(), fontSize = 14.sp)
                 Text(
                     text = "在此处添加您对录音内容的补充笔记和想法",
-                    color = TextGrey.copy(alpha = 0.6f),
+                    color = themeTextGrey().copy(alpha = 0.6f),
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -1180,7 +1182,7 @@ private fun AdditionalNotesContent(
                 // 添加按钮（空状态时突出显示）
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = SurfaceLight,
+                    color = themeSurfaceLight(),
                     onClick = { onToggleAdding(true) },
                 ) {
                     Row(
@@ -1240,7 +1242,7 @@ private fun AdditionalNotesContent(
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = Color.Transparent,
-                border = BorderStroke(1.dp, BorderLight),
+                border = BorderStroke(1.dp, themeBorderLight()),
                 onClick = { onToggleAdding(true) },
             ) {
                 Row(
@@ -1249,7 +1251,7 @@ private fun AdditionalNotesContent(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("追加笔记...", color = TextGrey, fontSize = 14.sp)
+                    Text("追加笔记...", color = themeTextGrey(), fontSize = 14.sp)
                 }
             }
         }
@@ -1274,7 +1276,7 @@ private fun NoteItemCard(
 
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = SurfaceElevated,
+        color = themeSurfaceElevated(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -1320,7 +1322,7 @@ private fun NoteItemCard(
                 // 创建时间
                 Text(
                     text = formatNoteTimestamp(note.createdAtMs),
-                    color = TextGrey.copy(alpha = 0.7f),
+                    color = themeTextGrey().copy(alpha = 0.7f),
                     fontSize = 12.sp,
                 )
 
@@ -1328,11 +1330,11 @@ private fun NoteItemCard(
 
                 // 编辑按钮
                 IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = TextGrey, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = themeTextGrey(), modifier = Modifier.size(16.dp))
                 }
                 // 删除按钮
                 IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = DangerRed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = DangerRed, modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -1359,10 +1361,10 @@ private fun NoteItemCard(
                     ) {
                         Text("确定删除这条笔记？", color = DeleteConfirmRed, fontSize = 13.sp, modifier = Modifier.weight(1f))
                         Surface(shape = RoundedCornerShape(6.dp), color = Color.Transparent, onClick = { showDeleteConfirm = false }) {
-                            Text("取消", color = TextGrey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            Text(stringResource(R.string.action_cancel), color = themeTextGrey(), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                         Surface(shape = RoundedCornerShape(6.dp), color = DeleteConfirmRed, onClick = { onDelete(); showDeleteConfirm = false }) {
-                            Text("删除", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            Text(stringResource(R.string.action_delete), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
                 }
@@ -1399,13 +1401,13 @@ private fun NoteInputArea(
         OutlinedTextField(
             value = inputText,
             onValueChange = onInputChange,
-            placeholder = { Text("记录你的想法、要点或待办事项...", color = TextGrey.copy(alpha = 0.5f), fontSize = 14.sp) },
+            placeholder = { Text("记录你的想法、要点或待办事项...", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 14.sp) },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 80.dp, max = 160.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AccentPurple,
-                unfocusedBorderColor = BorderLight,
+                unfocusedBorderColor = themeBorderLight(),
                 cursorColor = AccentPurple,
             ),
             shape = RoundedCornerShape(10.dp),
@@ -1417,7 +1419,7 @@ private fun NoteInputArea(
             Text(
                 text = "关联到录音位置（可选，点击选择）",
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
             Spacer(Modifier.height(4.dp))
             // 简化的段落选择：显示前 6 个段落供快速选择
@@ -1428,12 +1430,12 @@ private fun NoteInputArea(
                     val isSelected = selectedSegmentIndex == idx
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) AccentPurple else CardBackground,
+                        color = if (isSelected) AccentPurple else themeCardBackground(),
                         onClick = { selectedSegmentIndex = if (isSelected) null else idx },
                     ) {
                         Text(
                             text = "${TranscriptTimeFormatter.formatMsToHMS(seg.startTimeMs)} ${seg.text.take(12)}...",
-                            color = if (isSelected) Color.White else TextGrey,
+                            color = if (isSelected) Color.White else themeTextGrey(),
                             fontSize = 11.sp,
                             maxLines = 1,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -1454,7 +1456,7 @@ private fun NoteInputArea(
             ) {
                 Text(
                     text = "取消",
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                 )

@@ -4,6 +4,7 @@ enum class ModelType {
     PARAFORMER,           // 高端设备 (≥6GB RAM), ~220MB, 精度最高
     SENSE_VOICE_SMALL,   // 中端设备 (4-6GB RAM), ~240MB, 多语言
     FUNASR_NANO_INT8,     // 低端设备 (<4GB RAM), ~20MB, 轻量
+    STREAMING_PARAFORMER, // 真流式模型, ~237MB (INT8), 需≥6GB RAM
 }
 
 enum class SttLanguage {

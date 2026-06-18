@@ -198,6 +198,7 @@ class NoteDao(private val db: NoteDatabase) {
         put(NoteDatabase.COL_ORIGINAL_CONTENT, note.originalContent)
         put(NoteDatabase.COL_SOURCE_URL, note.sourceUrl)
         put(NoteDatabase.COL_SOURCE_TYPE, note.sourceType.name)
+        put(NoteDatabase.COL_SPANS, note.spans)
     }
 
     private fun extractTitle(content: String): String {

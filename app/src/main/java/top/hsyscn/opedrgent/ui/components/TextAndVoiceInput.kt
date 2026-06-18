@@ -38,7 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import top.hsyscn.opedrgent.ui.theme.BarBg
+import top.hsyscn.opedrgent.ui.theme.themeBarBg
 
 @Composable
 fun TextAndVoiceInput(
@@ -82,7 +82,7 @@ fun TextAndVoiceInput(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(BarBg, RoundedCornerShape(16.dp))
+            .background(themeBarBg(), RoundedCornerShape(16.dp))
             .padding(8.dp)
     ) {
         Row(

@@ -71,22 +71,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.mcp.editors.EditorRole
 import top.hsyscn.opedrgent.mcp.editors.EditorTeamService
 import top.hsyscn.opedrgent.mcp.editors.RoleInstance
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 // ==================== 数据模型 ====================
 
@@ -225,7 +228,7 @@ fun EditorTeamScreen(
     val participants = EditorRole.defaultPipeline
 
     Scaffold(
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -236,7 +239,7 @@ fun EditorTeamScreen(
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = "(${participants.size}人讨论中)",
-                                color = TextGrey,
+                                color = themeTextGrey(),
                                 fontSize = 12.sp,
                             )
                         }
@@ -247,7 +250,7 @@ fun EditorTeamScreen(
                         service.cancel()
                         onBack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -261,7 +264,7 @@ fun EditorTeamScreen(
                         Text("新建", fontSize = 13.sp)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CardWhite),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = themeCardWhite()),
             )
         },
     ) { padding ->
@@ -277,7 +280,7 @@ fun EditorTeamScreen(
                     speakingAlias = currentSpeakingAlias,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(CardWhite)
+                        .background(themeCardWhite())
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 HorizontalDivider(color = Color(0xFFEEEEEE))
@@ -401,7 +404,7 @@ private fun ParticipantBar(
             Text(
                 text = "${roles.size} 位编辑已就位",
                 fontSize = 11.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
     }
@@ -429,20 +432,20 @@ private fun WritingWelcomeArea(
             text = "写作模式",
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = themeTextDark(),
         )
         Spacer(Modifier.height(6.dp))
         Text(
             text = "把你的想法扔进来，几位编辑会在群里讨论，最后给你一版定稿",
             fontSize = 13.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             textAlign = TextAlign.Center,
         )
 
         Spacer(Modifier.height(28.dp))
 
         // 群成员预览
-        Text(text = "本次讨论阵容", fontSize = 12.sp, color = TextGrey)
+        Text(text = "本次讨论阵容", fontSize = 12.sp, color = themeTextGrey())
         Spacer(Modifier.height(8.dp))
         Row(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -482,7 +485,7 @@ private fun WritingWelcomeArea(
         // 输入区
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardWhite),
+            colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -490,20 +493,20 @@ private fun WritingWelcomeArea(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 90.dp, max = 180.dp)
-                        .background(Color(0xFFF8F8F8), RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(10.dp))
                         .padding(12.dp),
                 ) {
                     if (welcomeInput.isEmpty()) {
                         Text(
                             text = "把你想写的东西贴进来，或者描述一下你想写什么...\n比如：帮我写一段关于AI改变教育的文字",
-                            color = Color(0xFFBDBDBD),
+                            color = themeTextGrey().copy(alpha = 0.5f),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                     BasicTextField(
                         value = welcomeInput,
                         onValueChange = { welcomeInput = it },
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextDark),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = themeTextDark()),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -530,7 +533,7 @@ private fun WritingWelcomeArea(
         Text(
             text = "文采匠负责润色 / 历史学家拉古论今 / 技术审查找漏洞 / 逻辑侦探查论证 / 主编综合定稿",
             fontSize = 11.sp,
-            color = Color(0xFFCCCCCC),
+            color = themeTextGrey().copy(alpha = 0.6f),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(30.dp))
@@ -556,7 +559,7 @@ private fun WritingQuickScenarios(onSelect: (String) -> Unit) {
             Card(
                 onClick = { onSelect(title) },
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = CardWhite),
+                colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -566,7 +569,7 @@ private fun WritingQuickScenarios(onSelect: (String) -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text(desc, fontSize = 10.sp, color = TextGrey)
+                        Text(desc, fontSize = 10.sp, color = themeTextGrey())
                     }
                 }
             }
@@ -587,7 +590,7 @@ private fun UserBubble(content: String) {
                 .background(AccentBlue.copy(alpha = 0.08f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 4.dp, bottomStart = 16.dp))
                 .padding(12.dp),
         ) {
-            Text(text = content, fontSize = 14.sp, color = TextDark, lineHeight = 20.sp)
+            Text(text = content, fontSize = 14.sp, color = themeTextDark(), lineHeight = 20.sp)
         }
     }
 }
@@ -659,7 +662,7 @@ private fun AgentBubble(
                                 Icons.Default.ContentCopy,
                                 "复制",
                                 modifier = Modifier.size(12.dp),
-                                tint = TextGrey,
+                                tint = themeTextGrey(),
                             )
                         }
                     }
@@ -711,10 +714,10 @@ private fun FinalDraftCard(
                     Text(
                         text = "${content.length} 字 -- 综合各位意见后的最终版本",
                         fontSize = 11.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                 }
-                Text(if (expanded) "▼" else "▶", fontSize = 10.sp, color = TextGrey)
+                Text(if (expanded) "▼" else "▶", fontSize = 10.sp, color = themeTextGrey())
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -798,7 +801,7 @@ private fun TypingIndicator(
         Text(
             text = "$alias 正在思考...",
             fontSize = 12.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
         )
     }
@@ -816,7 +819,7 @@ private fun ChatInputBar(
 ) {
     Card(
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        colors = CardDefaults.cardColors(containerColor = CardWhite),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -828,7 +831,7 @@ private fun ChatInputBar(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 42.dp, max = 110.dp)
-                        .background(Color(0xFFF5F5F5), RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(22.dp))
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 ) {
                     if (inputText.isEmpty()) {
@@ -842,7 +845,7 @@ private fun ChatInputBar(
                         value = inputText,
                         onValueChange = onInputChange,
                         enabled = !isProcessing,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextDark),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = themeTextDark()),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -852,7 +855,7 @@ private fun ChatInputBar(
                         onClick = onStop,
                         shape = CircleShape,
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0xFFFFEBEE),
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = Color(0xFFE53935),
                         ),
                         modifier = Modifier.size(42.dp),
@@ -877,7 +880,7 @@ private fun ChatInputBar(
             Text(
                 text = if (isProcessing) "点击红色按钮停止讨论" else "Enter 发送",
                 fontSize = 10.sp,
-                color = Color(0xFFCCCCCC),
+                color = themeTextGrey().copy(alpha = 0.6f),
                 modifier = Modifier.align(Alignment.End),
             )
         }

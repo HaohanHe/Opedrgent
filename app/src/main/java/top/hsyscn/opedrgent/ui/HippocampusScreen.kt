@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.SourceType
@@ -62,10 +64,10 @@ fun HippocampusScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // 顶部栏
         TopAppBar(
-            title = { Text("海马体记忆", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.title_hippocampus), fontWeight = FontWeight.Bold) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "返回")
+                    Icon(Icons.Default.ArrowBack, stringResource(R.string.cd_back))
                 }
             },
             actions = {
@@ -217,7 +219,7 @@ private fun HippocampusItemCard(
             ) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.cd_delete),
                     tint = Color.White,
                 )
             }
@@ -313,12 +315,12 @@ private fun HippocampusItemCard(
                     showDeleteConfirm = false
                     onDelete()
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )

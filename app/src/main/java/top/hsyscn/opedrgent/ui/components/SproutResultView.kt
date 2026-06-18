@@ -116,14 +116,14 @@ fun SproutResultView(
                 when (state) {
                     SproutingState.IDLE -> {}
                     SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 ->
-                        ProcessingPhase(currentPhase = state)
+                        ProcessingPhase(currentPhase = state, onCancel = onDismiss)
                     SproutingState.DONE ->
                         DonePhase(
                             report = markdownReport,
                             qualityScore = qualityScore,
                             processingTimeMs = processingTimeMs,
                         )
-                    SproutingState.ERROR -> ErrorPhase()
+                    SproutingState.ERROR -> ErrorPhase(onRetry = onContinueChat)
                     SproutingState.CANCELLED -> CancelledPhase(onRestart = onContinueChat)
                 }
             }
@@ -224,7 +224,7 @@ private fun QualityScoreBadge(score: Int) {
 }
 
 @Composable
-private fun ProcessingPhase(currentPhase: SproutingState) {
+private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(currentPhase) {
@@ -268,7 +268,7 @@ private fun ProcessingPhase(currentPhase: SproutingState) {
             Spacer(Modifier.height(8.dp))
 
             TextButton(
-                onClick = {},
+                onClick = onCancel,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
                 Text("取消", fontWeight = FontWeight.Medium)
@@ -444,7 +444,7 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
 }
 
 @Composable
-private fun ErrorPhase() {
+private fun ErrorPhase(onRetry: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -468,7 +468,7 @@ private fun ErrorPhase() {
         )
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = {},
+            onClick = onRetry,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {

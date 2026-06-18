@@ -66,6 +66,9 @@ data class Note(
 
     /** 笔记来源类型：手动创建 / ASR转录 / AI生成 / 链接提取 */
     var sourceType: SourceType = SourceType.MANUAL,
+
+    /** 富文本格式信息（JSON array of SpanRepresentation），空字符串表示纯文本 */
+    var spans: String = "",
 ) {
     /** 获取标签列表 */
     fun getTags(): List<String> {

@@ -65,13 +65,13 @@ import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 /**
  * 首页仪表盘。
@@ -157,7 +157,7 @@ fun HomeDashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgGray),
+            .background(themeBgGray()),
         contentAlignment = Alignment.TopCenter,
     ) {
     LazyColumn(
@@ -238,7 +238,7 @@ fun HomeDashboardScreen(
                     text = "最近笔记",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
                 Text(
                     text = "查看全部",
@@ -283,12 +283,12 @@ private fun GreetingHeader() {
             text = greeting,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = themeTextDark(),
         )
         Text(
             text = dateStr,
             fontSize = 14.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
             modifier = Modifier.padding(top = 2.dp),
         )
     }
@@ -341,8 +341,8 @@ private fun AiAssistantCard(
     )
 
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = CardWhite),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -376,12 +376,12 @@ private fun AiAssistantCard(
                         text = "AI 智能助手",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                     Text(
                         text = "随时问我任何问题，帮你整理思路",
                         fontSize = 13.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                     )
                 }
             }
@@ -391,7 +391,7 @@ private fun AiAssistantCard(
             // 输入框
             Card(
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = BgGray),
+                colors = CardDefaults.cardColors(containerColor = themeBgGray()),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
@@ -404,7 +404,7 @@ private fun AiAssistantCard(
                         value = inputText,
                         onValueChange = onInputChange,
                         textStyle = androidx.compose.ui.text.TextStyle(
-                            color = TextDark,
+                            color = themeTextDark(),
                             fontSize = 15.sp,
                         ),
                         singleLine = true,
@@ -414,7 +414,7 @@ private fun AiAssistantCard(
                                 if (inputText.isEmpty()) {
                                     Text(
                                         text = "有什么想问的？直接打字发消息...",
-                                        color = TextGrey,
+                                        color = themeTextGrey(),
                                         fontSize = 15.sp,
                                     )
                                 }
@@ -444,7 +444,7 @@ private fun AiAssistantCard(
                         Icon(
                             Icons.Default.ChatBubble,
                             contentDescription = null,
-                            tint = TextGrey.copy(alpha = 0.5f),
+                            tint = themeTextGrey().copy(alpha = 0.5f),
                             modifier = Modifier.size(22.dp),
                         )
                     }
@@ -486,8 +486,8 @@ private fun StatCard(
     onClick: () -> Unit = {},
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardWhite),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier
             .clickable(onClick = onClick),
@@ -507,10 +507,10 @@ private fun StatCard(
                     Icon(icon, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = title, fontSize = 12.sp, color = TextGrey)
+                Text(text = title, fontSize = 12.sp, color = themeTextGrey())
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = themeTextDark())
         }
     }
 }
@@ -544,13 +544,13 @@ fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(CardWhite),
+                .background(themeCardWhite()),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = label, tint = AccentBlue, modifier = Modifier.size(22.dp))
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Text(text = label, fontSize = 11.sp, color = TextGrey)
+        Text(text = label, fontSize = 11.sp, color = themeTextGrey())
     }
 }
 
@@ -560,7 +560,7 @@ fun RecentNoteItem(note: Note, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = CardWhite),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -586,14 +586,14 @@ fun RecentNoteItem(note: Note, onClick: () -> Unit) {
                     text = note.title.ifBlank { "无标题" },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextDark,
+                    color = themeTextDark(),
                     maxLines = 1,
                 )
                 if (note.summary.isNotEmpty()) {
                     Text(
                         text = note.summary,
                         fontSize = 13.sp,
-                        color = TextGrey,
+                        color = themeTextGrey(),
                         maxLines = 1,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -604,7 +604,7 @@ fun RecentNoteItem(note: Note, onClick: () -> Unit) {
             Text(
                 text = formatNoteTime(note.updatedAt),
                 fontSize = 12.sp,
-                color = TextGrey,
+                color = themeTextGrey(),
             )
         }
     }
@@ -622,13 +622,13 @@ fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
         Text(
             text = "还没有笔记",
             fontSize = 16.sp,
-            color = TextGrey,
+            color = themeTextGrey(),
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "点击下方快捷操作创建第一条笔记吧",
             fontSize = 13.sp,
-            color = TextGrey.copy(alpha = 0.7f),
+            color = themeTextGrey().copy(alpha = 0.7f),
         )
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -655,8 +655,8 @@ fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("试试 AI 智能助手", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = TextDark)
-                    Text("输入想法，让 AI 帮你整理成结构化内容", fontSize = 12.sp, color = TextGrey)
+                    Text("试试 AI 智能助手", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = themeTextDark())
+                    Text("输入想法，让 AI 帮你整理成结构化内容", fontSize = 12.sp, color = themeTextGrey())
                 }
                 Icon(Icons.Default.ArrowForward, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
             }
@@ -820,7 +820,7 @@ fun RecommendationCard(item: RecommendationItem) {
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.25f)),
+                        .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

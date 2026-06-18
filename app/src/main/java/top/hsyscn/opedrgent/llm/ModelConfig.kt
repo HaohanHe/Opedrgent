@@ -169,7 +169,7 @@ fun computeInferenceConfigFromOverrides(
     return LlmInferenceConfig(
         backend = backend,
         maxContextLength = base.maxContextLength,
-        maxTokens = maxTokens.coerceAtMost(base.maxContextLength / 2),
+        maxTokens = maxTokens.coerceAtMost(base.maxContextLength - 1024),
         temperature = temperature,
         topK = topK,
         topP = topP,

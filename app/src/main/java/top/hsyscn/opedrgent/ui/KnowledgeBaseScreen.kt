@@ -81,7 +81,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,14 +93,14 @@ import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.storage.KnowledgeBaseInfo
 import top.hsyscn.opedrgent.storage.Visibility
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import top.hsyscn.opedrgent.ui.theme.DangerRed
-import top.hsyscn.opedrgent.ui.theme.BorderLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeBorderLight
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 // ============================================================
 // 排序方式
@@ -221,9 +223,9 @@ fun KnowledgeBaseScreen(
                 title = {
                     Text(
                         text = if (selectedKbId != null) {
-                            knowledgeBases.find { it.id == selectedKbId }?.name ?: "文档"
+                            knowledgeBases.find { it.id == selectedKbId }?.name ?: stringResource(R.string.kb_documents)
                         } else {
-                            "知识库"
+                            stringResource(R.string.kb_title)
                         },
                         fontWeight = FontWeight.Bold,
                     )
@@ -237,7 +239,7 @@ fun KnowledgeBaseScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -245,14 +247,14 @@ fun KnowledgeBaseScreen(
                         val (totalDocs, totalSize) = knowledgeBase.getGlobalStats()
                         Text(
                             text = "$totalDocs 篇 · ${formatFileSize(totalSize)}",
-                            color = TextGrey,
+                            color = themeTextGrey(),
                             fontSize = 12.sp,
                             modifier = Modifier.padding(end = 8.dp),
                         )
                     }
                     if (selectedKbId != null) {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "排序", tint = TextGrey)
+                            Icon(Icons.Default.Sort, contentDescription = "排序", tint = themeTextGrey())
                         }
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             SortBy.entries.forEach { sort ->
@@ -267,7 +269,7 @@ fun KnowledgeBaseScreen(
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = BgGray,
+        containerColor = themeBgGray(),
         floatingActionButton = {
             if (selectedKbId != null) {
                 FloatingActionButton(
@@ -350,25 +352,25 @@ fun KnowledgeBaseScreen(
                         snackbar.showSnackbar("知识库「$name」创建成功")
                         showCreateKbDialog = false
                     }
-                }) { Text("创建") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateKbDialog = false }) { Text("取消") }
+                TextButton(onClick = { showCreateKbDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
-            title = { Text("新建知识库") },
+            title = { Text(stringResource(R.string.kb_new)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        label = { Text("名称") },
+                        label = { Text(stringResource(R.string.kb_name_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
                         value = newDesc,
                         onValueChange = { newDesc = it },
-                        label = { Text("描述（可选）") },
+                        label = { Text(stringResource(R.string.kb_desc_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -381,7 +383,7 @@ fun KnowledgeBaseScreen(
                             )
                         }
                     }
-                    Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                    Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         colors.forEach { color ->
                             Surface(
@@ -420,12 +422,12 @@ fun KnowledgeBaseScreen(
                         showEditKbDialog = false
                         editingKb = null
                     }
-                }) { Text("保存") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showEditKbDialog = false; editingKb = null }) { Text("取消") }
+                TextButton(onClick = { showEditKbDialog = false; editingKb = null }) { Text(stringResource(R.string.action_cancel)) }
             },
-            title = { Text("编辑知识库") },
+            title = { Text(stringResource(R.string.kb_edit_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -456,12 +458,12 @@ fun KnowledgeBaseScreen(
                         showDeleteKbConfirm = false
                         kbToDelete = null
                     }
-                }) { Text("删除", color = DangerRed) }
+                }) { Text(stringResource(R.string.action_delete), color = DangerRed) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteKbConfirm = false; kbToDelete = null }) { Text("取消") }
+                TextButton(onClick = { showDeleteKbConfirm = false; kbToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
             },
-            title = { Text("删除知识库") },
+            title = { Text(stringResource(R.string.kb_delete_title)) },
             text = { Text("确定要删除「${kbToDelete!!.name}」吗？其中的所有文档也将被删除。此操作不可撤销。") },
         )
     }
@@ -472,7 +474,7 @@ fun KnowledgeBaseScreen(
     DropdownMenu(expanded = showContextMenu, onDismissRequest = { showContextMenu = false }) {
         val kb = contextKb ?: return@DropdownMenu
         DropdownMenuItem(
-            text = { Text("编辑") },
+            text = { Text(stringResource(R.string.action_edit)) },
             leadingIcon = { Icon(Icons.Default.Create, contentDescription = null) },
             onClick = {
                 editingKb = kb
@@ -481,15 +483,15 @@ fun KnowledgeBaseScreen(
             },
         )
         DropdownMenuItem(
-            text = { Text("分享") },
+            text = { Text(stringResource(R.string.action_share)) },
             leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
             onClick = {
-                scope.launch { snackbar.showSnackbar("分享功能开发中") }
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.kb_share_developing)) }
                 showContextMenu = false
             },
         )
         DropdownMenuItem(
-            text = { Text("删除") },
+            text = { Text(stringResource(R.string.action_delete)) },
             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
             onClick = {
                 kbToDelete = kb
@@ -520,12 +522,12 @@ private fun KbGridView(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("搜索知识库...", color = TextGrey) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextGrey, modifier = Modifier.size(20.dp)) },
+            placeholder = { Text("搜索知识库...", color = themeTextGrey()) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = TextGrey, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
@@ -548,16 +550,16 @@ private fun KbGridView(
         if (filteredKbs.isEmpty() && !searchQuery.isNotBlank()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = TextGrey.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
+                    Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = themeTextGrey().copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(12.dp))
-                    Text("暂无知识库", color = TextGrey, fontSize = 14.sp)
+                    Text(stringResource(R.string.kb_empty), color = themeTextGrey(), fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("点击下方 + 新建你的第一个知识库", color = TextGrey.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text(stringResource(R.string.kb_empty_hint), color = themeTextGrey().copy(alpha = 0.6f), fontSize = 12.sp)
                 }
             }
         } else if (filteredKbs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("未找到匹配的知识库", color = TextGrey, fontSize = 14.sp)
+                Text("未找到匹配的知识库", color = themeTextGrey(), fontSize = 14.sp)
             }
         } else {
             LazyVerticalGrid(
@@ -577,21 +579,21 @@ private fun KbGridView(
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.5f)),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.5f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, themeBorderLight().copy(alpha = 0.5f)),
                         modifier = Modifier
                             .height(140.dp)
                             .clickable(onClick = onCreateKb),
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Surface(shape = CircleShape, color = BgGray, modifier = Modifier.size(44.dp)) {
+                                Surface(shape = CircleShape, color = themeBgGray(), modifier = Modifier.size(44.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Add, contentDescription = null, tint = TextGrey, modifier = Modifier.size(24.dp))
+                                        Icon(Icons.Default.Add, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(24.dp))
                                     }
                                 }
                                 Spacer(Modifier.height(8.dp))
-                                Text("新建知识库", color = TextGrey, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(stringResource(R.string.kb_new), color = themeTextGrey(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -622,7 +624,7 @@ private fun KbCard(
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
             .height(140.dp)
@@ -645,11 +647,11 @@ private fun KbCard(
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(info.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(info.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = themeTextDark(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(visibilityIcon, contentDescription = info.visibility.label, tint = TextGrey.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
+                        Icon(visibilityIcon, contentDescription = info.visibility.label, tint = themeTextGrey().copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(3.dp))
-                        Text(info.visibility.label, color = TextGrey.copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text(info.visibility.label, color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
             }
@@ -658,14 +660,14 @@ private fun KbCard(
 
             Column {
                 if (info.description.isNotBlank()) {
-                    Text(info.description, color = TextGrey, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(info.description, color = themeTextGrey(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(4.dp))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${info.documentCount} 篇", color = TextGrey, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text("${info.documentCount} 篇", color = themeTextGrey(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                     if (info.totalSizeBytes > 0) {
-                        Text(" · ", color = TextGrey.copy(alpha = 0.5f), fontSize = 11.sp)
-                        Text(formatFileSize(info.totalSizeBytes), color = TextGrey.copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text(" · ", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(formatFileSize(info.totalSizeBytes), color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
             }
@@ -695,12 +697,12 @@ private fun DocumentListView(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("搜索文档内容...", color = TextGrey) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextGrey, modifier = Modifier.size(20.dp)) },
+            placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeTextGrey()) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = TextGrey, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
@@ -726,7 +728,7 @@ private fun DocumentListView(
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("${documents.size}/${allCount}", color = TextGrey.copy(alpha = 0.6f), fontSize = 11.sp)
+            Text("${documents.size}/${allCount}", color = themeTextGrey().copy(alpha = 0.6f), fontSize = 11.sp)
         }
 
         Spacer(Modifier.height(12.dp))
@@ -736,7 +738,7 @@ private fun DocumentListView(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Text("正在导入...", color = TextGrey, fontSize = 13.sp)
+                Text("正在导入...", color = themeTextGrey(), fontSize = 13.sp)
             }
         }
 
@@ -744,12 +746,12 @@ private fun DocumentListView(
         if (documents.isEmpty() && !isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Article, contentDescription = null, tint = TextGrey.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
+                    Icon(Icons.Default.Article, contentDescription = null, tint = themeTextGrey().copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(12.dp))
-                    Text(text = if (allCount == 0) "暂无文档" else "未找到匹配文档", color = TextGrey, fontSize = 14.sp)
+                    Text(stringResource(R.string.kb_no_documents), color = themeTextGrey(), fontSize = 14.sp)
                     if (allCount == 0) {
                         Spacer(Modifier.height(4.dp))
-                        Text("点击右下角 + 添加文件", color = TextGrey.copy(alpha = 0.6f), fontSize = 12.sp)
+                        Text(stringResource(R.string.kb_add_file_hint), color = themeTextGrey().copy(alpha = 0.6f), fontSize = 12.sp)
                     }
                 }
             }
@@ -793,7 +795,7 @@ private fun DocumentCard(
 
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
@@ -819,20 +821,20 @@ private fun DocumentCard(
                     document.title,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
-                    color = TextDark,
+                    color = themeTextDark(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
 
                 Text(
                     "${document.fileType.uppercase()} · ${formatFileSize(document.fileSizeBytes)} · $dateStr",
-                    color = TextGrey,
+                    color = themeTextGrey(),
                     fontSize = 11.sp,
                     maxLines = 1,
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${document.contentLength} 字", color = TextGrey.copy(alpha = 0.7f), fontSize = 11.sp)
+                    Text("${document.contentLength} 字", color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
 
                     // 标签显示
                     if (document.tags.isNotEmpty()) {
@@ -848,14 +850,14 @@ private fun DocumentCard(
                             Spacer(Modifier.width(3.dp))
                         }
                         if (document.tags.size > 3) {
-                            Text("+${document.tags.size - 3}", color = TextGrey.copy(alpha = 0.5f), fontSize = 9.sp)
+                            Text("+${document.tags.size - 3}", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 9.sp)
                         }
                     }
                 }
             }
 
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, contentDescription = "删除", tint = TextGrey, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, contentDescription = "删除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
             }
         }
     }

@@ -29,10 +29,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
@@ -80,7 +82,7 @@ fun NoteShareScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("分享笔记") },
+                title = { Text(stringResource(R.string.title_share_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "返回")
@@ -439,7 +441,7 @@ private fun shareToPlatform(context: Context, note: Note, platform: SharePlatfor
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.msg_copied_to_clipboard), Toast.LENGTH_SHORT).show()
         }
         "copy_text" -> {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

@@ -57,7 +57,7 @@ fun MessageBodyThinking(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFF0F4FF))
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f))
                 .clickable { expanded = !expanded }
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
@@ -107,7 +107,7 @@ fun MessageBodyThinking(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF7F8FA))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .padding(14.dp)
                     .heightIn(max = 400.dp),
             ) {

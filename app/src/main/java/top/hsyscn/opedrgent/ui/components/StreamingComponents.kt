@@ -62,12 +62,11 @@ import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private const val STREAMING_PACE_MS = 64L
 private const val MAX_STEP = 24
@@ -131,8 +130,8 @@ fun StreamingCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
@@ -140,7 +139,7 @@ fun StreamingCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), color = TextDark)
+                Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), color = themeTextDark())
                 if (isToolRunning) {
                     CircularProgressIndicator(
                         modifier = Modifier.height(16.dp).width(16.dp),
@@ -172,7 +171,7 @@ fun StreamingCard(
                     Text(
                         text = displayText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextDark,
+                        color = themeTextDark(),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -248,14 +247,14 @@ fun ThinkingSection(parts: List<ReasoningPart>) {
         if (expanded) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             ) {
                 Text(
                     text = combined,
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextDark,
+                    color = themeTextDark(),
                 )
             }
         }
@@ -306,12 +305,12 @@ fun ToolStatusRow(toolPart: ToolPart) {
                 ToolStateType.COMPLETED -> Color(0xFF4CAF50)
                 ToolStateType.ERROR -> Color(0xFFF44336)
                 ToolStateType.SOURCE_ADDED -> AccentBlue
-                else -> TextGrey
+                else -> themeTextGrey()
             },
         )
 
         if (toolPart.state.status == ToolStateType.PENDING) {
-            ShimmerText(text = toolPart.tool, color = TextDark)
+            ShimmerText(text = toolPart.tool, color = themeTextDark())
         } else {
             Text(
                 buildAnnotatedString {
@@ -322,7 +321,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
                     append(statusText)
                 },
                 fontSize = 12.sp,
-                color = TextDark,
+                color = themeTextDark(),
             )
         }
 
@@ -378,7 +377,7 @@ fun ToolCard(toolPart: ToolPart) {
         ToolStateType.SOURCE_ADDED -> Icons.Default.Link
     }
     val statusColor = when (toolPart.state.status) {
-        ToolStateType.PENDING -> TextGrey
+        ToolStateType.PENDING -> themeTextGrey()
         ToolStateType.RUNNING -> AccentBlue
         ToolStateType.COMPLETED -> Color(0xFF4CAF50)
         ToolStateType.ERROR -> MaterialTheme.colorScheme.error
@@ -387,7 +386,7 @@ fun ToolCard(toolPart: ToolPart) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
         onClick = { expanded = !expanded },
     ) {
@@ -420,7 +419,7 @@ fun ToolCard(toolPart: ToolPart) {
                     Text(
                         "参数：${toolPart.state.input.entries.joinToString(", ") { "${it.key}=${it.value}" }}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                 }
                 if (!toolPart.state.output.isNullOrBlank()) {
@@ -428,7 +427,7 @@ fun ToolCard(toolPart: ToolPart) {
                     Text(
                         text = toolPart.state.output!!.take(500) + if (toolPart.state.output!!.length > 500) "…" else "",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextDark,
+                        color = themeTextDark(),
                     )
                 }
                 if (!toolPart.state.error.isNullOrBlank()) {
@@ -455,8 +454,8 @@ fun QuestionCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.08f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -465,10 +464,10 @@ fun QuestionCard(
             Text(
                 text = question.prompt.ifEmpty { "请选择：" },
                 fontWeight = FontWeight.SemiBold,
-                color = TextDark,
+                color = themeTextDark(),
             )
             if (question.multiSelect) {
-                Text("（多选）", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                Text("（多选）", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
             question.options.forEach { opt ->
                 androidx.compose.material3.FilterChip(

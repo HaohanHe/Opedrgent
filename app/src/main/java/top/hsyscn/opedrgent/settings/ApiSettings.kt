@@ -240,6 +240,11 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putBoolean("providerWebSearchEnabled", enabled).apply()
     }
 
+    fun getAppLanguage(): String = prefs.getString("appLanguage", "system") ?: "system"
+    fun saveAppLanguage(lang: String) {
+        prefs.edit().putString("appLanguage", lang).apply()
+    }
+
     fun isDeepResearch(): Boolean = prefs.getBoolean("deepResearch", false)
 
     fun saveDeepResearch(enabled: Boolean) {
@@ -300,6 +305,12 @@ class ApiSettings(private val context: Context) {
     }
 
     fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
+
+    fun getEditorMode(): String = prefs.getString("editorMode", "richtext") ?: "richtext"
+    fun saveEditorMode(mode: String) {
+        prefs.edit().putString("editorMode", mode).apply()
+    }
+
     fun getLocalModelId(): String? = prefs.getString("localModelId", null)?.trim()?.takeIf { it.isNotBlank() }
 
     fun getLocalTemperature(): Float = prefs.getFloat("localTemperature", 0.7f)
@@ -326,5 +337,23 @@ class ApiSettings(private val context: Context) {
             .putFloat("localTopP", topP)
             .putInt("localMaxTokens", maxTokens)
             .apply()
+    }
+
+    // ==================== 录音时长设置 ====================
+
+    /** 获取录音模式最大时长（小时），0 表示无限制 */
+    fun getRecordingMaxHours(mode: String): Int {
+        return prefs.getInt("recordingMaxHours_$mode", 0)  // 默认 0 = 无限制
+    }
+
+    /** 保存录音模式最大时长（小时），0 表示无限制 */
+    fun saveRecordingMaxHours(mode: String, hours: Int) {
+        prefs.edit().putInt("recordingMaxHours_$mode", hours.coerceIn(0, 24)).apply()
+    }
+
+    /** 获取所有模式的最大时长 */
+    fun getAllRecordingMaxHours(): Map<String, Int> {
+        val modes = listOf("VOICE_MEMO", "MEETING", "INTERNAL", "CLASSROOM")
+        return modes.associateWith { getRecordingMaxHours(it) }
     }
 }

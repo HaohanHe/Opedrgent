@@ -54,6 +54,10 @@ class SherpaOnnxEngine(
 
     /** 离线识别器（用于文件转录和伪流式识别） */
     private var offlineRecognizer: OfflineRecognizer? = null
+    /** 流式识别器（用于 STREAMING_PARAFORMER 模型的真流式识别） */
+    private var streamingRecognizer: StreamingRecognizer? = null
+    /** 当前是否为流式模型 */
+    private var isStreamingModel = false
     private var _isInitialized = AtomicBoolean(false)
     private var streamingActive = AtomicBoolean(false)
     private var currentModelDir: File? = null
@@ -75,7 +79,7 @@ class SherpaOnnxEngine(
     override val engineType = EngineType.SHERPA_ONNX
 
     override val isAvailable: Boolean
-        get() = _isInitialized.get() && offlineRecognizer != null
+        get() = _isInitialized.get() && (offlineRecognizer != null || streamingRecognizer?.isActive == true)
 
     fun initialize(modelDir: File): Boolean {
         if (_isInitialized.get()) {
@@ -98,23 +102,64 @@ class SherpaOnnxEngine(
             val (provider, deviceType) = resolveBestProvider()
             DebugLog.i(TAG, "推理后端: provider=$provider device=$deviceType")
 
-            // 创建离线识别器
-            // 注意：模型文件在磁盘绝对路径上，必须传 null 给 assetManager
-            // 否则 sherpa-onnx 会尝试用 AAssetManager 打开磁盘文件 → 崩溃
-            // 参考: https://github.com/k2-fsa/sherpa-onnx/issues/2562
-            val offlineConfig = buildOfflineRecognizerConfig(modelDir, numThreads, provider, deviceType)
-            offlineRecognizer = OfflineRecognizer(null, offlineConfig)
-
-            currentModelDir = modelDir
-            _isInitialized.set(true)
-
-            DebugLog.i(TAG, "模型初始化成功 (offline=${offlineRecognizer != null})")
-            true
+            if (config.modelType == ModelType.STREAMING_PARAFORMER) {
+                // 流式 Paraformer 模型：使用 OnlineRecognizer (真流式)
+                initializeStreamingRecognizer(modelDir, numThreads, provider)
+            } else {
+                // 非流式模型：使用 OfflineRecognizer
+                initializeOfflineRecognizer(modelDir, numThreads, provider, deviceType)
+            }
         } catch (e: Exception) {
             DebugLog.e(TAG, "初始化失败: ${e.message}", e)
             _isInitialized.set(false)
             false
         }
+    }
+
+    /**
+     * 初始化流式 Paraformer 识别器。
+     *
+     * 使用 OnlineRecognizer 进行真流式识别，支持 acceptWaveform() + decode() 模式。
+     * 如果运行时 AAR 不包含 OnlineRecognizer API（stub AAR），则优雅降级到 OfflineRecognizer。
+     */
+    private fun initializeStreamingRecognizer(
+        modelDir: File, numThreads: Int, provider: String,
+    ): Boolean {
+        val sr = StreamingRecognizer()
+        if (StreamingRecognizer.isAvailable() && sr.create(null, modelDir, numThreads, provider)) {
+            streamingRecognizer = sr
+            isStreamingModel = true
+            currentModelDir = modelDir
+            _isInitialized.set(true)
+            DebugLog.i(TAG, "流式 Paraformer 识别器初始化成功 (online=true)")
+            return true
+        }
+
+        // 降级: 运行时不支持 OnlineRecognizer，回退到 OfflineRecognizer 伪流式
+        DebugLog.w(TAG, "OnlineRecognizer API 不可用或创建失败，降级到 OfflineRecognizer 伪流式")
+        sr.release()
+        isStreamingModel = false
+        initializeOfflineRecognizer(modelDir, numThreads, provider, provider)
+        return _isInitialized.get()
+    }
+
+    /**
+     * 初始化离线识别器（用于非流式模型和流式模型的降级路径）。
+     */
+    private fun initializeOfflineRecognizer(
+        modelDir: File, numThreads: Int, provider: String, deviceType: String,
+    ): Boolean {
+        // 注意：模型文件在磁盘绝对路径上，必须传 null 给 assetManager
+        // 否则 sherpa-onnx 会尝试用 AAssetManager 打开磁盘文件 -> 崩溃
+        // 参考: https://github.com/k2-fsa/sherpa-onnx/issues/2562
+        val offlineConfig = buildOfflineRecognizerConfig(modelDir, numThreads, provider, deviceType)
+        offlineRecognizer = OfflineRecognizer(null, offlineConfig)
+
+        currentModelDir = modelDir
+        _isInitialized.set(true)
+
+        DebugLog.i(TAG, "离线识别器初始化成功 (offline=${offlineRecognizer != null}, streamingFallback=$isStreamingModel)")
+        return true
     }
 
     override suspend fun recognizeFile(uri: Uri): SttResult {
@@ -125,7 +170,13 @@ class SherpaOnnxEngine(
             try {
                 val tempFile = copyUriToTempFile(uri)
                 try {
-                    val audioData = decodeAudioFile(tempFile)
+                    val audioData = if (isWavFile(tempFile)) {
+                        decodeAudioFile(tempFile)
+                    } else {
+                        // 非 WAV 格式（MP3/AAC/FLAC 等）走 MediaCodec 解码
+                        val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(tempFile))
+                        pair?.first ?: FloatArray(0)
+                    }
                     recognizeFromFloatArray(audioData, startTimeMs)
                 } finally {
                     tempFile.delete()
@@ -183,7 +234,6 @@ class SherpaOnnxEngine(
         val startTimeMs = System.currentTimeMillis()
         return try {
             ensureInitialized()
-            val recognizer = offlineRecognizer!!
             val totalSamples = audioData.size
             val durationMs = (totalSamples.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
 
@@ -193,7 +243,13 @@ class SherpaOnnxEngine(
                 engineType = EngineType.SHERPA_ONNX, modelUsed = config.modelType.name,
             )
 
-            val text = decodeSegment(recognizer, audioData).trim()
+            val text = if (isStreamingModel && streamingRecognizer?.isActive == true) {
+                // 流式模型: 用 OnlineRecognizer 一次性解码整段音频
+                streamingRecognizer!!.recognize(audioData).trim()
+            } else {
+                // 离线模型: 用 OfflineRecognizer
+                decodeSegment(offlineRecognizer!!, audioData).trim()
+            }
 
             SttResult(
                 text = text,
@@ -213,16 +269,107 @@ class SherpaOnnxEngine(
     }
 
     /**
-     * 启动伪流式识别（实时语音输入）。
+     * 启动流式识别（实时语音输入）。
      *
-     * 采用分段提交策略：
+     * - **流式模型 (STREAMING_PARAFORMER)**: 使用 OnlineRecognizer 真流式识别。
+     *   音频通过 acceptWaveform() 喂入，后台协程不断调用 decode() 并获取 partial text。
+     *   文本随音频实时更新（可回退/修正）。
+     *
+     * - **非流式模型**: 使用伪流式分段提交策略。
+     *   外部通过 [feedAudioData] 持续喂入音频采样点（非阻塞，仅追加到缓冲区），
+     *   后台协程定期检查缓冲区，满足条件时取一段音频做离线识别。
+     *   识别结果追加到 confirmedText，文本只增长不回退（不闪烁）。
+     */
+    override fun startStreamingRecognition(): Flow<StreamingRecognitionState> {
+        // 流式模型: 使用 OnlineRecognizer 真流式
+        if (isStreamingModel && streamingRecognizer?.isActive == true) {
+            return startTrueStreamingRecognition()
+        }
+        // 非流式模型: 使用 OfflineRecognizer 伪流式
+        return startPseudoStreamingRecognition()
+    }
+
+    /**
+     * 真流式识别 — 使用 OnlineRecognizer 的 acceptWaveform + decode 模式。
+     *
+     * 音频通过 [feedAudioData] 持续喂入，后台协程不断调用 decode() 并获取 partial/final text。
+     * 与伪流式不同，真流式的文本可以随新音频输入而回退/修正（例如"你好世界" -> "你好世界同学"）。
+     */
+    private fun startTrueStreamingRecognition(): Flow<StreamingRecognitionState> {
+        return callbackFlow {
+            val sr = streamingRecognizer!!
+            trySend(StreamingRecognitionState.Listening)
+            DebugLog.i(TAG, "真流式识别已启动 (OnlineRecognizer)")
+
+            streamingJob = launch(Dispatchers.IO) {
+                try {
+                    while (isActive && streamingActive.get()) {
+                        delay(STREAMING_CHUNK_MS)
+
+                        // 持续解码已喂入的音频
+                        while (sr.isReady()) {
+                            sr.decode()
+                        }
+
+                        // 获取当前 partial 结果
+                        val currentText = sr.getResult().trim()
+                        if (currentText.isNotEmpty()) {
+                            val displayText = vocabularyStore.applyVocabulary(currentText)
+                            trySend(StreamingRecognitionState.Recognizing(displayText))
+                        }
+                    }
+
+                    // 停止信号到达：排空剩余音频并获取最终结果
+                    while (sr.isReady()) {
+                        sr.decode()
+                    }
+                    val finalText = vocabularyStore.applyVocabulary(sr.getResult().trim())
+                    if (finalText.isNotEmpty()) {
+                        trySend(StreamingRecognitionState.FinalResult(finalText))
+                        DebugLog.i(TAG, "真流式最终结果: ${finalText.length}字")
+                    } else {
+                        trySend(StreamingRecognitionState.Stopped)
+                    }
+                } catch (e: CancellationException) {
+                    DebugLog.i(TAG, "真流式识别被取消")
+                    try {
+                        while (sr.isReady()) sr.decode()
+                        val partial = vocabularyStore.applyVocabulary(sr.getResult().trim())
+                        if (partial.isNotEmpty()) {
+                            trySend(StreamingRecognitionState.FinalResult(partial))
+                        } else {
+                            trySend(StreamingRecognitionState.Stopped)
+                        }
+                    } catch (_: Exception) {
+                        trySend(StreamingRecognitionState.Stopped)
+                    }
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "真流式识别异常: ${e.message}", e)
+                    trySend(StreamingRecognitionState.Error("流式识别错误: ${e.message}"))
+                } finally {
+                    streamingActive.set(false)
+                }
+            }
+
+            awaitClose {
+                streamingActive.set(false)
+                streamingJob?.cancel()
+                streamingChannel = null
+                DebugLog.i(TAG, "真流式识别 Flow 已关闭")
+            }
+        }
+    }
+
+    /**
+     * 伪流式识别 — 使用 OfflineRecognizer 分段提交策略。
+     *
      * - 外部通过 [feedAudioData] 持续喂入音频采样点（非阻塞，仅追加到缓冲区）
      * - 后台协程定期检查缓冲区，满足条件时取一段音频做离线识别
      * - 识别结果追加到 confirmedText，文本只增长不回退（不闪烁）
      * - 超过 MAX_CHUNK_MS 时强制提交当前段，避免缓冲区无限增长
      * - 停止时识别剩余音频，输出最终结果
      */
-    override fun startStreamingRecognition(): Flow<StreamingRecognitionState> {
+    private fun startPseudoStreamingRecognition(): Flow<StreamingRecognitionState> {
         return callbackFlow {
             if (!_isInitialized.get() || offlineRecognizer == null) {
                 trySend(StreamingRecognitionState.Error("引擎未初始化，请先调用 initialize()"))
@@ -315,17 +462,23 @@ class SherpaOnnxEngine(
     /**
      * 喂入音频数据到流式识别缓冲区。
      *
-     * 非阻塞：仅将音频追加到缓冲区，识别由后台协程定期执行。
+     * 非阻塞：仅将音频追加到缓冲区（伪流式），或直接喂入 OnlineRecognizer（真流式）。
      * 音频格式要求：16kHz, mono, float32 [-1.0, 1.0]
      */
     fun feedAudioData(samples: FloatArray) {
         if (!streamingActive.get() || samples.isEmpty()) return
 
-        val old = pendingBuffer
-        val newBuffer = FloatArray(old.size + samples.size)
-        System.arraycopy(old, 0, newBuffer, 0, old.size)
-        System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
-        pendingBuffer = newBuffer
+        if (isStreamingModel && streamingRecognizer?.isActive == true) {
+            // 真流式: 直接喂入 OnlineRecognizer
+            streamingRecognizer!!.feedAudio(samples, TARGET_SAMPLE_RATE)
+        } else {
+            // 伪流式: 追加到缓冲区
+            val old = pendingBuffer
+            val newBuffer = FloatArray(old.size + samples.size)
+            System.arraycopy(old, 0, newBuffer, 0, old.size)
+            System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
+            pendingBuffer = newBuffer
+        }
     }
 
     override fun stopStreamingRecognition() {
@@ -340,6 +493,11 @@ class SherpaOnnxEngine(
 
             offlineRecognizer?.release()
             offlineRecognizer = null
+
+            streamingRecognizer?.release()
+            streamingRecognizer = null
+            isStreamingModel = false
+
             _isInitialized.set(false)
             currentModelDir = null
 
@@ -354,7 +512,6 @@ class SherpaOnnxEngine(
     private suspend fun recognizeFromFloatArray(audioData: FloatArray, startTimeMs: Long): SttResult {
         ensureInitialized()
 
-        val recognizer = offlineRecognizer!!
         val totalSamples = audioData.size
         val durationMs = (totalSamples.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
 
@@ -369,6 +526,55 @@ class SherpaOnnxEngine(
             )
         }
 
+        // 流式模型: 用 OnlineRecognizer 将整段音频作为连续流处理
+        if (isStreamingModel && streamingRecognizer?.isActive == true) {
+            return recognizeWithStreamingModel(audioData, totalSamples, durationMs, startTimeMs)
+        }
+
+        // 离线模型: 分段识别
+        return recognizeWithOfflineModel(audioData, totalSamples, durationMs, startTimeMs)
+    }
+
+    /**
+     * 使用流式模型 (OnlineRecognizer) 识别音频。
+     * 将整段音频作为连续流喂入 OnlineRecognizer，不进行分段。
+     */
+    private fun recognizeWithStreamingModel(
+        audioData: FloatArray, totalSamples: Int, durationMs: Long, startTimeMs: Long,
+    ): SttResult {
+        val sr = streamingRecognizer!!
+
+        // 重置识别器状态（确保不受之前调用的影响）
+        sr.reset()
+
+        // 一次性喂入所有音频并解码
+        val fullText = sr.recognize(audioData, TARGET_SAMPLE_RATE).trim()
+        val processingTimeMs = System.currentTimeMillis() - startTimeMs
+
+        DebugLog.i(TAG, "流式模型识别完成: 文本长度=${fullText.length}, 耗时=${processingTimeMs}ms")
+
+        val resultText = vocabularyStore.applyVocabulary(fullText)
+        return SttResult(
+            text = resultText,
+            confidence = if (resultText.isNotEmpty()) 1f else 0f,
+            segments = if (resultText.isNotEmpty()) listOf(
+                SttSegment(text = resultText, startTimeMs = 0, endTimeMs = durationMs, confidence = 1f),
+            ) else emptyList(),
+            durationMs = durationMs,
+            processingTimeMs = processingTimeMs,
+            engineType = EngineType.SHERPA_ONNX,
+            modelUsed = config.modelType.name,
+        )
+    }
+
+    /**
+     * 使用离线模型 (OfflineRecognizer) 识别音频。
+     * 将音频分段后逐段识别，适用于长时间音频。
+     */
+    private fun recognizeWithOfflineModel(
+        audioData: FloatArray, totalSamples: Int, durationMs: Long, startTimeMs: Long,
+    ): SttResult {
+        val recognizer = offlineRecognizer!!
         val segmentLengthSamples = min(DEFAULT_SEGMENT_SAMPLES, totalSamples)
         val segments = mutableListOf<SttSegment>()
         val fullText = StringBuilder()
@@ -449,7 +655,20 @@ class SherpaOnnxEngine(
         return when (extension) {
             "wav" -> decodeWavFile(file)
             "pcm", "raw" -> decodeRawPcmFile(file, TARGET_SAMPLE_RATE, 16, 1)
-            else -> tryDecodeAsWavOrPcm(file)
+            else -> {
+                // Non-WAV/non-PCM formats (MP3/FLAC/AAC/OGG etc): use AudioProcessor
+                // which delegates to MediaCodec for proper decoding.
+                // Previously this fell through to tryDecodeAsWavOrPcm() which attempted
+                // to parse these as raw PCM — producing garbage output.
+                DebugLog.i(TAG, "非 WAV/PCM 格式 (.$extension)，使用 MediaCodec 解码: ${file.name}")
+                try {
+                    val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
+                    pair?.first ?: FloatArray(0)
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "MediaCodec 解码失败 (${file.name}): ${e.message}", e)
+                    FloatArray(0)
+                }
+            }
         }.also { data ->
             DebugLog.i(TAG, "音频解码结果: ${data.size} float samples (${file.name})")
         }
@@ -672,6 +891,7 @@ class SherpaOnnxEngine(
             ModelType.PARAFORMER -> buildParaformerModelConfig(modelDir)
             ModelType.SENSE_VOICE_SMALL -> buildSenseVoiceModelConfig(modelDir)
             ModelType.FUNASR_NANO_INT8 -> buildFunasrNanoModelConfig(modelDir)
+            ModelType.STREAMING_PARAFORMER -> buildParaformerModelConfig(modelDir) // 降级到离线模式时使用
         }
         // 将线程数和推理后端传入配置（之前漏掉了，导致始终用默认值 1 线程 + cpu）
         modelConfig.numThreads = numThreads
@@ -762,23 +982,72 @@ class SherpaOnnxEngine(
         }
     }
 
+    /** 检查文件是否为 WAV 格式（通过读取 RIFF 头） */
+    private fun isWavFile(file: File): Boolean {
+        if (file.length() < 12) return false
+        return try {
+            file.inputStream().use { fis ->
+                val header = ByteArray(4)
+                fis.read(header)
+                val riff = String(header, Charsets.US_ASCII) == "RIFF"
+                fis.skip(4) // file size
+                val wave = String(ByteArray(4).also { fis.read(it) }, Charsets.US_ASCII) == "WAVE"
+                riff && wave
+            }
+        } catch (_: Exception) { false }
+    }
+
     private suspend fun copyUriToTempFile(uri: Uri): File {
         return withContext(Dispatchers.IO) {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: throw IOException("无法打开 URI 输入流: $uri")
 
-            val tempFile = File(context.cacheDir, "stt_temp_${System.currentTimeMillis()}.wav")
+            // Infer the correct file extension from the URI's MIME type
+            // so that downstream format detection works correctly.
+            // Previously this always used ".wav", which caused non-WAV files
+            // (MP3/FLAC/AAC etc) to be misidentified as WAV by extension checks.
+            val ext = inferExtensionFromUri(uri)
+            val tempFile = File(context.cacheDir, "stt_temp_${System.currentTimeMillis()}.$ext")
             try {
                 tempFile.outputStream().use { output ->
                     inputStream.use { input ->
                         input.copyTo(output)
                     }
                 }
-                DebugLog.d(TAG, "URI 已复制到临时文件: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+                DebugLog.d(TAG, "URI 已复制到临时文件: ${tempFile.absolutePath} (ext=$ext, ${tempFile.length()} bytes)")
                 tempFile
             } catch (e: Exception) {
                 if (tempFile.exists()) tempFile.delete()
                 throw e
+            }
+        }
+    }
+
+    /**
+     * Infer the file extension from a content URI's MIME type.
+     * Falls back to "wav" if the MIME type cannot be resolved.
+     */
+    private fun inferExtensionFromUri(uri: Uri): String {
+        val mimeType = context.contentResolver.getType(uri) ?: return "wav"
+        return when (mimeType) {
+            "audio/mpeg" -> "mp3"
+            "audio/mp3" -> "mp3"
+            "audio/flac" -> "flac"
+            "audio/aac", "audio/mp4", "audio/x-m4a" -> "m4a"
+            "audio/ogg", "audio/opus" -> "ogg"
+            "audio/amr", "audio/amr-wb" -> "amr"
+            "audio/wav", "audio/wave", "audio/x-wav" -> "wav"
+            "audio/x-raw" -> "pcm"
+            "video/mp4" -> "mp4"
+            "video/x-matroska", "video/mkv" -> "mkv"
+            "video/avi", "video/x-msvideo" -> "avi"
+            "video/quicktime" -> "mov"
+            "video/webm" -> "webm"
+            "video/3gpp" -> "3gp"
+            else -> {
+                // Try to extract extension from MIME type (e.g., "audio/foo" -> "foo")
+                val subtype = mimeType.substringAfter("/", "")
+                if (subtype.isNotEmpty() && subtype.length <= 5) subtype else "wav"
             }
         }
     }

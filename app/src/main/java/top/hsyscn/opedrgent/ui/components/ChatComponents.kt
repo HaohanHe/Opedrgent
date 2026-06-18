@@ -49,13 +49,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private val BubbleBlue = Color(0xFF2B68DE)
 private val BubbleBlueEnd = Color(0xFF194CF0)
@@ -144,7 +144,7 @@ fun AudioClipPlayerCard(
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
         modifier = modifier,
     ) {
         Row(
@@ -175,7 +175,7 @@ fun AudioClipPlayerCard(
                 Text(
                     text = chatFormatDuration(audioClip.durationMs),
                     fontSize = 11.sp,
-                    color = TextGrey,
+                    color = themeTextGrey(),
                 )
             }
         }
@@ -196,6 +196,7 @@ fun AIMessageCard(
     onUndo: (() -> Unit)? = null,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var userReaction by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -207,7 +208,7 @@ fun AIMessageCard(
                     onLongClick = { showMenu = true },
                 ),
             shape = RoundedCornerShape(11.dp),
-            colors = CardDefaults.cardColors(containerColor = CardWhite),
+            colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
             Column(
@@ -259,17 +260,45 @@ fun AIMessageCard(
                 ) {
                     Card(
                         shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
-                                Text("\uD83D\uDC4D", fontSize = 14.sp)
+                            IconButton(onClick = {
+                                userReaction = "up"
+                                Toast.makeText(context, context.getString(R.string.msg_thanks_feedback), Toast.LENGTH_SHORT).show()
+                            }, modifier = Modifier.size(28.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .then(
+                                            if (userReaction == "up")
+                                                Modifier.background(AccentBlue.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                            else Modifier
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("\uD83D\uDC4D", fontSize = 14.sp)
+                                }
                             }
-                            IconButton(onClick = { }, modifier = Modifier.size(28.dp)) {
-                                Text("\uD83D\uDC4E", fontSize = 14.sp)
+                            IconButton(onClick = {
+                                userReaction = "down"
+                                Toast.makeText(context, context.getString(R.string.msg_thanks_feedback), Toast.LENGTH_SHORT).show()
+                            }, modifier = Modifier.size(28.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .then(
+                                            if (userReaction == "down")
+                                                Modifier.background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                            else Modifier
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("\uD83D\uDC4E", fontSize = 14.sp)
+                                }
                             }
                             IconButton(
                                 onClick = {
@@ -323,7 +352,7 @@ fun SourceCitations(sources: List<Pair<String, String>>) {
         sources.forEach { (index, url) ->
             Card(
                 shape = RoundedCornerShape(3.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = CardDefaults.outlinedCardBorder().copy(
                     brush = androidx.compose.ui.graphics.SolidColor(CitationBg),
                     width = 1.dp,

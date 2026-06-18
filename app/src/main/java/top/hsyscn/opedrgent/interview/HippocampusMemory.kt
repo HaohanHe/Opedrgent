@@ -265,25 +265,35 @@ class HippocampusMemory(
             }
         }
 
-        // ===== 维度2：关键词匹配得分 =====
+        // ===== 维度2：关键词匹配得分（中文优化：字符级部分匹配）=====
         var matchedTopics = 0
         val matchedTopicNames = mutableListOf<String>()
         for (topic in anchor.keyTopics) {
+            // 精确匹配优先
             if (combinedText.contains(topic.lowercase())) {
                 matchedTopics++
                 matchedTopicNames.add(topic)
+            } else if (topic.length >= 2) {
+                // 中文模糊匹配：话题中 >= 50% 的字符出现在文本中，算部分匹配（权重 0.5）
+                val topicChars = topic.lowercase().toSet()
+                val matchedChars = topicChars.count { combinedText.contains(it) }
+                if (matchedChars.toFloat() / topicChars.size >= 0.5f) {
+                    matchedTopics += 0.5f.toInt()  // 部分匹配算半分
+                    matchedTopicNames.add(topic)
+                }
             }
         }
         val keywordScore = if (anchor.keyTopics.isNotEmpty()) {
             matchedTopics.toFloat() / anchor.keyTopics.size.toFloat()
         } else 1.0f
 
-        // ===== 维度3：Jaccard 文本相似度（与目标的字面重叠）=====
-        val goalWords = anchor.primaryGoal.split(Regex("\\s+|[，。、！？]")).filter { it.length > 1 }.toSet()
-        val responseWords = combinedText.split(Regex("\\s+|[，。、！？:：]")).filter { it.length > 1 }.toSet()
-        val jaccardScore = if (goalWords.isNotEmpty()) {
-            goalWords.intersect(responseWords).size.toFloat() / goalWords.union(responseWords).size.toFloat()
-        } else 1.0f
+        // ===== 维度3：CJK 字符级相似度（修复中文 Jaccard）=====
+        // 对中文取字符级 bigram 重叠，而非按空格分词
+        val goalChars = anchor.primaryGoal.filter { it.isLetter() }.toSet()
+        val responseChars = combinedText.filter { it.isLetter() }.toSet()
+        val charOverlap = goalChars.intersect(responseChars).size.toFloat()
+        val charUnion = goalChars.union(responseChars).size.toFloat()
+        val jaccardScore = if (charUnion > 0) charOverlap / charUnion else 1.0f
 
         // ===== 维度4：历史趋势（连续低分检测）=====
         val recentScores = turnHistory.takeLast(3).map { it.driftResult.relevanceScore }
@@ -353,54 +363,44 @@ class HippocampusMemory(
         val anchor = goalAnchor ?: return ""
         val drift = detectDrift(turnIndex, userMessage, lastAiResponse)
 
-        // 基础锚定信息（每次都注入，但措辞随轮次变化）
+        // 基础锚定信息（自然语言风格，随轮次变化）
         val baseAnchor = when {
-            turnIndex == 0 -> """
-                |【对话目标】你正在进行: ${anchor.primaryGoal}
-                |【必须覆盖】${anchor.keyTopics.joinToString("、")}
-                |【禁止】不要偏离到与上述目标无关的话题。
-            """.trimMargin()
-            turnIndex <= 2 -> """【提醒】当前目标: ${anchor.primaryGoal}（第${turnIndex + 1}轮）"""
-            else -> """【锚定】${anchor.primaryGoal}"""
+            turnIndex == 0 -> "当前任务：${anchor.primaryGoal}。需要覆盖的重点：${anchor.keyTopics.take(5).joinToString("、")}。"
+            turnIndex <= 2 -> "（第${turnIndex + 1}轮）记住核心目标：${anchor.primaryGoal}"
+            else -> "目标回顾：${anchor.primaryGoal}"
         }
 
-        // 根据漂移等级动态调整提醒强度
+        // 根据漂移等级动态调整提醒强度（自然对话风格，不用【】标记）
         val driftReminder = when (drift.driftLevel) {
-            DriftLevel.NONE -> ""  // 无漂移，不额外打扰
-            DriftLevel.MILD -> """
-                |
-                |[注意] 对话有轻微偏移趋势。
-                |当前已覆盖: ${extractMatchedTopics(drift)}。
-                |请自然地将对话引回主线。
-            """.trimMargin()
+            DriftLevel.NONE -> ""
+            DriftLevel.MILD -> {
+                val covered = extractMatchedTopics(drift)
+                "\n提示：当前话题略有偏移（已触及: $covered）。下一轮请自然地回到主线方向。"
+            }
             DriftLevel.MODERATE -> """
                 |
-                |[注意力提醒] 对话正在偏离核心目标！
-                |原因: ${drift.driftReason}
-                |建议: ${drift.suggestedCorrection}
-                |请在下一轮回复中将话题拉回正轨。
+                |注意：对话正在偏离核心目标。
+                |偏离原因：${drift.driftReason}
+                |建议方向：${drift.suggestedCorrection}
+                |请在回复中主动将话题引导回来。
             """.trimMargin()
             DriftLevel.SEVERE -> """
                 |
-                |[紧急纠偏] 对话已严重跑偏！
-                |原因: ${drift.driftReason}
-                |你的任务是: ${anchor.primaryGoal}
-                |必须覆盖: ${anchor.keyTopics.joinToString("、")}
-                |禁止: ${anchor.forbiddenTopics.joinToString("、")}
-                |请立即停止当前话题，回到面试/答辩的正轨上来！
+                |警告：对话已严重跑偏！
+                |你的任务是：${anchor.primaryGoal}
+                |还没聊到的重点：${anchor.keyTopics.take(3).joinToString("、")}
+                |请立即停止当前话题，用专业的方式回归正轨。
             """.trimMargin()
             DriftLevel.OFF_TOPIC -> """
                 |
-                |[严重警告] 对话已完全离题！
-                |立即停止一切无关对话。
-                |回到目标: ${anchor.primaryGoal}
-                |下一句话必须是针对候选人的专业提问或评价。
+                |严重警告：完全离题了。
+                |回到正题：${anchor.primaryGoal}
+                |下一句话必须是针对候选人的专业提问或评价，不要继续闲聊。
             """.trimMargin()
         }
 
         // 上下文保护：每隔几轮重新注入关键信息
-        val protectedCtx = getProtectedContext(turnIndex)?.let {
-            "\n|【关键信息回顾】$it\n|" } ?: ""
+        val protectedCtx = getProtectedContext(turnIndex)?.let { "\n关键信息回顾：$it" } ?: ""
 
         return baseAnchor + driftReminder + protectedCtx
     }

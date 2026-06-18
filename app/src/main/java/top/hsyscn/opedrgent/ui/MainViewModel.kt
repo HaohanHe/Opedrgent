@@ -239,6 +239,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
     val apiSettings = ApiSettings(app)
+    fun getAppLanguage(): String = apiSettings.getAppLanguage()
+    fun saveAppLanguage(lang: String) = apiSettings.saveAppLanguage(lang)
+    fun getEditorMode(): String = apiSettings.getEditorMode()
+    fun saveEditorMode(mode: String) = apiSettings.saveEditorMode(mode)
     private val localEngine = LocalLlmEngine.getInstance(app)
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
@@ -2760,6 +2764,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             messages = messages,
                             tools = tools,
                             thinkingEnabled = deepThinkingEnabled,
+                            maxOutputTokens = getMaxOutputTokens(),
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
@@ -3118,6 +3123,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getWebSearchSource(): String = apiSettings.getWebSearchSource()
     fun saveWebSearchEnabled(enabled: Boolean) { apiSettings.saveWebSearchEnabled(enabled) }
     fun saveWebSearchSource(source: String) { apiSettings.saveWebSearchSource(source) }
+
+    // 录音时长设置
+    fun getRecordingMaxHours(mode: String): Int = apiSettings.getRecordingMaxHours(mode)
+    fun saveRecordingMaxHours(mode: String, hours: Int) = apiSettings.saveRecordingMaxHours(mode, hours)
 
     fun toggleDeepThinking(): Boolean {
         val next = !isDeepThinking()
@@ -4686,8 +4695,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 _sttUiState.value = SttUiState.DecodingAudio(0f, fileName)
                 _sttProgress.value = SttProgressState.EXTRACTING_AUDIO
+
+                // 检测是否为视频文件，如果是则先提取音频轨
+                val mimeType = context.contentResolver.getType(uri) ?: ""
+                val isVideo = mimeType.startsWith("video/")
                 val audioMeta = withContext(Dispatchers.IO) { AudioProcessor.getAudioMetadata(context, uri) }
-                DebugLog.i("STT: 音频元数据 duration=${audioMeta?.durationMs}ms file=$fileName")
+                DebugLog.i("STT: 音频元数据 duration=${audioMeta?.durationMs}ms file=$fileName mimeType=$mimeType isVideo=$isVideo")
+
+                // 如果是视频文件，先解码音频轨为 PCM 并保存为临时 WAV
+                val effectiveUri: Uri
+                val tempWavFile: java.io.File?
+                if (isVideo) {
+                    DebugLog.i("STT: 检测到视频文件，正在提取音频轨...")
+                    _sttUiState.value = SttUiState.DecodingAudio(0.3f, "正在提取视频音频轨...")
+                    val pcmData = withContext(Dispatchers.IO) {
+                        AudioProcessor.decodeVideoAudioToPcm(context, uri)
+                    }
+                    if (pcmData == null || pcmData.first.isEmpty()) {
+                        _sttUiState.value = SttUiState.Error(
+                            "无法从视频中提取音频",
+                            "VIDEO_AUDIO_EXTRACT_FAILED",
+                            "请确认视频文件包含音轨，或尝试先用其他工具提取音频"
+                        )
+                        _sttProgress.value = SttProgressState.ERROR
+                        _sttError.value = "无法从视频中提取音频"
+                        lastFailedUri = uri
+                        _sttEventBus.emit("视频音频提取失败")
+                        return@launch
+                    }
+                    tempWavFile = java.io.File(context.cacheDir, "video_audio_${System.currentTimeMillis()}.wav")
+                    AudioProcessor.saveAsWav(pcmData.first, pcmData.second, tempWavFile.absolutePath)
+                    effectiveUri = Uri.fromFile(tempWavFile)
+                    DebugLog.i("STT: 视频音频提取完成 ${tempWavFile.length() / 1024}KB")
+                } else {
+                    tempWavFile = null
+                    effectiveUri = uri
+                }
 
                 _sttUiState.value = SttUiState.Recognizing(0f, 0, audioMeta?.let { Math.ceil(it.durationMs / 30000.0).toInt() } ?: 1)
                 _sttProgress.value = SttProgressState.RECOGNIZING
@@ -4695,8 +4738,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 // 使用 AsrManager 统一引擎转录
                 val result = withContext(Dispatchers.IO) {
                     DebugLog.i("STT: 使用 AsrManager 统一引擎转录")
-                    asrManager.transcribeFile(uri)
+                    if (tempWavFile != null) {
+                        // 视频文件：用文件路径方式转录（已转为 WAV）
+                        asrManager.transcribeFile(tempWavFile.absolutePath)
+                    } else {
+                        asrManager.transcribeFile(effectiveUri)
+                    }
                 }
+                // 清理临时文件
+                tempWavFile?.delete()
                 val enrichedResult = result
 
                 _sttResult.value = enrichedResult
