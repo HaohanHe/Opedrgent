@@ -95,6 +95,11 @@ class ApiSettings(private val context: Context) {
     fun saveSttEngine(engine: String) {
         prefs.edit().putString("sttEngine", engine).apply()
     }
+    /** STT 识别模式: "pseudo" = 伪流式实时显示, "batch" = 录制后识别 */
+    fun getSttStreamingMode(): String = prefs.getString("sttStreamingMode", "pseudo") ?: "pseudo"
+    fun saveSttStreamingMode(mode: String) {
+        prefs.edit().putString("sttStreamingMode", mode).apply()
+    }
     fun isBackgroundRunning(): Boolean = prefs.getBoolean("backgroundRunning", false)
     fun isLocationEnabled(): Boolean = prefs.getBoolean("locationEnabled", false)
     fun isDebugMode(): Boolean = prefs.getBoolean("debugMode", false)

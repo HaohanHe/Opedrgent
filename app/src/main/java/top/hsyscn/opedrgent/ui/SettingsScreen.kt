@@ -121,6 +121,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var ttsLocaleTag by rememberSaveable { mutableStateOf(vm.getTtsLocaleTag()) }
     var sttEnabled by rememberSaveable { mutableStateOf(vm.isSttEnabled()) }
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
+    var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
@@ -131,6 +132,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
+    var tavilyApiKey by rememberSaveable { mutableStateOf(vm.getTavilyApiKey() ?: "") }
+    var braveApiKey by rememberSaveable { mutableStateOf(vm.getBraveApiKey() ?: "") }
+    var searxngBaseUrl by rememberSaveable { mutableStateOf(vm.getSearxngBaseUrl() ?: "") }
+    var searchProviderOrder by rememberSaveable { mutableStateOf(vm.getSearchProviderOrder()) }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
     var showMemoryWarning by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -477,6 +482,36 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 color = themeTextGrey(),
                             )
                         }
+
+                        // 识别模式选择（伪流式 vs 录制后识别）
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text(
+                            text = "识别模式",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        ) {
+                            FilterChip(
+                                selected = sttStreamingMode == "pseudo",
+                                onClick = { sttStreamingMode = "pseudo" },
+                                label = { Text("伪流式（实时显示）", fontSize = 12.sp) },
+                                shape = RoundedCornerShape(20.dp),
+                            )
+                            FilterChip(
+                                selected = sttStreamingMode == "batch",
+                                onClick = { sttStreamingMode = "batch" },
+                                label = { Text("录制后识别（更准确）", fontSize = 12.sp) },
+                                shape = RoundedCornerShape(20.dp),
+                            )
+                        }
+                        Text(
+                            text = "非流式模型下，录制后识别可获得更准确的结果",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeTextGrey(),
+                        )
 
                         // ★ 本地语音模型下载管理
                         if (sttEngine == "local") {
@@ -1000,6 +1035,47 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
+                            // Search API keys
+                            Text(
+                                text = "搜索引擎 API Key（可选，配置后搜索更稳定）",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            OutlinedTextField(
+                                value = tavilyApiKey,
+                                onValueChange = { tavilyApiKey = it },
+                                label = { Text("Tavily API Key（推荐，AI专用搜索，免费1000次/月）") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = braveApiKey,
+                                onValueChange = { braveApiKey = it },
+                                label = { Text("Brave Search API Key（可选）") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = searxngBaseUrl,
+                                onValueChange = { searxngBaseUrl = it },
+                                label = { Text("SearXNG 实例地址（自建搜索引擎，如 http://your-server:8888）") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            // Search provider order
+                            Text(
+                                text = "搜索优先级（用逗号分隔，可选：bing,baidu,ddg,tavily,brave,searxng,jina）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                            OutlinedTextField(
+                                value = searchProviderOrder,
+                                onValueChange = { searchProviderOrder = it },
+                                label = { Text("搜索提供商顺序") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
                         }
                         if (webSearchSource == "provider") {
                             Text(
@@ -1484,11 +1560,16 @@ Spacer(Modifier.height(12.dp))
                     )
                     vm.saveSttEnabled(sttEnabled)
                     vm.saveSttEngine(sttEngine)
+                    vm.saveSttStreamingMode(sttStreamingMode)
                     vm.saveBackgroundRunning(bgRunning)
                     vm.saveLocationEnabled(locationEnabled)
                     vm.saveDebugMode(debugMode)
                     vm.saveDeepThinking(deepThinkingEnabled)
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
+                    vm.saveTavilyApiKey(tavilyApiKey.takeIf { it.isNotBlank() })
+                    vm.saveBraveApiKey(braveApiKey.takeIf { it.isNotBlank() })
+                    vm.saveSearxngBaseUrl(searxngBaseUrl.takeIf { it.isNotBlank() })
+                    vm.saveSearchProviderOrder(searchProviderOrder.takeIf { it.isNotBlank() } ?: "bing,baidu,jina")
                     if (!isLocalMode) {
                         val ok = vm.saveSettings(baseUrl = baseUrl, apiKey = apiKey, model = model)
                         if (!ok) return@Button

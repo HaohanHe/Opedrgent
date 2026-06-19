@@ -253,6 +253,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
     val asrPostProcessor = top.hsyscn.opedrgent.stt.AsrPostProcessor()
     val smartSummaryGenerator = top.hsyscn.opedrgent.stt.SmartSummaryGenerator(llm)
+    val voiceprintManager = top.hsyscn.opedrgent.stt.VoiceprintManager(app)
+    val speakerEmbeddingExtractor = top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor(app)
     private val tts = TtsPlayer(app, apiSettings)
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
@@ -3114,6 +3116,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getTtsLocaleTag(): String = apiSettings.getTtsLocaleTag()
     fun isSttEnabled(): Boolean = apiSettings.isSttEnabled()
     fun getSttEngine(): String = apiSettings.getSttEngine()
+    fun getSttStreamingMode(): String = apiSettings.getSttStreamingMode()
+    fun saveSttStreamingMode(mode: String) { apiSettings.saveSttStreamingMode(mode) }
     fun isTtsDownloadOnly(): Boolean = apiSettings.isTtsDownloadOnly()
     fun isBackgroundRunning(): Boolean = apiSettings.isBackgroundRunning()
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()

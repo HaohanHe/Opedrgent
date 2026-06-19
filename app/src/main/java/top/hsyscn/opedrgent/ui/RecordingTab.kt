@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -297,6 +298,9 @@ fun RecordingTab(
     // 录音完成后用于回放的音频文件路径
     var playbackAudioUri by remember { mutableStateOf<String?>(null) }
 
+    // 声纹识别结果
+    var identifiedSpeakerName by remember { mutableStateOf<String?>(null) }
+
     // 实时流式转录文本
     var streamingText by remember { mutableStateOf("") }
     var isStreamingActive by remember { mutableStateOf(false) }
@@ -368,35 +372,41 @@ fun RecordingTab(
         streamingText = ""
         isStreamingActive = false
         capturedPhotos = emptyList()
+        identifiedSpeakerName = null
 
         val tempFile = File(context.cacheDir, "recording_${System.currentTimeMillis()}.pcm")
         tempFilePath.value = tempFile.absolutePath
         audioRecord.value = recorder
         startTime.value = System.currentTimeMillis()
 
-        // 启动流式识别（仅对支持 feedAudioData 的引擎）
-        scope.launch {
-            try {
-                vm.asrManager.ensureInitialized()
-                val engine = vm.asrManager.getCachedEngine()
-                if (engine?.engineType == EngineType.ANDROID_SPEECH_RECOGNIZER) {
-                    DebugLog.i("RecordingTab", "AndroidSpeechRecognizer 不支持 feedAudioData，跳过实时流式")
-                } else {
-                    isStreamingActive = true
-                    vm.asrManager.startStreaming().collect { state ->
-                        when (state) {
-                            is StreamingRecognitionState.Recognizing -> streamingText = state.partialText
-                            is StreamingRecognitionState.FinalResult -> streamingText = state.text
-                            is StreamingRecognitionState.Error -> DebugLog.e("RecordingTab", "流式错误: ${state.message}")
-                            else -> {}
+        // 启动流式识别（伪流式模式下，仅对支持 feedAudioData 的引擎）
+        val isBatchMode = vm.getSttStreamingMode() == "batch"
+        if (!isBatchMode) {
+            scope.launch {
+                try {
+                    vm.asrManager.ensureInitialized()
+                    val engine = vm.asrManager.getCachedEngine()
+                    if (engine?.engineType == EngineType.ANDROID_SPEECH_RECOGNIZER) {
+                        DebugLog.i("RecordingTab", "AndroidSpeechRecognizer 不支持 feedAudioData，跳过实时流式")
+                    } else {
+                        isStreamingActive = true
+                        vm.asrManager.startStreaming().collect { state ->
+                            when (state) {
+                                is StreamingRecognitionState.Recognizing -> streamingText = state.partialText
+                                is StreamingRecognitionState.FinalResult -> streamingText = state.text
+                                is StreamingRecognitionState.Error -> DebugLog.e("RecordingTab", "流式错误: ${state.message}")
+                                else -> {}
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    DebugLog.e("RecordingTab", "流式启动失败: ${e.message}", e)
+                } finally {
+                    isStreamingActive = false
                 }
-            } catch (e: Exception) {
-                DebugLog.e("RecordingTab", "流式启动失败: ${e.message}", e)
-            } finally {
-                isStreamingActive = false
             }
+        } else {
+            DebugLog.i("RecordingTab", "批量识别模式，跳过实时流式 ASR")
         }
 
         // 录音读取协程
@@ -689,6 +699,48 @@ fun RecordingTab(
                                     playbackAudioUri = wavFile.absolutePath
                                     File(pcmPath).delete()
 
+                                    // 声纹识别：提取录音前 5 秒音频匹配已注册说话人
+                                    identifiedSpeakerName = null
+                                    if (vm.voiceprintManager.listSpeakers().isNotEmpty()) {
+                                        try {
+                                            val extractor = vm.speakerEmbeddingExtractor
+                                            if (extractor.checkApiAvailability()) {
+                                                val modelDir = java.io.File(context.filesDir, "speaker_diarizer")
+                                                if (modelDir.exists() && !extractor.isAvailable) {
+                                                    extractor.initialize(modelDir)
+                                                }
+                                            }
+                                            if (extractor.isAvailable) {
+                                                val embedding = extractor.extractFromFile(wavFile)
+                                                if (embedding != null) {
+                                                    val matchedId = vm.voiceprintManager.matchSpeakerByEmbedding(embedding)
+                                                    if (matchedId != null) {
+                                                        val speaker = vm.voiceprintManager.getSpeakerById(matchedId)
+                                                        if (speaker != null) {
+                                                            identifiedSpeakerName = speaker.name
+                                                            DebugLog.i("RecordingTab", "声纹识别成功: ${speaker.name}")
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                // 降级：使用统计特征匹配
+                                                val features = vm.voiceprintManager.extractAudioFeatures(wavFile)
+                                                if (features != null) {
+                                                    val matchedId = vm.voiceprintManager.matchSpeaker(features)
+                                                    if (matchedId != null) {
+                                                        val speaker = vm.voiceprintManager.getSpeakerById(matchedId)
+                                                        if (speaker != null) {
+                                                            identifiedSpeakerName = speaker.name
+                                                            DebugLog.i("RecordingTab", "声纹识别成功(统计特征): ${speaker.name}")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            DebugLog.w("RecordingTab", "声纹识别失败: ${e.message}")
+                                        }
+                                    }
+
                                     // 转录完成后自动生成智能总结（多人会议/课堂录音模式）
                                     if (transcriptResult != null && transcriptResult!!.fullText.isNotBlank()
                                         && recordingMode != RecordingMode.VOICE_MEMO) {
@@ -797,6 +849,7 @@ fun RecordingTab(
                                     autoSaved = autoSaved,
                                     selectedMode = recordingMode,
                                     capturedPhotos = capturedPhotos,
+                                    identifiedSpeakerName = identifiedSpeakerName,
                                     onCopy = {
                                         clipboard.setText(AnnotatedString(result.fullText))
                                         scope.launch { snackbar.showSnackbar("已复制") }
@@ -880,7 +933,23 @@ fun RecordingTab(
                 }
             }
 
-            // 导入音视频转录进度对话框
+            // 导入音视频：立即显示的等待对话框（在 STT 进度对话框接管前）
+            if (isImportingAudio && (sttProgress == SttProgressState.IDLE || sttProgress == SttProgressState.DONE)) {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = { Text("导入音视频") },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text("正在转录中，请稍候...")
+                        }
+                    },
+                    confirmButton = {},
+                )
+            }
+
+            // 导入音视频转录进度对话框（STT 详细进度接管）
             if (isImportingAudio && sttProgress != SttProgressState.IDLE && sttProgress != SttProgressState.DONE) {
                 val downloadProg = (sttUiState as? SttUiState.DownloadingModel)?.progress
                 val phaseText = when (sttUiState) {
@@ -1399,6 +1468,7 @@ private fun TranscriptResultCard(
     autoSaved: Boolean,
     selectedMode: RecordingMode,
     capturedPhotos: List<CapturedPhoto>,
+    identifiedSpeakerName: String? = null,
     onCopy: () -> Unit,
     onNavigateToNotes: () -> Unit,
     onSave: () -> Unit,
@@ -1435,6 +1505,32 @@ private fun TranscriptResultCard(
                     color = themeTextGrey(),
                     fontSize = 12.sp,
                 )
+            }
+
+            // 声纹识别结果
+            if (identifiedSpeakerName != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AccentBlue.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "说话人: $identifiedSpeakerName",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AccentBlue,
+                    )
+                }
             }
 
             if (autoSaved) {

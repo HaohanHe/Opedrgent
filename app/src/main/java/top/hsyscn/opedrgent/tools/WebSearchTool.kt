@@ -511,6 +511,12 @@ class WebSearchTool(
         }
     }
 
+    fun destroy() {
+        webViewAgent?.destroy()
+        webViewAgent = null
+        translationCache.clear()
+    }
+
     override fun getTools(): Map<String, ToolBinding> {
         return mapOf(
             "web_search" to ToolBinding(

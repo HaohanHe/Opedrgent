@@ -190,6 +190,8 @@ class ToolExecutor(
     fun destroy() {
         webViewAgent?.destroy()
         webViewAgent = null
+        // Also destroy WebSearchTool's WebView
+        toolRegistry.getAll().filterIsInstance<WebSearchTool>().forEach { it.destroy() }
     }
 
     /**
