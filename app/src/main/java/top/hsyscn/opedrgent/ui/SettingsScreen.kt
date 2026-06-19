@@ -134,7 +134,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
     var tavilyApiKey by rememberSaveable { mutableStateOf(vm.getTavilyApiKey() ?: "") }
     var braveApiKey by rememberSaveable { mutableStateOf(vm.getBraveApiKey() ?: "") }
-    var searxngBaseUrl by rememberSaveable { mutableStateOf(vm.getSearxngBaseUrl() ?: "") }
     var searchProviderOrder by rememberSaveable { mutableStateOf(vm.getSearchProviderOrder()) }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
     var showMemoryWarning by remember { mutableStateOf<String?>(null) }
@@ -1035,47 +1034,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
-                            // Search API keys
-                            Text(
-                                text = "搜索引擎 API Key（可选，配置后搜索更稳定）",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            OutlinedTextField(
-                                value = tavilyApiKey,
-                                onValueChange = { tavilyApiKey = it },
-                                label = { Text("Tavily API Key（推荐，AI专用搜索，免费1000次/月）") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = braveApiKey,
-                                onValueChange = { braveApiKey = it },
-                                label = { Text("Brave Search API Key（可选）") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = searxngBaseUrl,
-                                onValueChange = { searxngBaseUrl = it },
-                                label = { Text("SearXNG 实例地址（自建搜索引擎，如 http://your-server:8888）") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
-                            // Search provider order
-                            Text(
-                                text = "搜索优先级（用逗号分隔，可选：bing,baidu,ddg,tavily,brave,searxng,jina）",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeTextGrey(),
-                            )
-                            OutlinedTextField(
-                                value = searchProviderOrder,
-                                onValueChange = { searchProviderOrder = it },
-                                label = { Text("搜索提供商顺序") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
                         }
                         if (webSearchSource == "provider") {
                             Text(
@@ -1439,6 +1397,38 @@ Spacer(Modifier.height(12.dp))
                                 Icon(Icons.Default.ArrowForward, contentDescription = "进入", modifier = Modifier.size(16.dp))
                             }
                         }
+
+                        // 搜索引擎 API Key（高级）
+                        if (webSearchEnabled && webSearchSource == "own") {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                text = "搜索引擎 API Key（可选，配置后搜索更稳定）",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            OutlinedTextField(
+                                value = tavilyApiKey,
+                                onValueChange = { tavilyApiKey = it },
+                                label = { Text("Tavily API Key（AI专用搜索，免费1000次/月）") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = braveApiKey,
+                                onValueChange = { braveApiKey = it },
+                                label = { Text("Brave Search API Key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = searchProviderOrder,
+                                onValueChange = { searchProviderOrder = it },
+                                label = { Text("搜索优先级（如 bing,baidu,ddg,tavily,brave）") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                        }
                     }
                 }
             }
@@ -1568,7 +1558,6 @@ Spacer(Modifier.height(12.dp))
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
                     vm.saveTavilyApiKey(tavilyApiKey.takeIf { it.isNotBlank() })
                     vm.saveBraveApiKey(braveApiKey.takeIf { it.isNotBlank() })
-                    vm.saveSearxngBaseUrl(searxngBaseUrl.takeIf { it.isNotBlank() })
                     vm.saveSearchProviderOrder(searchProviderOrder.takeIf { it.isNotBlank() } ?: "bing,baidu,jina")
                     if (!isLocalMode) {
                         val ok = vm.saveSettings(baseUrl = baseUrl, apiKey = apiKey, model = model)
