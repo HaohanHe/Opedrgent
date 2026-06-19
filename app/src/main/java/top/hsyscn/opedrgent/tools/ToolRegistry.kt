@@ -17,6 +17,7 @@ import top.hsyscn.opedrgent.settings.ApiConfig
 
 class ToolRegistry {
     private val tools = mutableMapOf<String, ToolBinding>()
+    private val toolSets = mutableListOf<Any>()
 
     /**
      * 注册工具集：同时支持手动 getTools() 和反射自动发现 @Tool 注解方法。
@@ -24,6 +25,7 @@ class ToolRegistry {
      * 否则通过反射扫描 @Tool 注解的 suspend 函数自动生成 ToolBinding。
      */
     fun register(toolSet: Any) {
+        toolSets.add(toolSet)
         if (toolSet is ToolSet) {
             val manualTools = toolSet.getTools()
             if (manualTools.isNotEmpty()) {
@@ -139,6 +141,8 @@ class ToolRegistry {
     fun getToolDescriptions(): Map<String, String> {
         return tools.mapValues { it.value.description }
     }
+
+    fun getAll(): List<Any> = toolSets.toList()
 
     /**
      * 将所有已注册工具转为标准 ToolDefinition 列表，供 LLM API 使用。
