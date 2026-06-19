@@ -375,10 +375,9 @@ class SearchResultContainer {
         if (freshnessCalculator != null && useEnhancedScoring) {
             return 1.0
         }
-        
-        val ageHours = (System.currentTimeMillis() - System.currentTimeMillis()) / 3600000.0
-        val lambda = 0.001
-        return Math.exp(-lambda * ageHours).coerceIn(0.1, 1.0)
+        // All results are "fresh" since they just came from a search
+        // Use a small constant penalty to differentiate from enhanced scoring
+        return 0.95
     }
 
     /**

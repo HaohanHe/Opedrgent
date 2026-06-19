@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.sqrt
@@ -24,6 +26,7 @@ class MeetingTranscriber(
     private val context: Context,
     private val config: SttConfig = SttConfig(),
     private val voiceprintManager: VoiceprintManager? = null,
+    private val speakerEmbeddingExtractor: SpeakerEmbeddingExtractor? = null,
 ) {
 
     companion object {
@@ -186,7 +189,7 @@ class MeetingTranscriber(
         val segments = assignSpeakerLabels(fileResult.segments)
 
         // 尝试用声纹匹配替换通用 speakerLabel 为实际人名
-        val resolvedSegments = resolveSpeakerNames(segments)
+        val resolvedSegments = resolveSpeakerNames(segments, audioFile)
 
         val fullText = resolvedSegments.joinToString("\n") { seg ->
             "[${seg.speakerLabel}] ${seg.text}"
@@ -279,28 +282,44 @@ class MeetingTranscriber(
     /**
      * 使用已注册的声纹尝试将通用 Speaker_N 标签替换为实际人名。
      *
-     * 基于每个说话人标签的段落统计特征（时长分布/位置/文本长度）构建特征向量，
-     * 通过 VoiceprintManager 的余弦相似度匹配已注册说话人。
+     * 优先使用 SpeakerEmbeddingExtractor 从实际音频中提取声纹嵌入，
+     * 不可用时降级为基于转录元数据的统计特征匹配。
      */
-    private fun resolveSpeakerNames(segments: List<TranscriptSegment>): List<TranscriptSegment> {
+    private fun resolveSpeakerNames(
+        segments: List<TranscriptSegment>,
+        audioFile: File,
+    ): List<TranscriptSegment> {
         if (segments.isEmpty() || voiceprintManager == null) return segments
 
         val distinctLabels = segments.map { it.speakerLabel }.distinct()
         val labelToName = mutableMapOf<String, String>()
 
-        // 计算每个说话人标签的统计特征向量（基于转录段落的时序模式）
-        val totalDuration = if (segments.isNotEmpty()) segments.last().endTimeMs else 1L
+        val useRealEmbedding = speakerEmbeddingExtractor != null && speakerEmbeddingExtractor.isAvailable
 
-        for ((index, label) in distinctLabels.withIndex()) {
+        for (label in distinctLabels) {
             val labelSegments = segments.filter { it.speakerLabel == label }
+            val firstSeg = labelSegments.firstOrNull() ?: continue
 
-            // 从实际转录数据中提取 16 维统计特征
-            val features = buildSpeakerProfileFeatures(
-                labelSegments = labelSegments,
-                totalDurationMs = totalDuration,
-                speakerCount = distinctLabels.size,
-            )
-            val matchedId = voiceprintManager.matchSpeaker(features)
+            var matchedId: String? = null
+
+            if (useRealEmbedding) {
+                // 提取该说话人第一段语音的音频（截取前 5 秒用于声纹识别）
+                val segmentDurationMs = (firstSeg.endTimeMs - firstSeg.startTimeMs).coerceAtLeast(1000L)
+                val extractDurationMs = segmentDurationMs.coerceAtMost(5000L)
+                matchedId = matchSpeakerFromAudio(audioFile, firstSeg.startTimeMs, extractDurationMs)
+            }
+
+            // 降级：使用统计特征
+            if (matchedId == null && !useRealEmbedding) {
+                val totalDuration = segments.last().endTimeMs
+                val features = buildSpeakerProfileFeatures(
+                    labelSegments = labelSegments,
+                    totalDurationMs = totalDuration,
+                    speakerCount = distinctLabels.size,
+                )
+                matchedId = voiceprintManager.matchSpeaker(features)
+            }
+
             if (matchedId != null) {
                 val speaker = voiceprintManager.getSpeakerById(matchedId)
                 if (speaker != null) {
@@ -323,7 +342,127 @@ class MeetingTranscriber(
     }
 
     /**
-     * 基于说话人的转录段落统计信息构建 16 维特征向量。
+     * 从音频文件中截取指定时间范围的片段，提取声纹嵌入并匹配已注册说话人。
+     *
+     * @return 匹配到的说话人 ID，未匹配则返回 null
+     */
+    private fun matchSpeakerFromAudio(
+        audioFile: File,
+        startMs: Long,
+        durationMs: Long,
+    ): String? {
+        val extractor = speakerEmbeddingExtractor ?: return null
+        if (!extractor.isAvailable) return null
+
+        return try {
+            // 读取 WAV 文件并截取指定时间范围的 PCM 数据
+            val segmentWav = extractWavSegment(audioFile, startMs, durationMs)
+                ?: run {
+                    DebugLog.w(TAG, "无法截取音频片段: start=${startMs}ms, dur=${durationMs}ms")
+                    return null
+                }
+
+            // 使用提取器获取声纹嵌入
+            val embedding = kotlinx.coroutines.runBlocking {
+                extractor.extractFromFile(segmentWav)
+            }
+
+            // 清理临时文件
+            segmentWav.delete()
+
+            if (embedding != null) {
+                voiceprintManager?.matchSpeakerByEmbedding(embedding)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "声纹提取/匹配失败: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 从 WAV 文件中截取指定时间范围的片段，输出为新的 WAV 文件。
+     */
+    private fun extractWavSegment(audioFile: File, startMs: Long, durationMs: Long): File? {
+        return try {
+            val bytes = audioFile.readBytes()
+            if (bytes.size < 44) return null
+
+            // 解析 WAV 头
+            val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            bb.position(22)
+            val channels = bb.short.toInt()
+            bb.position(24)
+            val sampleRate = bb.int
+            bb.position(34)
+            val bitsPerSample = bb.short.toInt()
+
+            // 查找 data chunk
+            var dataOffset = -1
+            for (i in 12 until bytes.size - 4) {
+                if (bytes[i] == 'd'.code.toByte() && bytes[i + 1] == 'a'.code.toByte() &&
+                    bytes[i + 2] == 't'.code.toByte() && bytes[i + 3] == 'a'.code.toByte()
+                ) {
+                    dataOffset = i + 8
+                    break
+                }
+            }
+            if (dataOffset < 0) return null
+
+            val bytesPerSample = bitsPerSample / 8
+            val bytesPerFrame = bytesPerSample * channels
+            val bytesPerMs = sampleRate * bytesPerFrame / 1000
+
+            val segmentStart = dataOffset + (startMs * bytesPerMs).toInt()
+            val segmentBytes = (durationMs * bytesPerMs).toInt()
+            val segmentEnd = (segmentStart + segmentBytes).coerceAtMost(bytes.size)
+
+            if (segmentStart >= bytes.size || segmentStart >= segmentEnd) return null
+
+            // 写入临时 WAV 文件
+            val tmpFile = File(context.cacheDir, "vp_segment_${System.currentTimeMillis()}.wav")
+            val pcmData = bytes.sliceArray(segmentStart until segmentEnd)
+            val byteRate = sampleRate * channels * bitsPerSample / 8
+            val blockAlign = channels * bitsPerSample / 8
+
+            java.io.FileOutputStream(tmpFile).use { fos ->
+                fos.write("RIFF".toByteArray())
+                fos.write(intToLittleEndian(36 + pcmData.size))
+                fos.write("WAVE".toByteArray())
+                fos.write("fmt ".toByteArray())
+                fos.write(intToLittleEndian(16))
+                fos.write(shortToLittleEndian(1))
+                fos.write(shortToLittleEndian(channels.toShort()))
+                fos.write(intToLittleEndian(sampleRate))
+                fos.write(intToLittleEndian(byteRate))
+                fos.write(shortToLittleEndian(blockAlign.toShort()))
+                fos.write(shortToLittleEndian(bitsPerSample.toShort()))
+                fos.write("data".toByteArray())
+                fos.write(intToLittleEndian(pcmData.size))
+                fos.write(pcmData)
+            }
+            tmpFile
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "WAV 片段截取失败: ${e.message}")
+            null
+        }
+    }
+
+    private fun intToLittleEndian(value: Int): ByteArray = byteArrayOf(
+        (value and 0xFF).toByte(),
+        (value shr 8 and 0xFF).toByte(),
+        (value shr 16 and 0xFF).toByte(),
+        (value shr 24 and 0xFF).toByte(),
+    )
+
+    private fun shortToLittleEndian(value: Short): ByteArray = byteArrayOf(
+        (value.toInt() and 0xFF).toByte(),
+        (value.toInt() shr 8 and 0xFF).toByte(),
+    )
+
+    /**
+     * 基于说话人的转录段落统计信息构建 16 维特征向量（降级方案）。
      *
      * 特征组成:
      *   [0-3]   时长特征: 平均段落时长(归一化) / 段落时长标准差 / 最长段落 / 最短段落
