@@ -360,6 +360,8 @@ fun RecordingTab(
 
     // Start recording
     val startRecordingPipeline: (AudioRecord) -> Unit = { recorder ->
+        // 先停止上一次的流式会话，避免多个协程同时运行
+        vm.asrManager.stopStreaming()
         recordingState = RecordingState.RECORDING
         elapsedSeconds = 0
         RecordingForegroundService.start(context, recordingMode.label)
@@ -481,6 +483,7 @@ fun RecordingTab(
     }
 
     // Timer
+    val maxHours = vm.getRecordingMaxHours(recordingMode.name)
     LaunchedEffect(recordingState) {
         if (recordingState == RecordingState.RECORDING) {
             while (isActive) {
@@ -492,6 +495,79 @@ fun RecordingTab(
                 val timerText = "%02d:%02d".format(m, s)
                 FloatingWindowService.updateTimer(timerText)
                 RecordingForegroundService.updateTimer(context, timerText)
+                // 检查时长限制
+                if (maxHours > 0 && elapsedSeconds >= maxHours * 3600) {
+                    recordingState = RecordingState.PROCESSING
+                    break
+                }
+            }
+        }
+    }
+
+    // Auto-stop when timer hits max hours limit
+    var autoStopped by remember { mutableStateOf(false) }
+    LaunchedEffect(recordingState) {
+        if (recordingState == RecordingState.PROCESSING && !isProcessing && !autoStopped) {
+            autoStopped = true
+            isProcessing = true
+            try {
+                FloatingWindowService.stop(context)
+                MediaProjectionService.stop(context)
+                RecordingForegroundService.stop(context)
+            } catch (_: Exception) {}
+            try {
+                audioRecord.value?.stop()
+                audioRecord.value?.release()
+                audioRecord.value = null
+            } catch (_: Exception) {}
+            try {
+                systemAudioRecorder?.stopRecording()
+                systemAudioRecorder = null
+            } catch (_: Exception) {}
+            vm.asrManager.stopStreaming()
+
+            scope.launch {
+                try {
+                    delay(800)
+                    val pcmPath = tempFilePath.value
+                    if (pcmPath == null) {
+                        snackbar.showSnackbar("录音文件不存在")
+                        isProcessing = false
+                        recordingState = RecordingState.DONE
+                        return@launch
+                    }
+                    val pcmFile = java.io.File(pcmPath)
+                    val wavFile = java.io.File(context.cacheDir, "recording_${System.currentTimeMillis()}.wav")
+                    pcmToWav(pcmFile, wavFile, 16000, 1, 16)
+
+                    val streamText = streamingText.trim()
+                    transcriptResult = if (streamText.isNotBlank()) {
+                        MeetingTranscriptResult(
+                            segments = listOf(
+                                MeetingSegment(
+                                    text = streamText,
+                                    startTimeMs = 0,
+                                    endTimeMs = elapsedSeconds * 1000L,
+                                    speakerLabel = "Speaker_0",
+                                ),
+                            ),
+                            fullText = streamText,
+                            durationMs = elapsedSeconds * 1000L,
+                        )
+                    } else {
+                        MeetingTranscriptResult(
+                            segments = emptyList(),
+                            fullText = "（无内容）",
+                            durationMs = elapsedSeconds * 1000L,
+                        )
+                    }
+                    playbackAudioUri = wavFile.absolutePath
+                    isProcessing = false
+                } catch (e: Exception) {
+                    snackbar.showSnackbar("录音处理失败: ${e.message}")
+                    isProcessing = false
+                    recordingState = RecordingState.DONE
+                }
             }
         }
     }
@@ -934,7 +1010,7 @@ fun RecordingTab(
             }
 
             // 导入音视频：立即显示的等待对话框（在 STT 进度对话框接管前）
-            if (isImportingAudio && (sttProgress == SttProgressState.IDLE || sttProgress == SttProgressState.DONE)) {
+            if (isImportingAudio && sttProgress == SttProgressState.IDLE) {
                 AlertDialog(
                     onDismissRequest = {},
                     title = { Text("导入音视频") },
@@ -2022,7 +2098,9 @@ private fun feedAudioToEngine(engine: top.hsyscn.opedrgent.stt.SpeechEngine?, sa
 private fun pcmToWav(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int, bitsPerSample: Int) {
     val byteRate = sampleRate * channels * bitsPerSample / 8
     val blockAlign = channels * bitsPerSample / 8
-    val dataSize = pcmFile.length().toInt()
+    val dataSizeLong = pcmFile.length()
+    // WAV 格式 data chunk size 字段为 32 位，截断到 Int.MAX_VALUE
+    val dataSize = dataSizeLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     val totalSize = 44 + dataSize
 
     FileOutputStream(wavFile).use { fos ->
