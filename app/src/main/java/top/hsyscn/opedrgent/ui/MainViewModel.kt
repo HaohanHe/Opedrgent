@@ -4663,8 +4663,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 // 检查是否需要下载本地模型（MiMo 在线引擎不需要下载）
                 val useMiMoAsr = apiSettings.getSttEngine() == "mimo" && apiSettings.hasApiKey()
                 if (!useMiMoAsr) {
-                    val recommendedModel = ModelManager.getRecommendedModel(context)
-                    if (!ModelManager.isModelDownloaded(context, recommendedModel)) {
+                    val availableModel = ModelManager.getAnyDownloadedModel(context)
+                    if (availableModel == null) {
+                        val recommendedModel = ModelManager.getRecommendedModel(context)
                         val modelInfo = ModelManager.AVAILABLE_MODELS.find { it.type == recommendedModel }
                         val modelSizeMb = ((modelInfo?.sizeBytes ?: 0L) / (1024 * 1024)).toInt()
                         _sttUiState.value = SttUiState.DownloadingModel(0f, modelSizeMb)
