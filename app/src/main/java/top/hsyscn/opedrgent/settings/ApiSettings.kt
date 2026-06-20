@@ -316,6 +316,12 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putString("editorMode", mode).apply()
     }
 
+    /** 用户选择的本地 ASR 模型类型（空字符串 = 自动选择） */
+    fun getSelectedLocalModel(): String = prefs.getString("selectedLocalModel", "") ?: ""
+    fun saveSelectedLocalModel(model: String) {
+        prefs.edit().putString("selectedLocalModel", model).apply()
+    }
+
     fun getLocalModelId(): String? = prefs.getString("localModelId", null)?.trim()?.takeIf { it.isNotBlank() }
 
     fun getLocalTemperature(): Float = prefs.getFloat("localTemperature", 0.7f)
