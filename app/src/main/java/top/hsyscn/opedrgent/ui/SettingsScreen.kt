@@ -539,6 +539,51 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 color = MaterialTheme.colorScheme.primary,
                             )
 
+                            // 模型切换选择器
+                            val downloadedModels = sttModelManager.AVAILABLE_MODELS.filter {
+                                sttModelManager.isModelDownloaded(context, it.type)
+                            }
+                            if (downloadedModels.size > 1) {
+                                var selectedLocalModel by rememberSaveable { mutableStateOf(vm.getSelectedLocalModel()) }
+                                Text(
+                                    text = "当前使用的模型",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                ) {
+                                    FilterChip(
+                                        selected = selectedLocalModel.isBlank(),
+                                        onClick = {
+                                            selectedLocalModel = ""
+                                            vm.saveSelectedLocalModel("")
+                                        },
+                                        label = { Text("自动", fontSize = 11.sp) },
+                                        shape = RoundedCornerShape(16.dp),
+                                    )
+                                    downloadedModels.forEach { modelInfo ->
+                                        val label = when (modelInfo.type) {
+                                            ModelType.PARAFORMER -> "Paraformer"
+                                            ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
+                                            ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
+                                            ModelType.STREAMING_PARAFORMER -> "Paraformer 流式"
+                                            else -> modelInfo.type.name
+                                        }
+                                        FilterChip(
+                                            selected = selectedLocalModel == modelInfo.type.name,
+                                            onClick = {
+                                                selectedLocalModel = modelInfo.type.name
+                                                vm.saveSelectedLocalModel(modelInfo.type.name)
+                                            },
+                                            label = { Text(label, fontSize = 11.sp) },
+                                            shape = RoundedCornerShape(16.dp),
+                                        )
+                                    }
+                                }
+                            }
+
                             sttModelManager.AVAILABLE_MODELS.forEach { modelInfo ->
                                 val isDownloaded = sttModelManager.isModelDownloaded(context, modelInfo.type)
                                 val isDownloading = downloadingModel == modelInfo.type
