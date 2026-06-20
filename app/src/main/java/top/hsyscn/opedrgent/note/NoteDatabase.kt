@@ -85,10 +85,23 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
-            db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $COL_SOURCE_URL TEXT DEFAULT ''")
+            safeAddColumn(db, COL_SOURCE_URL, "TEXT DEFAULT ''")
+            safeAddColumn(db, COL_SOURCE_TYPE, "TEXT DEFAULT 'MANUAL'")
         }
         if (oldVersion < 3) {
-            db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $COL_SPANS TEXT DEFAULT ''")
+            safeAddColumn(db, COL_SPANS, "TEXT DEFAULT ''")
+            // 兜底：如果从 v1 直接升级到 v3，v2 的列可能还没加
+            safeAddColumn(db, COL_SOURCE_URL, "TEXT DEFAULT ''")
+            safeAddColumn(db, COL_SOURCE_TYPE, "TEXT DEFAULT 'MANUAL'")
+        }
+    }
+
+    /** 安全添加列，已存在则跳过 */
+    private fun safeAddColumn(db: SQLiteDatabase, column: String, type: String) {
+        try {
+            db.execSQL("ALTER TABLE $TABLE_NOTES ADD COLUMN $column $type")
+        } catch (_: Exception) {
+            // 列已存在，忽略
         }
     }
 
