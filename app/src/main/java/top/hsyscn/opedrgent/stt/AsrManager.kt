@@ -45,6 +45,7 @@ class AsrManager(
     private val mutex = Mutex()
     private var engine: SpeechEngine? = null
     private val vocabularyStore = VocabularyStore(context)
+    private val postProcessor = AsrPostProcessor()
 
     // ==================== 公开 API ====================
 
@@ -55,7 +56,13 @@ class AsrManager(
     suspend fun transcribeFile(uri: Uri): SttResult = withContext(Dispatchers.IO) {
         val e = getOrCreateEngine()
         DebugLog.i(TAG, "transcribeFile(uri): engine=${e.engineType}, uri=$uri")
-        val result = e.recognizeFile(uri).applyVocabulary(vocabularyStore)
+        val rawResult = e.recognizeFile(uri).applyVocabulary(vocabularyStore)
+
+        // 后处理: 标点恢复
+        val apiKey = apiSettings.getApiKey()
+        val processed = postProcessor.postProcess(rawText = rawResult.text, apiKey = apiKey)
+
+        val result = rawResult.copy(text = processed.punctuated)
         DebugLog.i(TAG, "transcribeFile(uri) 结果: text=${result.text.length}字, confidence=${result.confidence}, segments=${result.segments.size}")
         if (result.text.isEmpty()) {
             DebugLog.w(TAG, "转写结果为空(uri)! processingTime=${result.processingTimeMs}ms, model=${result.modelUsed}")
@@ -69,8 +76,38 @@ class AsrManager(
     suspend fun transcribeFile(filePath: String): SttResult = withContext(Dispatchers.IO) {
         val e = getOrCreateEngine()
         DebugLog.i(TAG, "transcribeFile(path): engine=${e.engineType}, filePath=$filePath")
-        val result = e.recognizeFile(filePath).applyVocabulary(vocabularyStore)
-        DebugLog.i(TAG, "transcribeFile 结果: text=${result.text.length}字, confidence=${result.confidence}, segments=${result.segments.size}, duration=${result.durationMs}ms, engine=${result.engineType}")
+        val rawResult = e.recognizeFile(filePath).applyVocabulary(vocabularyStore)
+        DebugLog.i(TAG, "transcribeFile 原始结果: text=${rawResult.text.length}字, confidence=${rawResult.confidence}, segments=${rawResult.segments.size}, duration=${rawResult.durationMs}ms")
+
+        // 后处理: 标点恢复 + 语义分段
+        val apiKey = apiSettings.getApiKey()
+        val processed = postProcessor.postProcess(
+            rawText = rawResult.text,
+            apiKey = apiKey,
+        )
+
+        // 将后处理分段映射回 SttSegment (保留原始时间信息)
+        val postSegments = if (processed.segments.size > 1) {
+            processed.segments.mapIndexed { idx, seg ->
+                val ratioStart = seg.startTime.coerceIn(0f, 1f)
+                val ratioEnd = seg.endTime.coerceIn(ratioStart, 1f)
+                SttSegment(
+                    text = seg.text,
+                    startTimeMs = (rawResult.durationMs * ratioStart).toLong(),
+                    endTimeMs = (rawResult.durationMs * ratioEnd).toLong(),
+                    confidence = rawResult.confidence,
+                )
+            }
+        } else {
+            rawResult.segments
+        }
+
+        val result = rawResult.copy(
+            text = processed.punctuated,
+            segments = postSegments,
+        )
+
+        DebugLog.i(TAG, "transcribeFile 后处理完成: punctuated=${result.text.length}字, segments=${result.segments.size}")
         if (result.text.isEmpty()) {
             DebugLog.w(TAG, "转写结果为空! processingTime=${result.processingTimeMs}ms, model=${result.modelUsed}")
         }
@@ -111,6 +148,11 @@ class AsrManager(
      * 用于 SpeechToTextTool 等需要直接访问引擎的场景。
      */
     suspend fun getEngine(): SpeechEngine = getOrCreateEngine()
+
+    /**
+     * 获取后处理器实例（用于说话人分离等高级功能）。
+     */
+    fun getPostProcessor(): AsrPostProcessor = postProcessor
 
     /**
      * 获取已缓存的引擎实例（不触发初始化）。
