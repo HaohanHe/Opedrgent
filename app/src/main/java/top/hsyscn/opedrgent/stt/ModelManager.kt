@@ -197,6 +197,23 @@ object ModelManager {
         return result
     }
 
+    /**
+     * 检查是否有任何已下载的模型可用。
+     * 优先使用推荐模型，如果没有则检查其他已下载的模型。
+     * @return 已下载的模型类型，如果没有则返回 null
+     */
+    fun getAnyDownloadedModel(context: Context): ModelType? {
+        // 优先检查推荐模型
+        val recommended = getRecommendedModel(context)
+        if (isModelDownloaded(context, recommended)) return recommended
+        // 检查其他模型
+        for (modelType in ModelType.entries) {
+            if (modelType == recommended) continue
+            if (isModelDownloaded(context, modelType)) return modelType
+        }
+        return null
+    }
+
     /** 确保 tokens.txt 存在（从 tokens.json 转换或直接已有） */
     private fun ensureTokensTxtExists(modelDir: File): Boolean {
         val txtFile = File(modelDir, "tokens.txt")
