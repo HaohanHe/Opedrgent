@@ -297,11 +297,29 @@ class AsrManager(
      * @throws IllegalStateException 如果没有任何模型已下载
      */
     private fun createLocalEngine(): SpeechEngine {
-        // 按优先级遍历：推荐模型优先，然后是其他已下载的模型
-        val recommended = ModelManager.getRecommendedModel(context)
-        val allModels = listOf(recommended) + ModelManager.AVAILABLE_MODELS
-            .map { it.type }
-            .filter { it != recommended }
+        // 优先使用用户选择的模型
+        val selectedModel = apiSettings.getSelectedLocalModel()
+        val modelTypeList = if (selectedModel.isNotBlank()) {
+            try {
+                val selected = ModelType.valueOf(selectedModel)
+                val others = ModelManager.AVAILABLE_MODELS.map { it.type }.filter { it != selected }
+                listOf(selected) + others
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+
+        // 如果没有选中模型，按默认优先级
+        val allModels = if (modelTypeList.isNotEmpty()) {
+            modelTypeList
+        } else {
+            val recommended = ModelManager.getRecommendedModel(context)
+            listOf(recommended) + ModelManager.AVAILABLE_MODELS
+                .map { it.type }
+                .filter { it != recommended }
+        }
 
         for (modelType in allModels) {
             val modelDir = ModelManager.getModelPath(context, modelType)

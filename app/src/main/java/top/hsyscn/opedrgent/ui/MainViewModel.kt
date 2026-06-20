@@ -243,6 +243,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveAppLanguage(lang: String) = apiSettings.saveAppLanguage(lang)
     fun getEditorMode(): String = apiSettings.getEditorMode()
     fun saveEditorMode(mode: String) = apiSettings.saveEditorMode(mode)
+    fun getSelectedLocalModel(): String = apiSettings.getSelectedLocalModel()
+    fun saveSelectedLocalModel(model: String) = apiSettings.saveSelectedLocalModel(model)
     private val localEngine = LocalLlmEngine.getInstance(app)
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
