@@ -63,7 +63,9 @@ class SherpaOnnxEngine(
     private var currentModelDir: File? = null
 
     // ==================== 伪流式识别状态 ====================
-    /** 待识别的音频缓冲区（线程安全访问） */
+    /** pendingBuffer 访问锁 */
+    private val bufferLock = Any()
+    /** 待识别的音频缓冲区（通过 bufferLock 同步访问） */
     @Volatile
     private var pendingBuffer = FloatArray(0)
     /** 已确认的文本（分段提交后追加，不再变化） */
@@ -392,14 +394,18 @@ class SherpaOnnxEngine(
                     while (isActive && streamingActive.get()) {
                         delay(STREAMING_CHUNK_MS)
 
-                        val buffer = pendingBuffer
-                        val bufferMs = buffer.size.toLong() * 1000L / TARGET_SAMPLE_RATE
+                        val chunkToRecognize: FloatArray
+                        val bufferMs: Long
+                        synchronized(bufferLock) {
+                            val buffer = pendingBuffer
+                            bufferMs = buffer.size.toLong() * 1000L / TARGET_SAMPLE_RATE
 
-                        if (bufferMs < MIN_CHUNK_MS) continue
+                            if (bufferMs < MIN_CHUNK_MS) continue
 
-                        // 取出缓冲区进行识别
-                        val chunkToRecognize = pendingBuffer
-                        pendingBuffer = FloatArray(0)
+                            // 取出缓冲区进行识别（强制截断，避免无限增长）
+                            chunkToRecognize = pendingBuffer
+                            pendingBuffer = FloatArray(0)
+                        }
 
                         // 识别当前段
                         val chunkText = decodeSegment(offlineRecognizer!!, chunkToRecognize).trim()
@@ -416,7 +422,11 @@ class SherpaOnnxEngine(
                     }
 
                     // 会话结束：识别剩余缓冲区
-                    val remaining = pendingBuffer
+                    val remaining = synchronized(bufferLock) {
+                        val r = pendingBuffer
+                        pendingBuffer = FloatArray(0)
+                        r
+                    }
                     if (remaining.isNotEmpty()) {
                         val remainingText = decodeSegment(offlineRecognizer!!, remaining).trim()
                         if (remainingText.isNotEmpty()) {
@@ -473,11 +483,13 @@ class SherpaOnnxEngine(
             streamingRecognizer!!.feedAudio(samples, TARGET_SAMPLE_RATE)
         } else {
             // 伪流式: 追加到缓冲区
-            val old = pendingBuffer
-            val newBuffer = FloatArray(old.size + samples.size)
-            System.arraycopy(old, 0, newBuffer, 0, old.size)
-            System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
-            pendingBuffer = newBuffer
+            synchronized(bufferLock) {
+                val old = pendingBuffer
+                val newBuffer = FloatArray(old.size + samples.size)
+                System.arraycopy(old, 0, newBuffer, 0, old.size)
+                System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
+                pendingBuffer = newBuffer
+            }
         }
     }
 
@@ -977,7 +989,7 @@ class SherpaOnnxEngine(
     }
 
     private fun ensureInitialized() {
-        if (!_isInitialized.get() || offlineRecognizer == null) {
+        if (!_isInitialized.get() || (offlineRecognizer == null && streamingRecognizer == null)) {
             throw IllegalStateException("SherpaOnnxEngine 未初始化，请先调用 initialize(modelDir)")
         }
     }

@@ -4663,9 +4663,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                // 检查是否需要下载本地模型（MiMo 在线引擎不需要下载）
-                val useMiMoAsr = apiSettings.getSttEngine() == "mimo" && apiSettings.hasApiKey()
-                if (!useMiMoAsr) {
+                // 检查是否需要下载本地模型（在线引擎不需要下载）
+                val useOnlineAsr = (apiSettings.getSttEngine() == "mimo" || apiSettings.getSttEngine() == "stepaudio") && apiSettings.hasApiKey()
+                if (!useOnlineAsr) {
                     val availableModel = ModelManager.getAnyDownloadedModel(context)
                     if (availableModel == null) {
                         val recommendedModel = ModelManager.getRecommendedModel(context)
@@ -4815,6 +4815,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _sttUiState.value = SttUiState.Idle
         sttEngine?.close()
         sttEngine = null
+        // 也停止 asrManager 中正在运行的转录任务
+        asrManager.stopStreaming()
     }
 
     fun retryLastStt() {
