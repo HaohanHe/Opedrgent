@@ -1548,6 +1548,7 @@ Spacer(Modifier.height(12.dp))
                         mimoVoice = vm.getTtsMimoVoice(),
                         downloadOnly = ttsDownloadOnly,
                     )
+                    vm.saveTtsEngine(ttsEngine)
                     vm.saveSttEnabled(sttEnabled)
                     vm.saveSttEngine(sttEngine)
                     vm.saveSttStreamingMode(sttStreamingMode)
