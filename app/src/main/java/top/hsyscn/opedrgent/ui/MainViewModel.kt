@@ -4631,6 +4631,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _sttError.value = null
 
         sttJob = viewModelScope.launch {
+            var tempWavFile: java.io.File? = null
             try {
                 val context = getApplication<Application>()
                 val fileName = getFileNameFromUri(context, uri) ?: "unknown"
@@ -4709,7 +4710,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // 如果是视频文件，先解码音频轨为 PCM 并保存为临时 WAV
                 val effectiveUri: Uri
-                val tempWavFile: java.io.File?
                 if (isVideo) {
                     DebugLog.i("STT: 检测到视频文件，正在提取音频轨...")
                     _sttUiState.value = SttUiState.DecodingAudio(0.3f, "正在提取视频音频轨...")
@@ -4750,8 +4750,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         asrManager.transcribeFile(effectiveUri)
                     }
                 }
-                // 清理临时文件
-                tempWavFile?.delete()
                 val enrichedResult = result
 
                 _sttResult.value = enrichedResult
@@ -4786,6 +4784,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 lastFailedUri = uri
                 _sttEventBus.tryEmit("转录失败: ${e.message}")
             } finally {
+                // 清理临时文件（无论成功或失败）
+                tempWavFile?.delete()
                 // 引擎生命周期由 AsrManager 管理，此处无需手动关闭
             }
         }
