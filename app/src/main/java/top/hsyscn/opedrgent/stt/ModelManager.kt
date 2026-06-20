@@ -62,19 +62,28 @@ object ModelManager {
             }
         }
 
-        /** GitHub 超时时的 ModelScope 备用下载地址 */
+        /** 主源失败时的备用下载地址 */
         fun fallbackTasks(): List<Triple<String, String, String>>? {
-            if (primarySource == DownloadSource.MODELSCOPE) return null
-            // ModelScope 备用：单文件仓库 pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en
-            val fallbackRepo = when (type) {
-                ModelType.STREAMING_PARAFORMER -> "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
-                else -> return null
-            }
-            val baseUrl = "$MODELSCOPE_BASE/$fallbackRepo/resolve/master"
-            return files.map { (remoteName, localName) ->
-                // ModelScope 单文件仓库的文件名不带子目录前缀
-                val msRemoteName = remoteName.substringAfterLast("/")
-                Triple("ModelScope(备用)", "$baseUrl/$msRemoteName", localName)
+            return when (type) {
+                ModelType.STREAMING_PARAFORMER -> {
+                    // ModelScope 主源失败 → GitHub 备用
+                    if (primarySource == DownloadSource.MODELSCOPE) {
+                        val baseUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
+                        files.map { (remoteName, localName) ->
+                            val ghRemoteName = "sherpa-onnx-streaming-paraformer-bilingual-zh-en/${localName}"
+                            Triple("GitHub(备用)", "$baseUrl/$ghRemoteName", localName)
+                        }
+                    } else {
+                        // GitHub 主源失败 → ModelScope 备用
+                        val fallbackRepo = "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
+                        val baseUrl = "$MODELSCOPE_BASE/$fallbackRepo/resolve/master"
+                        files.map { (remoteName, localName) ->
+                            val msRemoteName = remoteName.substringAfterLast("/")
+                            Triple("ModelScope(备用)", "$baseUrl/$msRemoteName", localName)
+                        }
+                    }
+                }
+                else -> null
             }
         }
     }
@@ -125,12 +134,12 @@ object ModelManager {
             version = "2024-08-14",
             sizeBytes = 237 * 1024 * 1024L,  // encoder.int8 165MB + decoder.int8 72MB
             minRamMB = 6 * 1024,
-            primarySource = DownloadSource.GITHUB,
-            repoPath = "k2-fsa/sherpa-onnx",
+            primarySource = DownloadSource.MODELSCOPE,
+            repoPath = "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en",
             files = listOf(
-                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/encoder.int8.onnx" to "encoder.int8.onnx",
-                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/decoder.int8.onnx" to "decoder.int8.onnx",
-                "sherpa-onnx-streaming-paraformer-bilingual-zh-en/tokens.txt" to "tokens.txt",
+                "encoder.int8.onnx" to "encoder.int8.onnx",
+                "decoder.int8.onnx" to "decoder.int8.onnx",
+                "tokens.txt" to "tokens.txt",
             ),
         ),
     )
@@ -199,16 +208,18 @@ object ModelManager {
 
     /**
      * 检查是否有任何已下载的模型可用。
-     * 优先使用推荐模型，如果没有则检查其他已下载的模型。
+     * 优先使用流式模型（实时显示），其次推荐模型，最后其他模型。
      * @return 已下载的模型类型，如果没有则返回 null
      */
     fun getAnyDownloadedModel(context: Context): ModelType? {
-        // 优先检查推荐模型
+        // 优先使用流式模型（支持实时显示）
+        if (isModelDownloaded(context, ModelType.STREAMING_PARAFORMER)) return ModelType.STREAMING_PARAFORMER
+        // 其次推荐模型
         val recommended = getRecommendedModel(context)
         if (isModelDownloaded(context, recommended)) return recommended
-        // 检查其他模型
+        // 最后检查其他模型
         for (modelType in ModelType.entries) {
-            if (modelType == recommended) continue
+            if (modelType == ModelType.STREAMING_PARAFORMER || modelType == recommended) continue
             if (isModelDownloaded(context, modelType)) return modelType
         }
         return null
