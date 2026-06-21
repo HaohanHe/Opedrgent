@@ -59,6 +59,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,6 +95,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -475,10 +478,11 @@ fun SessionScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = themeSurfaceElevated()),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    Box {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                         OutlinedTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
@@ -559,8 +563,43 @@ fun SessionScreen(
                                 )
                             }
                         }
-                    }
-                }
+                    } // closes Row
+
+                        // 快捷指令补全：输入 / 时显示命令列表
+                        val slashMatches = remember(prompt) {
+                            top.hsyscn.opedrgent.utils.SlashCommands.filterByPrefix(prompt.trim())
+                        }
+                        DropdownMenu(
+                            expanded = slashMatches.isNotEmpty(),
+                            onDismissRequest = { /* 输入变化时自动更新 */ },
+                            modifier = Modifier.width(280.dp),
+                        ) {
+                            slashMatches.take(6).forEach { cmd ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                cmd.usage,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                            Text(
+                                                cmd.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = themeTextGrey(),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        prompt = "/${cmd.name} "
+                                    },
+                                )
+                            }
+                        }
+                    } // closes Box
+                } // closes Card
 
                 // Send button
                 Card(

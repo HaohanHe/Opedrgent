@@ -174,7 +174,7 @@
 - [ ] 离线模式降级: 网络不可用时切换到纯本地模式 (LocalLlmEngine)
 
 #### 5.2 用户体验
-- [ ] 快捷指令 (Slash Commands): `/search` `/rag` `/interview` `/export` 等
+- [x] 快捷指令 (Slash Commands): `/search` `/rag` `/interview` `/export` 等
 - [ ] 自定义工作流 (Automations): 用户可编程的触发器-动作链
 - [ ] 深色/浅色主题跟随系统
 - [ ] 平板适配: 大屏布局优化
