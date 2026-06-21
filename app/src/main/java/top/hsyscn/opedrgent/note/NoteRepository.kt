@@ -36,6 +36,15 @@ class NoteRepository(
     /** 所有笔记（按置顶+更新时间排序） */
     fun getAllNotes(): Flow<List<Note>> = _changeTrigger.map { dao.getAllNotes() }
 
+    /** 获取所有笔记（一次性，用于同步） */
+    suspend fun getAllNotesOnce(): List<Note> = dao.getAllNotes()
+
+    /** 从同步更新笔记（不触发知识图谱/记忆同步） */
+    suspend fun updateFromSync(note: Note) {
+        dao.insertOrUpdate(note)
+        _changeTrigger.value = System.currentTimeMillis()
+    }
+
     /** 按类型筛选 */
     fun getByType(type: NoteType): Flow<List<Note>> = _changeTrigger.map { dao.getByType(type) }
 
