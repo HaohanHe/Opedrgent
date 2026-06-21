@@ -261,6 +261,14 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putString("appLanguage", lang).apply()
     }
 
+    /**
+     * 主题模式: "system" = 跟随系统, "light" = 浅色, "dark" = 深色
+     */
+    fun getThemeMode(): String = prefs.getString("themeMode", "system") ?: "system"
+    fun saveThemeMode(mode: String) {
+        prefs.edit().putString("themeMode", mode).apply()
+    }
+
     fun isDeepResearch(): Boolean = prefs.getBoolean("deepResearch", false)
 
     fun saveDeepResearch(enabled: Boolean) {
