@@ -152,18 +152,18 @@
 ### Phase 4 — 协作与生态 [中期]
 
 #### 4.1 Skill 生态完善
-- [ ] Skill Marketplace: 从远程 URL 动态加载 SKILL.md 定义的技能
-- [ ] Skill 沙箱安全加固: WebView JS 执行的资源/CPU/网络限制
-- [ ] Skill 版本管理与热更新: 不重启 App 即可更新技能定义
+- [x] Skill Marketplace: 从远程 URL 动态加载 SKILL.md 定义的技能
+- [x] Skill 沙箱安全加固: WebView JS 执行的资源/CPU/网络限制
+- [x] Skill 版本管理与热更新: 不重启 App 即可更新技能定义
 
 #### 4.2 多智能体编排
-- [ ] AgentSwarm 任务分解: 复杂任务自动拆分为子任务分配给专业 Agent
-- [ ] Agent 间通信协议: 统一的消息格式和上下文传递机制
-- [ ] Research Agent 深度研究: WebResearchRouter + HybridRanking 的完整链路
+- [x] AgentSwarm 任务分解: 复杂任务自动拆分为子任务分配给专业 Agent
+- [x] Agent 间通信协议: 统一的消息格式和上下文传递机制
+- [x] Research Agent 深度研究: WebResearchRouter + HybridRanking 的完整链路
 
 #### 4.3 数据导出与同步
-- [ ] Markdown/PDF/HTML 多格式导出优化
-- [ ] 笔记云同步: 支持第三方云盘/WebDAV
+- [x] Markdown/PDF/HTML 多格式导出优化
+- [x] 笔记云同步: 支持第三方云盘/WebDAV
 - [x] 会话归档与搜索: 历史对话的全文检索
 
 ### Phase 5 — 性能与体验优化 [持续]
@@ -177,7 +177,7 @@
 - [x] 快捷指令 (Slash Commands): `/search` `/rag` `/interview` `/export` 等
 - [x] 自定义工作流 (Automations): 用户可编程的触发器-动作链
 - [x] 深色/浅色主题跟随系统
-- [ ] 平板适配: 大屏布局优化
+- [x] 平板适配: 大屏布局优化
 
 ---
 
