@@ -163,7 +163,7 @@ fun HomeDashboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
-            .widthIn(max = 640.dp)
+            .widthIn(max = 900.dp)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
