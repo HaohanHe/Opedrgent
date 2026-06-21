@@ -2061,7 +2061,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 val config = apiSettings.getApiConfig()
-                    ?: throw IllegalStateException("请先在设置里填写 API Key 或加载本地模型")
+                if (config == null) {
+                    // 无 API Key 时，如果本地模型可用则自动降级
+                    if (localEngine.isReady) {
+                        DebugLog.i("runModel: 无 API Key，自动降级到本地模型")
+                        _state.value = _state.value.copy(
+                            streamingPhase = "未配置 API Key，使用离线模式…",
+                        )
+                        runLocalModel(sessionId)
+                        return@launch
+                    }
+                    throw IllegalStateException("请先在设置里填写 API Key 或加载本地模型")
+                }
                 val maxContextTokens = resolveMaxContextTokens(config.model)
 
                 // --- "我的笔记"搜索：从海马体索引中检索相关记忆（WEB_ONLY 模式跳过） ---
@@ -2102,6 +2113,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // ★ BUG-10 修复：错误退出时通知用户，而非显示空白消息
                 if (lastError != null && loopResult.finalContent.isBlank()) {
+                    // ★ 离线模式降级：API 网络错误时自动切换到本地模型
+                    if (isNetworkError(lastError!!) && localEngine.isReady) {
+                        DebugLog.i("runModel: API 网络错误，自动降级到本地模型 — $lastError")
+                        _state.value = _state.value.copy(
+                            streamingPhase = "网络异常，自动切换到离线模式…",
+                        )
+                        runLocalModel(sessionId)
+                        return@launch
+                    }
+
                     val errorMsg = "抱歉，处理过程中遇到错误: $lastError"
                     store.addMessage(sessionId, Role.ASSISTANT, errorMsg, reasoningParts = emptyList())
                     _state.value = _state.value.copy(
@@ -3595,6 +3616,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun isLocalModelEnabled(): Boolean = apiSettings.isLocalModelEnabled()
+
+    /** 判断错误消息是否为网络相关错误（用于离线模式降级判断） */
+    private fun isNetworkError(error: String): Boolean {
+        val keywords = listOf("超时", "timeout", "网络", "network", "DNS", "SSL", "证书", "连接", "connect", "unreachable", "主机", "host")
+        return keywords.any { error.contains(it, ignoreCase = true) }
+    }
 
     fun getLocalModelId(): String? = apiSettings.getLocalModelId()
 
