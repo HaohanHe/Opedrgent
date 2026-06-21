@@ -83,6 +83,8 @@ import top.hsyscn.opedrgent.stt.SpeakerDiarizer
 import top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor
 import top.hsyscn.opedrgent.stt.VoiceprintManager
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.CoralRed
+import top.hsyscn.opedrgent.ui.theme.CoralLight
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.FileOutputStream
@@ -93,8 +95,6 @@ import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 private const val TOTAL_SAMPLES = 5
 private const val SAMPLE_RATE = 16000
-private val CoralRed = Color(0xFFFF5A5A)
-private val CoralLight = Color(0xFFFFEAEA)
 
 @Composable
 fun VoiceprintEnrollmentScreen(
