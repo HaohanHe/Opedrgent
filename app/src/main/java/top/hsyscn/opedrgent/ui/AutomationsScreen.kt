@@ -40,11 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.Automation
 import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AutomationsScreen(onBack: () -> Unit) {
@@ -93,7 +98,32 @@ fun AutomationsScreen(onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = a.name, fontWeight = FontWeight.SemiBold)
-                            Text(text = "${a.kind.name} · ${a.intervalMinutes} 分钟", modifier = Modifier.padding(top = 4.dp))
+                            Text(
+                                text = "${a.kind.name} · ${a.intervalMinutes} 分钟",
+                                modifier = Modifier.padding(top = 4.dp),
+                                fontSize = 12.sp,
+                            )
+                            // 执行状态
+                            if (a.executionCount > 0) {
+                                val timeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+                                val lastRun = if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else "未知"
+                                Text(
+                                    text = "已执行 ${a.executionCount} 次 · 最近: $lastRun",
+                                    fontSize = 11.sp,
+                                    color = androidx.compose.ui.graphics.Color(0xFF888888),
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                            if (a.lastError != null) {
+                                Text(
+                                    text = "最近错误: ${a.lastError}",
+                                    fontSize = 11.sp,
+                                    color = androidx.compose.ui.graphics.Color(0xFFE57373),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
                         }
                         Switch(
                             checked = a.enabled,

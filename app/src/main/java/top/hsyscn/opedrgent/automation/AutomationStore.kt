@@ -52,6 +52,21 @@ class AutomationStore(private val context: Context) {
         list().filter { it.enabled }.forEach { scheduleWork(it) }
     }
 
+    /** 记录自动化执行结果 */
+    fun recordExecution(id: String, success: Boolean, error: String? = null) {
+        val all = list().toMutableList()
+        val idx = all.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        val cur = all[idx]
+        all[idx] = cur.copy(
+            lastExecutedAt = System.currentTimeMillis(),
+            executionCount = cur.executionCount + 1,
+            lastError = if (success) null else (error ?: "未知错误"),
+            updatedAt = System.currentTimeMillis(),
+        )
+        saveAll(all)
+    }
+
     fun createHeartbeat(name: String, intervalMinutes: Long, targetSessionId: String?): Automation {
         val now = System.currentTimeMillis()
         val a = Automation(
@@ -134,6 +149,9 @@ class AutomationStore(private val context: Context) {
             prompt = prompt,
             createdAt = createdAt,
             updatedAt = updatedAt,
+            lastExecutedAt = o.optLong("lastExecutedAt", 0),
+            executionCount = o.optInt("executionCount", 0),
+            lastError = o.optString("lastError").takeIf { it.isNotBlank() },
         )
     }
 
@@ -148,6 +166,9 @@ class AutomationStore(private val context: Context) {
             .put("prompt", a.prompt)
             .put("createdAt", a.createdAt)
             .put("updatedAt", a.updatedAt)
+            .put("lastExecutedAt", a.lastExecutedAt)
+            .put("executionCount", a.executionCount)
+            .putOpt("lastError", a.lastError)
     }
 }
 
