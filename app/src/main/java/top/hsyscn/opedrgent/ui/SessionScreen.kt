@@ -187,9 +187,13 @@ fun SessionScreen(
                             snackbar.showSnackbar(context.getString(R.string.msg_create_session_first))
                         }
                     }
-                    mimeType?.startsWith("audio/") == true || mimeType?.startsWith("video/") == true -> {
-                        // 音频/视频走 ASR 识别
+                    mimeType?.startsWith("audio/") == true -> {
+                        // 音频走 ASR 识别
                         vm.startSpeechToText(uri)
+                    }
+                    mimeType?.startsWith("video/") == true -> {
+                        // 视频优先走视频摘要（利用多模态视觉理解），同时提供语音转文字选项
+                        vm.sendVideoForSummary(uri)
                     }
                     mimeType == "application/pdf" -> vm.importPdfOcr(uri)
                     mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> vm.importDocx(uri)

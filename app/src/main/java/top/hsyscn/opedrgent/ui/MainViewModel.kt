@@ -1271,6 +1271,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         DebugLog.i("sendAudioMessage: 已发送音频消息, 文件=$filePath, 时长=${durationMs}ms")
     }
 
+    /**
+     * 发送视频文件进行摘要分析。
+     *
+     * 将视频文件路径作为用户消息发送，LLM 会自动调用 step_video_summary 工具
+     * 进行关键帧提取和结构化摘要生成。
+     *
+     * @param uri 视频文件的 content:// URI
+     */
+    fun sendVideoForSummary(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 将 content:// URI 转换为文件路径
+            val filePath = uri.toString()
+
+            // 创建会话（如果没有活跃会话）
+            var sessionId = _state.value.current?.id
+            if (sessionId == null) {
+                val session = store.createSession("新对话")
+                refreshSessions()
+                openSession(session.id)
+                sessionId = session.id
+                _state.value = _state.value.copy(navigateToSessionId = session.id)
+            }
+
+            // 发送视频摘要请求消息
+            val message = "请分析这个视频的内容并生成摘要。视频文件路径：$filePath"
+            store.addMessage(sessionId, Role.USER, message)
+            _state.value = _state.value.copy(current = store.getSession(sessionId))
+            refreshSessions()
+
+            // 触发 LLM 处理（会自动调用 step_video_summary 工具）
+            runModel(sessionId)
+
+            DebugLog.i("sendVideoForSummary: 已发送视频摘要请求, URI=$filePath")
+        }
+    }
+
     // ==================== 知识图谱 API ====================
 
     /** 将笔记内容发送到聊天，让 AI 分析 */
