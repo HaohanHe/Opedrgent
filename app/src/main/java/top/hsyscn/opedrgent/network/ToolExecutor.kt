@@ -29,6 +29,7 @@ import top.hsyscn.opedrgent.tools.StepMobileAgentTool
 import top.hsyscn.opedrgent.tools.StepVisionTool
 import top.hsyscn.opedrgent.tools.StepImageEditTool
 import top.hsyscn.opedrgent.tools.StepImageGenTool
+import top.hsyscn.opedrgent.tools.StepVideoSummaryTool
 import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.mcp.skills.SkillLoader
@@ -90,6 +91,7 @@ class ToolExecutor(
         register(StepVisionTool(context))
         register(StepImageEditTool(context))
         register(StepImageGenTool())
+        register(StepVideoSummaryTool(context, llm, apiSettings))
     }
 
     suspend fun execute(
