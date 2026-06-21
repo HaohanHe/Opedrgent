@@ -5,6 +5,7 @@ import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.network.HybridRankingEngine
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.SearchConfig
 import top.hsyscn.opedrgent.network.SearchResult
@@ -77,10 +78,16 @@ class DeepResearchTool(
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "深度研究完成，但未找到相关结果。", endTime = System.currentTimeMillis())))
         }
 
+        // 使用 HybridRankingEngine 对搜索结果进行质量排序
+        val rankingEngine = HybridRankingEngine()
+        rankingEngine.initialize(query)
+        val rankedResults = rankingEngine.rank(results, limit = results.size)
+        val sortedResults = rankedResults.map { it.result }
+
         val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 3).coerceIn(1, 5)
         val fetchedTexts = mutableListOf<String>()
 
-        results.take(maxFetch).forEach { result ->
+        sortedResults.take(maxFetch).forEach { result ->
             // 用 Jina Reader 抓取正文，失败则用摘要
             val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
             if (jinaResult != null && jinaResult.text.length > 100) {

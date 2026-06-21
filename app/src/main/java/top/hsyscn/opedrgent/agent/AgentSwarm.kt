@@ -142,14 +142,55 @@ $toolDesc
         apiConfig: ApiConfig,
         onProgress: (String) -> Unit,
     ): List<AgentOutput> = coroutineScope {
-        agents.map { agent ->
-            async {
-                onProgress("Agent [${agent.name}] 执行中...")
-                val output = runSingleAgent(agent, emptyList(), apiConfig)
-                DebugLog.i(TAG, "Agent [${agent.name}] 完成, output=${output.content.take(100)}")
-                output
+        // DAG 拓扑排序：按依赖关系分层，同层可并行
+        val waves = topologicalWaves(agents)
+        val allResults = mutableListOf<AgentOutput>()
+
+        for ((waveIdx, wave) in waves.withIndex()) {
+            onProgress("执行第 ${waveIdx + 1}/${waves.size} 波（${wave.joinToString { it.name }}）...")
+            val waveResults = wave.map { agent ->
+                async {
+                    val depOutputs = if (agent.dependsOn.isNotEmpty()) {
+                        allResults.filter { it.agentName in agent.dependsOn }
+                    } else {
+                        emptyList()
+                    }
+                    val output = runSingleAgent(agent, depOutputs, apiConfig)
+                    DebugLog.i(TAG, "Agent [${agent.name}] 完成, output=${output.content.take(100)}")
+                    output
+                }
+            }.awaitAll()
+            allResults.addAll(waveResults)
+        }
+
+        allResults
+    }
+
+    /**
+     * 拓扑排序：将 Agent 按依赖关系分成多个 wave，同一 wave 内无依赖可并行执行。
+     */
+    private fun topologicalWaves(agents: List<AgentDef>): List<List<AgentDef>> {
+        val agentMap = agents.associateBy { it.name }
+        val remaining = agents.toMutableSet()
+        val completed = mutableSetOf<String>()
+        val waves = mutableListOf<List<AgentDef>>()
+
+        while (remaining.isNotEmpty()) {
+            // 找出所有依赖已满足的 Agent
+            val ready = remaining.filter { agent ->
+                agent.dependsOn.all { it in completed }
             }
-        }.awaitAll()
+            if (ready.isEmpty()) {
+                // 循环依赖 → 强制按原始顺序执行剩余
+                DebugLog.w(TAG, "检测到循环依赖，强制串行执行剩余 Agent")
+                waves.add(remaining.toList())
+                break
+            }
+            waves.add(ready)
+            ready.forEach { remaining.remove(it) }
+            completed.addAll(ready.map { it.name })
+        }
+        return waves
     }
 
     /**
