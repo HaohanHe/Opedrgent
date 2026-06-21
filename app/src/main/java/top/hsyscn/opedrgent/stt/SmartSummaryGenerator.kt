@@ -117,12 +117,12 @@ class SmartSummaryGenerator(
                 SmartSummary.MetaInfo(
                     duration = obj.optString("duration", TranscriptTimeFormatter.formatDuration(transcript.durationMs)),
                     participantCount = optInt(obj, "participantCount", transcript.speakers.size),
-                    contentType = obj.optString("contentType", inferContentType(transcript)),
+                    contentType = obj.optString("contentType", "录音笔记"),
                 )
             } ?: SmartSummary.MetaInfo(
                 duration = TranscriptTimeFormatter.formatDuration(transcript.durationMs),
                 participantCount = transcript.speakers.size,
-                contentType = inferContentType(transcript),
+                contentType = "录音笔记",
             )
 
             // SummarySections
@@ -209,19 +209,6 @@ class SmartSummaryGenerator(
         return text
     }
 
-    /** 从转录内容推断内容类型 */
-    private fun inferContentType(transcript: MeetingTranscriptResult): String {
-        val text = transcript.fullText.lowercase()
-        return when {
-            text.contains("面试") || text.contains("候选人") || text.contains("招聘") -> "面试对话"
-            text.contains("会议") || text.contains("汇报") || text.contains("讨论") -> "工作会议"
-            text.contains("讲课") || text.contains("培训") || text.contains("课程") -> "培训讲座"
-            text.contains("采访") || text.contains("访谈") -> "人物访谈"
-            text.contains("聊天") || text.contains("闲聊") || text.contains("朋友") -> "日常对话"
-            else -> "录音笔记"
-        }
-    }
-
     private fun optInt(obj: JSONObject, key: String, fallback: Int): Int {
         return try { obj.getInt(key) } catch (_: Exception) { fallback }
     }
@@ -250,7 +237,7 @@ class SmartSummaryGenerator(
   "metaInfo": {
     "duration": "如 '约19分钟'",
     "participantCount": 3,
-    "contentType": "如 '面试对话' / '工作会议' / '培训讲座' / '人物访谈' / '日常对话'"
+    "contentType": "根据转录内容语义判断类型，如：工作会议 / 培训讲座 / 面试对话 / 人物访谈 / 课堂笔记 / 项目复盘 / 产品评审 / 日常对话 / 头脑风暴 / 述职汇报 / 客户沟通 / 技术分享 等"
   },
   "summarySections": [
     {
