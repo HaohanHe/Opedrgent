@@ -109,6 +109,9 @@ import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import top.hsyscn.opedrgent.utils.LocaleHelper
 import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.SettingsBrightness
 @Composable
 fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, toVocabulary: () -> Unit = {}, toVoiceprint: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}, toOpenSource: () -> Unit = {}) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
@@ -128,6 +131,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
+    var themeMode by rememberSaveable { mutableStateOf(vm.getThemeMode()) }
     var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
@@ -225,6 +229,51 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     }
                                 },
                                 label = { Text(label, fontSize = 13.sp) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            // ── 主题设置 ──
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = "外观主题", fontWeight = FontWeight.Bold, color = themeTextDark())
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val themeOptions = listOf(
+                        "system" to "跟随系统",
+                        "light" to "浅色",
+                        "dark" to "深色",
+                    )
+                    val themeIcons = mapOf(
+                        "system" to Icons.Default.SettingsBrightness,
+                        "light" to Icons.Default.LightMode,
+                        "dark" to Icons.Default.DarkMode,
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        themeOptions.forEach { (value, label) ->
+                            FilterChip(
+                                selected = themeMode == value,
+                                onClick = {
+                                    if (themeMode == value) return@FilterChip
+                                    themeMode = value
+                                    vm.saveThemeMode(value)
+                                    (context as? Activity)?.recreate()
+                                },
+                                label = { Text(label, fontSize = 13.sp) },
+                                leadingIcon = {
+                                    themeIcons[value]?.let {
+                                        Icon(it, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                },
                             )
                         }
                     }
