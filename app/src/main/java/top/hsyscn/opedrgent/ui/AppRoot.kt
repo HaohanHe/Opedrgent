@@ -125,6 +125,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -136,6 +137,7 @@ import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.BarBg
 import top.hsyscn.opedrgent.ui.theme.BgGray
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
@@ -787,20 +789,76 @@ fun SessionsScreen(
                 ),
             )
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(state.sessions, key = { it.id }) { s ->
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(11.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardWhite),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        onClick = { onSelectSession(s.id) },
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(text = s.title, fontWeight = FontWeight.SemiBold, color = TextDark)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                if (q.isNotBlank() && state.messageSearchResults.isNotEmpty()) {
+                    // 消息级搜索结果
+                    item {
+                        Text(
+                            text = "在 ${state.sessions.size} 个会话中找到 ${state.messageSearchResults.size} 条消息",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextGrey,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                    items(state.messageSearchResults, key = { it.messageId }) { result ->
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(11.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardWhite),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            onClick = { onSelectSession(result.sessionId) },
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = result.sessionTitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AccentBlue,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(
+                                        text = if (result.role == Role.USER) "你" else "AI",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (result.role == Role.USER) AccentOrange else TextGrey,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = result.matchSnippet,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextDark,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = formatTime(result.timestamp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextGrey,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // 普通会话列表（无搜索或无消息匹配时）
+                    items(state.sessions, key = { it.id }) { s ->
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(11.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardWhite),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            onClick = { onSelectSession(s.id) },
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(text = s.title, fontWeight = FontWeight.SemiBold, color = TextDark)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                            }
                         }
                     }
                 }
