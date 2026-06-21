@@ -1,10 +1,8 @@
 package top.hsyscn.opedrgent.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -57,7 +55,6 @@ import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.TextPrimary
-import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.DangerRed
 import top.hsyscn.opedrgent.ui.theme.ErrorBackground
 import top.hsyscn.opedrgent.ui.theme.ErrorBorder
