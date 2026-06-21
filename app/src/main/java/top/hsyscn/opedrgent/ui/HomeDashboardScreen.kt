@@ -528,7 +528,7 @@ fun QuickActionsRow(
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         QuickActionItem(icon = Icons.Default.Add, label = "新建笔记", onClick = onNewNote)
-        QuickActionItem(icon = Icons.Default.Mic, label = "语音速记", onClick = onVoiceRecord)
+        QuickActionItem(icon = Icons.Default.Mic, label = "录音", onClick = onVoiceRecord)
         QuickActionItem(icon = Icons.Default.UploadFile, label = "导入文件", onClick = onImportFile)
         QuickActionItem(icon = Icons.Default.AutoAwesome, label = "发芽分析", onClick = onSproutAnalysis)
     }
@@ -724,8 +724,8 @@ fun buildRecommendations(
         recommendations.add(
             RecommendationItem(
                 icon = Icons.Default.Mic,
-                title = "语音速记",
-                description = "录音自动转文字，一键保存为笔记",
+                title = "录音",
+                description = "录音自动转文字，智能总结并保存为笔记",
                 onClick = onNavigateToRecording,
                 gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
             )
@@ -764,8 +764,8 @@ fun buildRecommendations(
             ),
             RecommendationItem(
                 icon = Icons.Default.Mic,
-                title = "语音速记",
-                description = "录音自动转文字，一键保存为笔记",
+                title = "录音",
+                description = "录音自动转文字，智能总结并保存为笔记",
                 onClick = onNavigateToRecording,
                 gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
             ),
