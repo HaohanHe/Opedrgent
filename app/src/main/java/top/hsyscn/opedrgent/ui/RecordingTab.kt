@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
@@ -251,7 +252,35 @@ fun RecordingTab(
             SttProgressState.DONE -> {
                 if (isImportingAudio) {
                     isImportingAudio = false
-                    snackbar.showSnackbar("转录完成")
+                    val result = vm.sttResult.value
+                    val text = result?.text?.trim().orEmpty()
+                    if (text.isNotBlank()) {
+                        try {
+                            val autoTitle = text.take(20).ifBlank {
+                                "音视频转录 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
+                            }
+                            val noteId = vm.createNoteFromText(autoTitle, text, NoteType.MEETING)
+                            NotificationHelper.showAutoSaveNote(
+                                context = context,
+                                noteId = noteId,
+                                title = autoTitle,
+                                preview = text,
+                            )
+                            val snackbarResult = snackbar.showSnackbar(
+                                message = "已保存为笔记（${text.length}字）",
+                                actionLabel = "查看",
+                            )
+                            if (snackbarResult == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                onNavigateToNotes()
+                            }
+                        } catch (e: Exception) {
+                            DebugLog.e("RecordingTab", "音视频转录自动保存失败: ${e.message}", e)
+                            snackbar.showSnackbar("转录完成，但保存失败")
+                        }
+                    } else {
+                        snackbar.showSnackbar("转录完成，但内容为空")
+                    }
+                    vm.clearSttResult()
                 }
             }
             SttProgressState.ERROR -> {
@@ -1184,7 +1213,7 @@ private fun IdleModeSelection(
                 },
                 modifier = Modifier.padding(bottom = 32.dp),
             ) {
-                Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("导入音视频", fontSize = 14.sp)
             }
@@ -1743,7 +1772,7 @@ private fun TranscriptResultCard(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                             modifier = Modifier.weight(1f).height(44.dp),
                         ) {
-                            Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
                         }
@@ -1754,7 +1783,7 @@ private fun TranscriptResultCard(
                             colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                             modifier = Modifier.weight(1f).height(44.dp),
                         ) {
-                            Icon(Icons.Default.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
                         }
