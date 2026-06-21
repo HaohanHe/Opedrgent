@@ -17,5 +17,8 @@ data class Automation(
     val prompt: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val lastExecutedAt: Long = 0,
+    val executionCount: Int = 0,
+    val lastError: String? = null,
 )
 

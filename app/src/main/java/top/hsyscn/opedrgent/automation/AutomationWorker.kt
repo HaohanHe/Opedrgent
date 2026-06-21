@@ -30,7 +30,7 @@ class AutomationWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val session = store.getSession(sessionId) ?: return Result.success()
 
         return try {
-            when (a.kind) {
+            val result = when (a.kind) {
                 AutomationKind.HEARTBEAT_NOTES -> {
                     val prompt = """
 输出 Markdown，不要写多余解释。
@@ -70,7 +70,10 @@ class AutomationWorker(appContext: Context, params: WorkerParameters) : Coroutin
                     Result.success()
                 }
             }
-        } catch (_: Exception) {
+            automations.recordExecution(id, success = true)
+            result
+        } catch (e: Exception) {
+            automations.recordExecution(id, success = false, error = e.message)
             Result.retry()
         }
     }
