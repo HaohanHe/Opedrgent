@@ -934,6 +934,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val finalText = text.trim()
 
+        // 快捷指令拦截：以 / 开头时直接路由，不走 LLM 决策
+        val parsed = top.hsyscn.opedrgent.utils.SlashCommands.parse(finalText)
+        if (parsed != null) {
+            handleSlashCommand(sessionId, parsed)
+            return
+        }
+
         // 在添加新用户消息之前，先保存正在流式输出的旧助手回复
         if (_state.value.isStreaming && _state.value.streamingText.isNotBlank()) {
             savePartialStreamingContent()
@@ -964,6 +971,117 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         } else {
             runModel(sessionId)
         }
+    }
+
+    /**
+     * 处理快捷指令（Slash Commands）。
+     *
+     * 以 / 开头的输入会被 [top.hsyscn.opedrgent.utils.SlashCommands.parse] 解析为指令，
+     * 直接路由到对应功能，跳过 LLM 决策环节。
+     *
+     * 各指令的处理策略：
+     * - /search /rag: 重写为带提示的用户消息，走正常 runModel 流程（LLM 会调用对应工具）
+     * - /deep: 切换深度研究模式
+     * - /export: 导出当前会话为 Markdown
+     * - /tts: 直接调用 TTS 朗读
+     * - /interview /help: 添加系统/助手消息
+     */
+    private fun handleSlashCommand(sessionId: String, parsed: top.hsyscn.opedrgent.utils.SlashCommands.ParsedCommand) {
+        val cmd = parsed.command
+        val args = parsed.args
+        DebugLog.i("SlashCommand: /${cmd.name} args='${args.take(80)}'")
+
+        // 取消正在运行的任务
+        if (currentRunJob?.isActive == true) {
+            cancelled.set(true)
+            currentCall?.cancel()
+            currentRunJob?.cancel()
+            currentCall = null
+            currentRunJob = null
+            _state.value = _state.value.copy(
+                isStreaming = false,
+                streamingText = "",
+                streamingReasoning = "",
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+                streamingSessionId = null,
+            )
+        }
+
+        when (cmd.name) {
+            "search" -> {
+                if (cmd.requiresArgs && args.isBlank()) {
+                    addSystemMessage(sessionId, "用法: ${cmd.usage}\n示例: ${cmd.example}")
+                    return
+                }
+                // 重写为搜索提示，走正常 LLM 流程（LLM 会调用 web_search 工具）
+                store.addMessage(sessionId, Role.USER, "/search $args")
+                store.addMessage(sessionId, Role.SYSTEM, "用户通过快捷指令触发搜索，请使用 web_search 工具搜索：$args")
+                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshSessions()
+                runModel(sessionId)
+            }
+            "rag" -> {
+                if (cmd.requiresArgs && args.isBlank()) {
+                    addSystemMessage(sessionId, "用法: ${cmd.usage}\n示例: ${cmd.example}")
+                    return
+                }
+                store.addMessage(sessionId, Role.USER, "/rag $args")
+                store.addMessage(sessionId, Role.SYSTEM, "用户通过快捷指令触发知识库检索，请使用 step_rag 工具检索：$args")
+                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshSessions()
+                runModel(sessionId)
+            }
+            "deep" -> {
+                val enabled = !isDeepResearch()
+                saveDeepResearch(enabled)
+                val status = if (enabled) "已开启" else "已关闭"
+                addSystemMessage(sessionId, "深度研究模式$status。开启后复杂问题将由多 Agent 协作处理。")
+            }
+            "export" -> {
+                viewModelScope.launch(Dispatchers.IO) {
+                    val file = exportChatMarkdown()
+                    val msg = if (file != null) {
+                        "会话已导出: ${file.name}\n路径: ${file.absolutePath}"
+                    } else {
+                        "导出失败：当前没有活跃会话"
+                    }
+                    addSystemMessage(sessionId, msg)
+                }
+            }
+            "tts" -> {
+                if (cmd.requiresArgs && args.isBlank()) {
+                    addSystemMessage(sessionId, "用法: ${cmd.usage}\n示例: ${cmd.example}")
+                    return
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    tts.speak(
+                        text = args,
+                        localeTag = apiSettings.getTtsLocaleTag(),
+                        rate = apiSettings.getTtsRate(),
+                        pitch = apiSettings.getTtsPitch(),
+                    )
+                    addSystemMessage(sessionId, "TTS 朗读: $args")
+                }
+            }
+            "interview" -> {
+                addSystemMessage(sessionId, "请在「面试」标签页配置面试参数后开始面试。快捷指令 /interview 仅作导航提示。")
+            }
+            "help" -> {
+                val helpText = top.hsyscn.opedrgent.utils.SlashCommands.helpText()
+                store.addMessage(sessionId, Role.USER, "/help")
+                store.addMessage(sessionId, Role.ASSISTANT, helpText)
+                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshSessions()
+            }
+        }
+    }
+
+    /** 添加系统消息并刷新 UI */
+    private fun addSystemMessage(sessionId: String, content: String) {
+        store.addMessage(sessionId, Role.SYSTEM, content)
+        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshSessions()
     }
 
     /**
