@@ -481,6 +481,7 @@ fun AppRoot(
                     onClearAiSearch = { vm.clearAiSearch() },
                     searchHistory = vm.getSearchHistory(),
                     onClearSearchHistory = { vm.clearSearchHistory() },
+                    isLandscape = isLandscape,
                 )
                 "noteGraph" -> NoteGraphScreen(
                     repository = vm.noteRepository,
@@ -599,6 +600,7 @@ fun AppRoot(
                             onClearAiSearch = { vm.clearAiSearch() },
                             searchHistory = vm.getSearchHistory(),
                             onClearSearchHistory = { vm.clearSearchHistory() },
+                            isLandscape = isLandscape,
                         )
                         MainTab.RECORDING -> RecordingTab(
                             vm = vm,
