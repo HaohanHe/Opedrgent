@@ -57,6 +57,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -97,6 +99,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.automation.AutomationKind
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -977,6 +980,32 @@ fun SessionScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
+    }
+
+    // 自动化建议对话框
+    state.automationSuggestion?.let { suggestion ->
+        AlertDialog(
+            onDismissRequest = { vm.dismissAutomationSuggestion() },
+            title = { Text("自动化建议") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("AI 基于当前会话建议了一个定时任务：")
+                    Text("名称: ${suggestion.name}", fontWeight = FontWeight.SemiBold)
+                    Text("周期: 每 ${suggestion.intervalMinutes} 分钟")
+                    Text("类型: ${if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) "心跳整理" else "定时 Prompt"}")
+                    if (suggestion.kind == AutomationKind.RUN_PROMPT && !suggestion.prompt.isNullOrBlank()) {
+                        Text("Prompt:", fontWeight = FontWeight.Medium)
+                        Text(suggestion.prompt, fontSize = 13.sp, color = Color.Gray)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { vm.acceptAutomationSuggestion() }) { Text("接受") }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.dismissAutomationSuggestion() }) { Text("忽略") }
+            },
+        )
     }
 }
 
