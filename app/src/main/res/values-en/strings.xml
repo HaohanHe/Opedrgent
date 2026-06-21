@@ -102,10 +102,8 @@
     <string name="msg_feature_under_development">Under development</string>
 
     <!-- Recording modes -->
-    <string name="recording_mode_voice_memo">Voice Memo</string>
-    <string name="recording_mode_meeting">Meeting</string>
+    <string name="recording_mode_recording">Recording</string>
     <string name="recording_mode_internal">Internal Audio</string>
-    <string name="recording_mode_classroom">Classroom</string>
     <string name="recording_unlimited">Unlimited</string>
     <string name="recording_max_hours">Max recording: %1$d hours</string>
     <string name="recording_max_unlimited">Max recording: Unlimited</string>

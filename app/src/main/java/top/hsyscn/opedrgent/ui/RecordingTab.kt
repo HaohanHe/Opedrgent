@@ -151,10 +151,8 @@ private val CoralLight = Color(0xFFFFEAEA)
 private val SelectedBorder = CoralRed
 
 enum class RecordingMode(val label: String, val maxHours: Int, val icon: ImageVector) {
-    VOICE_MEMO("语音速记", 2, Icons.Default.Mic),
-    MEETING("多人会议", 5, Icons.Default.Group),
+    RECORDING("录音", 5, Icons.Default.Mic),
     INTERNAL("手机内录", 5, Icons.Default.SettingsVoice),
-    CLASSROOM("课堂录音", 5, Icons.Default.School),
 }
 
 data class CapturedPhoto(
@@ -186,7 +184,7 @@ fun RecordingTab(
     val clipboard = LocalClipboardManager.current
 
     // 模式选择
-    var recordingMode by remember { mutableStateOf(RecordingMode.VOICE_MEMO) }
+    var recordingMode by remember { mutableStateOf(RecordingMode.RECORDING) }
 
     var hasPermission by remember {
         mutableStateOf(
@@ -259,7 +257,7 @@ fun RecordingTab(
                             val autoTitle = text.take(20).ifBlank {
                                 "音视频转录 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
                             }
-                            val noteId = vm.createNoteFromText(autoTitle, text, NoteType.MEETING)
+                            val noteId = vm.createNoteFromText(autoTitle, text, NoteType.ASR)
                             NotificationHelper.showAutoSaveNote(
                                 context = context,
                                 noteId = noteId,
@@ -662,7 +660,7 @@ fun RecordingTab(
                     if (text.isNotBlank()) {
                         scope.launch {
                             val contentWithPhotos = text + formatPhotosForNote(capturedPhotos)
-                            vm.createNoteFromText(title, contentWithPhotos, NoteType.MEETING, sourceUri = playbackAudioUri)
+                            vm.createNoteFromText(title, contentWithPhotos, NoteType.ASR, sourceUri = playbackAudioUri)
                             savedToNote = true
                             showSaveDialog = false
                             snackbar.showSnackbar(context.getString(R.string.msg_saved_as_note))
@@ -791,13 +789,13 @@ fun RecordingTab(
                                     if (transcriptText.isBlank() && transcriptResult?.error != null) {
                                         snackbar.showSnackbar(transcriptResult?.error.orEmpty())
                                     }
-                                    if (recordingMode == RecordingMode.VOICE_MEMO && transcriptText.isNotBlank() && autoSaveEnabled) {
+                                    if (recordingMode == RecordingMode.RECORDING && transcriptText.isNotBlank() && autoSaveEnabled) {
                                         // 先设置音频路径（createNoteFromText 需要 sourceUri）
                                         playbackAudioUri = wavFile.absolutePath
                                         try {
                                             val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
                                             val contentWithPhotos = transcriptText + formatPhotosForNote(capturedPhotos)
-                                            val noteId = vm.createNoteFromText(autoTitle, contentWithPhotos, NoteType.MEETING, sourceUri = playbackAudioUri)
+                                            val noteId = vm.createNoteFromText(autoTitle, contentWithPhotos, NoteType.ASR, sourceUri = playbackAudioUri)
                                             autoSaved = true
                                             autoSavedNoteId = noteId
                                             savedToNote = true
@@ -858,10 +856,9 @@ fun RecordingTab(
                                         }
                                     }
 
-                                    // 转录完成后自动生成智能总结（多人会议/课堂录音模式）
+                                    // 转录完成后自动生成智能总结
                                     val tr = transcriptResult
-                                    if (tr != null && tr.fullText.isNotBlank()
-                                        && recordingMode != RecordingMode.VOICE_MEMO) {
+                                    if (tr != null && tr.fullText.isNotBlank()) {
                                         scope.launch {
                                             try {
                                                 val apiConfig = vm.apiSettings.getApiConfig() ?: return@launch
@@ -1130,40 +1127,22 @@ private fun IdleModeSelection(
                     )
         Spacer(Modifier.height(20.dp))
 
-        // 2x2 模式卡片网格
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ModeCard(
-                    vm = vm,
-                    mode = RecordingMode.VOICE_MEMO,
-                    isSelected = selectedMode == RecordingMode.VOICE_MEMO,
-                    onClick = { onModeSelected(RecordingMode.VOICE_MEMO) },
-                    modifier = Modifier.weight(1f),
-                )
-                ModeCard(
-                    vm = vm,
-                    mode = RecordingMode.MEETING,
-                    isSelected = selectedMode == RecordingMode.MEETING,
-                    onClick = { onModeSelected(RecordingMode.MEETING) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ModeCard(
-                    vm = vm,
-                    mode = RecordingMode.INTERNAL,
-                    isSelected = selectedMode == RecordingMode.INTERNAL,
-                    onClick = { onModeSelected(RecordingMode.INTERNAL) },
-                    modifier = Modifier.weight(1f),
-                )
-                ModeCard(
-                    vm = vm,
-                    mode = RecordingMode.CLASSROOM,
-                    isSelected = selectedMode == RecordingMode.CLASSROOM,
-                    onClick = { onModeSelected(RecordingMode.CLASSROOM) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        // 模式卡片
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ModeCard(
+                vm = vm,
+                mode = RecordingMode.RECORDING,
+                isSelected = selectedMode == RecordingMode.RECORDING,
+                onClick = { onModeSelected(RecordingMode.RECORDING) },
+                modifier = Modifier.weight(1f),
+            )
+            ModeCard(
+                vm = vm,
+                mode = RecordingMode.INTERNAL,
+                isSelected = selectedMode == RecordingMode.INTERNAL,
+                onClick = { onModeSelected(RecordingMode.INTERNAL) },
+                modifier = Modifier.weight(1f),
+            )
         }
 
         Spacer(Modifier.weight(1f))
@@ -1678,7 +1657,7 @@ private fun TranscriptResultCard(
             HorizontalDivider()
             Spacer(Modifier.height(12.dp))
 
-            // 智能总结 Tab（仅多人会议/课堂录音模式且有总结数据时显示）
+            // 智能总结 Tab（有总结数据时显示）
             val summary = result.smartSummary
             if (summary != null) {
                 var showSummaryTab by rememberSaveable { mutableStateOf(true) }
@@ -1764,45 +1743,42 @@ private fun TranscriptResultCard(
                     Text("复制", fontWeight = FontWeight.Medium)
                 }
 
-                if (selectedMode == RecordingMode.VOICE_MEMO) {
-                    if (autoSaved) {
-                        Button(
-                            onClick = onNavigateToNotes,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                            modifier = Modifier.weight(1f).height(44.dp),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
-                        }
-                    } else {
-                        Button(
-                            onClick = onSave,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                            modifier = Modifier.weight(1f).height(44.dp),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
-                        }
+                if (autoSaved) {
+                    Button(
+                        onClick = onNavigateToNotes,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        modifier = Modifier.weight(1f).height(44.dp),
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
                     }
                 } else {
                     Button(
-                        onClick = onAiSummary,
+                        onClick = onSave,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                         modifier = Modifier.weight(1f).height(44.dp),
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
                     }
+                }
+                Button(
+                    onClick = onAiSummary,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                    modifier = Modifier.weight(1f).height(44.dp),
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
                 }
             }
 
-            if (autoSaved && selectedMode == RecordingMode.VOICE_MEMO) {
+            if (autoSaved) {
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(

@@ -383,7 +383,7 @@ class ApiSettings(private val context: Context) {
 
     /** 获取所有模式的最大时长 */
     fun getAllRecordingMaxHours(): Map<String, Int> {
-        val modes = listOf("VOICE_MEMO", "MEETING", "INTERNAL", "CLASSROOM")
+        val modes = listOf("RECORDING", "INTERNAL")
         return modes.associateWith { getRecordingMaxHours(it) }
     }
 }

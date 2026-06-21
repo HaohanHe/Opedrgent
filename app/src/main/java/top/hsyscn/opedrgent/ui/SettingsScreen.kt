@@ -63,6 +63,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -76,6 +77,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -411,6 +413,144 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Text(stringResource(R.string.settings_memory_count, memoryCount), style = MaterialTheme.typography.bodySmall)
                     }
                     Icon(Icons.Default.ArrowForward, contentDescription = stringResource(R.string.cd_enter))
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(12.dp))
+
+            // ── 云同步（WebDAV）──
+            var syncServerUrl by rememberSaveable { mutableStateOf(vm.getSyncConfig().serverUrl) }
+            var syncUsername by rememberSaveable { mutableStateOf(vm.getSyncConfig().username) }
+            var syncPassword by rememberSaveable { mutableStateOf(vm.getSyncConfig().password) }
+            var syncRemotePath by rememberSaveable { mutableStateOf(vm.getSyncConfig().remotePath) }
+            val isSyncing by vm.isSyncing.collectAsState()
+            val syncResult by vm.syncState.collectAsState()
+
+            Text("云同步（WebDAV）", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "通过 WebDAV 同步笔记到私有云（坚果云、NextCloud 等）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                    OutlinedTextField(
+                        value = syncServerUrl,
+                        onValueChange = { syncServerUrl = it },
+                        label = { Text("服务器地址") },
+                        placeholder = { Text("https://dav.example.com") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = syncUsername,
+                            onValueChange = { syncUsername = it },
+                            label = { Text("用户名") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = syncPassword,
+                            onValueChange = { syncPassword = it },
+                            label = { Text("密码") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = syncRemotePath,
+                        onValueChange = { syncRemotePath = it },
+                        label = { Text("远端路径") },
+                        placeholder = { Text("/opedrgent/notes/") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+
+                    // 操作按钮行
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(
+                            onClick = {
+                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
+                                    serverUrl = syncServerUrl.trim(),
+                                    username = syncUsername.trim(),
+                                    password = syncPassword.trim(),
+                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
+                                )
+                                vm.saveSyncConfig(config)
+                                scope.launch {
+                                    val ok = vm.testSyncConnection()
+                                    snackbar.showSnackbar(if (ok) "连接成功" else "连接失败，请检查配置")
+                                }
+                            },
+                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
+                            shape = RoundedCornerShape(11.dp),
+                        ) {
+                            Text("测试连接", fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = {
+                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
+                                    serverUrl = syncServerUrl.trim(),
+                                    username = syncUsername.trim(),
+                                    password = syncPassword.trim(),
+                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
+                                )
+                                vm.saveSyncConfig(config)
+                                vm.runSync()
+                            },
+                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
+                            shape = RoundedCornerShape(11.dp),
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(6.dp))
+                                Text("同步中...", fontSize = 13.sp)
+                            } else {
+                                Text("立即同步", fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    // 同步状态信息
+                    syncResult?.let { result ->
+                        val lastSync = vm.getLastSyncTime()
+                        val timeStr = if (lastSync > 0) {
+                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                            sdf.format(java.util.Date(lastSync))
+                        } else "从未"
+                        Text(
+                            text = buildString {
+                                append("上次同步: $timeStr")
+                                if (result.errors > 0) {
+                                    append(" | 错误: ${result.errors}")
+                                } else {
+                                    append(" | 上传: ${result.uploaded} 下载: ${result.downloaded} 耗时: ${result.duration}ms")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (result.errors > 0) MaterialTheme.colorScheme.error else themeTextGrey(),
+                        )
+                    } ?: run {
+                        val lastSync = vm.getLastSyncTime()
+                        if (lastSync > 0) {
+                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                            Text(
+                                text = "上次同步: ${sdf.format(java.util.Date(lastSync))}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -955,7 +1095,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
-                    listOf("语音速记" to "VOICE_MEMO", "多人会议" to "MEETING", "手机内录" to "INTERNAL", "课堂录音" to "CLASSROOM").forEach { (label, modeKey) ->
+                    listOf("录音" to "RECORDING", "手机内录" to "INTERNAL").forEach { (label, modeKey) ->
                         var expanded by rememberSaveable { mutableStateOf(false) }
                         val currentHours = rememberSaveable { mutableStateOf(vm.getRecordingMaxHours(modeKey)) }
                         val hoursOptions = listOf(0, 1, 2, 3, 5, 8, 12, 24)

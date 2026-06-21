@@ -33,7 +33,7 @@ class OpedrgentWidget : AppWidgetProvider() {
 
             // Recording shortcut
             val recordIntent = Intent(context, MainActivity::class.java).apply {
-                action = "top.hsyscn.opedrgent.ACTION_MEETING_RECORD"
+                action = "top.hsyscn.opedrgent.ACTION_RECORD"
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val recordPending = PendingIntent.getActivity(
