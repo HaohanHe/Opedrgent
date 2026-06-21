@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.note.SourceType
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.components.MarkdownText
 
 /**
  * 笔记列表页。
@@ -87,9 +88,11 @@ fun NoteListScreen(
     onClearAiSearch: () -> Unit = {},
     searchHistory: List<String> = emptyList(),
     onClearSearchHistory: () -> Unit = {},
+    isLandscape: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedNoteId by remember { mutableStateOf<Long?>(null) }
     var isAiSearchActive by remember { mutableStateOf(false) }
     var selectedType by remember { mutableStateOf<NoteType?>(null) }
     var selectedTag by remember { mutableStateOf<String?>(null) }
@@ -123,6 +126,12 @@ fun NoteListScreen(
     val displayNotes = if (isAiSearchActive) aiSearchResults.map { it.note } else notes
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
+
+    // 宽屏预览面板：选中的笔记
+    var previewNote by remember { mutableStateOf<Note?>(null) }
+    LaunchedEffect(selectedNoteId) {
+        previewNote = selectedNoteId?.let { repository.getNoteById(it) }
+    }
 
     // 加载关联推荐（基于最新笔记）
     LaunchedEffect(displayNotes) {
@@ -158,7 +167,9 @@ fun NoteListScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
+    // 笔记列表内容（竖屏和横屏共用）
+    val noteListContent: @Composable (Modifier) -> Unit = { outerModifier ->
+        Box(modifier = outerModifier.background(themeBgGray())) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -368,7 +379,9 @@ fun NoteListScreen(
                         NoteCard(
                             note = note,
                             relevance = relevance,
-                            onClick = { onNoteClick(note.id) },
+                            onClick = {
+                                if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
+                            },
                             onTogglePin = { scope.launch { repository.togglePin(note.id) } },
                             onDelete = { scope.launch { repository.deleteNote(note.id) } },
                             onShare = { onShareNote(note.id) },
@@ -399,6 +412,124 @@ fun NoteListScreen(
             shape = CircleShape,
         ) {
             Icon(Icons.Default.Add, "新建笔记", tint = Color.White)
+        }
+        } // Box
+    } // noteListContent lambda
+
+    // 根据屏幕方向选择布局
+    if (isLandscape) {
+        Row(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                noteListContent(Modifier.fillMaxSize())
+            }
+            VerticalDivider(thickness = 1.dp, color = Color(0xFFE0E0E0))
+            Box(modifier = Modifier.width(400.dp).fillMaxHeight().background(themeBgGray())) {
+                if (previewNote != null) {
+                    NotePreviewPanel(
+                        note = previewNote!!,
+                        onEdit = { onEditNote(previewNote!!.id) },
+                        onSendToChat = { onSendToChat(previewNote!!.id) },
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("选择一条笔记预览", color = Color.Gray)
+                    }
+                }
+            }
+        }
+    } else {
+        noteListContent(Modifier.fillMaxSize())
+    }
+}
+
+/** 笔记预览面板（宽屏右侧） */
+@Composable
+private fun NotePreviewPanel(
+    note: Note,
+    onEdit: () -> Unit,
+    onSendToChat: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+    ) {
+        // 标题
+        Text(
+            text = note.title.ifBlank { "无标题" },
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(8.dp))
+        // 元信息
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = note.type.displayName(),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier
+                    .background(note.type.color(), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
+                style = MaterialTheme.typography.labelSmall,
+                color = themeTextGrey(),
+            )
+        }
+        // 标签
+        val tagList = note.getTags()
+        if (tagList.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (tag in tagList.take(5)) {
+                    Text(
+                        text = "#$tag",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentBlue,
+                        modifier = Modifier
+                            .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = Color(0xFFE0E0E0))
+        Spacer(Modifier.height(16.dp))
+        // 内容
+        if (note.content.isNotBlank()) {
+            MarkdownText(
+                text = note.content,
+                maxChars = 8000,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Text("（空笔记）", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(24.dp))
+        // 操作按钮
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onEdit,
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("编辑")
+            }
+            OutlinedButton(
+                onClick = onSendToChat,
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("发到对话")
+            }
         }
     }
 }
