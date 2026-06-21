@@ -169,7 +169,7 @@
 ### Phase 5 — 性能与体验优化 [持续]
 
 #### 5.1 性能
-- [ ] LLM 响应缓存: 相似 Query 复用缓存结果 (PromptCache 增强)
+- [x] LLM 响应缓存: 相似 Query 复用缓存结果 (PromptCache 增强)
 - [ ] 并发请求合并: 同时多个 tool call 合并为批量请求
 - [ ] 离线模式降级: 网络不可用时切换到纯本地模式 (LocalLlmEngine)
 

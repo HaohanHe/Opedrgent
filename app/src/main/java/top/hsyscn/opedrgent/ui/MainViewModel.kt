@@ -83,6 +83,7 @@ import top.hsyscn.opedrgent.utils.PlatformContext
 import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.utils.PromptCache
 import top.hsyscn.opedrgent.intelligence.TokenBudgetMonitor
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
@@ -2388,6 +2389,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val allImages = mapImages + listOfNotNull(userImage)
 
+        // ==================== LLM 响应缓存（相似 Query 复用） ====================
+        // 仅在第一轮、无图片、无深度研究时检查缓存
+        val lastUserQuery = messages.lastOrNull { it.role == Role.USER }?.content?.trim() ?: ""
+        val cacheEligible = state.roundsUsed == 0 && allImages.isEmpty() && lastUserQuery.isNotBlank() && !_state.value.deepResearchEnabled
+
+        if (cacheEligible) {
+            val cached = PromptCache.findCached(lastUserQuery)
+            if (cached != null) {
+                DebugLog.i("executeOneRound: 缓存命中，跳过 LLM 调用 — query=${lastUserQuery.take(50)}")
+                _state.value = _state.value.copy(
+                    streamingText = (ctx.accumulatedText + "\n\n" + cached).trim(),
+                    streamingPhase = "回答（缓存）",
+                )
+                return LoopOutcome.Break
+            }
+        }
+
         val result = if (allImages.isNotEmpty()) {
             _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
             withContext(Dispatchers.IO) {
@@ -2456,6 +2474,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             DebugLog.i("executeOneRound: no tool_call in response, model is done at round ${state.roundsUsed}")
             state.recordNoToolCalls(result.content)
             _state.value = _state.value.copy(streamingPhase = "生成回答…")
+
+            // 缓存 LLM 响应（仅在首轮、无工具调用、内容有意义时）
+            if (cacheEligible && result.content.isNotBlank() && result.content.length >= 20) {
+                PromptCache.putCached(lastUserQuery, result.content)
+                DebugLog.i("executeOneRound: 缓存写入 — query=${lastUserQuery.take(50)}, len=${result.content.length}")
+            }
+
             return LoopOutcome.Break
         }
 
