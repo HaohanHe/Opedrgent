@@ -176,10 +176,10 @@ fun SessionScreen(
             scope.launch {
                 when {
                     mimeType?.startsWith("image/") == true -> {
-                        // 图片发送到聊天让 AI 分析
+                        // 图片附加到消息让 AI 分析 (通过多模态 API 实际发送图片)
                         val session = vm.state.value.current
                         if (session != null) {
-                            vm.sendUserMessage("请分析这张图片的内容：\n[图片已选择，URI: $uri]")
+                            vm.sendUserMessageWithImage("请分析这张图片的内容", uri)
                         } else {
                             snackbar.showSnackbar(context.getString(R.string.msg_create_session_first))
                         }

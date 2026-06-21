@@ -59,17 +59,17 @@ class ApiSettings(private val context: Context) {
     fun getApiConfig(): ApiConfig? {
         val apiKey = securePrefs.getString("apiKey", null)?.trim().orEmpty()
         if (apiKey.isEmpty()) return null
-        val baseUrl = prefs.getString("baseUrl", "https://api.openai.com/v1")!!.trim()
-        val model = prefs.getString("model", "gpt-4o-mini")!!.trim()
+        val baseUrl = (prefs.getString("baseUrl", "https://api.openai.com/v1") ?: "https://api.openai.com/v1").trim()
+        val model = (prefs.getString("model", "gpt-4o-mini") ?: "gpt-4o-mini").trim()
         return ApiConfig(baseUrl = baseUrl, apiKey = apiKey, model = model)
     }
 
     fun getApiKey(): String? = securePrefs.getString("apiKey", null)?.trim()?.takeIf { it.isNotBlank() }
 
-    fun getBaseUrl(): String = prefs.getString("baseUrl", "https://api.openai.com/v1")!!.trim()
-    fun getModel(): String = prefs.getString("model", "gpt-4o-mini")!!.trim()
+    fun getBaseUrl(): String = (prefs.getString("baseUrl", "https://api.openai.com/v1") ?: "https://api.openai.com/v1").trim()
+    fun getModel(): String = (prefs.getString("model", "gpt-4o-mini") ?: "gpt-4o-mini").trim()
     fun hasApiKey(): Boolean = !securePrefs.getString("apiKey", null).isNullOrBlank()
-    fun getMemory(): String = prefs.getString("memory", "")!!.trim()
+    fun getMemory(): String = (prefs.getString("memory", "") ?: "").trim()
     fun getLastSessionId(): String? = prefs.getString("lastSessionId", null)?.trim()?.takeIf { it.isNotBlank() }
     fun isTtsEnabled(): Boolean = prefs.getBoolean("ttsEnabled", false)
     fun isTtsAutoSpeak(): Boolean = prefs.getBoolean("ttsAutoSpeak", false)
@@ -89,7 +89,7 @@ class ApiSettings(private val context: Context) {
     fun getTtsMimoVoice(): String = prefs.getString("ttsMimoVoice", "冰糖") ?: "冰糖"
     fun getTtsRate(): Float = prefs.getFloat("ttsRate", 1.0f)
     fun getTtsPitch(): Float = prefs.getFloat("ttsPitch", 1.0f)
-    fun getTtsLocaleTag(): String = prefs.getString("ttsLocaleTag", "zh-CN")!!.trim()
+    fun getTtsLocaleTag(): String = (prefs.getString("ttsLocaleTag", "zh-CN") ?: "zh-CN").trim()
     fun isSttEnabled(): Boolean = prefs.getBoolean("sttEnabled", true)
     fun getSttEngine(): String = prefs.getString("sttEngine", "local") ?: "local"
     fun saveSttEngine(engine: String) {
@@ -127,6 +127,17 @@ class ApiSettings(private val context: Context) {
     fun getFirecrawlApiKey(): String? = securePrefs.getString("firecrawlApiKey", null)?.trim()?.takeIf { it.isNotBlank() }
     fun getMimoApiKey(): String? = securePrefs.getString("mimoApiKey", null)?.trim()?.takeIf { it.isNotBlank() }
     fun getSearchProviderOrder(): String = prefs.getString("searchProviderOrder", "bing,baidu,jina") ?: "bing,baidu,jina"
+
+    /** 阶跃云端知识库向量存储 ID (用于增量同步上传) */
+    fun getKbCloudStoreId(): String? = prefs.getString("kbCloudStoreId", null)?.trim()?.takeIf { it.isNotBlank() }
+
+    fun saveKbCloudStoreId(storeId: String?) {
+        if (storeId.isNullOrBlank()) {
+            prefs.edit().remove("kbCloudStoreId").apply()
+        } else {
+            prefs.edit().putString("kbCloudStoreId", storeId.trim()).apply()
+        }
+    }
 
     fun saveJinaApiKey(key: String?) {
         if (key.isNullOrBlank()) {

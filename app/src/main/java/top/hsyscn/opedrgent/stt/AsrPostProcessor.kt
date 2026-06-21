@@ -304,9 +304,10 @@ class AsrPostProcessor {
         // Level 1: 真实声纹识别
         val diarizer = speakerDiarizer
         if (diarizer != null && diarizer.isInitialized && audioSamples != null && audioSamples.isNotEmpty()) {
+            val samples = audioSamples!!
             DebugLog.i(TAG, "使用真实声纹识别 (sherpa-onnx + ERes2Net)")
             return try {
-                val result = diarizer.diarize(audioSamples!!)
+                val result = diarizer.diarize(samples)
                 val turns = diarizer.toSpeakerTurns(result)
                 DebugLog.i(TAG, "声纹结果: ${result.numSpeakers} 个说话人, ${turns.size} 个段落")
                 matchSegmentsToTurns(segments, turns)

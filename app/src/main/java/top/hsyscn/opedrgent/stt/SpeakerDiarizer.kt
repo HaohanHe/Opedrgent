@@ -160,7 +160,9 @@ class SpeakerDiarizer(private val context: Context) {
 
         try {
             // 反射调用 diarizer.process(samples, sampleRate)
-            val resultObj = invokeDiarize(diarizerInstance!!, samples, sampleRate)
+            val instance = diarizerInstance
+                ?: return@withContext DiarizationResult(emptyList(), error = "diarizer 实例未初始化")
+            val resultObj = invokeDiarize(instance, samples, sampleRate)
                 ?: return@withContext DiarizationResult(emptyList(), error = "diarize 返回 null")
 
             parseDiarizationResult(resultObj)

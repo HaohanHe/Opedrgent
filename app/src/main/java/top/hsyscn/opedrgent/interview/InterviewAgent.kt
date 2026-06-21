@@ -76,6 +76,58 @@ object InterviewAgent {
         return hippo.getDriftReport()
     }
 
+    /**
+     * 关闭会话并持久化到长期存储（跨会话记忆）。
+     *
+     * 与 [closeSession] 不同，本方法会将目标锚点、轮次记录、漂移报告
+     * 写入 [top.hsyscn.opedrgent.storage.HippocampusSessionStore]，
+     * 并在海马体索引中建立轻量条目，使会话可在 App 重启后被回顾。
+     *
+     * @param sessionId 会话 ID
+     * @param context Android Context（用于初始化存储）
+     * @param config 面试配置（提取类型/岗位/公司等元信息）
+     * @return 漂移报告；会话不存在则返回 null
+     */
+    fun closeSessionAndPersist(
+        sessionId: String,
+        context: android.content.Context,
+        config: InterviewConfig,
+    ): HippocampusMemory.DriftReport? {
+        val hippo = activeHippocampus.remove(sessionId) ?: return null
+        DebugLog.i(TAG, "关闭并持久化海马体会话: $sessionId")
+
+        val report = hippo.getDriftReport()
+        val snapshot = hippo.exportSessionSnapshot()
+        if (snapshot != null) {
+            try {
+                val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(context)
+                store.save(
+                    sessionId = sessionId,
+                    config = config,
+                    goalAnchor = snapshot.goalAnchor,
+                    report = snapshot.driftReport,
+                    startedAt = snapshot.startedAt,
+                )
+                val index = top.hsyscn.opedrgent.storage.HippocampusIndex(context)
+                val title = buildString {
+                    append(config.type.label)
+                    if (config.position.isNotBlank()) append(config.position)
+                    if (config.company.isNotBlank()) append("@${config.company}")
+                }
+                index.upsertInterview(
+                    sessionId = sessionId,
+                    title = title,
+                    goalSummary = snapshot.goalAnchor.primaryGoal,
+                    driftSummary = report.summary,
+                )
+                DebugLog.i(TAG, "海马体会话已持久化: $sessionId")
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "持久化海马体会话失败: ${e.message}", e)
+            }
+        }
+        return report
+    }
+
     // ==================== 核心：单一元 Prompt ====================
 
     /**

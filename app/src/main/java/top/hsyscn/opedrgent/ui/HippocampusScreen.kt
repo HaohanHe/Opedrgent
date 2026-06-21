@@ -51,12 +51,11 @@ fun HippocampusScreen(
     LaunchedEffect(searchQuery, selectedType) {
         if (searchQuery.isNotBlank()) delay(300) // 搜索防抖 300ms
         items = withContext(Dispatchers.IO) {
-            if (searchQuery.isNotBlank()) {
-                hippocampus.query(searchQuery.trim())
-            } else if (selectedType != null) {
-                hippocampus.getAllByType(selectedType!!)
-            } else {
-                hippocampus.getAll()
+            val typeFilter = selectedType
+            when {
+                searchQuery.isNotBlank() -> hippocampus.query(searchQuery.trim())
+                typeFilter != null -> hippocampus.getAllByType(typeFilter)
+                else -> hippocampus.getAll()
             }
         }
     }
@@ -146,6 +145,7 @@ private fun TypeFilterRow(
         SourceType.CONVERSATION to "对话",
         SourceType.RECORDING to "录音",
         SourceType.SPROUT to "发芽",
+        SourceType.INTERVIEW to "面试",
     )
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = AccentBlue,
@@ -334,6 +334,7 @@ private fun SourceTypeChip(sourceType: SourceType) {
         SourceType.CONVERSATION -> Color(0xFF4CAF50) to "对话"
         SourceType.RECORDING -> Color(0xFFE67E22) to "录音"
         SourceType.SPROUT -> Color(0xFF9C27B0) to "发芽"
+        SourceType.INTERVIEW -> Color(0xFF00BCD4) to "面试"
         SourceType.USER_MEMORY -> Color(0xFF607D8B) to "记忆"
         SourceType.USER_PREFERENCES -> Color(0xFF795548) to "偏好"
     }
@@ -379,7 +380,7 @@ private fun EmptyHippocampusState() {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "当您创建笔记、对话或录音时，\n海马体会自动建立记忆索引",
+            "当您创建笔记、对话、录音或完成面试时，\n海马体会自动建立记忆索引",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )

@@ -109,7 +109,7 @@
         "topP": 0.95,
         "temperature": 0.7,
         "accelerators": "gpu,cpu",
-        "visionAccelerator": "gpu",
+        "visionAccelerator": "gpu",/
         "audioAccelerator": "cpu",
         "maxContextLength": 8192,
         "maxTokens": 1024

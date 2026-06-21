@@ -1114,14 +1114,16 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                             // 当前内容块结束，如果是 tool_use 则收集完整工具调用
                             if (currentToolName != null && currentToolId != null) {
                                 val argsStr = currentToolInput.toString()
+                                val toolId = currentToolId!!
+                                val toolName = currentToolName!!
                                 toolCalls.add(CompletedToolCall(
-                                    id = currentToolId!!,
-                                    name = currentToolName!!,
+                                    id = toolId,
+                                    name = toolName,
                                     arguments = argsStr.ifBlank { "{}" },
                                 ))
                                 onToolCallDelta?.invoke(ToolCallDelta(
-                                    id = currentToolId!!,
-                                    nameDelta = currentToolName!!,
+                                    id = toolId,
+                                    nameDelta = toolName,
                                     argsDelta = argsStr,
                                 ))
                                 currentToolName = null

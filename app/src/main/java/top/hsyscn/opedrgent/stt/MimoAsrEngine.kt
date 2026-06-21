@@ -342,7 +342,12 @@ class MimoAsrEngine(
             val base64Audio = encodeToBase64(wavFile)
             wavFile.delete()
 
-            val apiKey = apiSettings.getApiKey()!!
+            val apiKey = apiSettings.getApiKey()
+            if (apiKey.isNullOrBlank()) {
+                DebugLog.e(TAG, "MiMo API Key 未设置")
+                restoreChunkToBuffer(chunkData)
+                return@withContext null
+            }
             val jsonBody = buildStreamingRequestBody(base64Audio)
 
             val request = buildAuthHeader(
@@ -515,7 +520,11 @@ class MimoAsrEngine(
             return SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID)
         }
 
-        val apiKey = apiSettings.getApiKey()!!
+        val apiKey = apiSettings.getApiKey()
+        if (apiKey.isNullOrBlank()) {
+            DebugLog.e(TAG, "MiMo API Key 未设置")
+            return SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID)
+        }
 
         // 构造请求体：纯音频 ASR 请求（MiMO ASR 网关要求不含 text prompt）
         val jsonBody = JSONObject().apply {

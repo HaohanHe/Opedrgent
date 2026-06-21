@@ -307,8 +307,9 @@ fun MeetingRecordScreen(
                     IconButton(
                         onClick = {
                             transcriptResult?.let { result ->
-                                if (result.audioFilePath != null && File(result.audioFilePath!!).exists()) {
-                                    shareAudioFile(context, File(result.audioFilePath!!), result.fullText)
+                                val audioPath = result.audioFilePath
+                                if (audioPath != null && File(audioPath).exists()) {
+                                    shareAudioFile(context, File(audioPath), result.fullText)
                                 } else if (result.fullText.isNotEmpty()) {
                                     shareTextOnly(context, result.fullText)
                                 }
@@ -477,7 +478,8 @@ fun MeetingRecordScreen(
                             Spacer(Modifier.height(12.dp))
 
                             // === Sticky Audio Player（参考得到大脑 note-header-audio-player）===
-                            if (result.audioFilePath != null && File(result.audioFilePath!!).exists()) {
+                            val audioPath = result.audioFilePath
+                            if (audioPath != null && File(audioPath).exists()) {
                                 AudioPlayerBar(
                                     exoPlayer = exoPlayer,
                                     durationMs = result.durationMs,

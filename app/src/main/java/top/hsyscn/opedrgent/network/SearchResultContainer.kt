@@ -231,12 +231,12 @@ class SearchResultContainer {
             semanticScorer = SemanticScorer().also { it.initialize(query) }
             authorityScorer = DynamicAuthorityScorer()
             freshnessCalculator = FreshnessCalculator().also {
-                it.initWithQuery(semanticScorer!!.getDetectedIntent())
+                it.initWithQuery(semanticScorer?.getDetectedIntent() ?: QueryIntent.INFORMATIONAL)
             }
             useEnhancedScoring = true
-            
+
             DebugLog.i("SearchResultContainer: enhanced scoring initialized " +
-                    "(intent=${semanticScorer!!.getDetectedIntent()})")
+                    "(intent=${semanticScorer?.getDetectedIntent()})")
         }
     }
 
@@ -533,10 +533,13 @@ class SearchResultContainer {
                 )
 
                 if (useEnhancedScoring && semanticScorer != null) {
-                    val merged = mergedMap[normalizedKey]!!
-                    val semanticScore = semanticScorer!!.calculateScore(result.title, result.snippet)
-                    val authorityScore = authorityScorer!!.calculate(result.url, result.title, result.snippet)
-                    val freshnessScore = freshnessCalculator!!.calculate(result.url, result.snippet)
+                    val merged = mergedMap[normalizedKey] ?: return@forEachIndexed
+                    val sem = semanticScorer!!
+                    val auth = authorityScorer!!
+                    val fresh = freshnessCalculator!!
+                    val semanticScore = sem.calculateScore(result.title, result.snippet)
+                    val authorityScore = auth.calculate(result.url, result.title, result.snippet)
+                    val freshnessScore = fresh.calculate(result.url, result.snippet)
 
                     merged.authorityScore = authorityScore.finalScore * 10
                     merged.freshnessScore = freshnessScore.adjustedScore * 10
@@ -584,8 +587,10 @@ class SearchResultContainer {
                 updateScore(existing)
 
                 if (useEnhancedScoring && semanticScorer != null) {
-                    val authorityScore = authorityScorer!!.calculate(existing.url, existing.title, existing.snippet)
-                    val freshnessScore = freshnessCalculator!!.calculate(existing.url, existing.snippet)
+                    val auth = authorityScorer!!
+                    val fresh = freshnessCalculator!!
+                    val authorityScore = auth.calculate(existing.url, existing.title, existing.snippet)
+                    val freshnessScore = fresh.calculate(existing.url, existing.snippet)
 
                     existing.authorityScore = authorityScore.finalScore * 10
                     existing.freshnessScore = freshnessScore.adjustedScore * 10

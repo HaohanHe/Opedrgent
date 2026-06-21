@@ -9,7 +9,7 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
 ) {
     companion object {
         private const val DATABASE_NAME = "hippocampus_index.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         const val TABLE = "indexed_items"
         const val COL_ID = "id"
         const val COL_SOURCE_TYPE = "source_type"
@@ -20,6 +20,27 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_KEYWORDS = "keywords"
         const val COL_CREATED_AT = "created_at"
         const val COL_UPDATED_AT = "updated_at"
+
+        // ===== 面试会话表 (v3 新增) =====
+        const val TABLE_SESSIONS = "hippocampus_sessions"
+        const val COL_SESSION_ID = "session_id"
+        const val COL_INTERVIEW_TYPE = "interview_type"
+        const val COL_POSITION = "position"
+        const val COL_COMPANY = "company"
+        const val COL_PRIMARY_GOAL = "primary_goal"
+        const val COL_KEY_TOPICS = "key_topics"
+        const val COL_TOTAL_TURNS = "total_turns"
+        const val COL_DRIFT_COUNT = "drift_count"
+        const val COL_DRIFT_RATE = "drift_rate"
+        const val COL_MAX_DRIFT_LEVEL = "max_drift_level"
+        const val COL_AVG_RELEVANCE = "avg_relevance"
+        const val COL_TOPICS_COVERED = "topics_covered"
+        const val COL_TOPICS_MISSED = "topics_missed"
+        const val COL_INTERVENTION_COUNT = "intervention_count"
+        const val COL_SESSION_SUMMARY = "session_summary"
+        const val COL_TURN_RECORDS = "turn_records"
+        const val COL_STARTED_AT = "started_at"
+        const val COL_ENDED_AT = "ended_at"
 
         @Volatile
         private var INSTANCE: HippocampusDatabase? = null
@@ -47,6 +68,7 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         db.execSQL("CREATE INDEX idx_source ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)")
         db.execSQL("CREATE INDEX idx_title ON $TABLE($COL_TITLE)")
         db.execSQL("CREATE INDEX idx_scope ON $TABLE($COL_SCOPE)")
+        createSessionsTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -55,5 +77,36 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_SCOPE TEXT NOT NULL DEFAULT 'project'")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_scope ON $TABLE($COL_SCOPE)")
         }
+        if (oldVersion < 3) {
+            // v2 -> v3: 新增面试会话表，持久化 HippocampusMemory 数据
+            createSessionsTable(db)
+        }
+    }
+
+    private fun createSessionsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_SESSIONS (
+                $COL_SESSION_ID TEXT PRIMARY KEY,
+                $COL_INTERVIEW_TYPE TEXT NOT NULL,
+                $COL_POSITION TEXT NOT NULL DEFAULT '',
+                $COL_COMPANY TEXT NOT NULL DEFAULT '',
+                $COL_PRIMARY_GOAL TEXT NOT NULL,
+                $COL_KEY_TOPICS TEXT NOT NULL DEFAULT '',
+                $COL_TOTAL_TURNS INTEGER NOT NULL DEFAULT 0,
+                $COL_DRIFT_COUNT INTEGER NOT NULL DEFAULT 0,
+                $COL_DRIFT_RATE REAL NOT NULL DEFAULT 0,
+                $COL_MAX_DRIFT_LEVEL TEXT NOT NULL DEFAULT 'NONE',
+                $COL_AVG_RELEVANCE REAL NOT NULL DEFAULT 1.0,
+                $COL_TOPICS_COVERED TEXT NOT NULL DEFAULT '',
+                $COL_TOPICS_MISSED TEXT NOT NULL DEFAULT '',
+                $COL_INTERVENTION_COUNT INTEGER NOT NULL DEFAULT 0,
+                $COL_SESSION_SUMMARY TEXT NOT NULL DEFAULT '',
+                $COL_TURN_RECORDS TEXT NOT NULL DEFAULT '[]',
+                $COL_STARTED_AT INTEGER NOT NULL,
+                $COL_ENDED_AT INTEGER NOT NULL
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_sessions_ended ON $TABLE_SESSIONS($COL_ENDED_AT)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_sessions_type ON $TABLE_SESSIONS($COL_INTERVIEW_TYPE)")
     }
 }
