@@ -160,7 +160,7 @@ object StepAudioTtsClient {
                     put("voice", JSONObject().apply {
                         put("type", "reference_audio")
                         put("format", "pcm16")
-                        put("reference_audio", request.referenceAudioBase64!!)
+                        put("reference_audio", request.referenceAudioBase64.orEmpty())
                     })
                 } else {
                     put("voice", request.voiceId)

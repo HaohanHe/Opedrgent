@@ -382,7 +382,7 @@ class StepImageEditTool(
             if (r.dataB64 != null) appendLine("[生成图片 — base64 长度: ${r.dataB64.length}]")
             else if (r.dataUrl != null) appendLine("[图片 URL: ${r.dataUrl}]")
             if (r.revisedPrompt != null) appendLine("修订 Prompt: ${r.revisedPrompt}")
-            if (r.seed != null && r.seed!! > 0) appendLine("种子: ${r.seed}")
+            if (r.seed != null && r.seed > 0) appendLine("种子: ${r.seed}")
             if (r.finishReason != null) appendLine("完成原因: ${r.finishReason}")
         })
     }

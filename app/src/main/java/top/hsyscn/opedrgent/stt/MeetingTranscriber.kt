@@ -166,11 +166,8 @@ class MeetingTranscriber(
      * 5. 基于能量模式和时间间隔分配说话人标签
      */
     private suspend fun transcribeWithSimpleDiarization(audioFile: File): TranscriptionResult {
-        val asr = asrEngine!!
-
-        // 解码音频
-        val audioData = asr.recognizeFloatAudio(
-            FloatArray(0) // 先不用这个，直接用文件识别
+        val asr = asrEngine ?: return TranscriptionResult(
+            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = "ASR 引擎未初始化"
         )
 
         // 直接用文件识别获取分段结果
@@ -285,7 +282,7 @@ class MeetingTranscriber(
      * 优先使用 SpeakerEmbeddingExtractor 从实际音频中提取声纹嵌入，
      * 不可用时降级为基于转录元数据的统计特征匹配。
      */
-    private fun resolveSpeakerNames(
+    private suspend fun resolveSpeakerNames(
         segments: List<TranscriptSegment>,
         audioFile: File,
     ): List<TranscriptSegment> {
@@ -346,7 +343,7 @@ class MeetingTranscriber(
      *
      * @return 匹配到的说话人 ID，未匹配则返回 null
      */
-    private fun matchSpeakerFromAudio(
+    private suspend fun matchSpeakerFromAudio(
         audioFile: File,
         startMs: Long,
         durationMs: Long,
@@ -362,10 +359,8 @@ class MeetingTranscriber(
                     return null
                 }
 
-            // 使用提取器获取声纹嵌入
-            val embedding = kotlinx.coroutines.runBlocking {
-                extractor.extractFromFile(segmentWav)
-            }
+            // 使用提取器获取声纹嵌入（当前已在 suspend 上下文中，直接调用即可）
+            val embedding = extractor.extractFromFile(segmentWav)
 
             // 清理临时文件
             segmentWav.delete()
@@ -519,7 +514,9 @@ class MeetingTranscriber(
      * 将音频分段后逐段识别，所有段落标记为 "Speaker_0"。
      */
     private suspend fun transcribeAsrOnly(audioFile: File): TranscriptionResult {
-        val asr = asrEngine!!
+        val asr = asrEngine ?: return TranscriptionResult(
+            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = "ASR 引擎未初始化"
+        )
         val result = asr.recognizeFile(audioFile.absolutePath)
 
         val segments = result.segments.mapIndexed { index, seg ->

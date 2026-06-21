@@ -88,7 +88,8 @@ class ScreenCaptureManager(private val context: Context) {
             val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE)
                     as? MediaProjectionManager ?: return false
 
-            mediaProjection = manager.getMediaProjection(resultCode, data!!)
+            val intentData = data ?: return false
+            mediaProjection = manager.getMediaProjection(resultCode, intentData)
             mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
                     DebugLog.w(TAG, "MediaProjection 已停止")

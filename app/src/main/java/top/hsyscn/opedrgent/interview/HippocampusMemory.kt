@@ -654,4 +654,36 @@ class HippocampusMemory(
      * 获取当前轮次历史记录数。
      */
     fun getTurnCount(): Int = turnHistory.size
+
+    // ==================== 跨会话持久化 ====================
+
+    /**
+     * 会话快照 — 用于持久化到长期存储。
+     *
+     * 包含目标锚点 + 漂移报告 + 起止时间，足以在 App 重启后完整回顾本次会话。
+     */
+    data class SessionSnapshot(
+        val goalAnchor: GoalAnchor,
+        val driftReport: DriftReport,
+        val startedAt: Long,
+        val endedAt: Long,
+    )
+
+    /**
+     * 导出当前会话快照供持久化。
+     *
+     * 应在 [closeSession] / [reset] 之前调用，否则数据会被清空。
+     * 如果目标未锚定或无轮次记录，返回 null。
+     */
+    fun exportSessionSnapshot(): SessionSnapshot? {
+        val anchor = goalAnchor ?: return null
+        val report = getDriftReport()
+        if (report.totalTurns == 0) return null
+        return SessionSnapshot(
+            goalAnchor = anchor,
+            driftReport = report,
+            startedAt = anchor.anchoredAt,
+            endedAt = System.currentTimeMillis(),
+        )
+    }
 }

@@ -26,10 +26,7 @@ class DeepResearchTool(
     private var webViewAgent: WebViewAgent? = null
 
     private suspend fun getWebViewAgent(): WebViewAgent {
-        if (webViewAgent == null) {
-            webViewAgent = WebViewAgent(context)
-        }
-        return webViewAgent!!
+        return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
     }
 
     private fun emptyResult(tp: ToolPart, msg: String): ToolResult {

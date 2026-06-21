@@ -218,7 +218,12 @@ fun RecordingTab(
             MediaProjectionService.onError = { error ->
                 scope.launch { snackbar.showSnackbar(error) }
             }
-            MediaProjectionService.start(context, result.resultCode, result.data!!)
+            val data = result.data
+            if (data == null) {
+                scope.launch { snackbar.showSnackbar("录制 Intent 数据为空") }
+                return@rememberLauncherForActivityResult
+            }
+            MediaProjectionService.start(context, result.resultCode, data)
         } else {
             scope.launch { snackbar.showSnackbar("未获得录制权限") }
         }
@@ -527,9 +532,10 @@ fun RecordingTab(
             vm.asrManager.stopStreaming()
 
             scope.launch {
+                var pcmPath: String? = null
                 try {
                     delay(800)
-                    val pcmPath = tempFilePath.value
+                    pcmPath = tempFilePath.value
                     if (pcmPath == null) {
                         snackbar.showSnackbar("录音文件不存在")
                         isProcessing = false
@@ -563,8 +569,14 @@ fun RecordingTab(
                     }
                     playbackAudioUri = wavFile.absolutePath
                     isProcessing = false
+                    // 清理临时PCM文件
+                    val pcmForCleanup = pcmPath
+                    if (pcmForCleanup != null) java.io.File(pcmForCleanup).delete()
                 } catch (e: Exception) {
                     snackbar.showSnackbar("录音处理失败: ${e.message}")
+                    // 异常时也清理PCM文件
+                    val errPcm = pcmPath
+                    if (errPcm != null) java.io.File(errPcm).delete()
                     isProcessing = false
                     recordingState = RecordingState.DONE
                 }
@@ -680,7 +692,7 @@ fun RecordingTab(
                     RecordingScreen(
                         vm = vm,
                         mode = recordingMode,
-                        state = recordingState!!,
+                        state = recordingState ?: RecordingState.RECORDING,
                         elapsedSeconds = elapsedSeconds,
                         streamingText = streamingText,
                         waveformBars = waveformBars,
@@ -748,7 +760,7 @@ fun RecordingTab(
                                     // 转写失败时向用户反馈错误信息
                                     val transcriptText = transcriptResult?.fullText ?: ""
                                     if (transcriptText.isBlank() && transcriptResult?.error != null) {
-                                        snackbar.showSnackbar(transcriptResult!!.error!!)
+                                        snackbar.showSnackbar(transcriptResult?.error.orEmpty())
                                     }
                                     if (recordingMode == RecordingMode.VOICE_MEMO && transcriptText.isNotBlank() && autoSaveEnabled) {
                                         // 先设置音频路径（createNoteFromText 需要 sourceUri）
@@ -818,14 +830,15 @@ fun RecordingTab(
                                     }
 
                                     // 转录完成后自动生成智能总结（多人会议/课堂录音模式）
-                                    if (transcriptResult != null && transcriptResult!!.fullText.isNotBlank()
+                                    val tr = transcriptResult
+                                    if (tr != null && tr.fullText.isNotBlank()
                                         && recordingMode != RecordingMode.VOICE_MEMO) {
                                         scope.launch {
                                             try {
                                                 val apiConfig = vm.apiSettings.getApiConfig() ?: return@launch
-                                                val summary = vm.smartSummaryGenerator.generate(transcriptResult!!, apiConfig)
+                                                val summary = vm.smartSummaryGenerator.generate(tr, apiConfig)
                                                 if (summary != null) {
-                                                    transcriptResult = transcriptResult!!.copy(smartSummary = summary)
+                                                    transcriptResult = tr.copy(smartSummary = summary)
                                                 }
                                             } catch (e: Exception) {
                                                 DebugLog.e("RecordingTab", "智能总结生成失败: ${e.message}", e)

@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -87,7 +88,9 @@ import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.storage.KbDocument
 import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.storage.KnowledgeBaseInfo
@@ -130,6 +133,7 @@ fun KnowledgeBaseScreen(
     var documents by remember { mutableStateOf<List<KbDocument>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
 
     // 文档筛选 & 排序
     var filterType by remember { mutableStateOf<String?>(null) }  // null=全部
@@ -251,6 +255,33 @@ fun KnowledgeBaseScreen(
                             fontSize = 12.sp,
                             modifier = Modifier.padding(end = 8.dp),
                         )
+                        // 增量同步按钮: 扫描源文件变更 + 云端向量存储同步
+                        IconButton(
+                            onClick = {
+                                if (isSyncing) return@IconButton
+                                isSyncing = true
+                                scope.launch {
+                                    vm.syncKnowledgeBase()
+                                    // 同步完成后刷新列表
+                                    knowledgeBases = withContext(Dispatchers.IO) {
+                                        knowledgeBase.getAllKnowledgeBases()
+                                    }
+                                    isSyncing = false
+                                    snackbar.showSnackbar("知识库同步已完成")
+                                }
+                            },
+                            enabled = !isSyncing,
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = themeTextGrey(),
+                                )
+                            } else {
+                                Icon(Icons.Default.Sync, contentDescription = "增量同步", tint = themeTextGrey())
+                            }
+                        }
                     }
                     if (selectedKbId != null) {
                         IconButton(onClick = { showSortMenu = true }) {

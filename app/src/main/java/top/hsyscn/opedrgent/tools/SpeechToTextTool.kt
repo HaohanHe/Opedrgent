@@ -287,7 +287,7 @@ class SpeechToTextTool(
         val confidencePercent = if (result.confidence > 0) String.format("%.1f", result.confidence * 100) else "N/A"
         val processingTimeSec = String.format("%.1f", processingTimeMs / 1000.0)
         val durationStr = if (result.durationMs > 0) AudioProcessor.formatDuration(result.durationMs)
-            else if (metadata?.durationMs ?: 0 > 0) AudioProcessor.formatDuration(metadata!!.durationMs)
+            else if (metadata?.durationMs ?: 0 > 0) AudioProcessor.formatDuration(metadata?.durationMs ?: 0)
             else "未知"
 
         val mediaLabel = when (mediaType) {

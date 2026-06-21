@@ -11,6 +11,7 @@ import top.hsyscn.opedrgent.pdf.OcrEngine
 import top.hsyscn.opedrgent.storage.StepFileParserClient
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -20,7 +21,7 @@ import kotlinx.serialization.json.Json
 // ============================================================
 
 private const val DB_NAME = "knowledge_base.db"
-private const val DB_VERSION = 1
+private const val DB_VERSION = 2
 
 private const val TABLE_KB = "knowledge_bases"
 private const val TABLE_DOCS = "kb_documents"
@@ -46,6 +47,13 @@ private const val DOC_CONTENT = "content"
 private const val DOC_TAGS = "tags_json"
 private const val DOC_SOURCE_URI = "source_uri"
 private const val DOC_ADDED_AT = "added_at"
+// v2 新增列 (增量同步)
+private const val DOC_SOURCE_LAST_MODIFIED = "source_last_modified"
+private const val DOC_SOURCE_SIZE = "source_size"
+private const val DOC_CONTENT_HASH = "content_hash"
+private const val DOC_CLOUD_FILE_ID = "cloud_file_id"
+private const val DOC_SYNC_STATUS = "sync_status"
+private const val DOC_LAST_SYNCED_AT = "last_synced_at"
 
 class KbDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
@@ -74,15 +82,32 @@ class KbDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB
                 $DOC_TAGS TEXT DEFAULT '[]',
                 $DOC_SOURCE_URI TEXT,
                 $DOC_ADDED_AT INTEGER NOT NULL,
+                $DOC_SOURCE_LAST_MODIFIED INTEGER NOT NULL DEFAULT 0,
+                $DOC_SOURCE_SIZE INTEGER NOT NULL DEFAULT 0,
+                $DOC_CONTENT_HASH TEXT DEFAULT '',
+                $DOC_CLOUD_FILE_ID TEXT,
+                $DOC_SYNC_STATUS TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+                $DOC_LAST_SYNCED_AT INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY($DOC_KB_ID) REFERENCES $TABLE_KB($KB_ID) ON DELETE CASCADE
             )
         """.trimIndent())
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_docs_kb_id ON $TABLE_DOCS($DOC_KB_ID)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_docs_type ON $TABLE_DOCS($DOC_FILE_TYPE)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_docs_sync_status ON $TABLE_DOCS($DOC_SYNC_STATUS)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 未来版本升级逻辑
+        if (oldVersion < 2) {
+            // v1 -> v2: 增量同步所需列
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_SOURCE_LAST_MODIFIED INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_SOURCE_SIZE INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_CONTENT_HASH TEXT DEFAULT ''")
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_CLOUD_FILE_ID TEXT")
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_SYNC_STATUS TEXT NOT NULL DEFAULT 'LOCAL_ONLY'")
+            db.execSQL("ALTER TABLE $TABLE_DOCS ADD COLUMN $DOC_LAST_SYNCED_AT INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_docs_sync_status ON $TABLE_DOCS($DOC_SYNC_STATUS)")
+            DebugLog.i("KbDatabase", "知识库数据库升级 v1 -> v2 (增量同步字段)")
+        }
     }
 }
 
@@ -139,7 +164,7 @@ class KnowledgeBase(private val context: Context) {
             put(KB_CREATED_AT, now)
             put(KB_UPDATED_AT, now)
         })
-        getKnowledgeBaseById(id)!!
+        getKnowledgeBaseById(id) ?: throw IllegalStateException("知识库创建后无法回查: id=$id")
     }
 
     fun getAllKnowledgeBases(): List<KnowledgeBaseInfo> {
@@ -297,6 +322,96 @@ class KnowledgeBase(private val context: Context) {
         return db.delete(TABLE_DOCS, "$DOC_ID=?", arrayOf(documentId)) > 0
     }
 
+    // ---- 增量同步支持 ----
+
+    /**
+     * 检查文档源文件是否已变更 (基于 lastModified + size 快速检测)。
+     *
+     * @return true 表示源文件已修改, 需要重新解析
+     */
+    fun isSourceFileChanged(doc: KbDocument): Boolean {
+        val sourcePath = doc.sourceUri ?: return false
+        // 仅支持本地文件路径 (content:// URI 无法直接检测)
+        if (sourcePath.startsWith("content://")) return false
+        val file = File(sourcePath)
+        if (!file.exists()) return false
+        return file.lastModified() != doc.sourceLastModified || file.length() != doc.sourceSize
+    }
+
+    /**
+     * 重新解析文档的源文件并更新内容。
+     *
+     * 增量同步核心方法: 当源文件变更时, 重新解析并更新数据库。
+     * 若内容哈希变化, 自动标记为 PENDING 等待云端同步。
+     *
+     * @param docId 文档 ID
+     * @param cloudApiKey 云端解析回退用的 API Key (可选)
+     * @return ReparseResult
+     */
+    suspend fun reparseDocument(docId: String, cloudApiKey: String? = null): ReparseResult {
+        return withContext(Dispatchers.IO) {
+            val doc = getDocumentById(docId)
+                ?: return@withContext ReparseResult(false, "文档不存在: $docId")
+
+            val sourcePath = doc.sourceUri
+            if (sourcePath.isNullOrBlank() || sourcePath.startsWith("content://")) {
+                return@withContext ReparseResult(false, "文档无本地源文件路径, 无法重新解析")
+            }
+
+            val file = File(sourcePath)
+            if (!file.exists()) {
+                return@withContext ReparseResult(false, "源文件不存在: $sourcePath")
+            }
+
+            var newContent = parseFile(file)
+            // 本地解析失败时尝试云端回退
+            if (newContent.isBlank() && !cloudApiKey.isNullOrBlank()) {
+                DebugLog.i(TAG, "重新解析: 本地失败, 尝试云端: ${file.name}")
+                newContent = parseFileWithCloud(file, cloudApiKey)
+            }
+
+            if (newContent.isBlank()) {
+                return@withContext ReparseResult(false, "重新解析返回空内容: ${file.name}")
+            }
+
+            val newHash = computeContentHash(newContent)
+            val contentChanged = newHash != doc.contentHash
+
+            updateDocumentContent(
+                docId = docId,
+                newContent = newContent,
+                newContentHash = newHash,
+                newSourceLastModified = file.lastModified(),
+                newSourceSize = file.length(),
+            )
+
+            DebugLog.i(TAG, "文档重新解析完成: ${doc.title} (内容${if (contentChanged) "已变更" else "未变更"})")
+            ReparseResult(
+                success = true,
+                contentChanged = contentChanged,
+                newContentLength = newContent.length,
+            )
+        }
+    }
+
+    /** 重新解析结果 */
+    data class ReparseResult(
+        val success: Boolean,
+        val message: String = "",
+        val contentChanged: Boolean = false,
+        val newContentLength: Int = 0,
+    )
+
+    /**
+     * 扫描所有有本地源文件的文档, 检测哪些需要重新解析。
+     *
+     * @return 需要重新解析的文档列表
+     */
+    fun scanForChangedDocuments(): List<KbDocument> {
+        val allDocs = getAllDocuments()
+        return allDocs.filter { isSourceFileChanged(it) }
+    }
+
     // ---- 统计 ----
 
     fun getGlobalStats(): Pair<Int, Long> {
@@ -331,6 +446,7 @@ class KnowledgeBase(private val context: Context) {
 
         if (content.isBlank()) return KbAddResult.error("无法从文件中提取有效内容")
 
+        val contentHash = computeContentHash(content)
         val doc = KbDocument(
             title = file.nameWithoutExtension,
             fileName = file.name,
@@ -340,13 +456,30 @@ class KnowledgeBase(private val context: Context) {
             addedAtMs = System.currentTimeMillis(),
             content = content,
             knowledgeBaseId = kbId,
-            sourceUri = sourceUri,
+            sourceUri = sourceUri ?: file.absolutePath,
+            sourceLastModified = file.lastModified(),
+            sourceSize = file.length(),
+            contentHash = contentHash,
+            syncStatus = SyncStatus.LOCAL_ONLY,
         )
 
         saveDocument(doc)
 
-        DebugLog.i(TAG, "文件添加成功: ${doc.title} (${doc.fileType}, ${content.length}字)")
+        DebugLog.i(TAG, "文件添加成功: ${doc.title} (${doc.fileType}, ${content.length}字, hash=$contentHash)")
         return KbAddResult.success(doc)
+    }
+
+    /**
+     * 计算内容的 SHA-256 哈希 (取前 16 字符作为指纹, 足够区分内容变更)。
+     */
+    private fun computeContentHash(content: String): String {
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256").digest(content.toByteArray())
+            digest.joinToString("") { "%02x".format(it) }.take(16)
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "计算内容哈希失败: ${e.message}")
+            ""
+        }
     }
 
     private fun saveDocument(doc: KbDocument) {
@@ -362,7 +495,79 @@ class KnowledgeBase(private val context: Context) {
             put(DOC_TAGS, Json.encodeToString(doc.tags))
             put(DOC_SOURCE_URI, doc.sourceUri)
             put(DOC_ADDED_AT, doc.addedAtMs)
+            put(DOC_SOURCE_LAST_MODIFIED, doc.sourceLastModified)
+            put(DOC_SOURCE_SIZE, doc.sourceSize)
+            put(DOC_CONTENT_HASH, doc.contentHash)
+            put(DOC_CLOUD_FILE_ID, doc.cloudFileId)
+            put(DOC_SYNC_STATUS, doc.syncStatus.name)
+            put(DOC_LAST_SYNCED_AT, doc.lastSyncedAt)
         })
+    }
+
+    /**
+     * 更新文档内容 (增量同步重新解析后调用)。
+     * 仅更新内容相关字段, 保留 id/kbId/sourceUri 等。
+     */
+    fun updateDocumentContent(
+        docId: String,
+        newContent: String,
+        newContentHash: String,
+        newSourceLastModified: Long,
+        newSourceSize: Long,
+    ): Boolean {
+        val values = android.content.ContentValues().apply {
+            put(DOC_CONTENT, newContent)
+            put(DOC_CONTENT_LENGTH, newContent.length)
+            put(DOC_CONTENT_HASH, newContentHash)
+            put(DOC_SOURCE_LAST_MODIFIED, newSourceLastModified)
+            put(DOC_SOURCE_SIZE, newSourceSize)
+            // 内容变更后标记为待同步
+            put(DOC_SYNC_STATUS, SyncStatus.PENDING.name)
+        }
+        return db.update(TABLE_DOCS, values, "$DOC_ID=?", arrayOf(docId)) > 0
+    }
+
+    /**
+     * 更新文档云端同步状态。
+     */
+    fun updateSyncStatus(
+        docId: String,
+        status: SyncStatus,
+        cloudFileId: String? = null,
+    ): Boolean {
+        val values = android.content.ContentValues().apply {
+            put(DOC_SYNC_STATUS, status.name)
+            if (cloudFileId != null) put(DOC_CLOUD_FILE_ID, cloudFileId)
+            if (status == SyncStatus.SYNCED) put(DOC_LAST_SYNCED_AT, System.currentTimeMillis())
+        }
+        return db.update(TABLE_DOCS, values, "$DOC_ID=?", arrayOf(docId)) > 0
+    }
+
+    /**
+     * 获取需要同步的文档 (PENDING 或 FAILED 状态)。
+     */
+    fun getDocumentsNeedingSync(): List<KbDocument> {
+        val list = mutableListOf<KbDocument>()
+        db.query(
+            TABLE_DOCS, null,
+            "$DOC_SYNC_STATUS IN (?, ?)",
+            arrayOf(SyncStatus.PENDING.name, SyncStatus.FAILED.name),
+            null, null, "$DOC_ADDED_AT ASC"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                list.add(cursorToDoc(cursor))
+            }
+        }
+        return list
+    }
+
+    /**
+     * 根据 ID 获取单个文档。
+     */
+    fun getDocumentById(docId: String): KbDocument? {
+        db.query(TABLE_DOCS, null, "$DOC_ID=?", arrayOf(docId), null, null, null).use { cursor ->
+            return if (cursor.moveToFirst()) cursorToDoc(cursor) else null
+        }
     }
 
     private suspend fun parseFile(file: File): String {
@@ -423,7 +628,7 @@ class KnowledgeBase(private val context: Context) {
             )
             if (result.success && !result.extractedText.isNullOrBlank()) {
                 DebugLog.i(TAG, "阶跃云端解析成功: ${file.name} (${result.extractedText.length} 字符)")
-                result.extractedText!!
+                result.extractedText.orEmpty()
             } else if (result.success) {
                 // 上传成功但文本未就绪，返回占位信息
                 DebugLog.i(TAG, "阶跃云端上传成功(待处理): ${file.name} -> fileId=${result.fileId}")
@@ -513,6 +718,19 @@ class KnowledgeBase(private val context: Context) {
             Json.decodeFromString<List<String>>(tagsJson)
         } catch (_: Exception) { emptyList() }
 
+        // v2 新增列可能不存在 (旧数据库未升级时), 使用 getColumnIndex 安全读取 (-1 表示列不存在)
+        fun longCol(name: String): Long {
+            val idx = c.getColumnIndex(name)
+            return if (idx >= 0) c.getLong(idx) else 0L
+        }
+        fun stringCol(name: String): String? {
+            val idx = c.getColumnIndex(name)
+            return if (idx >= 0) c.getString(idx) else null
+        }
+
+        val syncStatusStr = stringCol(DOC_SYNC_STATUS) ?: SyncStatus.LOCAL_ONLY.name
+        val syncStatus = runCatching { SyncStatus.valueOf(syncStatusStr) }.getOrDefault(SyncStatus.LOCAL_ONLY)
+
         return KbDocument(
             id = c.getString(c.getColumnIndexOrThrow(DOC_ID)),
             title = c.getString(c.getColumnIndexOrThrow(DOC_TITLE)),
@@ -525,6 +743,12 @@ class KnowledgeBase(private val context: Context) {
             tags = tags,
             sourceUri = c.getString(c.getColumnIndexOrThrow(DOC_SOURCE_URI)),
             addedAtMs = c.getLong(c.getColumnIndexOrThrow(DOC_ADDED_AT)),
+            sourceLastModified = longCol(DOC_SOURCE_LAST_MODIFIED),
+            sourceSize = longCol(DOC_SOURCE_SIZE),
+            contentHash = stringCol(DOC_CONTENT_HASH) ?: "",
+            cloudFileId = stringCol(DOC_CLOUD_FILE_ID),
+            syncStatus = syncStatus,
+            lastSyncedAt = longCol(DOC_LAST_SYNCED_AT),
         )
     }
 }

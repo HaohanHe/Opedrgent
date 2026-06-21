@@ -293,7 +293,7 @@ class AgentService(
                     if (ctx.accumulatedText.isNotEmpty()) "\n\n" else ""
                 ).append(streamResult.content)
             }
-            return LoopOutcome.Error(streamResult.error!!)
+            return LoopOutcome.Error(streamResult.error ?: "未知错误")
         }
 
         // 累积文本

@@ -164,7 +164,9 @@ object StepFileParserClient {
             return@withContext uploadResult
         }
 
-        val fileId = uploadResult.fileId!!
+        val fileId = uploadResult.fileId ?: return@withContext ParseResult(
+            success = false, message = "上传成功但未返回 fileId"
+        )
 
         // 第2步：等待处理完成（首次上传可能需要异步处理）
         if (uploadResult.status != "processed") {
