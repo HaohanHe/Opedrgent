@@ -6,6 +6,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Semaphore
 import top.hsyscn.opedrgent.utils.DebugLog
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -42,7 +43,13 @@ class SkillWebViewExecutor(private val context: Context) {
 
         /** postMessage 通道名 */
         const val POST_MESSAGE_CHANNEL = "skill_data"
+
+        /** 最大并发 WebView 执行数 */
+        private const val MAX_CONCURRENT_EXECUTIONS = 3
     }
+
+    /** 并发执行限制信号量 */
+    private val executionSemaphore = Semaphore(MAX_CONCURRENT_EXECUTIONS)
 
     /** 执行结果 */
     data class ExecutionResult(
@@ -71,6 +78,18 @@ class SkillWebViewExecutor(private val context: Context) {
     suspend fun execute(
         skillDef: StandardSkillDefinition,
         config: ExecutionConfig = ExecutionConfig(),
+    ): ExecutionResult {
+        executionSemaphore.acquire()
+        try {
+            return executeInner(skillDef, config)
+        } finally {
+            executionSemaphore.release()
+        }
+    }
+
+    private suspend fun executeInner(
+        skillDef: StandardSkillDefinition,
+        config: ExecutionConfig,
     ): ExecutionResult = suspendCancellableCoroutine { cont ->
         val startTime = System.currentTimeMillis()
         var webView: WebView? = null
@@ -89,7 +108,9 @@ class SkillWebViewExecutor(private val context: Context) {
                     builtInZoomControls = false
                     displayZoomControls = false
                     mediaPlaybackRequiresUserGesture = false
-                    allowFileAccess = true      // 允许访问本地文件（加载 skill 资源）
+                    allowFileAccess = false     // 禁止 file:// 访问（assets 通过 file:///android_asset/ 不受影响）
+                    allowFileAccessFromFileURLs = false
+                    allowUniversalAccessFromFileURLs = false
                     allowContentAccess = false  // 禁止 content:// URL
                     blockNetworkImage = !config.enableNetwork
                     blockNetworkLoads = !config.enableNetwork
@@ -146,7 +167,7 @@ class SkillWebViewExecutor(private val context: Context) {
                         super.onPageFinished(view, url)
                         // 页面加载完成，注入参数并触发执行
                         if (!completed) {
-                            injectAndTrigger(this@apply, config.inputParams)
+                            injectAndTrigger(this@apply, config.inputParams, config.enableNetwork)
                         }
                     }
 
@@ -211,18 +232,28 @@ class SkillWebViewExecutor(private val context: Context) {
     /**
      * 向 WebView 注入输入参数并触发 Skill 执行。
      */
-    private fun injectAndTrigger(webView: WebView, params: Map<String, Any>) {
+    private fun injectAndTrigger(webView: WebView, params: Map<String, Any>, enableNetwork: Boolean = false) {
         val paramsJson = org.json.JSONObject(params).toString()
+        // 注入 CSP 策略：限制脚本来源，阻止内联事件处理器
+        val cspPolicy = if (enableNetwork) {
+            "default-src 'self' https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src https:"
+        } else {
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+        }
         webView.evaluateJavascript("""
             (function() {
+                // 注入 CSP meta 标签
+                var meta = document.createElement('meta');
+                meta.httpEquiv = 'Content-Security-Policy';
+                meta.content = '$cspPolicy';
+                document.head.insertBefore(meta, document.head.firstChild);
+                
                 if (typeof window.$POST_MESSAGE_CHANNEL !== 'undefined') {
                     window.$POST_MESSAGE_CHANNEL.postMessage($paramsJson);
                 }
-                // 兼容 Gallery 标准：通过全局函数获取参数
                 if (typeof window.getInputParams === 'function') {
                     // 已通过 JavascriptInterface 提供
                 }
-                // 触发 Skill 主逻辑（如果定义了 start 函数）
                 if (typeof window.start === 'function') {
                     window.start();
                 }

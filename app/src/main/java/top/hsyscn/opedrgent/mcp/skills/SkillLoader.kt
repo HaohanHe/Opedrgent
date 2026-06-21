@@ -7,8 +7,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import top.hsyscn.opedrgent.utils.DebugLog
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.TimeUnit
 
 /**
  * 技能加载器 — 管理所有技能的生命周期
@@ -30,6 +33,9 @@ class SkillLoader(private val context: Context) {
         private const val KEY_IMPORTED_SKILLS = "imported_skills"
         private const val KEY_DISABLED_SKILLS = "disabled_skills"
         private const val ASSETS_SKILLS_DIR = "skills"
+
+        /** 技能文件最大大小（512KB） */
+        private const val MAX_SKILL_FILE_SIZE = 512 * 1024L
 
         private val json = Json {
             ignoreUnknownKeys = true
@@ -147,13 +153,34 @@ class SkillLoader(private val context: Context) {
     suspend fun importFromUrl(url: String): Result<StandardSkillDefinition> =
         withContext(Dispatchers.IO) {
             runCatching {
-                @Suppress("DEPRECATION") val urlObj = java.net.URL(url)
-                val content = urlObj.openStream().bufferedReader(Charsets.UTF_8).readText()
+                // URL 安全校验
+                require(url.startsWith("https://") || url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1")) {
+                    "仅支持 HTTPS URL（localhost 除外）"
+                }
+                require(url.length <= 2048) { "URL 过长" }
+
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .followRedirects(true)
+                    .build()
+                val request = Request.Builder().url(url)
+                    .header("Accept", "text/markdown, text/plain, */*")
+                    .build()
+                val response = client.newCall(request).execute()
+                require(response.isSuccessful) { "HTTP ${response.code}: ${response.message}" }
+                val contentLength = response.header("Content-Length")?.toLongOrNull() ?: 0L
+                require(contentLength <= MAX_SKILL_FILE_SIZE || contentLength == 0L) { "文件过大 (${contentLength / 1024}KB > ${MAX_SKILL_FILE_SIZE / 1024}KB)" }
+
+                val content = response.body?.string()
+                    ?: throw IllegalArgumentException("响应体为空")
+                require(content.length <= MAX_SKILL_FILE_SIZE) { "文件内容过大" }
+
                 val definition = parseSkillMd(content, SkillSourceType.REMOTE_URL, url)
                     ?: throw IllegalArgumentException("无法解析技能文件")
 
                 saveImportedSkill(definition)
-                DebugLog.i("$TAG: 从 URL 导入成功 — ${definition.skillName}")
+                DebugLog.i("$TAG: 从 URL 导入成功 — ${definition.skillName} v${definition.metadata.version}")
                 definition
             }.onFailure { e ->
                 DebugLog.e("$TAG: 从 URL 导入失败 ($url) — ${e.message}")
@@ -187,23 +214,35 @@ class SkillLoader(private val context: Context) {
      */
     private fun saveImportedSkill(definition: StandardSkillDefinition) {
         try {
+            // 版本比较：同名技能仅在新版本更高时覆盖
+            val index = getImportedSkillsIndex().toMutableList()
+            val existing = index.find { it.skillName == definition.skillName }
+            if (existing != null) {
+                val cmp = compareVersions(definition.metadata.version, existing.version)
+                if (cmp <= 0) {
+                    DebugLog.i("$TAG: 技能 '${definition.skillName}' 当前版本 ${existing.version} >= 新版本 ${definition.metadata.version}，跳过更新")
+                    return
+                }
+                DebugLog.i("$TAG: 技能 '${definition.skillName}' 从 ${existing.version} 升级到 ${definition.metadata.version}")
+            }
+
             // 保存 SKILL.md 原文
             val mdContent = serializeToMd(definition)
             val file = File(importedSkillsDir, "${definition.skillName}.md")
             file.writeText(mdContent, Charsets.UTF_8)
 
             // 更新索引
-            val index = getImportedSkillsIndex().toMutableList()
             index.removeAll { it.skillName == definition.skillName }
             index.add(ImportedSkillIndexEntry(
                 skillName = definition.skillName,
                 sourcePath = definition.sourcePath,
                 sourceType = definition.sourceType,
                 importedAtMs = System.currentTimeMillis(),
+                version = definition.metadata.version,
             ))
             saveImportedSkillsIndex(index)
 
-            DebugLog.d("$TAG: 已保存导入技能 '${definition.skillName}' 到本地")
+            DebugLog.d("$TAG: 已保存导入技能 '${definition.skillName}' v${definition.metadata.version} 到本地")
         } catch (e: Exception) {
             DebugLog.e("$TAG: 保存导入技能失败 — ${e.message}")
             throw e
@@ -371,6 +410,7 @@ class SkillLoader(private val context: Context) {
         val sourcePath: String,
         val sourceType: SkillSourceType,
         val importedAtMs: Long,
+        val version: String = "1.0.0",
     )
 
     private fun getImportedSkillsIndex(): List<ImportedSkillIndexEntry> {
@@ -391,6 +431,83 @@ class SkillLoader(private val context: Context) {
     private fun removeImportedSkillFromIndex(skillName: String) {
         val index = getImportedSkillsIndex().filter { it.skillName != skillName }
         saveImportedSkillsIndex(index)
+    }
+
+    /**
+     * 语义化版本比较。返回正数表示 v1 > v2，负数表示 v1 < v2，0 表示相等。
+     */
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").mapNotNull { it.toIntOrNull() }
+        val parts2 = v2.split(".").mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(parts1.size, parts2.size, 3)
+        for (i in 0 until maxLen) {
+            val a = parts1.getOrElse(i) { 0 }
+            val b = parts2.getOrElse(i) { 0 }
+            if (a != b) return a - b
+        }
+        return 0
+    }
+
+    /**
+     * 检查指定技能是否有远程更新可用。
+     * @return 更新信息三元组 (当前版本, 远程版本, 是否有更新)，若无法检查返回 null
+     */
+    suspend fun checkForUpdate(skillName: String): Triple<String, String, Boolean>? =
+        withContext(Dispatchers.IO) {
+            val index = getImportedSkillsIndex()
+            val entry = index.find { it.skillName == skillName } ?: return@withContext null
+            if (entry.sourceType != SkillSourceType.REMOTE_URL || entry.sourcePath.isBlank()) {
+                return@withContext null
+            }
+            runCatching {
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(15, TimeUnit.SECONDS)
+                    .build()
+                val request = Request.Builder().url(entry.sourcePath).build()
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) return@withContext null
+                val content = response.body?.string() ?: return@withContext null
+                val remoteDef = parseSkillMd(content, SkillSourceType.REMOTE_URL, entry.sourcePath)
+                    ?: return@withContext null
+                val remoteVersion = remoteDef.metadata.version
+                val hasUpdate = compareVersions(remoteVersion, entry.version) > 0
+                Triple(entry.version, remoteVersion, hasUpdate)
+            }.getOrNull()
+        }
+
+    /**
+     * 获取所有可更新的远程技能列表。
+     */
+    suspend fun checkAllForUpdates(): List<Triple<String, String, String>> =
+        withContext(Dispatchers.IO) {
+            val index = getImportedSkillsIndex()
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build()
+            index.filter { it.sourceType == SkillSourceType.REMOTE_URL && it.sourcePath.isNotBlank() }
+                .mapNotNull { entry ->
+                    runCatching {
+                        val request = Request.Builder().url(entry.sourcePath).build()
+                        val response = client.newCall(request).execute()
+                        if (!response.isSuccessful) return@mapNotNull null
+                        val content = response.body?.string() ?: return@mapNotNull null
+                        val remoteDef = parseSkillMd(content, SkillSourceType.REMOTE_URL, entry.sourcePath)
+                            ?: return@mapNotNull null
+                        val remoteVersion = remoteDef.metadata.version
+                        if (compareVersions(remoteVersion, entry.version) > 0) {
+                            Triple(entry.skillName, entry.version, remoteVersion)
+                        } else null
+                    }.getOrNull()
+                }
+        }
+
+    /**
+     * 获取已导入技能的当前版本。
+     */
+    fun getImportedSkillVersion(skillName: String): String? {
+        return getImportedSkillsIndex().find { it.skillName == skillName }?.version
     }
 
     // ── 公开查询方法 ──
