@@ -316,62 +316,120 @@ private fun markdownToHtml(markdown: String, title: String): String {
         append("<html><head>")
         append("<meta charset=\"UTF-8\">")
         append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
-        append("<title>${title}</title>")
+        append("<title>${escapeHtml(title)}</title>")
         append("<style>")
-        append("body{font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:20px;line-height:1.6;color:#333;}")
+        append("body{font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:20px;line-height:1.7;color:#333;}")
         append("h1{color:#1a1a1a;border-bottom:2px solid #2563eb;padding-bottom:8px;}")
         append("h2{color:#374151;margin-top:24px;}")
-        append("h3{color:#6b7280;font-size:14px;font-weight:600;margin-top:16px;}")
-        append("pre{background:#f3f4f6;padding:12px;border-radius:8px;overflow-x:auto;font-size:13px;}")
-        append("code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;}")
-        append("blockquote{border-left:4px solid #2563eb;padding-left:16px;color:#6b7280;margin:16px 0;}")
+        append("h3{color:#6b7280;font-size:15px;font-weight:600;margin-top:16px;}")
+        append("h4{color:#9ca3af;font-size:14px;font-weight:600;margin-top:12px;}")
+        append("pre{background:#f3f4f6;padding:14px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.5;}")
+        append("pre code{background:none;padding:0;}")
+        append("code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:ui-monospace,monospace;}")
+        append("blockquote{border-left:4px solid #2563eb;padding-left:16px;color:#6b7280;margin:16px 0;background:#f8fafc;padding:12px 16px;border-radius:0 8px 8px 0;}")
         append("a{color:#2563eb;text-decoration:none;}")
         append("a:hover{text-decoration:underline;}")
         append("hr{border:none;border-top:1px solid #e5e7eb;margin:24px 0;}")
         append("table{border-collapse:collapse;width:100%;margin:16px 0;}")
         append("th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left;}")
         append("th{background:#f9fafb;font-weight:600;}")
+        append("ul,ol{padding-left:24px;margin:8px 0;}")
+        append("li{margin:4px 0;}")
+        append("strong{font-weight:600;color:#1a1a1a;}")
+        append("em{font-style:italic;}")
+        append("del{text-decoration:line-through;color:#9ca3af;}")
         append(".meta{color:#9ca3af;font-size:12px;margin-bottom:24px;}")
         append("</style>")
         append("</head><body>")
 
-        // Simple markdown to HTML conversion
         val lines = markdown.lines()
         var inCodeBlock = false
-        var codeBuffer = StringBuilder()
+        var codeLang = ""
+        val codeBuffer = StringBuilder()
+        var inList = false
+        var listType = "" // "ul" or "ol"
 
         for (line in lines) {
             when {
-                line.startsWith("```") -> {
+                line.trimStart().startsWith("```") -> {
                     if (inCodeBlock) {
-                        append("<pre><code>${escapeHtml(codeBuffer.toString())}</code></pre>")
-                        codeBuffer = StringBuilder()
+                        append("<pre><code>${escapeHtml(codeBuffer.toString().trimEnd())}</code></pre>\n")
+                        codeBuffer.clear()
                         inCodeBlock = false
+                        codeLang = ""
                     } else {
+                        if (inList) { append("</$listType>\n"); inList = false }
                         inCodeBlock = true
+                        codeLang = line.trimStart().removePrefix("```").trim()
                     }
                 }
                 inCodeBlock -> {
                     if (codeBuffer.isNotEmpty()) codeBuffer.append("\n")
                     codeBuffer.append(line)
                 }
-                line.startsWith("# ") -> append("<h1>${escapeHtml(line.removePrefix("# "))}</h1>\n")
-                line.startsWith("## ") -> append("<h2>${escapeHtml(line.removePrefix("## "))}</h2>\n")
-                line.startsWith("### ") -> append("<h3>${escapeHtml(line.removePrefix("### "))}</h3>\n")
-                line.startsWith("> ") -> append("<blockquote>${escapeHtml(line.removePrefix("> "))}</blockquote>\n")
-                line.startsWith("- ") -> append("<li>${escapeHtml(line.removePrefix("- "))}</li>\n")
-                line.startsWith("---") -> append("<hr>\n")
-                line.isBlank() -> append("<br>\n")
-                else -> append("<p>${escapeHtml(line)}</p>\n")
+                line.matches(Regex("^#{1,4}\\s+.*")) -> {
+                    if (inList) { append("</$listType>\n"); inList = false }
+                    val level = line.takeWhile { it == '#' }.length
+                    val text = line.removePrefix("#".repeat(level)).trim()
+                    append("<h$level>${inlineFormat(text)}</h$level>\n")
+                }
+                line.startsWith("> ") -> {
+                    if (inList) { append("</$listType>\n"); inList = false }
+                    append("<blockquote>${inlineFormat(line.removePrefix("> "))}</blockquote>\n")
+                }
+                line.matches(Regex("^[-*+]\\s+.*")) -> {
+                    if (!inList || listType != "ul") {
+                        if (inList) append("</$listType>\n")
+                        append("<ul>\n"); inList = true; listType = "ul"
+                    }
+                    append("<li>${inlineFormat(line.replaceFirst(Regex("^[-*+]\\s+"), ""))}</li>\n")
+                }
+                line.matches(Regex("^\\d+\\.\\s+.*")) -> {
+                    if (!inList || listType != "ol") {
+                        if (inList) append("</$listType>\n")
+                        append("<ol>\n"); inList = true; listType = "ol"
+                    }
+                    append("<li>${inlineFormat(line.replaceFirst(Regex("^\\d+\\.\\s+"), ""))}</li>\n")
+                }
+                line.matches(Regex("^---+\\s*$")) -> {
+                    if (inList) { append("</$listType>\n"); inList = false }
+                    append("<hr>\n")
+                }
+                line.isBlank() -> {
+                    if (inList) { append("</$listType>\n"); inList = false }
+                }
+                else -> {
+                    if (inList) { append("</$listType>\n"); inList = false }
+                    append("<p>${inlineFormat(line)}</p>\n")
+                }
             }
         }
 
         if (inCodeBlock && codeBuffer.isNotEmpty()) {
-            append("<pre><code>${escapeHtml(codeBuffer.toString())}</code></pre>")
+            append("<pre><code>${escapeHtml(codeBuffer.toString().trimEnd())}</code></pre>\n")
         }
+        if (inList) append("</$listType>\n")
 
         append("</body></html>")
     }
+}
+
+/** Markdown 行内格式转换：粗体、斜体、行内代码、链接、删除线 */
+private fun StringBuilder.inlineFormat(text: String): String {
+    var result = escapeHtml(text)
+    // 行内代码 `code`
+    result = result.replace(Regex("`([^`]+)`"), "<code>$1</code>")
+    // 粗体 **text** 或 __text__
+    result = result.replace(Regex("\\*\\*(.+?)\\*\\*"), "<strong>$1</strong>")
+    result = result.replace(Regex("__(.+?)__"), "<strong>$1</strong>")
+    // 斜体 *text* 或 _text_（不匹配已处理的粗体）
+    result = result.replace(Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), "<em>$1</em>")
+    result = result.replace(Regex("(?<!_)_(?!_)(.+?)(?<!_)_(?!_)"), "<em>$1</em>")
+    // 删除线 ~~text~~
+    result = result.replace(Regex("~~(.+?)~~"), "<del>$1</del>")
+    // 链接 [text](url)
+    result = result.replace(Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)"), "<a href=\"$2\">$1</a>")
+    return result
 }
 
 private fun escapeHtml(text: String): String {
