@@ -89,6 +89,10 @@ val SproutDivider = Color(0xFFE8E2D8)        // 暖色分割线（加深以确�
 val SproutSeedText = Color(0xFF6B6B6B)       // 种子引文（比 #777 深，确保可读）
 val SproutMetaText = Color(0xFF9A9590)       // 元信息（日期/图标，比 #888 深）
 
+// Recording mode card
+val CoralRed = Color(0xFFFF5A5A)
+val CoralLight = Color(0xFFFFEAEA)
+
 // ========== Dark mode variants ==========
 val BgGray_Dark = Color(0xFF121212)
 val CardWhite_Dark = Color(0xFF1E1E1E)
@@ -100,6 +104,14 @@ val SurfaceLight_Dark = Color(0xFF1C1C1C)
 val CardBackground_Dark = Color(0xFF1E1E1E)
 val BorderLight_Dark = Color(0xFF333333)
 val DividerColor_Dark = Color(0xFF2A2A2A)
+// Feature-specific dark variants
+val CoralLight_Dark = Color(0xFF3D1F1F)       // 录音模式选中背景
+val QuoteBg_Dark = Color(0xFF3D3520)          // 金句卡片背景
+val ActionItemBg_Dark = Color(0xFF1A2A3D)     // 待办卡片背景
+val ChipWarningBg_Dark = Color(0xFF3D2E1A)
+val ChipSuccessBg_Dark = Color(0xFF1A3D1F)
+val ErrorBackground_Dark = Color(0xFF3D1A1A)
+val WarningBg_Dark = Color(0xFF3D3520)
 
 // ========== Theme-aware composable helpers ==========
 @Composable fun themeBgGray() = if (isSystemInDarkTheme()) BgGray_Dark else BgGray
@@ -112,3 +124,10 @@ val DividerColor_Dark = Color(0xFF2A2A2A)
 @Composable fun themeCardBackground() = if (isSystemInDarkTheme()) CardBackground_Dark else CardBackground
 @Composable fun themeBorderLight() = if (isSystemInDarkTheme()) BorderLight_Dark else BorderLight
 @Composable fun themeDividerColor() = if (isSystemInDarkTheme()) DividerColor_Dark else DividerColor
+@Composable fun themeCoralLight() = if (isSystemInDarkTheme()) CoralLight_Dark else CoralLight
+@Composable fun themeQuoteBg() = if (isSystemInDarkTheme()) QuoteBg_Dark else Color(0xFFFFFBEB)
+@Composable fun themeActionItemBg() = if (isSystemInDarkTheme()) ActionItemBg_Dark else Color(0xFFF0F7FF)
+@Composable fun themeChipWarningBg() = if (isSystemInDarkTheme()) ChipWarningBg_Dark else ChipWarningBg
+@Composable fun themeChipSuccessBg() = if (isSystemInDarkTheme()) ChipSuccessBg_Dark else ChipSuccessBg
+@Composable fun themeErrorBackground() = if (isSystemInDarkTheme()) ErrorBackground_Dark else ErrorBackground
+@Composable fun themeWarningBg() = if (isSystemInDarkTheme()) WarningBg_Dark else WarningBg
