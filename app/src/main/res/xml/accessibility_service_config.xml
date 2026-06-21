@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Opedrgent 无障碍服务配置。
+
+  - 仅监听 TYPE_WINDOW_STATE_CHANGED / TYPE_WINDOW_CONTENT_CHANGED 用于感知前台应用切换
+  - 不声明 canRequestFilterKeyEvents / canRetrieveWindowContent 以外的额外能力
+  - description 指向字符串资源，说明服务用途
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_desc"
+    android:notificationTimeout="100"
+    android:packageNames="" />

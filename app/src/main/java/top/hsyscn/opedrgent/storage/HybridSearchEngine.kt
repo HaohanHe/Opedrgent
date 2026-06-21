@@ -93,6 +93,7 @@ class HybridSearchEngine(
      * @param storeId 向量存储 ID (可选，不传则自动选择)
      * @param query 搜索查询
      * @param topK 返回结果数量
+     * @param kbId 限定知识库 ID (可选，仅搜索指定知识库的文档)
      * @return 搜索摘要与结果列表
      */
     suspend fun hybridSearch(
@@ -100,11 +101,12 @@ class HybridSearchEngine(
         query: String,
         storeId: String? = null,
         topK: Int = DEFAULT_TOP_K,
+        kbId: String? = null,
     ): SearchSummary = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
 
         // 并行执行两个搜索通道
-        val localResults = bm25Search(query, topK * 2)
+        val localResults = bm25Search(query, topK * 2, kbId)
         val cloudResults = if (!apiKey.isNullOrBlank()) {
             ragSearch(apiKey, query, storeId, topK * 2)
         } else {
@@ -114,7 +116,7 @@ class HybridSearchEngine(
         val elapsed = System.currentTimeMillis() - startTime
 
         // 融合排序
-        val fused = fuseResults(localResults, cloudResults, topK)
+        val fused = fuseResults(localResults, cloudResults, topK, query)
 
         SearchSummary(
             results = fused,
@@ -141,12 +143,20 @@ class HybridSearchEngine(
      *
      * 从 KnowledgeBase 中获取所有文档，在内存中计算 BM25 得分。
      * 对于大量文档场景，后续可升级为 SQLite FTS5 全文索引。
+     *
+     * @param kbId 限定知识库 ID (可选，null 表示搜索全部)
      */
-    private suspend fun bm25Search(query: String, topK: Int): List<Bm25Document> =
+    private suspend fun bm25Search(query: String, topK: Int, kbId: String? = null): List<Bm25Document> =
         withContext(Dispatchers.Default) {
             try {
-                // 获取本地所有知识库文档
-                val documents = knowledgeBase.getAllDocumentsForSearch()
+                // 获取本地所有知识库文档（可按 kbId 过滤）
+                val documents = if (kbId != null) {
+                    knowledgeBase.getDocumentsByKnowledgeBase(kbId).map {
+                        KnowledgeBase.SearchableDoc(id = it.id, title = it.title, content = it.content)
+                    }
+                } else {
+                    knowledgeBase.getAllDocumentsForSearch()
+                }
                 if (documents.isEmpty()) return@withContext emptyList()
 
                 // 构建 BM25 索引
@@ -248,7 +258,7 @@ class HybridSearchEngine(
             val idf = ln((index.docCount.toDouble() - df + 0.5) / (df + 0.5) + 1.0)
 
             // TF 归一化: (tf * (k1+1)) / (tf + k1*(1-b+b*dl/avgdl))
-            val tfNorm = (tf * (BM25_K1 + 1).toDouble()) /
+            val tfNorm = (tf * (BM25_K1 + 1)) /
                          (tf + BM25_K1 * (1 - BM25_B + BM25_B * dl / avgdl))
 
             score += idf * tfNorm
@@ -310,6 +320,7 @@ class HybridSearchEngine(
         local: List<Bm25Document>,
         cloud: List<RagDocument>,
         topK: Int,
+        query: String = "",
     ): List<HybridResult> {
         val rrfScores = mutableMapOf<String, Double>()
         val docInfo = mutableMapOf<String, DocMergeInfo>()
@@ -354,8 +365,8 @@ class HybridSearchEngine(
         // 归一化并排序
         val maxScore = rrfScores.values.maxOrNull() ?: 1.0
         return rrfScores.entries
-            .map { (id, rawScore) ->
-                val info = docInfo[id]!!
+            .mapNotNull { (id, rawScore) ->
+                val info = docInfo[id] ?: return@mapNotNull null
                 HybridResult(
                     documentId = id,
                     title = info.title,
@@ -364,7 +375,7 @@ class HybridSearchEngine(
                     bm25Score = info.bm25Score,
                     ragScore = info.ragScore,
                     fusedScore = (rawScore / maxScore).toFloat().coerceIn(0f, 1f),
-                    highlights = generateHighlights(query = "", content = info.content),
+                    highlights = generateHighlights(query, info.content),
                 )
             }
             .sortedByDescending { it.fusedScore }
@@ -419,21 +430,58 @@ class HybridSearchEngine(
         }
 
         // 过滤停用词和单字符噪声
-        return tokens.filter { it.length >= 2 || isMeaningfulChar(it) }
+        return tokens
+            .filter { token ->
+                // 保留长度 >= 2 的 token
+                if (token.length >= 2) {
+                    // 双字 token 还需排除纯停用词组合
+                    token !in STOP_WORDS
+                } else {
+                    // 单字仅保留数字和英文字母
+                    token[0].isDigit() || token[0].let { it in 'a'..'z' || it in 'A'..'Z' }
+                }
+            }
             .distinct()
     }
 
-    private fun isMeaningfulChar(c: String): Boolean {
-        // 保留有意义的单字（数字、英文、重要汉字）
-        return c[0].isDigit() ||
-               c[0].isLetter() ||
-               c in setOf("的", "了", "是", "在", "和", "与", "或", "不", "没")
-    }
+    /** 中文停用词表 (高频虚词，对检索无意义)。 */
+    private val STOP_WORDS = setOf(
+        "的", "了", "是", "在", "和", "与", "或", "不", "没", "也", "都", "就",
+        "而", "及", "以", "为", "被", "把", "让", "使", "给", "对", "由", "从",
+        "到", "向", "于", "之", "其", "这", "那", "它", "他", "她", "我", "你",
+        "们", "个", "中", "上", "下", "可", "要", "会", "能", "着", "过", "地",
+        "一个", "可以", "这个", "那个", "什么", "怎么", "为什么", "因为", "所以",
+        "但是", "如果", "虽然", "已经", "应该", "需要", "他们", "我们", "你们",
+        "它们", "自己", "的话", "一样", "一直", "一些", "这样", "那样",
+    )
 
     private fun generateHighlights(query: String, content: String): List<String> {
-        if (content.length <= 200) return listOf(content)
-        // 简单截取前后文作为高亮
-        return listOf(content.take(200) + "...")
+        if (content.isBlank()) return emptyList()
+        // 提取查询关键词用于高亮定位
+        val keywords = tokenize(query).filter { it.length >= 2 }.take(5)
+        if (keywords.isEmpty()) {
+            // 无关键词时返回前 200 字符
+            return if (content.length <= 200) listOf(content) else listOf(content.take(200) + "...")
+        }
+
+        // 找到第一个关键词出现的位置，提取上下文片段
+        val snippets = mutableListOf<String>()
+        for (keyword in keywords) {
+            val idx = content.indexOf(keyword, ignoreCase = true)
+            if (idx >= 0) {
+                val start = maxOf(0, idx - 60)
+                val end = minOf(content.length, idx + keyword.length + 60)
+                val snippet = content.substring(start, end).replace("\n", " ").trim()
+                snippets.add("...$snippet...")
+                if (snippets.size >= 3) break
+            }
+        }
+
+        return if (snippets.isEmpty()) {
+            listOf(content.take(200) + if (content.length > 200) "..." else "")
+        } else {
+            snippets
+        }
     }
 
     /** 可变整数包装器 (避免 Java Integer 自动装箱问题) */

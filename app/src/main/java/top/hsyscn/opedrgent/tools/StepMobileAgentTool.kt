@@ -160,6 +160,30 @@ press_back(返回), press_home(主页), scroll(滚动), wait(等待) 等。""",
     }
 
     /**
+     * 直接调用 Agent 分析（供 [top.hsyscn.opedrgent.agent.MobileAgentOrchestrator] 编排使用）。
+     *
+     * 与 [execute] 不同，本方法返回原始 [AgentResult]，不包装为 ToolResult，
+     * 方便编排器直接读取 actionPlan / screenDescription 等结构化字段。
+     */
+    suspend fun analyzeTask(
+        apiKey: String,
+        task: String,
+        screenshotBase64: String?,
+        currentApp: String? = null,
+        previousActions: String? = null,
+        model: String = MODEL_MOBILE_AGENT,
+    ): AgentResult {
+        return analyzeScreen(
+            apiKey = apiKey,
+            task = task,
+            screenshotBase64 = screenshotBase64,
+            currentApp = currentApp,
+            previousActions = previousActions,
+            model = model,
+        )
+    }
+
+    /**
      * 调用阶跃 Mobile Agent API。
      *
      * 使用 chat completions 接口，将截图作为图像内容发送给 mobile-agent 模型。

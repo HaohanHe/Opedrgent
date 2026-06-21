@@ -29,6 +29,7 @@ enum class SourceType(val label: String) {
     // -- 会话级 --
     CONVERSATION("对话"),
     RECORDING("录音"),
+    INTERVIEW("面试"),
 }
 
 data class IndexedItem(
@@ -197,6 +198,33 @@ class HippocampusIndex(context: Context) {
             summary = reportSummary.take(500),
             keywords = extractKeywords(noteTitle, reportSummary),
             scope = MemoryScope.PROJECT,
+        ))
+    }
+
+    /**
+     * 索引面试会话（会话级记忆，跨会话可回顾）。
+     *
+     * 完整的轮次记录保存在 [HippocampusSessionStore]，这里只保存轻量索引，
+     * 让面试会话出现在海马体主界面的统一列表中。
+     *
+     * @param sessionId 会话 ID
+     * @param title 显示标题（如 "求职面试: 后端工程师@字节"）
+     * @param goalSummary 目标摘要
+     * @param driftSummary 漂移报告摘要
+     */
+    fun upsertInterview(
+        sessionId: String,
+        title: String,
+        goalSummary: String,
+        driftSummary: String,
+    ) {
+        upsert(IndexedItem(
+            sourceType = SourceType.INTERVIEW,
+            sourceId = sessionId,
+            title = title,
+            summary = driftSummary.take(500),
+            keywords = extractKeywords(title, "$goalSummary $driftSummary"),
+            scope = MemoryScope.SESSION,
         ))
     }
 

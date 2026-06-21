@@ -167,6 +167,18 @@ class VoiceConversationEngine(
     @Volatile
     private var hippo: HippocampusMemory? = null
 
+    /**
+     * 当前会话 ID（用于持久化）。
+     */
+    @Volatile
+    private var currentSessionId: String? = null
+
+    /**
+     * 当前面试配置（用于持久化元信息）。
+     */
+    @Volatile
+    private var currentInterviewConfig: InterviewConfig? = null
+
     // ==================== 公开 API：全双工模式（推荐）====================
 
     /**
@@ -216,6 +228,10 @@ class VoiceConversationEngine(
                 config = interviewConfig,
             )
         }
+
+        // 记录会话元信息（用于结束时持久化）
+        currentSessionId = "voice_${System.currentTimeMillis()}"
+        currentInterviewConfig = interviewConfig
 
         // 重置轮次计数器
         turnCounter = 0
@@ -301,14 +317,47 @@ class VoiceConversationEngine(
 
         DebugLog.i(TAG, "停止全双工对话")
 
-        // 输出海马体漂移报告（如果有）
+        // 持久化海马体会话（跨会话记忆）+ 输出漂移报告
         hippo?.let { h ->
             val report = h.getDriftReport()
             DebugLog.i(TAG, "海马体漂移报告:\n${report.summary}")
+
+            // 持久化到长期存储（需要有 config 和 sessionId）
+            val sid = currentSessionId
+            val cfg = currentInterviewConfig
+            if (sid != null && cfg != null) {
+                try {
+                    val snapshot = h.exportSessionSnapshot()
+                    if (snapshot != null) {
+                        val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(context)
+                        store.save(
+                            sessionId = sid,
+                            config = cfg,
+                            goalAnchor = snapshot.goalAnchor,
+                            report = snapshot.driftReport,
+                            startedAt = snapshot.startedAt,
+                        )
+                        // 同时写入轻量索引，让会话出现在海马体主界面
+                        val index = top.hsyscn.opedrgent.storage.HippocampusIndex(context)
+                        val title = buildInterviewTitle(cfg)
+                        index.upsertInterview(
+                            sessionId = sid,
+                            title = title,
+                            goalSummary = snapshot.goalAnchor.primaryGoal,
+                            driftSummary = report.summary,
+                        )
+                        DebugLog.i(TAG, "海马体会话已持久化: $sid")
+                    }
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "持久化海马体会话失败: ${e.message}", e)
+                }
+            }
         }
 
         // 清理海马体
         hippo = null
+        currentSessionId = null
+        currentInterviewConfig = null
         turnCounter = 0
         lastAiResponse = ""
 
@@ -441,6 +490,17 @@ class VoiceConversationEngine(
      * @return 漂移报告，如果未启用海马体则返回 null
      */
     fun getDriftReport(): HippocampusMemory.DriftReport? = hippo?.getDriftReport()
+
+    /**
+     * 构建面试会话的显示标题。
+     */
+    private fun buildInterviewTitle(config: InterviewConfig): String {
+        val typeLabel = config.type.label
+        val parts = mutableListOf(typeLabel)
+        if (config.position.isNotBlank()) parts.add(config.position)
+        if (config.company.isNotBlank()) parts.add("@${config.company}")
+        return parts.joinToString("")
+    }
 
     // ==================== 内部实现 ====================
 

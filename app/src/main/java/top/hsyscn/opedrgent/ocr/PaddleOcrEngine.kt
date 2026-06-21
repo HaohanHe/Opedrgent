@@ -74,8 +74,12 @@ class PaddleOcrEngine(private val context: Context) {
             val inputTensor = preprocess(bitmap)
 
             // 2. 推理
-            val inputName = session!!.inputNames.first()
-            val results = session!!.run(mapOf(inputName to inputTensor))
+            val sess = session ?: run {
+                DebugLog.e(TAG, "PaddleOCR session 未初始化")
+                return ""
+            }
+            val inputName = sess.inputNames.first()
+            val results = sess.run(mapOf(inputName to inputTensor))
 
             // 3. 后处理：CTC 解码
             val output = results[0].value as Array<Array<FloatArray>>

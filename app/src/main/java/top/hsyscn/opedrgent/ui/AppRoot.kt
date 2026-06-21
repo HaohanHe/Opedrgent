@@ -631,7 +631,7 @@ fun AppRoot(
                 else -> {
                     when {
                         subScreen?.startsWith("noteReader_") == true -> {
-                            val noteIdStr = subScreen!!.removePrefix("noteReader_")
+                            val noteIdStr = (subScreen ?: "").removePrefix("noteReader_")
                             val noteId = noteIdStr.toLongOrNull()
                             if (noteId != null) {
                                 NoteEditorScreen(
@@ -665,7 +665,7 @@ fun AppRoot(
                             }
                         }
                         subScreen?.startsWith("noteEditor_") == true -> {
-                            val noteIdStr = subScreen!!.removePrefix("noteEditor_")
+                            val noteIdStr = (subScreen ?: "").removePrefix("noteEditor_")
                             val noteId = noteIdStr.toLongOrNull()
                             NoteEditorScreen(
                                 repository = vm.noteRepository,
@@ -698,7 +698,7 @@ fun AppRoot(
                             )
                         }
                         subScreen?.startsWith("noteShare_") == true -> {
-                            val noteIdStr = subScreen!!.removePrefix("noteShare_")
+                            val noteIdStr = (subScreen ?: "").removePrefix("noteShare_")
                             val noteId = noteIdStr.toLongOrNull()
                             if (noteId != null) {
                                 val aiConvertedContent by vm.aiConvertedContent.collectAsState()
@@ -718,7 +718,7 @@ fun AppRoot(
                             }
                         }
                         subScreen?.startsWith("noteSprout_") == true -> {
-                            val noteIdStr = subScreen!!.removePrefix("noteSprout_")
+                            val noteIdStr = (subScreen ?: "").removePrefix("noteSprout_")
                             val noteId = noteIdStr.toLongOrNull()
                             if (noteId != null) {
                                 var loadedNote by remember { mutableStateOf<top.hsyscn.opedrgent.note.Note?>(null) }
@@ -941,7 +941,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (editingId != null) {
                         TextButton(onClick = {
-                            vm.deleteMemory(editingId!!)
+                            vm.deleteMemory(editingId ?: return@TextButton)
                             editorOpen = false
                         }) { Text(stringResource(R.string.action_delete)) }
                     }

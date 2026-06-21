@@ -134,19 +134,19 @@
 ### Phase 3 — 智能体深化与自动化 [近期]
 
 #### 3.1 Mobile Agent 自动化闭环
-- [ ] **截图→分析→执行** 全自动链路: StepMobileAgentTool 输出动作 → 自动调用 RunIntentTool/WebViewAgent 执行
-- [ ] Accessibility Service 集成: 无障碍服务获取 UI 节点树，提升 mobile agent 准确率
-- [ ] 操作历史记录与回放: 记录每步操作，支持任务模板化复用
+- [x] **截图→分析→执行** 全自动链路: StepMobileAgentTool 输出动作 → 自动调用 RunIntentTool/WebViewAgent 执行
+- [x] Accessibility Service 集成: 无障碍服务获取 UI 节点树，提升 mobile agent 准确率
+- [x] 操作历史记录与回放: 记录每步操作，支持任务模板化复用
 
 #### 3.2 知识库增强
-- [ ] **混合检索**: 关键词(本地BM25) + 向量语义(云端RAG) 融合排序
-- [ ] 知识库增量同步: 监控文件变化，自动重新解析并更新向量存储
-- [ ] 跨会话记忆持久化: InterviewMode 的 Hippocampus 数据写入长期存储
+- [x] **混合检索**: 关键词(本地BM25) + 向量语义(云端RAG) 融合排序
+- [x] 知识库增量同步: 监控文件变化，自动重新解析并更新向量存储
+- [x] 跨会话记忆持久化: InterviewMode 的 Hippocampus 数据写入长期存储
 - [ ] 知识图谱可视化增强: 节点关系动态布局 + 时间线视图
 
 #### 3.3 多模态能力完善
-- [ ] **图片理解集成**: 利用 step-1o-turbo-vision 的图像理解能力做 OCR/图表分析/截图问答
-- [ ] 音频后处理: ASR 结果自动标点、分段、说话人分离(diaryzation)
+- [x] **图片理解集成**: 利用 step-1o-turbo-vision 的图像理解能力做 OCR/图表分析/截图问答
+- [x] 音频后处理: ASR 结果自动标点、分段、说话人分离(diaryzation)
 - [ ] 视频摘要: 上传视频 URL → 提取关键帧 → 生成结构化摘要
 
 ### Phase 4 — 协作与生态 [中期]

@@ -264,6 +264,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val noteDao = NoteDao(NoteDatabase.getInstance(app))
     private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings)
     private val knowledgeBase = top.hsyscn.opedrgent.storage.KnowledgeBase(app)
+    /** 知识库增量同步管理器 — 监控源文件变更 + 云端向量存储同步 */
+    val kbSyncManager = top.hsyscn.opedrgent.storage.KbSyncManager(knowledgeBase)
 
     /** Global hippocampus index — set by AppRoot after creation */
     var hippocampus: HippocampusIndex? = null
@@ -450,6 +452,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val sessionCache = mutableMapOf<String, ResearchSession>()
     // Tool executor serialized via limitedParallelism(1) dispatcher to prevent concurrent duplicate searches
     private val searchDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+    /** 用户附加的待发送图片 (base64 data URL 格式), 发送后自动清空 */
+    @Volatile
+    private var pendingImage: String? = null
 
     // ==================== Agent 循环状态机 ====================
 
@@ -961,6 +967,67 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * 发送带图片的用户消息。
+     *
+     * 将图片 URI 转为 base64 data URL 存入 [pendingImage],
+     * 在下一轮 LLM 调用时通过 extraImages 附加到最后一条 user 消息。
+     * 发送后 pendingImage 自动清空。
+     *
+     * @param text 用户文字消息
+     * @param imageUri 图片内容 URI (content:// 或 file://)
+     */
+    fun sendUserMessageWithImage(text: String, imageUri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val dataUrl = uriToBase64DataUrl(imageUri)
+            if (dataUrl == null) {
+                DebugLog.w("sendUserMessageWithImage: 图片转换失败: $imageUri")
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(app, "图片加载失败", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+            pendingImage = dataUrl
+            DebugLog.i("sendUserMessageWithImage: 图片已准备 (${dataUrl.length} chars), 发送消息")
+            withContext(Dispatchers.Main) {
+                sendUserMessage(text)
+            }
+        }
+    }
+
+    /**
+     * 将内容 URI 转为 base64 data URL (自动压缩过大图片)。
+     */
+    private suspend fun uriToBase64DataUrl(uri: android.net.Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = app.contentResolver.openInputStream(uri) ?: return@withContext null
+            val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            if (bitmap == null) return@withContext null
+
+            // 压缩过大图片 (最长边限制 1280px, 避免超出 API 限制)
+            val maxSide = 1280
+            val scaledBitmap = if (bitmap.width > maxSide || bitmap.height > maxSide) {
+                val scale = maxSide.toFloat() / maxOf(bitmap.width, bitmap.height)
+                android.graphics.Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).toInt(),
+                    (bitmap.height * scale).toInt(),
+                    true,
+                ).also { if (it != bitmap) bitmap.recycle() }
+            } else bitmap
+
+            val baos = java.io.ByteArrayOutputStream()
+            scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+            scaledBitmap.recycle()
+            val base64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+            "data:image/jpeg;base64,$base64"
+        } catch (e: Exception) {
+            DebugLog.e("uriToBase64DataUrl 异常: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
      * AgentSwarm 模式：LLM 自主调度多子 Agent 完成复杂任务
      */
     private fun runSwarm(sessionId: String, userText: String) {
@@ -1182,6 +1249,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.Main) {
                 val message = if (result.success) "已添加到知识库" else "添加到知识库失败: ${result.error}"
                 android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * 触发知识库增量同步。
+     *
+     * 阶段 1: 扫描本地源文件变更, 重新解析并更新数据库
+     * 阶段 2: 将待同步文档上传到阶跃云端向量存储 (需 API Key + storeId)
+     *
+     * @param cloudStoreId 云端向量存储 ID (null 则仅做本地同步)
+     */
+    fun syncKnowledgeBase(cloudStoreId: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val apiKey = apiSettings.getApiKey()
+            val storeId = cloudStoreId ?: apiSettings.getKbCloudStoreId()
+            val summary = kbSyncManager.syncAll(apiKey, storeId)
+
+            withContext(Dispatchers.Main) {
+                val msg = buildString {
+                    append("知识库同步完成")
+                    if (summary.reparsedCount > 0) {
+                        append(": ${summary.reparsedCount} 文档重解析")
+                        if (summary.contentChangedCount > 0) {
+                            append(" (${summary.contentChangedCount} 内容变更)")
+                        }
+                    }
+                    if (summary.cloudUploadedCount > 0) {
+                        append(", ${summary.cloudUploadedCount} 上传云端")
+                    }
+                    if (summary.failedReparseCount > 0 || summary.cloudFailedCount > 0) {
+                        append(", ${summary.failedReparseCount + summary.cloudFailedCount} 失败")
+                    }
+                    if (!summary.hasChanges) append(" (无变更)")
+                }
+                android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -2125,10 +2228,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) { tryFetchLocationMap(messages) }
         } else emptyList()
 
-        val result = if (mapImages.isNotEmpty()) {
-            _state.value = _state.value.copy(streamingPhase = "正在分析地图…")
+        // 用户附加的图片仅在第一轮发送, 发送后清空
+        val userImage = if (state.roundsUsed == 0) pendingImage else null
+        if (state.roundsUsed == 0) pendingImage = null
+
+        val allImages = mapImages + listOfNotNull(userImage)
+
+        val result = if (allImages.isNotEmpty()) {
+            _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
             withContext(Dispatchers.IO) {
-                streamMultimodalLlm(ctx.config, compressedSystem, messages, mapImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
             }
         } else {
             withContext(Dispatchers.IO) {
@@ -3213,6 +3322,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     } catch (_: Exception) {}
                 }
             }
+        }
+
+        // 用户附加的图片 (本地模型路径)
+        pendingImage?.let { dataUrl ->
+            withContext(Dispatchers.IO) {
+                try {
+                    val bytes = android.util.Base64.decode(dataUrl.substringAfter(","), android.util.Base64.DEFAULT)
+                    val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    if (bitmap != null) bitmaps.add(bitmap)
+                } catch (_: Exception) {}
+            }
+            pendingImage = null
         }
 
         try {

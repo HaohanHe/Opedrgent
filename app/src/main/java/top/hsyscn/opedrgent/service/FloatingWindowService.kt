@@ -134,7 +134,7 @@ class FloatingWindowService : Service() {
         try {
             windowManager?.addView(floatingView, params)
             // 设置拖拽
-            setupDrag(floatingView!!, params)
+            setupDrag(floatingView ?: return, params)
         } catch (e: Exception) {
             DebugLog.e(TAG, "Failed to add floating window: ${e.message}", e)
             stopSelf()

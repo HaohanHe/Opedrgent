@@ -364,7 +364,7 @@ class StepRealtimeClient(
                 put("voice", JSONObject().apply {
                     put("type", "reference_audio")
                     put("format", "pcm16")
-                    put("reference_audio", referenceAudioBase64!!)
+                    put("reference_audio", referenceAudioBase64.orEmpty())
                 })
                 DebugLog.i("$TAG: 使用 Zero-shot 音色复刻（参考音频已嵌入）")
             } else {

@@ -247,10 +247,11 @@ class SherpaOnnxEngine(
 
             val text = if (isStreamingModel && streamingRecognizer?.isActive == true) {
                 // 流式模型: 用 OnlineRecognizer 一次性解码整段音频
-                streamingRecognizer!!.recognize(audioData).trim()
+                streamingRecognizer?.recognize(audioData)?.trim().orEmpty()
             } else {
                 // 离线模型: 用 OfflineRecognizer
-                decodeSegment(offlineRecognizer!!, audioData).trim()
+                val offline = offlineRecognizer ?: return SttResult("", 0f, emptyList(), 0, 0, EngineType.SHERPA_ONNX, config.modelType.name)
+                decodeSegment(offline, audioData).trim()
             }
 
             SttResult(
@@ -299,7 +300,8 @@ class SherpaOnnxEngine(
      */
     private fun startTrueStreamingRecognition(): Flow<StreamingRecognitionState> {
         return callbackFlow {
-            val sr = streamingRecognizer!!
+            val sr = streamingRecognizer ?: run {
+                close(); return@callbackFlow }
             trySend(StreamingRecognitionState.Listening)
             DebugLog.i(TAG, "真流式识别已启动 (OnlineRecognizer)")
 
@@ -378,6 +380,7 @@ class SherpaOnnxEngine(
                 close()
                 return@callbackFlow
             }
+            val recognizer = offlineRecognizer!!
 
             // 重置流式状态
             pendingBuffer = FloatArray(0)
@@ -408,7 +411,7 @@ class SherpaOnnxEngine(
                         }
 
                         // 识别当前段
-                        val chunkText = decodeSegment(offlineRecognizer!!, chunkToRecognize).trim()
+                        val chunkText = decodeSegment(recognizer, chunkToRecognize).trim()
 
                         if (chunkText.isNotEmpty()) {
                             if (confirmedText.isNotEmpty()) {
@@ -428,7 +431,7 @@ class SherpaOnnxEngine(
                         r
                     }
                     if (remaining.isNotEmpty()) {
-                        val remainingText = decodeSegment(offlineRecognizer!!, remaining).trim()
+                        val remainingText = decodeSegment(recognizer, remaining).trim()
                         if (remainingText.isNotEmpty()) {
                             if (confirmedText.isNotEmpty()) {
                                 confirmedText.append(" ")
@@ -480,7 +483,7 @@ class SherpaOnnxEngine(
 
         if (isStreamingModel && streamingRecognizer?.isActive == true) {
             // 真流式: 直接喂入 OnlineRecognizer
-            streamingRecognizer!!.feedAudio(samples, TARGET_SAMPLE_RATE)
+            streamingRecognizer?.feedAudio(samples, TARGET_SAMPLE_RATE) ?: return
         } else {
             // 伪流式: 追加到缓冲区
             synchronized(bufferLock) {
@@ -554,7 +557,7 @@ class SherpaOnnxEngine(
     private fun recognizeWithStreamingModel(
         audioData: FloatArray, totalSamples: Int, durationMs: Long, startTimeMs: Long,
     ): SttResult {
-        val sr = streamingRecognizer!!
+        val sr = streamingRecognizer ?: return SttResult("", 0f, emptyList(), 0, 0, EngineType.SHERPA_ONNX, "")
 
         // 重置识别器状态（确保不受之前调用的影响）
         sr.reset()
@@ -586,7 +589,7 @@ class SherpaOnnxEngine(
     private fun recognizeWithOfflineModel(
         audioData: FloatArray, totalSamples: Int, durationMs: Long, startTimeMs: Long,
     ): SttResult {
-        val recognizer = offlineRecognizer!!
+        val recognizer = offlineRecognizer ?: return SttResult("", 0f, emptyList(), 0, 0, EngineType.SHERPA_ONNX, "")
         val segmentLengthSamples = min(DEFAULT_SEGMENT_SAMPLES, totalSamples)
         val segments = mutableListOf<SttSegment>()
         val fullText = StringBuilder()
@@ -718,7 +721,8 @@ class SherpaOnnxEngine(
 
             DebugLog.d(TAG, "WAV 信息: rate=$sampleRate, ch=$channels, bits=$bitsPerSample")
 
-            val dataSize = file.length().toInt() - WAV_HEADER_SIZE
+            val dataSizeLong = file.length() - WAV_HEADER_SIZE
+            val dataSize = dataSizeLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             if (dataSize <= 0) {
                 DebugLog.w(TAG, "WAV 文件无音频数据")
                 return FloatArray(0)
@@ -748,7 +752,8 @@ class SherpaOnnxEngine(
 
     private fun decodeRawPcmFile(file: File, expectedSampleRate: Int, bitsPerSample: Int, channels: Int): FloatArray {
         FileInputStream(file).use { fis ->
-            val size = file.length().toInt()
+            val sizeLong = file.length()
+            val size = sizeLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             if (size == 0) return FloatArray(0)
 
             val rawPcm = ByteArray(size)
@@ -760,20 +765,6 @@ class SherpaOnnxEngine(
                     DebugLog.w(TAG, "原始 PCM 位深度 $bitsPerSample 不受支持，尝试按 16-bit 解析")
                     pcm16ToFloat(rawPcm, channels, expectedSampleRate)
                 }
-            }
-        }
-    }
-
-    private fun tryDecodeAsWavOrPcm(file: File): FloatArray {
-        return try {
-            decodeWavFile(file)
-        } catch (e: IOException) {
-            DebugLog.w(TAG, "非 WAV 格式，尝试作为 16-bit PCM 解读: ${e.message}")
-            try {
-                decodeRawPcmFile(file, TARGET_SAMPLE_RATE, 16, 1)
-            } catch (e2: Exception) {
-                DebugLog.e(TAG, "无法解码音频文件: ${file.extension} 格式不受支持")
-                FloatArray(0)
             }
         }
     }

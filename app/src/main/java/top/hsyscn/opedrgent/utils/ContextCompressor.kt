@@ -122,7 +122,7 @@ object ContextCompressor {
                     is MessagePart.Text -> total += estimateTokens(part.content)
                     is MessagePart.ToolCall -> {
                         total += estimateTokens(part.input.values.joinToString())
-                        if (part.output != null) total += estimateTokens(part.output!!)
+                        if (part.output != null) total += estimateTokens(part.output)
                     }
                     is MessagePart.Reasoning -> total += estimateTokens(part.content)
                     else -> {}

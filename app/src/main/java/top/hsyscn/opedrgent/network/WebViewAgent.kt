@@ -13,6 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
@@ -129,7 +130,7 @@ class WebViewAgent(context: Context) {
         val maxAttempts = (timeoutMs / 1000).toInt().coerceAtLeast(5)
 
         while (!deferred.isCompleted && attempts < maxAttempts) {
-            withContext(Dispatchers.Default) { Thread.sleep(1000) }
+            delay(1000)
             attempts++
             mainHandler.post {
                 webView?.evaluateJavascript("""
@@ -159,7 +160,7 @@ class WebViewAgent(context: Context) {
                 """.trimIndent()) { _ -> }
             }
 
-            withContext(Dispatchers.Default) { Thread.sleep(500) }
+            delay(500)
             val raw = jsBridge.lastResult.getAndSet(null)?.result
             if (raw != null && raw != "null" && raw != "[]") {
                 try {
@@ -211,7 +212,7 @@ class WebViewAgent(context: Context) {
 
         while (!deferred.isCompleted && (System.currentTimeMillis() - startTime) < maxWait) {
             if (state.pageLoaded) {
-                withContext(Dispatchers.Default) { Thread.sleep(2000) }
+                delay(2000)
 
                 val captured = CompletableDeferred<String>()
                 val titleRef = CompletableDeferred<String>()
@@ -243,7 +244,7 @@ class WebViewAgent(context: Context) {
                     break
                 }
             }
-            withContext(Dispatchers.Default) { Thread.sleep(500) }
+            delay(500)
         }
 
         if (!deferred.isCompleted) {
@@ -273,7 +274,7 @@ class WebViewAgent(context: Context) {
         val maxAttempts = (timeoutMs / 1500).toInt().coerceAtLeast(10)
 
         while (!deferred.isCompleted && attempts < maxAttempts) {
-            withContext(Dispatchers.Default) { Thread.sleep(1500) }
+            delay(1500)
             attempts++
             mainHandler.post {
                 webView?.evaluateJavascript(script) { result ->
@@ -286,7 +287,7 @@ class WebViewAgent(context: Context) {
                     }
                 }
             }
-            withContext(Dispatchers.Default) { Thread.sleep(500) }
+            delay(500)
         }
 
         if (!deferred.isCompleted) {
@@ -306,8 +307,7 @@ class WebViewAgent(context: Context) {
             if (picture != null) {
                 try {
                     bitmapRef = Bitmap.createBitmap(picture.width, picture.height, Bitmap.Config.ARGB_8888)
-                    val canvas = android.graphics.Canvas(bitmapRef!!)
-                    picture.draw(canvas)
+                    bitmapRef?.let { canvas -> picture.draw(android.graphics.Canvas(canvas)) }
                 } catch (_: Exception) {}
             }
             latch.countDown()
@@ -363,7 +363,7 @@ class WebViewAgent(context: Context) {
         sb.appendLine("[多模态虚拟点击] 起始URL：$url")
 
         mainHandler.post { webView?.loadUrl(url) }
-        withContext(Dispatchers.Default) { Thread.sleep(3000) }
+        delay(3000)
 
         for (round in 1..maxRounds) {
             sb.appendLine("\n--- 第 $round 轮 ---")
@@ -452,7 +452,7 @@ class WebViewAgent(context: Context) {
                             (document.body ? document.body.innerText.substring(0, 3000) : '')
                         """) { r -> textRef.set(r?.trim('"').orEmpty()) }
                     }
-                    withContext(Dispatchers.Default) { Thread.sleep(1000) }
+                    delay(1000)
                     sb.appendLine("提取文本：${textRef.get().take(500)}")
                 }
                 action.startsWith("DONE", true) || action.startsWith("完成", true) -> {
@@ -467,12 +467,12 @@ class WebViewAgent(context: Context) {
                             (document.body ? document.body.innerText.substring(0, 3000) : '')
                         """) { r -> textRef.set(r?.trim('"').orEmpty()) }
                     }
-                    withContext(Dispatchers.Default) { Thread.sleep(1000) }
+                    delay(1000)
                     sb.appendLine("页面文本：${textRef.get().take(500)}")
                 }
             }
 
-            withContext(Dispatchers.Default) { Thread.sleep(2000) }
+            delay(2000)
         }
 
         sb.toString()
