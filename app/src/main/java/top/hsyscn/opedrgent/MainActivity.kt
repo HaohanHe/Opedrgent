@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.isSystemInDarkTheme
+import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.ui.AppRoot
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.utils.LocaleHelper
@@ -23,11 +26,23 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        window.navigationBarColor = android.graphics.Color.parseColor("#FFF5F5F6")
+        val navBarColor = if (ApiSettings(this).getThemeMode() == "dark") {
+            android.graphics.Color.parseColor("#FF121212")
+        } else {
+            android.graphics.Color.parseColor("#FFF5F5F6")
+        }
+        window.navigationBarColor = navBarColor
         pendingShareText.value = extractSharedText(intent)
         pendingAction.value = extractAction(intent)
         setContent {
-            OpedrgentTheme {
+            val themeMode = remember { ApiSettings(this).getThemeMode() }
+            val systemDark = isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> systemDark
+            }
+            OpedrgentTheme(darkTheme = darkTheme) {
                 AppRoot(
                     initialShareText = pendingShareText.value,
                     initialAction = pendingAction.value,
