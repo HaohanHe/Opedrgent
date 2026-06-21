@@ -166,6 +166,7 @@ data class UiState(
     val pendingMessageCount: Int = 0,
     val aiSearchResults: List<AiSearchResult> = emptyList(),
     val isAiSearching: Boolean = false,
+    val messageSearchResults: List<MessageSearchResult> = emptyList(),
 )
 
 data class EvolutionSuggestion(
@@ -173,6 +174,18 @@ data class EvolutionSuggestion(
     val skillName: String,
     val skillPrompt: String,
     val raw: String,
+)
+
+/** 消息级搜索结果：在历史对话中匹配到的具体消息 */
+data class MessageSearchResult(
+    val sessionId: String,
+    val sessionTitle: String,
+    val messageId: String,
+    val role: Role,
+    val content: String,
+    val matchSnippet: String,
+    val matchIndex: Int,
+    val timestamp: Long,
 )
 
 data class AutomationSuggestion(
@@ -645,10 +658,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             _state.value = _state.value.copy(
                 sessions = _state.value.sessions,
                 sessionSearchQuery = "",
+                messageSearchResults = emptyList(),
             )
             return
         }
-        // ★ 修复：搜索时才加载完整会话数据（按需加载，避免 refreshSessions 时的 O(N^2)）
+        // 搜索时才加载完整会话数据（按需加载）
         val allSessions = store.listSessions().mapNotNull { store.getSession(it.id) }
         val lowered = query.lowercase()
         val filtered = allSessions.filter { s ->
@@ -663,9 +677,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }.lowercase()
             hay.contains(lowered)
         }
+
+        // 消息级搜索结果（限制前 50 条避免性能问题）
+        val messageResults = mutableListOf<MessageSearchResult>()
+        for (session in filtered) {
+            for (msg in session.messages) {
+                val content = msg.textContent
+                if (content.isBlank()) continue
+                val idx = content.lowercase().indexOf(lowered)
+                if (idx < 0) continue
+                // 提取匹配片段上下文（前后各 40 字符）
+                val snippetStart = maxOf(0, idx - 40)
+                val snippetEnd = minOf(content.length, idx + query.length + 40)
+                val snippet = (if (snippetStart > 0) "..." else "") +
+                    content.substring(snippetStart, snippetEnd) +
+                    (if (snippetEnd < content.length) "..." else "")
+                messageResults.add(
+                    MessageSearchResult(
+                        sessionId = session.id,
+                        sessionTitle = session.title,
+                        messageId = msg.id,
+                        role = msg.role,
+                        content = content,
+                        matchSnippet = snippet,
+                        matchIndex = idx,
+                        timestamp = msg.createdAt,
+                    )
+                )
+                if (messageResults.size >= 50) break
+            }
+            if (messageResults.size >= 50) break
+        }
+
         _state.value = _state.value.copy(
             sessions = filtered.map { SessionSummary(it.id, it.title, it.updatedAt) },
             sessionSearchQuery = query,
+            messageSearchResults = messageResults.sortedByDescending { it.timestamp },
         )
     }
 
