@@ -102,10 +102,8 @@
     <string name="msg_feature_under_development">功能开发中</string>
 
     <!-- Recording modes -->
-    <string name="recording_mode_voice_memo">语音速记</string>
-    <string name="recording_mode_meeting">多人会议</string>
+    <string name="recording_mode_recording">录音</string>
     <string name="recording_mode_internal">手机内录</string>
-    <string name="recording_mode_classroom">课堂录音</string>
     <string name="recording_unlimited">无限制</string>
     <string name="recording_max_hours">最长可录 %1$d 小时</string>
     <string name="recording_max_unlimited">最长可录 无限制</string>
@@ -278,10 +276,8 @@
     <string name="about_open_source">开源软件声明</string>
     <string name="about_open_source_desc">本项目基于以下开源项目构建</string>
     <string name="about_view_open_source">查看开源软件声明 (20个项目)</string>
-    <string name="settings_voice_memo">语音速记</string>
-    <string name="settings_meeting">多人会议</string>
+    <string name="settings_recording">录音</string>
     <string name="settings_internal">手机内录</string>
-    <string name="settings_classroom">课堂录音</string>
     <string name="settings_no_limit">无限制</string>
     <string name="settings_hours_format">%d小时</string>
     <string name="settings_duration_desc">设置各录音模式的最大录制时长，超过后自动停止</string>

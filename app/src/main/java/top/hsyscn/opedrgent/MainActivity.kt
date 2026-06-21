@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
     private fun extractAction(intent: Intent?): String? {
         return when (intent?.action) {
-            "top.hsyscn.opedrgent.ACTION_MEETING_RECORD" -> "meeting"
+            "top.hsyscn.opedrgent.ACTION_RECORD" -> "recording"
             "top.hsyscn.opedrgent.ACTION_NEW_CHAT" -> "new_chat"
             else -> null
         }
