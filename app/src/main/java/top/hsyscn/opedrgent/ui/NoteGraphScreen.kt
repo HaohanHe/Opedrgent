@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,15 +31,23 @@ import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** 视图模式 */
+private enum class GraphViewMode(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    GRAPH("图谱", Icons.Default.AccountTree),
+    TIMELINE("时间线", Icons.Default.Timeline),
+}
+
 /**
  * 知识图谱可视化页面。
  *
  * 功能：
  * - 显示知识图谱统计（总笔记数、总关联数、孤立笔记数）
  * - 力导向图可视化（Canvas 绘制节点和连线）
+ * - 时间线视图（按创建时间分组展示笔记）
  * - 点击节点跳转到笔记编辑
  * - 长按节点显示笔记预览
  * - 搜索框：输入查询文本，高亮最相关的笔记
+ * - 视图模式切换（图谱/时间线）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +59,7 @@ fun NoteGraphScreen(
     var searchQuery by remember { mutableStateOf("") }
     var highlightNoteIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showPreview by remember { mutableStateOf<Note?>(null) }
+    var viewMode by remember { mutableStateOf(GraphViewMode.GRAPH) }
 
     // 获取图谱数据
     val stats = remember { repository.getKnowledgeStats() }
@@ -102,6 +112,13 @@ fun NoteGraphScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
+                actions = {
+                    // 视图模式切换
+                    val nextMode = if (viewMode == GraphViewMode.GRAPH) GraphViewMode.TIMELINE else GraphViewMode.GRAPH
+                    IconButton(onClick = { viewMode = nextMode }) {
+                        Icon(nextMode.icon, contentDescription = "切换到${nextMode.label}视图")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
@@ -142,48 +159,61 @@ fun NoteGraphScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // 图谱可视化区域
+            // 图谱/时间线可视化区域
             if (nodes.isEmpty()) {
                 EmptyGraphState()
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                        .transformable(state = transformableState),
-                ) {
-                    GraphCanvas(
-                        nodes = nodes,
-                        edges = edges,
-                        layout = layoutState.value,
-                        highlightNoteIds = highlightNoteIds,
-                        scale = scale,
-                        offset = offset,
-                        onNodeClick = { node ->
-                            onNoteClick(node.noteId)
-                        },
-                        onNodeLongClick = { node ->
-                            val noteId = node.noteId
-                            showPreview = allNotes.find { it.id == noteId }
-                        },
-                    )
-
-                    // 搜索结果提示
-                    if (highlightNoteIds.isNotEmpty()) {
-                        Surface(
-                            color = AccentBlue,
-                            shape = RoundedCornerShape(16.dp),
+                when (viewMode) {
+                    GraphViewMode.GRAPH -> {
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 8.dp),
+                                .fillMaxSize()
+                                .weight(1f)
+                                .transformable(state = transformableState),
                         ) {
-                            Text(
-                                "找到 ${highlightNoteIds.size} 个相关笔记",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            GraphCanvas(
+                                nodes = nodes,
+                                edges = edges,
+                                layout = layoutState.value,
+                                highlightNoteIds = highlightNoteIds,
+                                scale = scale,
+                                offset = offset,
+                                onNodeClick = { node ->
+                                    onNoteClick(node.noteId)
+                                },
+                                onNodeLongClick = { node ->
+                                    val noteId = node.noteId
+                                    showPreview = allNotes.find { it.id == noteId }
+                                },
                             )
+
+                            // 搜索结果提示
+                            if (highlightNoteIds.isNotEmpty()) {
+                                Surface(
+                                    color = AccentBlue,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(top = 8.dp),
+                                ) {
+                                    Text(
+                                        "找到 ${highlightNoteIds.size} 个相关笔记",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
                         }
+                    }
+                    GraphViewMode.TIMELINE -> {
+                        TimelineView(
+                            notes = allNotes,
+                            highlightNoteIds = highlightNoteIds,
+                            onNoteClick = onNoteClick,
+                            onNoteLongClick = { note -> showPreview = note },
+                            modifier = Modifier.fillMaxSize().weight(1f),
+                        )
                     }
                 }
             }
@@ -479,6 +509,174 @@ private fun EmptyGraphState() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )
+    }
+}
+
+// ==================== 时间线视图 ====================
+
+/**
+ * 时间线视图 — 按创建时间分组展示笔记。
+ *
+ * 按年月分组，每组内按创建时间倒序排列。
+ * 支持搜索高亮和长按预览。
+ */
+@Composable
+private fun TimelineView(
+    notes: List<Note>,
+    highlightNoteIds: Set<String>,
+    onNoteClick: (Long) -> Unit,
+    onNoteLongClick: (Note) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 按年月分组
+    val grouped = remember(notes) {
+        val cal = java.util.Calendar.getInstance()
+        notes.sortedByDescending { it.createdAt }
+            .groupBy { note ->
+                cal.timeInMillis = note.createdAt
+                val year = cal.get(java.util.Calendar.YEAR)
+                val month = cal.get(java.util.Calendar.MONTH) + 1
+                "$year 年 ${month} 月"
+            }
+    }
+
+    val scrollState = remember { androidx.compose.foundation.lazy.LazyListState() }
+
+    LazyColumn(
+        state = scrollState,
+        modifier = modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 32.dp),
+    ) {
+        grouped.forEach { (monthLabel, monthNotes) ->
+            // 月份标题
+            item(key = "header_$monthLabel") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                ) {
+                    // 时间线圆点
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(AccentBlue, shape = androidx.compose.foundation.shape.CircleShape)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        monthLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "${monthNotes.size} 篇",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                }
+            }
+
+            // 该月的笔记卡片
+            monthNotes.forEachIndexed { idx, note ->
+                item(key = "note_${note.id}") {
+                    val isHighlighted = highlightNoteIds.isEmpty() || note.id.toString() in highlightNoteIds
+                    TimelineNoteCard(
+                        note = note,
+                        isHighlighted = isHighlighted,
+                        onClick = { onNoteClick(note.id) },
+                        onLongClick = { onNoteLongClick(note) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 时间线中的笔记卡片。
+ */
+@Composable
+private fun TimelineNoteCard(
+    note: Note,
+    isHighlighted: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val cal = remember { java.util.Calendar.getInstance() }
+    val dateStr = remember(note.createdAt) {
+        cal.timeInMillis = note.createdAt
+        val m = cal.get(java.util.Calendar.MONTH) + 1
+        val d = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val min = cal.get(java.util.Calendar.MINUTE)
+        "${m}月${d}日 %02d:%02d".format(h, min)
+    }
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = { onLongClick() })
+            },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isHighlighted) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            },
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            // 左侧时间标签
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(56.dp),
+            ) {
+                Text(
+                    dateStr,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AccentBlue,
+                    maxLines = 2,
+                )
+            }
+
+            // 竖线
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(40.dp)
+                    .background(AccentBlue.copy(alpha = 0.3f))
+            )
+
+            Spacer(Modifier.width(12.dp))
+
+            // 笔记内容
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    note.title.ifBlank { "无标题" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (note.content.isNotBlank()) {
+                    Text(
+                        note.content.take(100).replace("\n", " "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
     }
 }
 
