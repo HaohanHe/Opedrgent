@@ -144,10 +144,14 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.themeCoralLight
+import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
+import top.hsyscn.opedrgent.ui.theme.themeQuoteBg
+import top.hsyscn.opedrgent.ui.theme.themeActionItemBg
+import top.hsyscn.opedrgent.ui.theme.CoralRed
+import top.hsyscn.opedrgent.ui.theme.CoralLight
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 
-private val CoralRed = Color(0xFFFF5A5A)
-private val CoralLight = Color(0xFFFFEAEA)
 private val SelectedBorder = CoralRed
 
 enum class RecordingMode(val label: String, val maxHours: Int, val icon: ImageVector) {
@@ -1209,7 +1213,7 @@ private fun ModeCard(
     modifier: Modifier = Modifier,
 ) {
     val borderColor = if (isSelected) SelectedBorder else Color.Transparent
-    val bgColor = if (isSelected) CoralLight else Color.White
+    val bgColor = if (isSelected) themeCoralLight() else MaterialTheme.colorScheme.surface
     Card(
         modifier = modifier
             .aspectRatio(1.25f)
@@ -1883,7 +1887,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
         sections.forEach { section ->
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFFAFAF5),
+                color = themeSurfaceLight(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1898,7 +1902,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
                         Text(
                             text = para,
                             fontSize = 13.sp,
-                            color = Color(0xFF4A4A4A),
+                            color = themeTextDark(),
                             lineHeight = 20.sp,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
@@ -1963,7 +1967,7 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
         quotes.forEach { quote ->
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFFFFBEB),
+                color = themeQuoteBg(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(modifier = Modifier.padding(12.dp)) {
@@ -1978,7 +1982,7 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
                         Text(
                             text = quote.text,
                             fontSize = 13.sp,
-                            color = Color(0xFF333333),
+                            color = themeTextDark(),
                             lineHeight = 19.sp,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         )
@@ -2003,7 +2007,7 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
 private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.ActionItem>) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF0F7FF),
+        color = themeActionItemBg(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -2035,7 +2039,7 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
                     Spacer(Modifier.width(8.dp))
                     Text(text = item.assignee, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AccentBlue)
                     Spacer(Modifier.width(6.dp))
-                    Text(text = item.task, fontSize = 12.sp, color = Color(0xFF444444), modifier = Modifier.weight(1f))
+                    Text(text = item.task, fontSize = 12.sp, color = themeTextDark(), modifier = Modifier.weight(1f))
                 }
             }
         }
