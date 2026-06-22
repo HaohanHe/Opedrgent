@@ -2,13 +2,26 @@ package com.k2fsa.sherpa.onnx
 
 /**
  * Stub class for sherpa-onnx OnlineRecognizerConfig.
- *
- * This stub exists for compilation against the stub AAR (v1.13.2).
- * At runtime, the real class from the full sherpa-onnx AAR is loaded instead.
- * When upgrading to a sherpa-onnx release that includes OnlineRecognizer,
- * this file can be removed.
+ * Matches real AAR v1.13.2 API with Builder pattern.
  */
-class OnlineRecognizerConfig(
-    var featConfig: OnlineFeatureConfig = OnlineFeatureConfig(),
-    var modelConfig: OnlineModelConfig = OnlineModelConfig(),
-)
+class OnlineRecognizerConfig private constructor(
+    val featConfig: OnlineFeatureConfig = OnlineFeatureConfig.builder().build(),
+    val modelConfig: OnlineModelConfig = OnlineModelConfig.builder().build(),
+    val enableEndpoint: Boolean = true,
+) {
+    class Builder {
+        private var featConfig = OnlineFeatureConfig.builder().build()
+        private var modelConfig = OnlineModelConfig.builder().build()
+        private var enableEndpoint = true
+
+        fun setFeatureConfig(v: OnlineFeatureConfig): Builder { featConfig = v; return this }
+        fun setModelConfig(v: OnlineModelConfig): Builder { modelConfig = v; return this }
+        fun setOnlineModelConfig(v: OnlineModelConfig): Builder { modelConfig = v; return this }
+        fun setEnableEndpoint(v: Boolean): Builder { enableEndpoint = v; return this }
+        fun build() = OnlineRecognizerConfig(featConfig, modelConfig, enableEndpoint)
+    }
+
+    companion object {
+        @JvmStatic fun builder() = Builder()
+    }
+}
