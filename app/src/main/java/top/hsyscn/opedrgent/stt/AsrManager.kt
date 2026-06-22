@@ -182,6 +182,24 @@ class AsrManager(
         engine = null
     }
 
+    /**
+     * 使当前引擎缓存失效，下次调用 [ensureInitialized] 或 [startStreaming] 时重新创建。
+     * 用于用户切换模型后强制重新初始化。
+     */
+    fun invalidateEngine() {
+        DebugLog.i(TAG, "引擎缓存已失效，将在下次使用时重新创建")
+        engine?.close()
+        engine = null
+    }
+
+    /**
+     * 当前引擎是否为流式识别引擎（OnlineRecognizer）。
+     */
+    fun isCurrentEngineStreaming(): Boolean {
+        val e = engine ?: return false
+        return e is SherpaOnnxEngine && e.isStreamingEngine
+    }
+
     // ==================== 内部实现 ====================
 
     private suspend fun getOrCreateEngine(): SpeechEngine = mutex.withLock {
