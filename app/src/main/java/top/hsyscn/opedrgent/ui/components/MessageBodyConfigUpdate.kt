@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
@@ -47,20 +48,20 @@ fun MessageBodyConfigUpdate(
             imageVector = Icons.Default.Tune,
             contentDescription = null,
             modifier = Modifier.size(20.dp),
-            tint = Color(0xFF66BB6A),
+            tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.width(4.dp))
         Text(
             text = buildAnnotatedString {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))) {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
                     append(configName)
                 }
                 append(" 已从 ")
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color(0xFFE65100))) {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)) {
                     append(oldValue)
                 }
                 append(" 更改为 ")
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color(0xFF1565C0))) {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = AccentBlue)) {
                     append(newValue)
                 }
             },

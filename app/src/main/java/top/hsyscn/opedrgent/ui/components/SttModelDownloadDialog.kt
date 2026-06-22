@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
@@ -99,7 +100,7 @@ fun SttModelDownloadDialog(
                 androidx.compose.material3.Icon(
                     imageVector = Icons.Default.Download,
                     contentDescription = null,
-                    tint = Color(0xFF2B68DE),
+                    tint = AccentBlue,
                     modifier = Modifier.size(48.dp),
                 )
 
@@ -139,8 +140,8 @@ fun SttModelDownloadDialog(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = Color(0xFF2B68DE),
-                                trackColor = Color(0xFF2B68DE).copy(alpha = 0.15f),
+                                color = AccentBlue,
+                                trackColor = AccentBlue.copy(alpha = 0.15f),
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -162,7 +163,7 @@ fun SttModelDownloadDialog(
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
                                 color = themeTextGrey().copy(alpha = 0.5f),
-                                trackColor = Color(0xFF2B68DE).copy(alpha = 0.15f),
+                                trackColor = AccentBlue.copy(alpha = 0.15f),
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -181,11 +182,11 @@ fun SttModelDownloadDialog(
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = null,
-                                tint = Color(0xFFF44336),
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(32.dp),
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "下载失败", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                            Text(text = "下载失败", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = statusDetail.ifEmpty { "未知错误" },
@@ -207,7 +208,7 @@ fun SttModelDownloadDialog(
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
                                 color = Color.Transparent,
-                                trackColor = Color(0xFF2B68DE).copy(alpha = 0.15f),
+                                trackColor = AccentBlue.copy(alpha = 0.15f),
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -247,7 +248,7 @@ fun SttModelDownloadDialog(
                         text = "取消下载",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFFF44336),
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
 
@@ -322,8 +323,8 @@ private fun SttProgressSection(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp)),
-                    color = Color(0xFF2B68DE),
-                    trackColor = Color(0xFF2B68DE).copy(alpha = 0.15f),
+                    color = AccentBlue,
+                    trackColor = AccentBlue.copy(alpha = 0.15f),
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -331,7 +332,7 @@ private fun SttProgressSection(
                 text = "$percent%",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF2B68DE),
+                color = AccentBlue,
             )
         }
 

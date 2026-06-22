@@ -169,7 +169,7 @@ fun ConfirmationDialog(
                     if (isExpired) {
                         Text(
                             text = "超时",
-                            color = Color(0xFFF44336),
+                            color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold,
                         )
                     } else {
@@ -220,7 +220,7 @@ private fun CountdownTimer(remainingSeconds: Int) {
             modifier = Modifier
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(if (remainingSeconds <= 5) Color(0xFFF44336) else BubbleBlue.copy(alpha = alpha)),
+                .background(if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else BubbleBlue.copy(alpha = alpha)),
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(

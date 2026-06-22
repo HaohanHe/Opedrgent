@@ -183,28 +183,28 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text("纠错") },
                     leadingContent = {
-                        Icon(Icons.Default.Spellcheck, null, modifier = Modifier.size(24.dp), tint = Color(0xFF9C27B0))
+                        Icon(Icons.Default.Spellcheck, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onCorrect() },
                 )
                 ListItem(
                     headlineContent = { Text("笔记发芽") },
                     leadingContent = {
-                        Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(24.dp), tint = Color(0xFF4CAF50))
+                        Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onSprout() },
                 )
                 ListItem(
                     headlineContent = { Text("添加到知识库") },
                     leadingContent = {
-                        Icon(Icons.Default.LibraryBooks, null, modifier = Modifier.size(24.dp), tint = Color(0xFF795548))
+                        Icon(Icons.Default.LibraryBooks, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddToKnowledgeBase() },
                 )
                 ListItem(
                     headlineContent = { Text("添加标签") },
                     leadingContent = {
-                        Icon(Icons.Default.Label, null, modifier = Modifier.size(24.dp), tint = Color(0xFFE67E22))
+                        Icon(Icons.Default.Label, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddTag() },
                 )

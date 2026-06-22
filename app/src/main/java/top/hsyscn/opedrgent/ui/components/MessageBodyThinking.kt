@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
 fun MessageBodyThinking(
@@ -71,12 +72,12 @@ fun MessageBodyThinking(
                             imageVector = Icons.Default.ExpandLess,
                             contentDescription = "收起思考",
                             modifier = Modifier.size(18.dp),
-                            tint = Color(0xFF5A6A7E),
+                            tint = themeTextGrey(),
                         )
                         Text(
                             text = if (isComplete) "思考完成" else "思考中...",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF5A6A7E),
+                            color = themeTextGrey(),
                         )
                     }
                 } else {
@@ -88,14 +89,14 @@ fun MessageBodyThinking(
                         Text(
                             text = if (isComplete) "思考完成" else "思考中...",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF5A6A7E),
+                            color = themeTextGrey(),
                         )
                         Spacer(Modifier.weight(1f))
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = "展开思考",
                             modifier = Modifier.size(18.dp),
-                            tint = Color(0xFF5A6A7E),
+                            tint = themeTextGrey(),
                         )
                     }
                 }
@@ -154,7 +155,7 @@ private fun ThinkingDotsIndicator(isComplete: Boolean) {
         label = "dot3",
     )
 
-    val baseColor = if (isComplete) Color(0xFF4CAF50) else AccentBlue
+    val baseColor = if (isComplete) MaterialTheme.colorScheme.primary else AccentBlue
 
     Canvas(modifier = Modifier.size(24.dp, 10.dp)) {
         val radius = 3.dp.toPx()

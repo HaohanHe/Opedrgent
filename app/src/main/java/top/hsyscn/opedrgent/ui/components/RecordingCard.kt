@@ -149,7 +149,7 @@ fun RecordingCard(
                             else -> fileName
                         },
                         fontSize = if (recordingState == RecordingState.RECORDING) 13.sp else 12.sp,
-                        color = if (recordingState == RecordingState.RECORDING) Color(0xFFE53935) else themeTextGrey(),
+                        color = if (recordingState == RecordingState.RECORDING) MaterialTheme.colorScheme.error else themeTextGrey(),
                         fontWeight = if (recordingState == RecordingState.RECORDING) FontWeight.Medium else FontWeight.Normal,
                     )
                     if (recordingState != RecordingState.RECORDING) {
@@ -215,7 +215,7 @@ fun RecordingCard(
                     Surface(
                         onClick = onStop,
                         shape = CircleShape,
-                        color = Color(0xFFE53935),  // 红色：醒目的停止按钮
+                        color = MaterialTheme.colorScheme.error,  // 红色：醒目的停止按钮
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -251,7 +251,7 @@ fun RecordingCard(
                     Surface(
                         onClick = onStop,
                         shape = CircleShape,
-                        color = Color(0xFFE53935),
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
