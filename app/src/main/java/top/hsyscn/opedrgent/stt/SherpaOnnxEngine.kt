@@ -304,6 +304,7 @@ class SherpaOnnxEngine(
         return callbackFlow {
             val sr = streamingRecognizer ?: run {
                 close(); return@callbackFlow }
+            streamingActive.set(true)
             trySend(StreamingRecognitionState.Listening)
             DebugLog.i(TAG, "真流式识别已启动 (OnlineRecognizer)")
 
