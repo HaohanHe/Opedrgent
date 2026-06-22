@@ -1,46 +1,24 @@
 package top.hsyscn.opedrgent.stt
 
+import com.k2fsa.sherpa.onnx.OnlineModelConfig
+import com.k2fsa.sherpa.onnx.OnlineParaformerModelConfig
+import com.k2fsa.sherpa.onnx.OnlineRecognizer
+import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OnlineStream
+import com.k2fsa.sherpa.onnx.FeatureConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
 /**
  * Wrapper around sherpa-onnx's OnlineRecognizer for streaming ASR.
  *
- * Uses **reflection** to interact with the real OnlineRecognizer at runtime.
- * The real AAR (v1.13.2) uses Builder pattern for configs and requires
- * an OnlineStream for all decode/result operations.
- *
- * ## Real API structure (v1.13.2)
- * ```
- * OnlineRecognizer(OnlineRecognizerConfig config)
- * recognizer.createStream() → OnlineStream
- * stream.acceptWaveform(float[], sampleRate)
- * recognizer.isReady(stream) → boolean
- * recognizer.decode(stream)
- * recognizer.getResult(stream) → OnlineRecognizerResult.getText()
- * recognizer.isEndpoint(stream) → boolean
- * recognizer.reset(stream)
- * stream.release()
- * recognizer.release()
- * ```
+ * Uses the official Kotlin API (data classes + JNI) directly.
+ * The native library (libsherpa-onnx-jni.so) is loaded from the AAR.
  */
 class StreamingRecognizer {
 
     companion object {
         private const val TAG = "StreamingRecognizer"
-
-        private const val ONLINE_RECOGNIZER_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineRecognizer"
-        private const val ONLINE_RECOGNIZER_CONFIG_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineRecognizerConfig"
-        private const val ONLINE_FEATURE_CONFIG_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineFeatureConfig"
-        private const val ONLINE_MODEL_CONFIG_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineModelConfig"
-        private const val ONLINE_PARAFORMER_MODEL_CONFIG_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineParaformerModelConfig"
-        private const val ONLINE_STREAM_CLASS =
-            "com.k2fsa.sherpa.onnx.OnlineStream"
 
         @Volatile
         private var isAvailableChecked = false
@@ -53,14 +31,11 @@ class StreamingRecognizer {
             synchronized(this) {
                 if (isAvailableChecked) return isAvailableResult
                 isAvailableResult = try {
-                    Class.forName(ONLINE_RECOGNIZER_CLASS)
-                    Class.forName(ONLINE_RECOGNIZER_CONFIG_CLASS)
-                    Class.forName(ONLINE_MODEL_CONFIG_CLASS)
-                    Class.forName(ONLINE_STREAM_CLASS)
+                    Class.forName("com.k2fsa.sherpa.onnx.OnlineRecognizer")
                     DebugLog.i(TAG, "sherpa-onnx online/streaming API available")
                     true
                 } catch (_: ClassNotFoundException) {
-                    DebugLog.w(TAG, "sherpa-onnx AAR lacks online/streaming API (stub or outdated)")
+                    DebugLog.w(TAG, "sherpa-onnx AAR lacks online/streaming API")
                     false
                 }
                 isAvailableChecked = true
@@ -69,8 +44,8 @@ class StreamingRecognizer {
         }
     }
 
-    private var recognizerInstance: Any? = null
-    private var streamInstance: Any? = null
+    private var recognizer: OnlineRecognizer? = null
+    private var stream: OnlineStream? = null
     private var _isActive = false
 
     val isActive: Boolean get() = _isActive
@@ -94,17 +69,29 @@ class StreamingRecognizer {
         }
 
         return try {
-            val config = buildConfig(modelDir, numThreads, provider)
+            val encoderPath = findModelFile(modelDir, "encoder.int8.onnx", "encoder.onnx")
+            val decoderPath = findModelFile(modelDir, "decoder.int8.onnx", "decoder.onnx")
+            val tokensPath = findModelFile(modelDir, "tokens.txt", "tokens")
 
-            // OnlineRecognizer(config) — single-arg constructor
-            val recognizerCls = Class.forName(ONLINE_RECOGNIZER_CLASS)
-            val configCls = Class.forName(ONLINE_RECOGNIZER_CONFIG_CLASS)
-            val ctor = recognizerCls.getConstructor(configCls)
-            recognizerInstance = ctor.newInstance(config)
+            DebugLog.i(TAG, "构建流式配置: encoder=$encoderPath, decoder=$decoderPath, tokens=$tokensPath")
 
-            // createStream()
-            streamInstance = recognizerCls.getMethod("createStream").invoke(recognizerInstance)
+            val config = OnlineRecognizerConfig(
+                featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
+                modelConfig = OnlineModelConfig(
+                    paraformer = OnlineParaformerModelConfig(
+                        encoder = encoderPath,
+                        decoder = decoderPath,
+                    ),
+                    tokens = tokensPath,
+                    numThreads = numThreads,
+                    debug = false,
+                    provider = provider,
+                ),
+                enableEndpoint = true,
+            )
 
+            recognizer = OnlineRecognizer(config = config)
+            stream = recognizer!!.createStream()
             _isActive = true
             DebugLog.i(TAG, "OnlineRecognizer + OnlineStream created (provider=$provider, threads=$numThreads)")
             true
@@ -117,17 +104,13 @@ class StreamingRecognizer {
 
     /**
      * Feed audio samples for streaming recognition (real-time input).
-     *
-     * Audio goes to OnlineStream.acceptWaveform().
      */
     fun feedAudio(samples: FloatArray, sampleRate: Int = 16000) {
-        val stream = streamInstance ?: return
+        val s = stream ?: return
         if (!_isActive || samples.isEmpty()) return
 
         try {
-            Class.forName(ONLINE_STREAM_CLASS)
-                .getMethod("acceptWaveform", FloatArray::class.java, Int::class.javaPrimitiveType)
-                .invoke(stream, samples, sampleRate)
+            s.acceptWaveform(samples, sampleRate)
         } catch (e: Exception) {
             DebugLog.e(TAG, "feedAudio failed: ${e.message}", e)
         }
@@ -135,38 +118,22 @@ class StreamingRecognizer {
 
     /**
      * Feed entire audio and decode all at once (for file recognition).
-     *
-     * Feeds all samples, then decodes until no more data, returns final text.
      */
     fun recognize(samples: FloatArray, sampleRate: Int = 16000): String {
-        val inst = recognizerInstance ?: return ""
-        val stream = streamInstance ?: return ""
+        val r = recognizer ?: return ""
+        val s = stream ?: return ""
         if (samples.isEmpty()) return ""
 
         return try {
-            // Feed all audio to stream
-            Class.forName(ONLINE_STREAM_CLASS)
-                .getMethod("acceptWaveform", FloatArray::class.java, Int::class.javaPrimitiveType)
-                .invoke(stream, samples, sampleRate)
+            s.acceptWaveform(samples, sampleRate)
+            s.inputFinished()
 
-            // Signal end of input
-            Class.forName(ONLINE_STREAM_CLASS)
-                .getMethod("inputFinished")
-                .invoke(stream)
-
-            // Decode loop
-            val recognizerCls = Class.forName(ONLINE_RECOGNIZER_CLASS)
-            val streamCls = Class.forName(ONLINE_STREAM_CLASS)
-            val isReadyMethod = recognizerCls.getMethod("isReady", streamCls)
-            val decodeMethod = recognizerCls.getMethod("decode", streamCls)
-
-            while (isReadyMethod.invoke(inst, stream) as Boolean) {
-                decodeMethod.invoke(inst, stream)
+            while (r.isReady(s)) {
+                r.decode(s)
             }
 
-            // Get final result
-            val result = recognizerCls.getMethod("getResult", streamCls).invoke(inst, stream)
-            val text = result?.javaClass?.getMethod("getText")?.invoke(result) as? String ?: ""
+            val result = r.getResult(s)
+            val text = result.text
             DebugLog.d(TAG, "recognize: ${samples.size} samples -> ${text.length} chars")
             text
         } catch (e: Exception) {
@@ -179,12 +146,10 @@ class StreamingRecognizer {
      * Check if the recognizer has enough audio to produce a decode result.
      */
     fun isReady(): Boolean {
-        val inst = recognizerInstance ?: return false
-        val stream = streamInstance ?: return false
+        val r = recognizer ?: return false
+        val s = stream ?: return false
         return try {
-            Class.forName(ONLINE_RECOGNIZER_CLASS)
-                .getMethod("isReady", Class.forName(ONLINE_STREAM_CLASS))
-                .invoke(inst, stream) as Boolean
+            r.isReady(s)
         } catch (e: Exception) {
             DebugLog.e(TAG, "isReady failed: ${e.message}", e)
             false
@@ -195,12 +160,10 @@ class StreamingRecognizer {
      * Decode one step, advancing the recognizer's internal state.
      */
     fun decode() {
-        val inst = recognizerInstance ?: return
-        val stream = streamInstance ?: return
+        val r = recognizer ?: return
+        val s = stream ?: return
         try {
-            Class.forName(ONLINE_RECOGNIZER_CLASS)
-                .getMethod("decode", Class.forName(ONLINE_STREAM_CLASS))
-                .invoke(inst, stream)
+            r.decode(s)
         } catch (e: Exception) {
             DebugLog.e(TAG, "decode failed: ${e.message}", e)
         }
@@ -212,13 +175,10 @@ class StreamingRecognizer {
      * Returns partial text that can be updated/corrected as more audio arrives.
      */
     fun getResult(): String {
-        val inst = recognizerInstance ?: return ""
-        val stream = streamInstance ?: return ""
+        val r = recognizer ?: return ""
+        val s = stream ?: return ""
         return try {
-            val result = Class.forName(ONLINE_RECOGNIZER_CLASS)
-                .getMethod("getResult", Class.forName(ONLINE_STREAM_CLASS))
-                .invoke(inst, stream)
-            result?.javaClass?.getMethod("getText")?.invoke(result) as? String ?: ""
+            r.getResult(s).text
         } catch (e: Exception) {
             DebugLog.e(TAG, "getResult failed: ${e.message}", e)
             ""
@@ -229,12 +189,10 @@ class StreamingRecognizer {
      * Check if an endpoint (pause/break) has been detected.
      */
     fun isEndpoint(): Boolean {
-        val inst = recognizerInstance ?: return false
-        val stream = streamInstance ?: return false
+        val r = recognizer ?: return false
+        val s = stream ?: return false
         return try {
-            Class.forName(ONLINE_RECOGNIZER_CLASS)
-                .getMethod("isEndpoint", Class.forName(ONLINE_STREAM_CLASS))
-                .invoke(inst, stream) as Boolean
+            r.isEndpoint(s)
         } catch (e: Exception) {
             false
         }
@@ -244,12 +202,10 @@ class StreamingRecognizer {
      * Reset the recognizer for a new utterance.
      */
     fun reset() {
-        val inst = recognizerInstance ?: return
-        val stream = streamInstance ?: return
+        val r = recognizer ?: return
+        val s = stream ?: return
         try {
-            Class.forName(ONLINE_RECOGNIZER_CLASS)
-                .getMethod("reset", Class.forName(ONLINE_STREAM_CLASS))
-                .invoke(inst, stream)
+            r.reset(s)
         } catch (e: Exception) {
             DebugLog.e(TAG, "reset failed: ${e.message}", e)
         }
@@ -259,87 +215,17 @@ class StreamingRecognizer {
      * Release all resources (stream + recognizer).
      */
     fun release() {
-        streamInstance?.let { s ->
-            try {
-                Class.forName(ONLINE_STREAM_CLASS).getMethod("release").invoke(s)
-            } catch (_: Exception) { }
+        stream?.let {
+            try { it.release() } catch (_: Exception) { }
         }
-        streamInstance = null
+        stream = null
 
-        recognizerInstance?.let { inst ->
-            try {
-                Class.forName(ONLINE_RECOGNIZER_CLASS).getMethod("release").invoke(inst)
-            } catch (_: Exception) { }
+        recognizer?.let {
+            try { it.release() } catch (_: Exception) { }
         }
-        recognizerInstance = null
+        recognizer = null
         _isActive = false
         DebugLog.i(TAG, "OnlineRecognizer + OnlineStream released")
-    }
-
-    // ==================== Config building via reflection (Builder pattern) ====================
-
-    private fun buildConfig(modelDir: File, numThreads: Int, provider: String): Any {
-        val encoderPath = findModelFile(modelDir, "encoder.int8.onnx", "encoder.onnx")
-        val decoderPath = findModelFile(modelDir, "decoder.int8.onnx", "decoder.onnx")
-        val tokensPath = findModelFile(modelDir, "tokens.txt", "tokens")
-
-        DebugLog.i(TAG, "构建流式配置: encoder=$encoderPath, decoder=$decoderPath, tokens=$tokensPath")
-
-        // OnlineParaformerModelConfig.builder().setEncoder().setDecoder().build()
-        val paraformerCls = Class.forName(ONLINE_PARAFORMER_MODEL_CONFIG_CLASS)
-        val paraformerBuilder = paraformerCls.getMethod("builder").invoke(null)
-        paraformerBuilder.javaClass.getMethod("setEncoder", String::class.java)
-            .invoke(paraformerBuilder, encoderPath)
-        paraformerBuilder.javaClass.getMethod("setDecoder", String::class.java)
-            .invoke(paraformerBuilder, decoderPath)
-        val paraformerConfig = paraformerBuilder.javaClass.getMethod("build").invoke(paraformerBuilder)
-
-        // OnlineModelConfig.builder().setParaformer().setTokens().setNumThreads().setProvider().setDebug().build()
-        val modelCls = Class.forName(ONLINE_MODEL_CONFIG_CLASS)
-        val modelBuilder = modelCls.getMethod("builder").invoke(null)
-        modelBuilder.javaClass.getMethod("setParaformer", paraformerCls)
-            .invoke(modelBuilder, paraformerConfig)
-        modelBuilder.javaClass.getMethod("setTokens", String::class.java)
-            .invoke(modelBuilder, tokensPath)
-        modelBuilder.javaClass.getMethod("setNumThreads", Int::class.javaPrimitiveType)
-            .invoke(modelBuilder, numThreads)
-        modelBuilder.javaClass.getMethod("setProvider", String::class.java)
-            .invoke(modelBuilder, provider)
-        modelBuilder.javaClass.getMethod("setDebug", Boolean::class.javaPrimitiveType)
-            .invoke(modelBuilder, false)
-        val modelConfig = modelBuilder.javaClass.getMethod("build").invoke(modelBuilder)
-
-        // OnlineFeatureConfig via Builder or constructor
-        val featureConfig = try {
-            val featureCls = Class.forName(ONLINE_FEATURE_CONFIG_CLASS)
-            val featureBuilder = featureCls.getMethod("builder").invoke(null)
-            featureBuilder.javaClass.getMethod("setSampleRate", Int::class.javaPrimitiveType)
-                .invoke(featureBuilder, 16000)
-            featureBuilder.javaClass.getMethod("setFeatureDim", Int::class.javaPrimitiveType)
-                .invoke(featureBuilder, 80)
-            featureBuilder.javaClass.getMethod("build").invoke(featureBuilder)
-        } catch (_: Exception) {
-            val featureCls = Class.forName(ONLINE_FEATURE_CONFIG_CLASS)
-            featureCls.getConstructor(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-                .newInstance(16000, 80)
-        }
-
-        // OnlineRecognizerConfig.builder().setOnlineModelConfig().setFeatureConfig().setEnableEndpoint().build()
-        val configCls = Class.forName(ONLINE_RECOGNIZER_CONFIG_CLASS)
-        val configBuilder = configCls.getMethod("builder").invoke(null)
-        // Try setOnlineModelConfig first (real API), fallback to setModelConfig (stub compat)
-        try {
-            configBuilder.javaClass.getMethod("setOnlineModelConfig", modelCls)
-                .invoke(configBuilder, modelConfig)
-        } catch (_: Exception) {
-            configBuilder.javaClass.getMethod("setModelConfig", modelCls)
-                .invoke(configBuilder, modelConfig)
-        }
-        configBuilder.javaClass.getMethod("setFeatureConfig", Class.forName(ONLINE_FEATURE_CONFIG_CLASS))
-            .invoke(configBuilder, featureConfig)
-        configBuilder.javaClass.getMethod("setEnableEndpoint", Boolean::class.javaPrimitiveType)
-            .invoke(configBuilder, true)
-        return configBuilder.javaClass.getMethod("build").invoke(configBuilder)!!
     }
 
     private fun findModelFile(dir: File, vararg candidates: String): String {
