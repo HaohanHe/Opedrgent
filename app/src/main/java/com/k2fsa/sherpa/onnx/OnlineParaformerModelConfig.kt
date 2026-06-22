@@ -2,11 +2,22 @@ package com.k2fsa.sherpa.onnx
 
 /**
  * Stub class for sherpa-onnx OnlineParaformerModelConfig.
- *
- * This stub exists for compilation against the stub AAR (v1.13.2).
- * At runtime, the real class from the full sherpa-onnx AAR is loaded instead.
+ * Matches real AAR v1.13.2 API with Builder pattern.
  */
-class OnlineParaformerModelConfig(
-    var encoder: String = "",
-    var decoder: String = "",
-)
+class OnlineParaformerModelConfig private constructor(
+    val encoder: String = "",
+    val decoder: String = "",
+) {
+    class Builder {
+        private var encoder = ""
+        private var decoder = ""
+
+        fun setEncoder(encoder: String): Builder { this.encoder = encoder; return this }
+        fun setDecoder(decoder: String): Builder { this.decoder = decoder; return this }
+        fun build() = OnlineParaformerModelConfig(encoder, decoder)
+    }
+
+    companion object {
+        @JvmStatic fun builder() = Builder()
+    }
+}
