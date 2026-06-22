@@ -117,6 +117,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.asStateFlow
 import top.hsyscn.opedrgent.stt.SttResult
+import top.hsyscn.opedrgent.sync.NoteSyncService
+import top.hsyscn.opedrgent.sync.WebDavConfig
 import top.hsyscn.opedrgent.stt.EngineType
 import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.stt.ModelManager
@@ -314,6 +316,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     )
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
     private val agentSwarm = top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor)
+    private val noteSyncService = NoteSyncService(app, noteRepository)
     private val curatorService = CuratorService(skillLoader, app)
 
     // ★ AgentService：独立的 Agent 后台服务（渐进式迁移）
@@ -1087,6 +1090,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 saveDeepResearch(enabled)
                 val status = if (enabled) "已开启" else "已关闭"
                 addSystemMessage(sessionId, "深度研究模式$status。开启后复杂问题将由多 Agent 协作处理。")
+            }
+            "orchestrate" -> {
+                if (cmd.requiresArgs && args.isBlank()) {
+                    addSystemMessage(sessionId, "用法: ${cmd.usage}\n示例: ${cmd.example}")
+                    return
+                }
+                store.addMessage(sessionId, Role.USER, "/orchestrate $args")
+                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshSessions()
+                runOrchestration(sessionId, args)
             }
             "export" -> {
                 viewModelScope.launch(Dispatchers.IO) {
@@ -3478,6 +3491,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getSttEngine(): String = apiSettings.getSttEngine()
     fun getSttStreamingMode(): String = apiSettings.getSttStreamingMode()
     fun saveSttStreamingMode(mode: String) { apiSettings.saveSttStreamingMode(mode) }
+    fun isHrEnabled(): Boolean = apiSettings.isHrEnabled()
+    fun saveHrEnabled(enabled: Boolean) { apiSettings.saveHrEnabled(enabled) }
     fun isTtsDownloadOnly(): Boolean = apiSettings.isTtsDownloadOnly()
     fun isBackgroundRunning(): Boolean = apiSettings.isBackgroundRunning()
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
@@ -6214,5 +6229,117 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun clearAiSearch() {
         _state.value = _state.value.copy(aiSearchResults = emptyList(), isAiSearching = false)
+    }
+
+    // ==================== WebDAV 云同步 ====================
+
+    fun getSyncConfig(): WebDavConfig = noteSyncService.getConfig()
+
+    fun saveSyncConfig(config: WebDavConfig) = noteSyncService.saveConfig(config)
+
+    fun getLastSyncTime(): Long = noteSyncService.getLastSyncTime()
+
+    private val _syncState = MutableStateFlow<NoteSyncService.SyncResult?>(null)
+    val syncState: StateFlow<NoteSyncService.SyncResult?> = _syncState
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing
+
+    fun runSync() {
+        if (_isSyncing.value) return
+        _isSyncing.value = true
+        _syncState.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = noteSyncService.sync()
+                _syncState.value = result
+                if (result.errors == 0) {
+                    refreshSessions()
+                }
+            } catch (e: Exception) {
+                DebugLog.e("Sync", "同步失败: ${e.message}")
+                _syncState.value = NoteSyncService.SyncResult(errors = 1)
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    suspend fun testSyncConnection(): Boolean = withContext(Dispatchers.IO) {
+        val config = noteSyncService.getConfig()
+        if (!config.isEnabled) return@withContext false
+        try {
+            top.hsyscn.opedrgent.sync.WebDavClient(config).testConnection()
+        } catch (e: Exception) {
+            DebugLog.w("Sync", "连接测试失败: ${e.message}")
+            false
+        }
+    }
+
+    // ==================== MultiAgentOrchestrator 接入 ====================
+
+    /**
+     * Orchestrator 模式：中央调度，预设角色池（研究者/分析师/编辑者）
+     * 与 AgentSwarm 的 LLM 自主调度互补 — 适合结构化任务
+     */
+    private fun runOrchestration(sessionId: String, userText: String) {
+        _state.value = _state.value.copy(
+            isStreaming = true,
+            streamingText = "正在组建专家团队...",
+            streamingSessionId = sessionId,
+            streamingToolParts = emptyList(),
+            streamingPhase = "",
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val apiConfig = apiSettings.getApiConfig() ?: return@launch
+                val orchestrator = top.hsyscn.opedrgent.agent.MultiAgentOrchestrator(
+                    llmClient = llm,
+                    apiConfig = apiConfig,
+                    toolExecutor = toolExecutor,
+                )
+                val result = orchestrator.execute(request = userText)
+
+                val answer = if (result.success) {
+                    if (result.agentsUsed.size > 1) {
+                        buildString {
+                            append(result.answer)
+                            appendLine("\n\n---\n**专家协作详情** (${result.agentsUsed.size}位专家, ${result.rounds}轮, 耗时${result.processingTimeMs}ms)")
+                            for (agent in result.agentsUsed) {
+                                appendLine("- $agent")
+                            }
+                        }
+                    } else {
+                        result.answer
+                    }
+                } else {
+                    "编排执行失败: ${result.error ?: "未知错误"}"
+                }
+
+                store.addMessage(sessionId, Role.ASSISTANT, answer)
+                hippocampus?.let { hip ->
+                    val session = store.getSession(sessionId)
+                    if (session != null && session.messages.size >= 2) {
+                        hip.upsertConversation(session.id, session.title, answer)
+                    }
+                }
+
+                _state.value = _state.value.copy(
+                    current = store.getSession(sessionId),
+                    isStreaming = false,
+                    streamingText = "",
+                )
+                refreshSessions()
+            } catch (e: Exception) {
+                DebugLog.e("Orchestration", "Orchestrator 失败: ${e.message}", e)
+                store.addMessage(sessionId, Role.ASSISTANT, "专家协作执行失败: ${e.message}")
+                _state.value = _state.value.copy(
+                    current = store.getSession(sessionId),
+                    isStreaming = false,
+                    streamingText = "",
+                )
+            }
+        }
     }
 }

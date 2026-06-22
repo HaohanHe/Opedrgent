@@ -127,6 +127,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var sttEnabled by rememberSaveable { mutableStateOf(vm.isSttEnabled()) }
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
+    var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
@@ -687,6 +688,20 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
+
+                            // HR 同音字替换开关（仅流式模型支持）
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "同音字矫正", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        text = "根据拼音规则自动修正识别结果中的同音错字",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = themeTextGrey(),
+                                    )
+                                }
+                                Switch(checked = hrEnabled, onCheckedChange = { hrEnabled = it; vm.saveHrEnabled(it) })
+                            }
                         } else {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),

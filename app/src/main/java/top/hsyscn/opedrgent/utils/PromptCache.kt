@@ -107,6 +107,7 @@ object PromptCache {
         }
 
         if (bestMatch != null) {
+            similarHits++
             DebugLog.i(TAG, "相似缓存命中: similarity=${"%.2f".format(bestSimilarity)}, threshold=$similarityThreshold")
         }
 
@@ -258,12 +259,24 @@ object PromptCache {
         DebugLog.d(TAG, "清理过期缓存完成: similar=${similarCache.size}, session=${sessionCache.size}")
     }
 
+    // ==================== 缓存命中统计 ====================
+
+    private var staticHits = 0L
+    private var staticMisses = 0L
+    private var sessionHits = 0L
+    private var sessionMisses = 0L
+    private var similarHits = 0L
+
     // ==================== 原有 API（保持兼容） ====================
 
     private const val TAG = "PromptCache"
 
     fun getOrComputeStaticPrompt(compute: () -> String): String {
-        globalCache[STATIC_PROMPT_KEY]?.let { return it }
+        globalCache[STATIC_PROMPT_KEY]?.let {
+            staticHits++
+            return it
+        }
+        staticMisses++
         val value = compute()
         globalCache[STATIC_PROMPT_KEY] = value
         return value
@@ -284,7 +297,10 @@ object PromptCache {
 
     fun getSessionCached(key: String): String? {
         val entry = sessionCache[key] ?: return null
-        return if (entry.isExpired()) null else entry.value
+        return if (entry.isExpired()) null else {
+            sessionHits++
+            entry.value
+        }
     }
 
     fun getOrComputeSession(key: String, compute: () -> String?): String? {
@@ -315,10 +331,19 @@ object PromptCache {
         similarCache.clear()
     }
 
-    fun getStats(): Map<String, Any> = mapOf(
-        "global_cache_size" to globalCache.size,
-        "session_cache_size" to sessionCache.size,
-        "similar_cache_size" to similarCache.size,
-        "similarity_threshold" to similarityThreshold,
-    )
+    fun getStats(): Map<String, Any> {
+        val totalStatic = staticHits + staticMisses
+        val totalSession = sessionHits + sessionMisses
+        return mapOf(
+            "global_cache_size" to globalCache.size,
+            "session_cache_size" to sessionCache.size,
+            "similar_cache_size" to similarCache.size,
+            "similarity_threshold" to similarityThreshold,
+            "static_hit_rate" to if (totalStatic > 0) "%.1f%%".format(staticHits * 100.0 / totalStatic) else "N/A",
+            "session_hit_rate" to if (totalSession > 0) "%.1f%%".format(sessionHits * 100.0 / totalSession) else "N/A",
+            "similar_hits" to similarHits,
+            "static_hits" to staticHits,
+            "static_misses" to staticMisses,
+        )
+    }
 }

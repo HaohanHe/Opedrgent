@@ -86,6 +86,15 @@ object SlashCommands {
             requiresArgs = false,
         ),
         Command(
+            name = "orchestrate",
+            aliases = listOf("orc", "team"),
+            description = "专家编排模式（中央调度，组建研究者/分析师/编辑者团队）",
+            usage = "/orchestrate <任务描述>",
+            example = "/orchestrate 分析2024年AI行业趋势",
+            category = Category.MODE,
+            requiresArgs = true,
+        ),
+        Command(
             name = "export",
             aliases = listOf("exp"),
             description = "导出当前会话为 Markdown 文件",

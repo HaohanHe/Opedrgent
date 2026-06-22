@@ -66,9 +66,10 @@
 ├─────────────────────────────────────────────────────────────┤
 │                 Insight & Agent Layer                        │
 │  InsightSproutEngine (4阶段知识发芽)                          │
-│  AgentSwarm / MultiAgentOrchestrator (多智能体协调)           │
+│  AgentSwarm (LLM自主调度) + MultiAgentOrchestrator (编排)     │
 │  EditorTeamService (编辑团队管线)                             │
 │  McpManager / AgentService (MCP协议层)                       │
+│  NoteSyncService (WebDAV云同步)                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,10 +175,43 @@
 - [x] 离线模式降级: 网络不可用时切换到纯本地模式 (LocalLlmEngine)
 
 #### 5.2 用户体验
-- [x] 快捷指令 (Slash Commands): `/search` `/rag` `/interview` `/export` 等
+- [x] 快捷指令 (Slash Commands): `/search` `/rag` `/interview` `/export` `/orchestrate` 等
 - [x] 自定义工作流 (Automations): 用户可编程的触发器-动作链
 - [x] 深色/浅色主题跟随系统
 - [x] 平板适配: 大屏布局优化
+
+---
+
+## 四（续）、Phase 6 — 质量与生态成熟 [下一步]
+
+### 6.1 云同步体验完善
+- [x] WebDAV 设置 UI: 服务器地址/用户名/密码/远端路径配置 + 连接测试 + 手动同步
+- [ ] 自动同步: 笔记变更后延迟自动同步（WorkManager 定时触发）
+- [ ] 同步冲突解决 UI: 冲突时展示双方差异，让用户选择保留版本
+- [ ] 增量同步优化: 仅同步 updatedAt 变化的笔记，避免全量遍历
+
+### 6.2 多智能体体验增强
+- [x] Orchestrator 模式接入: `/orchestrate` 指令，预设角色池（研究者/分析师/编辑者）
+- [ ] Agent 执行过程可视化: 实时展示每个 Agent 的思考过程和工具调用
+- [ ] Agent 自定义角色: 用户可自定义 Agent 角色和 system prompt
+- [ ] Agent 执行历史: 保存多 Agent 协作的完整日志，支持回放
+
+### 6.3 测试与质量保障
+- [ ] 核心模块单元测试: ToolCallParser / HybridRankingEngine / WebDavClient / SlashCommands
+- [ ] ViewModel 集成测试: runModel / runSwarm / runOrchestration 关键路径
+- [ ] LLM 响应 Mock 框架: 离线测试 LLM 交互流程
+- [ ] CI 集成: GitHub Actions 或 GitLab CI 自动构建验证
+
+### 6.4 AgentService 渐进迁移
+- [ ] AgentService 功能对齐: 确保 AgentService 路径覆盖 runModel 的全部能力
+- [ ] A/B 切换测试: `useAgentService = true` 路径的端到端验证
+- [ ] 移除旧路径: 验证通过后清理 MainViewModel 中的直调逻辑
+
+### 6.5 用户体验打磨
+- [ ] 首次使用引导 (Onboarding): API Key 配置向导 + 功能亮点介绍
+- [ ] 笔记列表性能优化: 大量笔记时的 LazyList 渲染优化
+- [ ] 错误消息优化: 网络/模型/API 错误的用户友好提示和操作建议
+- [ ] 国际化完善: 英文/日文界面的全覆盖翻译
 
 ---
 

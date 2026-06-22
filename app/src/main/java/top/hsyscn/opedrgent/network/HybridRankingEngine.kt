@@ -241,16 +241,32 @@ class HybridRankingEngine(
         return words.distinct()
     }
 
+    /**
+     * SearXNG 风格累乘引擎权重：所有引擎权重连乘，再乘以引擎数量的平方根。
+     * 多引擎交叉验证的结果自然获得更高权重。
+     *
+     * 公式：productWeight = ∏ engine_weight(i) × √(engine_count)
+     */
     private fun calculateEngineWeight(sourceEngines: Set<String>): Double {
         if (sourceEngines.isEmpty()) return 0.8
-        return sourceEngines.maxOfOrNull { ENGINE_WEIGHT_MAP[it] ?: 0.8 } ?: 0.8
+
+        var productWeight = 1.0
+        for (engine in sourceEngines) {
+            productWeight *= ENGINE_WEIGHT_MAP[engine] ?: 0.8
+        }
+        // 引擎数量放大：多引擎交叉验证 = 高可信度
+        productWeight *= Math.sqrt(sourceEngines.size.toDouble())
+
+        return productWeight
     }
 
+    /**
+     * SearXNG 风格线性位置衰减：score = base / position
+     * 比对数衰减更平缓，避免过度惩罚后排结果。
+     */
     private fun calculatePositionScore(position: Int, totalResults: Int): Double {
-        val normalizedPos = position.coerceAtLeast(0)
-        val maxLog = Math.log(11.0)
-        val posLog = Math.log((normalizedPos + 1).toDouble())
-        return ((maxLog - posLog) / maxLog).coerceIn(0.0, 1.0)
+        val effectivePos = (position + 1).coerceAtLeast(1)
+        return (10.0 / effectivePos).coerceIn(0.0, 10.0)
     }
 
     private fun sigmoid(x: Double): Double {
