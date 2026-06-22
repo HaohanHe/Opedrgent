@@ -30,6 +30,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.*
 import top.hsyscn.opedrgent.service.ModelDownloadService
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -296,23 +297,23 @@ private fun ModelCard(
                 }
 
                 if (modelInfo.preferGpu) {
-                    CapabilityBadge("GPU", Color(0xFF4CAF50))
+                    CapabilityBadge("GPU", MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 if (modelInfo.supportsImage) {
-                    CapabilityBadge("IMG", Color(0xFFFF9800))
+                    CapabilityBadge("IMG", MaterialTheme.colorScheme.tertiary)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 if (modelInfo.supportsAudio) {
-                    CapabilityBadge("AUD", Color(0xFF9C27B0))
+                    CapabilityBadge("AUD", MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 if (modelInfo.supportsThinking) {
-                    CapabilityBadge("THK", Color(0xFFE91E63))
+                    CapabilityBadge("THK", MaterialTheme.colorScheme.error)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 if (modelInfo.supportsSpecDec) {
-                    CapabilityBadge("SD", Color(0xFF009688))
+                    CapabilityBadge("SD", AccentBlue)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
             }
@@ -375,12 +376,12 @@ private fun StatusBadge(
 ) {
     val (text, containerColor, contentColor) = when {
         isLoaded -> Triple("运行中", BubbleBlue, Color.White)
-        isDownloaded -> Triple("已下载", Color(0xFF4CAF50), Color.White)
-        status == DownloadStatus.DOWNLOADING -> Triple("下载中", Color(0xFFFF9800), Color.White)
+        isDownloaded -> Triple("已下载", MaterialTheme.colorScheme.primary, Color.White)
+        status == DownloadStatus.DOWNLOADING -> Triple("下载中", MaterialTheme.colorScheme.tertiary, Color.White)
         status == DownloadStatus.QUEUED -> Triple("排队中", themeTextGrey().copy(alpha = 0.8f), Color.White)
-        status == DownloadStatus.PAUSED -> Triple("已暂停", Color(0xFF9E9E9E), Color.White)
+        status == DownloadStatus.PAUSED -> Triple("已暂停", themeTextGrey(), Color.White)
         status == DownloadStatus.CANCELLED -> Triple("已取消", themeTextGrey().copy(alpha = 0.6f), Color.White)
-        status == DownloadStatus.FAILED -> Triple("失败", Color(0xFFF44336), Color.White)
+        status == DownloadStatus.FAILED -> Triple("失败", MaterialTheme.colorScheme.error, Color.White)
         else -> Triple(null, Color.Transparent, themeTextGrey())
     }
 
@@ -473,7 +474,7 @@ private fun ActionButton(
             TextButton(
                 onClick = { scope.launch { downloadManager.cancelDownload(modelInfo.id) } },
             ) {
-                Text(text = "取消", fontSize = 12.sp, color = Color(0xFFF44336))
+                Text(text = "取消", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
             }
         }
 

@@ -302,8 +302,8 @@ fun ToolStatusRow(toolPart: ToolPart) {
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = when (toolPart.state.status) {
-                ToolStateType.COMPLETED -> Color(0xFF4CAF50)
-                ToolStateType.ERROR -> Color(0xFFF44336)
+                ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
+                ToolStateType.ERROR -> MaterialTheme.colorScheme.error
                 ToolStateType.SOURCE_ADDED -> AccentBlue
                 else -> themeTextGrey()
             },
@@ -379,15 +379,15 @@ fun ToolCard(toolPart: ToolPart) {
     val statusColor = when (toolPart.state.status) {
         ToolStateType.PENDING -> themeTextGrey()
         ToolStateType.RUNNING -> AccentBlue
-        ToolStateType.COMPLETED -> Color(0xFF4CAF50)
+        ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
         ToolStateType.ERROR -> MaterialTheme.colorScheme.error
-        ToolStateType.SOURCE_ADDED -> Color(0xFF2196F3)
+        ToolStateType.SOURCE_ADDED -> AccentBlue
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         onClick = { expanded = !expanded },
     ) {
         Column(modifier = Modifier.padding(10.dp)) {

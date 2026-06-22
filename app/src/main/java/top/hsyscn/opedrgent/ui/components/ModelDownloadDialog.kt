@@ -61,8 +61,6 @@ import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-private val BubbleBlue = Color(0xFF2B68DE)
-
 @Composable
 fun ModelDownloadDialog(
     modelInfo: LocalModelInfo,
@@ -96,7 +94,7 @@ fun ModelDownloadDialog(
             text = { Text("模型文件较大，重新下载需要较长时间。\n已下载的部分将保留，下次可断点续传。") },
             confirmButton = {
                 TextButton(onClick = onConfirmCancel) {
-                    Text("确定取消", color = Color(0xFFF44336))
+                    Text("确定取消", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -332,7 +330,7 @@ private fun FailedSection(error: String) {
         Icon(
             imageVector = Icons.Default.Close,
             contentDescription = null,
-            tint = Color(0xFFF44336),
+            tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.size(32.dp),
         )
 
@@ -342,7 +340,7 @@ private fun FailedSection(error: String) {
             text = "下载失败",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFFF44336),
+            color = MaterialTheme.colorScheme.error,
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -503,7 +501,7 @@ private fun ActionButtons(
                 text = "取消下载",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFFF44336),
+                color = MaterialTheme.colorScheme.error,
             )
         }
     }

@@ -54,12 +54,11 @@ import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.BubbleBlue
+import top.hsyscn.opedrgent.ui.theme.BubbleBlueEnd
+import top.hsyscn.opedrgent.ui.theme.CitationBg
 import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
-
-private val BubbleBlue = Color(0xFF2B68DE)
-private val BubbleBlueEnd = Color(0xFF194CF0)
-private val CitationBg = Color(0xFFD1D7FE)
 
 @Composable
 fun UserBubble(
