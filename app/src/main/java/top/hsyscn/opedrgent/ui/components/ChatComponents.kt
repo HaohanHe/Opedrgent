@@ -230,9 +230,7 @@ fun AIMessageCard(
                 }
 
                 if (message.toolParts.isNotEmpty()) {
-                    message.toolParts.forEach { tp ->
-                        ToolStatusRow(toolPart = tp)
-                    }
+                    ToolStatusGroup(toolParts = message.toolParts)
                 }
 
                 if (message.questionPart != null) {
