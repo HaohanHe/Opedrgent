@@ -324,17 +324,17 @@ class StreamingRecognizer {
                 .newInstance(16000, 80)
         }
 
-        // OnlineRecognizerConfig.builder().setModelConfig().setFeatureConfig().setEnableEndpoint().build()
+        // OnlineRecognizerConfig.builder().setOnlineModelConfig().setFeatureConfig().setEnableEndpoint().build()
         val configCls = Class.forName(ONLINE_RECOGNIZER_CONFIG_CLASS)
-        val configBuilder = try {
-            configCls.getMethod("builder").invoke(null)
+        val configBuilder = configCls.getMethod("builder").invoke(null)
+        // Try setOnlineModelConfig first (real API), fallback to setModelConfig (stub compat)
+        try {
+            configBuilder.javaClass.getMethod("setOnlineModelConfig", modelCls)
+                .invoke(configBuilder, modelConfig)
         } catch (_: Exception) {
-            return configCls.getConstructor(
-                Class.forName(ONLINE_FEATURE_CONFIG_CLASS), modelCls,
-            ).newInstance(featureConfig, modelConfig)
+            configBuilder.javaClass.getMethod("setModelConfig", modelCls)
+                .invoke(configBuilder, modelConfig)
         }
-        configBuilder.javaClass.getMethod("setModelConfig", modelCls)
-            .invoke(configBuilder, modelConfig)
         configBuilder.javaClass.getMethod("setFeatureConfig", Class.forName(ONLINE_FEATURE_CONFIG_CLASS))
             .invoke(configBuilder, featureConfig)
         configBuilder.javaClass.getMethod("setEnableEndpoint", Boolean::class.javaPrimitiveType)
