@@ -100,6 +100,11 @@ class ApiSettings(private val context: Context) {
     fun saveSttStreamingMode(mode: String) {
         prefs.edit().putString("sttStreamingMode", mode).apply()
     }
+    /** HR 同音字替换开关: 默认开启 */
+    fun isHrEnabled(): Boolean = prefs.getBoolean("hrEnabled", true)
+    fun saveHrEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("hrEnabled", enabled).apply()
+    }
     fun isBackgroundRunning(): Boolean = prefs.getBoolean("backgroundRunning", false)
     fun isLocationEnabled(): Boolean = prefs.getBoolean("locationEnabled", false)
     fun isDebugMode(): Boolean = prefs.getBoolean("debugMode", false)

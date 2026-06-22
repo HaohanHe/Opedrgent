@@ -14,6 +14,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.settings.ApiSettings
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -130,7 +131,8 @@ class SherpaOnnxEngine(
         modelDir: File, numThreads: Int, provider: String,
     ): Boolean {
         val sr = StreamingRecognizer()
-        if (StreamingRecognizer.isAvailable() && sr.create(null, modelDir, numThreads, provider)) {
+        val hrEnabled = ApiSettings(context).isHrEnabled()
+        if (StreamingRecognizer.isAvailable() && sr.create(null, modelDir, numThreads, provider, hrEnabled)) {
             streamingRecognizer = sr
             isStreamingModel = true
             currentModelDir = modelDir
@@ -298,7 +300,20 @@ class SherpaOnnxEngine(
      * 真流式识别 — 使用 OnlineRecognizer 的 acceptWaveform + decode 模式。
      *
      * 音频通过 [feedAudioData] 持续喂入，后台协程不断调用 decode() 并获取 partial/final text。
-     * 与伪流式不同，真流式的文本可以随新音频输入而回退/修正（例如"你好世界" -> "你好世界同学"）。
+     *
+     * **核心特性：模型自我修正（可回退）**
+     * OnlineRecognizer 的 getResult() 返回当前段的完整 partial 结果。
+     * Paraformer 模型会根据新音频修正之前的预测（如听到后面发现前面是"会议"而非"hui yi"），
+     * 这是流式识别的核心优势 —— 文本可以回退/修正，不是只增不减。
+     *
+     * **Endpoint 分段**：
+     * 利用 sherpa-onnx 内置的 endpoint detection 检测自然语音边界（静音后触发），
+     * 到达 endpoint 时 reset 流开始新段落。endpoint 之前的文本作为"已确认段"，
+     * 但整体输出仍然是模型驱动的完整结果 —— 允许模型在段落内自由修正。
+     *
+     * **后处理**（StreamingRecognizer.create() 中配置）：
+     * - ITN (Inverse Text Normalization): "一百二十三" → "123"（需 itn_zh_number.fst）
+     * - 同音字替换: 根据词表矫正同音错字（需 lexicon.txt + replace.fst）
      */
     private fun startTrueStreamingRecognition(): Flow<StreamingRecognitionState> {
         return callbackFlow {
@@ -306,7 +321,11 @@ class SherpaOnnxEngine(
                 close(); return@callbackFlow }
             streamingActive.set(true)
             trySend(StreamingRecognitionState.Listening)
-            DebugLog.i(TAG, "真流式识别已启动 (OnlineRecognizer)")
+            DebugLog.i(TAG, "真流式识别已启动 (OnlineRecognizer, 允许模型自我修正+回退)")
+
+            // 已结束的段落文本（endpoint 触发后累积）
+            val finishedSegments = mutableListOf<String>()
+            var lastSentText = ""
 
             streamingJob = launch(Dispatchers.IO) {
                 try {
@@ -318,22 +337,49 @@ class SherpaOnnxEngine(
                             sr.decode()
                         }
 
-                        // 获取当前 partial 结果
-                        val currentText = sr.getResult().trim()
-                        if (currentText.isNotEmpty()) {
-                            val displayText = vocabularyStore.applyVocabulary(currentText)
+                        // 获取当前段的 partial 结果（模型可能根据新音频修正之前的内容）
+                        var pendingText = vocabularyStore.applyVocabulary(sr.getResult().trim())
+
+                        // 检测 endpoint（自然语音边界：足够长的静音后触发）
+                        if (sr.isEndpoint() && pendingText.isNotEmpty()) {
+                            // 当前段结束 → 保存为已完成段落，reset 流开始新段
+                            DebugLog.d(TAG, "Endpoint: 段落完成 [${pendingText.length}字]")
+                            finishedSegments.add(pendingText)
+                            sr.reset()
+                            // reset 后当前段已归档，pendingText 必须清空，
+                            // 否则会和 finishedSegments 里的内容重复显示
+                            pendingText = ""
+                        }
+
+                        // 构建完整显示文本 = 已完成段落 + 当前段（允许当前段自由变化/回退）
+                        val displayText = buildString {
+                            for ((i, seg) in finishedSegments.withIndex()) {
+                                if (i > 0) append(' ')
+                                append(seg)
+                            }
+                            if (pendingText.isNotEmpty()) {
+                                if (isNotEmpty()) append(' ')
+                                append(pendingText)
+                            }
+                        }
+
+                        // 有变化才发送（避免无意义的重复渲染）
+                        if (displayText != lastSentText && displayText.isNotEmpty()) {
                             trySend(StreamingRecognitionState.Recognizing(displayText))
+                            lastSentText = displayText
                         }
                     }
 
-                    // 停止信号到达：排空剩余音频并获取最终结果
-                    while (sr.isReady()) {
-                        sr.decode()
+                    // 停止信号：排空剩余音频获取最终结果
+                    while (sr.isReady()) { sr.decode() }
+                    val finalPending = vocabularyStore.applyVocabulary(sr.getResult().trim())
+                    if (finalPending.isNotEmpty()) {
+                        finishedSegments.add(finalPending)
                     }
-                    val finalText = vocabularyStore.applyVocabulary(sr.getResult().trim())
+                    val finalText = finishedSegments.joinToString(" ")
                     if (finalText.isNotEmpty()) {
                         trySend(StreamingRecognitionState.FinalResult(finalText))
-                        DebugLog.i(TAG, "真流式最终结果: ${finalText.length}字")
+                        DebugLog.i(TAG, "真流式最终结果: ${finalText.length}字 (${finishedSegments.size}个段落)")
                     } else {
                         trySend(StreamingRecognitionState.Stopped)
                     }
@@ -342,8 +388,10 @@ class SherpaOnnxEngine(
                     try {
                         while (sr.isReady()) sr.decode()
                         val partial = vocabularyStore.applyVocabulary(sr.getResult().trim())
-                        if (partial.isNotEmpty()) {
-                            trySend(StreamingRecognitionState.FinalResult(partial))
+                        if (partial.isNotEmpty()) finishedSegments.add(partial)
+                        val finalText = finishedSegments.joinToString(" ")
+                        if (finalText.isNotEmpty()) {
+                            trySend(StreamingRecognitionState.FinalResult(finalText))
                         } else {
                             trySend(StreamingRecognitionState.Stopped)
                         }

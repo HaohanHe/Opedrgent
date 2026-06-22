@@ -16,10 +16,11 @@ import java.util.concurrent.TimeUnit
  * 阶跃云端 ASR (StepAudio 2.5) 返回的是纯文本（无标点），
  * 本模块提供以下后处理能力:
  *
- * ## 1. 智能标点恢复 (Punctuation Restoration)
- * - 基于规则 + LLM 双引擎
- * - 规则引擎: 数字/时间/列表等模式匹配标点
- * - LLM 回退: 调用 step-3.7-flash 自动添加标点
+ * ## 1. LLM 口语清理 (Spoken Language Cleanup) — 核心能力
+ * - 使用 LLM 智能判断哪些是无意义的口水词/重复/自我纠正
+ * - 根据语境决定保留或删除（非机械匹配）
+ * - 同时完成标点恢复和口语转书面语
+ * - 保留原意、关键论点和语气
  *
  * ## 2. 语义分段 (Semantic Segmentation)
  * - 将连续文本按语义边界分割为段落
@@ -30,6 +31,10 @@ import java.util.concurrent.TimeUnit
  * - **Level 2 — API 信息**: StepAudio Realtime 的 speaker_id 字段
  * - **Level 3 — 启发式推断**: 从文本归属标记("我说"/"他说")猜测说话人切换
  *
+ * ## 设计原则
+ * **绝不用固定字符匹配删除口水词**。口语中的"那啥"、"就是"、"我我我"等在不同语境下
+ * 可能有意义（强调、犹豫、口头习惯），必须由 LLM 理解语境后决定。
+ *
  * ## 使用位置
  * 在 AsrManager / MeetingTranscriber 的 STT 结果回调中调用，
  * 将原始 text 经过 postProcess() 后再返回给 UI 层。
@@ -39,11 +44,34 @@ class AsrPostProcessor {
     companion object {
         private const val TAG = "AsrPostProcessor"
 
-        /** 默认使用 LLM 标点的最小文本长度 (短文本用规则即可) */
-        const val LLM_PUNCT_MIN_LENGTH = 50
+        /** 使用 LLM 清理的最小文本长度 (短文本用规则即可) */
+        const val LLM_MIN_LENGTH = 50
 
         /** 分段最大字符数 */
         const val MAX_SEGMENT_CHARS = 500
+
+        /** LLM 口语清理的 system prompt */
+        private const val SPOKEN_CLEANUP_PROMPT = """你是一个专业的中文语音转文字编辑。你的任务是将口语化的语音识别结果整理为通顺的书面文字。
+
+【核心原则】
+1. **语义理解优先**：根据上下文判断哪些是无意义的口水词，哪些是有意义的表达
+2. **保留原意**：不改变说话人的观点、论据和核心信息
+3. **自然润色**：不是机械删词，而是理解后重新组织语言
+4. **适度保留语气**：适当的口语化表达（如反问、感叹）可以保留，体现说话风格
+
+【处理规则】
+- 删除：无意义的重复（"我我我"→"我"）、纯填充词（"那个那个"无实义时）、自我纠正的废弃片段
+- 保留：有强调意义的重复（"绝对不可能"）、有语境意义的口头词、专有名词和关键数据
+- 整理：断裂的句子重新连接，语序混乱的重新排列，但不添加原文没有的信息
+- 标点：添加正确的标点符号
+- 分段：如果内容涉及多个话题，用空行分段
+- 补充：如果口语中有明显的省略导致信息不完整，用[括号]补充上下文
+
+【禁止】
+- 不要添加原文没有的观点或信息
+- 不要过度文学化（这不是写作文）
+- 不要删除说话人的情感表达（如愤怒、幽默、讽刺）
+- 不要改变说话人的逻辑顺序（除非语序明显混乱）"""
     }
 
     /**
@@ -66,15 +94,18 @@ class AsrPostProcessor {
     /**
      * 对 ASR 原始文本执行完整的后处理流水线。
      *
-     * 流程: 标点恢复 → 语义分段 → (可选)说话人标注
+     * 流程: LLM 口语清理(含标点) → 语义分段 → (可选)说话人标注
      *
-     * 说话人分离三级策略:
-     *   1. 如果 [speakerDiarizer] 已初始化且提供了 audioSamples → 真实声纹
-     *   2. 如果提供了 speakerInfo (来自 Realtime API) → API 信息
-     *   3. 否则 → 启发式推断
+     * 当有 API Key 且文本足够长时，使用 LLM 一步完成：
+     * - 去除无意义口水词（根据语境判断，非机械匹配）
+     * - 添加标点
+     * - 口语转书面语
+     * - 语义分段
+     *
+     * 无 API Key 时回退到规则引擎（仅标点恢复，不去口水词）。
      *
      * @param rawText ASR 原始输出（无标点的纯文本）
-     * @param apiKey 阶跃 API Key（用于 LLM 标点，可为 null 则仅用规则）
+     * @param apiKey API Key（用于 LLM 清理，可为 null 则仅用规则）
      * @param enableDiarization 是否启用说话人分离
      * @param speakerInfo 已有的说话人信息（来自 Realtime API）
      * @param audioSamples 原始音频采样（用于真实声纹识别，可选）
@@ -95,9 +126,9 @@ class AsrPostProcessor {
             )
         }
 
-        // Step 1: 标点恢复
-        val punctuated = if (!apiKey.isNullOrBlank() && rawText.length >= LLM_PUNCT_MIN_LENGTH) {
-            restorePunctuationWithLLM(apiKey, rawText)
+        // Step 1: LLM 口语清理（含标点恢复）或规则标点恢复
+        val punctuated = if (!apiKey.isNullOrBlank() && rawText.length >= LLM_MIN_LENGTH) {
+            cleanSpokenLanguageWithLLM(apiKey, rawText)
         } else {
             restorePunctuationByRules(rawText)
         }
@@ -171,26 +202,39 @@ class AsrPostProcessor {
     }
 
     // ================================================================
-    // 1b. 标点恢复 — LLM 引擎
+    // 1b. LLM 口语清理（含标点恢复 + 口语转书面语）
     // ================================================================
 
     /**
-     * 使用 LLM 进行高质量标点恢复。
+     * 使用 LLM 将口语化的 ASR 结果清理为通顺的书面文字。
      *
-     * 对于长文本或复杂场景，LLM 能更好地理解上下文，
-     * 正确放置引号、括号、破折号等复杂标点。
+     * 一步完成：
+     * - 去除无意义口水词（根据语境判断，非机械匹配）
+     * - 添加标点
+     * - 口语转书面语
+     * - 语义分段
+     *
+     * 设计原则：**绝不用固定字符匹配删除口水词**。
+     * "那啥"、"就是"、"我我我"等在不同语境下可能有意义，
+     * 必须由 LLM 理解语境后决定保留或删除。
      */
-    suspend fun restorePunctuationWithLLM(apiKey: String, text: String): String =
+    suspend fun cleanSpokenLanguageWithLLM(apiKey: String, text: String): String =
         withContext(Dispatchers.IO) {
             try {
                 val jsonBody = JSONObject().apply {
-                    put("model", "step-3.5-flash") // 快速模型用于标点任务
-                    put("messages", org.json.JSONArray("""[
-                        {"role": "system", "content": "你是一个专业的中文文本标点恢复引擎。请为以下无标点的中文文本添加正确的标点符号。要求：1.保持原文不变，只添加标点 2.正确使用句号问号感叹号逗号顿号引号书名号 3.数字和时间保持原格式 4.直接输出带标点的文本，不要其他解释"},
-                        {"role": "user", "content": ${JSONObject.quote(text)}}
-                    ]"""))
-                    put("max_tokens", Math.min(text.length * 2, 4096))
-                    put("temperature", 0.1) // 低温度保证稳定性
+                    put("model", "step-3.5-flash") // 快速模型用于清理任务
+                    put("messages", org.json.JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "system")
+                            put("content", SPOKEN_CLEANUP_PROMPT)
+                        })
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", "以下是语音识别的原始结果，请整理为通顺的书面文字：\n\n$text")
+                        })
+                    })
+                    put("max_tokens", Math.min(text.length * 2, 8192))
+                    put("temperature", 0.3) // 略高于标点任务，允许适度润色
                 }
 
                 val request = Request.Builder()
@@ -204,21 +248,26 @@ class AsrPostProcessor {
 
                 if (response.isSuccessful && !body.isNullOrBlank()) {
                     val json = JSONObject(body)
-                    json.optJSONArray("choices")
+                    val cleaned = json.optJSONArray("choices")
                         ?.optJSONObject(0)
                         ?.optJSONObject("message")
                         ?.optString("content", "")
                         ?.takeIf { it.isNotEmpty() }
-                    ?: run {
-                        DebugLog.w(TAG, "LLM 标点失败，回退到规则引擎")
+
+                    if (cleaned != null) {
+                        DebugLog.i(TAG, "LLM 口语清理完成: ${text.length}字 → ${cleaned.length}字 " +
+                                "(压缩率${"%.0f".format(cleaned.length * 100.0 / text.length)}%)")
+                        cleaned
+                    } else {
+                        DebugLog.w(TAG, "LLM 清理返回空，回退到规则引擎")
                         restorePunctuationByRules(text)
                     }
                 } else {
-                    DebugLog.w(TAG, "LLM 标点请求失败 (${response.code}), 回退到规则引擎")
+                    DebugLog.w(TAG, "LLM 清理请求失败 (${response.code}), 回退到规则引擎")
                     restorePunctuationByRules(text)
                 }
             } catch (e: Exception) {
-                DebugLog.w(TAG, "LLM 标点异常: ${e.message}, 回退到规则引擎")
+                DebugLog.w(TAG, "LLM 清理异常: ${e.message}, 回退到规则引擎")
                 restorePunctuationByRules(text)
             }
         }
