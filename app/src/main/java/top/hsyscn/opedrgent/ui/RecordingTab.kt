@@ -342,6 +342,9 @@ fun RecordingTab(
     var streamingText by remember { mutableStateOf("") }
     var isStreamingActive by remember { mutableStateOf(false) }
     val transcriptScrollState = rememberScrollState()
+    // 记录上次的文本长度，只在文本变长时才自动滚动到底部，
+    // 避免模型回退修正时文本变短导致滚动位置来回跳（上下抖动）
+    var lastTextLength by remember { mutableStateOf(0) }
 
     // 读取无感伙伴设置中的自动保存开关
     val autoSaveKey = androidx.datastore.preferences.core.booleanPreferencesKey("key_auto_save")
@@ -388,10 +391,15 @@ fun RecordingTab(
         }
     }
 
-    // 实时转录文本自动滚动
+    // 实时转录文本自动滚动（仅在文本增长时滚动到底，回退修正时不滚动避免抖动）
     LaunchedEffect(streamingText) {
         if (streamingText.isNotEmpty()) {
-            transcriptScrollState.animateScrollTo(transcriptScrollState.maxValue)
+            // 只在文本变长时自动滚动到底部；
+            // 模型回退修正时文本会变短，此时不滚动，避免上下抖动
+            if (streamingText.length >= lastTextLength) {
+                transcriptScrollState.animateScrollTo(transcriptScrollState.maxValue)
+            }
+            lastTextLength = streamingText.length
         }
     }
 
@@ -424,9 +432,11 @@ fun RecordingTab(
         if (!isBatchMode) {
             scope.launch {
                 try {
-                    // 如果选了流式模型但引擎不是流式的，强制重新初始化
-                    if (isStreamingModelSelected && !vm.asrManager.isCurrentEngineStreaming()) {
-                        DebugLog.i("RecordingTab", "检测到流式模型但引擎不是流式，强制重新初始化")
+                    // 检查当前缓存的引擎是否与用户选择的模型类型匹配（流式 vs 非流式）
+                    // 不匹配时强制重新初始化，避免切换模型后仍使用旧的缓存引擎
+                    val currentIsStreaming = vm.asrManager.isCurrentEngineStreaming()
+                    if (isStreamingModelSelected != currentIsStreaming) {
+                        DebugLog.i("RecordingTab", "模型类型不匹配: 用户选择${if (isStreamingModelSelected) "流式" else "非流式"}, 缓存引擎${if (currentIsStreaming) "是流式" else "非流式"}，强制重新初始化")
                         vm.asrManager.invalidateEngine()
                     }
                     vm.asrManager.ensureInitialized()

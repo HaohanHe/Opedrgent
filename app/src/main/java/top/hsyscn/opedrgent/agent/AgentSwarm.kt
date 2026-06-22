@@ -58,11 +58,16 @@ class AgentSwarm(
                 )
             }
 
+            // 共享存储：Agent 间通过 storage 共享中间状态
+            val sharedStorage = AgentStorage()
+            val requestKey = StorageKey<String>("original_request")
+            sharedStorage.set(requestKey, request)
+
             // Phase 2: 执行 Agent 集群
             onProgress("正在执行 ${plan.agents.size} 个 Agent...")
             val agentOutputs = when (plan.executionMode) {
-                ExecutionMode.PARALLEL -> executeParallel(plan.agents, apiConfig, onProgress)
-                ExecutionMode.SERIAL -> executeSerial(plan.agents, apiConfig, onProgress)
+                ExecutionMode.PARALLEL -> executeParallel(plan.agents, apiConfig, onProgress, sharedStorage)
+                ExecutionMode.SERIAL -> executeSerial(plan.agents, apiConfig, onProgress, sharedStorage)
             }
 
             // Phase 3: 整合结果
@@ -141,6 +146,7 @@ $toolDesc
         agents: List<AgentDef>,
         apiConfig: ApiConfig,
         onProgress: (String) -> Unit,
+        sharedStorage: AgentStorage,
     ): List<AgentOutput> = coroutineScope {
         // DAG 拓扑排序：按依赖关系分层，同层可并行
         val waves = topologicalWaves(agents)
@@ -155,7 +161,7 @@ $toolDesc
                     } else {
                         emptyList()
                     }
-                    val output = runSingleAgent(agent, depOutputs, apiConfig)
+                    val output = runSingleAgent(agent, depOutputs, apiConfig, sharedStorage)
                     DebugLog.i(TAG, "Agent [${agent.name}] 完成, output=${output.content.take(100)}")
                     output
                 }
@@ -200,19 +206,19 @@ $toolDesc
         agents: List<AgentDef>,
         apiConfig: ApiConfig,
         onProgress: (String) -> Unit,
+        sharedStorage: AgentStorage,
     ): List<AgentOutput> {
         val results = mutableListOf<AgentOutput>()
 
         for (agent in agents) {
-            // 收集依赖的 Agent 输出
             val depOutputs = if (agent.dependsOn.isNotEmpty()) {
                 results.filter { it.agentName in agent.dependsOn }
             } else {
-                results.toList() // 串行模式下默认传递所有前面的结果
+                results.toList()
             }
 
             onProgress("Agent [${agent.name}] 执行中（串行第${results.size + 1}/${agents.size}步）...")
-            val output = runSingleAgent(agent, depOutputs, apiConfig)
+            val output = runSingleAgent(agent, depOutputs, apiConfig, sharedStorage)
             results.add(output)
             DebugLog.i(TAG, "Agent [${agent.name}] 完成, output=${output.content.take(100)}")
         }
@@ -227,10 +233,11 @@ $toolDesc
         agent: AgentDef,
         previousOutputs: List<AgentOutput>,
         apiConfig: ApiConfig,
+        sharedStorage: AgentStorage,
     ): AgentOutput {
         val messages = mutableListOf<ChatMessage>()
 
-        // 构建输入：instruction + 前面 Agent 的输出
+        // 构建输入：instruction + 前面 Agent 的输出 + storage 摘要
         val inputBuilder = StringBuilder()
         inputBuilder.appendLine(agent.instruction)
 
@@ -242,6 +249,18 @@ $toolDesc
                 inputBuilder.appendLine(prev.content.take(3000))
                 inputBuilder.appendLine()
             }
+        }
+
+        // 注入 storage 中的关键数据（避免传递全部，只传与当前 Agent 相关的）
+        if (sharedStorage.size() > 1) { // >1 因为 original_request 总是存在
+            inputBuilder.appendLine("【共享上下文数据】")
+            for (key in sharedStorage.keys()) {
+                if (key == "original_request") continue
+                val value = sharedStorage.get(StorageKey<Any>(key))
+                val valueStr = value?.toString()?.take(500) ?: "null"
+                inputBuilder.appendLine("- $key: $valueStr")
+            }
+            inputBuilder.appendLine()
         }
 
         messages.add(ChatMessage(
@@ -297,10 +316,16 @@ $toolDesc
             }
         }
 
-        return AgentOutput(
+        val output = AgentOutput(
             agentName = agent.name,
             content = collectedOutput.toString().trim(),
         )
+
+        // 将 Agent 输出写入共享存储，供后续 Agent 参考
+        sharedStorage.set(StorageKey("agent_output:${agent.name}"), output.content)
+        DebugLog.d(TAG, "Storage 写入: agent_output:${agent.name} (${output.content.length} chars)")
+
+        return output
     }
 
     // ==================== Phase 3: 整合结果 ====================

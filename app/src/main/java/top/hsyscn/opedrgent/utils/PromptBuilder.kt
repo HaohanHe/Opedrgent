@@ -115,6 +115,48 @@ object PromptBuilder {
         return "$static$PROMPT_CACHE_BOUNDARY\n$dynamic"
     }
 
+    /**
+     * 将系统提示词拆分为可缓存的静态前缀和动态后缀。
+     *
+     * 借鉴 Claude Code 的 SYSTEM_PROMPT_DYNAMIC_BOUNDARY 设计：
+     * - 静态前缀（身份、规则、工具定义）在所有会话间共享，可被 LLM API 的 prompt cache 命中
+     * - 动态后缀（记忆、上下文、环境信息）每次会话不同
+     *
+     * OpenAI 兼容 API 自动缓存 system message 的最长公共前缀（prefix caching），
+     * 将静态内容放在前面可最大化缓存命中率，节省 prompt token 费用。
+     *
+     * @return Pair(静态前缀, 动态后缀)，如果无边界标记则返回 (完整提示词, "")
+     */
+    fun splitSystemPrompt(fullPrompt: String): Pair<String, String> {
+        val idx = fullPrompt.indexOf(PROMPT_CACHE_BOUNDARY)
+        return if (idx >= 0) {
+            fullPrompt.substring(0, idx) to fullPrompt.substring(idx + PROMPT_CACHE_BOUNDARY.length).trimStart()
+        } else {
+            fullPrompt to ""
+        }
+    }
+
+    /**
+     * 获取缓存效率统计。
+     *
+     * @return Map 包含静态前缀长度、动态后缀长度、缓存比率
+     */
+    fun getCacheEfficiency(fullPrompt: String): Map<String, Any> {
+        val (static, dynamic) = splitSystemPrompt(fullPrompt)
+        val totalLen = fullPrompt.length
+        val staticLen = static.length
+        val dynamicLen = dynamic.length
+        val cacheRatio = if (totalLen > 0) staticLen.toDouble() / totalLen else 0.0
+
+        return mapOf(
+            "total_length" to totalLen,
+            "static_length" to staticLen,
+            "dynamic_length" to dynamicLen,
+            "cache_ratio" to "%.1f%%".format(cacheRatio * 100),
+            "estimated_static_tokens" to (staticLen / 3), // 粗略估算：中文约3字符/token
+        )
+    }
+
     private fun buildIdentitySection(): String = """
 # 你是 Opedrgent，一个自主研究助手
 

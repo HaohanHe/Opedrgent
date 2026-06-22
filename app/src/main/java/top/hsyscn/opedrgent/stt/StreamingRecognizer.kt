@@ -6,6 +6,7 @@ import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
 import com.k2fsa.sherpa.onnx.FeatureConfig
+import com.k2fsa.sherpa.onnx.HomophoneReplacerConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
@@ -58,6 +59,7 @@ class StreamingRecognizer {
         modelDir: File,
         numThreads: Int = 1,
         provider: String = "cpu",
+        enableHr: Boolean = true,
     ): Boolean {
         if (!isAvailable()) {
             DebugLog.e(TAG, "OnlineRecognizer API not available")
@@ -75,6 +77,14 @@ class StreamingRecognizer {
 
             DebugLog.i(TAG, "构建流式配置: encoder=$encoderPath, decoder=$decoderPath, tokens=$tokensPath")
 
+            // ---- 后处理资源自动检测 ----
+            // sherpa-onnx OnlineRecognizer 的 GetResult() 内置两个后处理步骤：
+            //   1. ApplyInverseTextNormalization (ITN) — 需要 ruleFsts 或 ruleFars
+            //   2. ApplyHomophoneReplacer (同音字替换) — 需要 hr.lexicon + hr.ruleFsts
+            // 参考: csrc/online-recognizer-paraformer-impl.h GetResult()
+            //       csrc/online-recognizer-impl.cc 构造函数 (line 230-277)
+            val postProcessing = if (enableHr) detectPostProcessingFiles(modelDir) else PostProcessingConfig()
+
             val config = OnlineRecognizerConfig(
                 featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
                 modelConfig = OnlineModelConfig(
@@ -88,7 +98,26 @@ class StreamingRecognizer {
                     provider = provider,
                 ),
                 enableEndpoint = true,
+                // ITN: 将 "一百二十三" → "123"，"百分之五十" → "50%" 等
+                ruleFsts = postProcessing.ruleFsts,
+                ruleFars = postProcessing.ruleFars,
+                // 同音字替换: 根据上下文和词表矫正同音错字
+                hr = HomophoneReplacerConfig(
+                    dictDir = postProcessing.hrDictDir,
+                    lexicon = postProcessing.hrLexicon,
+                    ruleFsts = postProcessing.hrRuleFsts,
+                ),
             )
+
+            if (postProcessing.ruleFsts.isNotEmpty()) {
+                DebugLog.i(TAG, "ITN 后处理已启用: ruleFsts=${postProcessing.ruleFsts}")
+            }
+            if (postProcessing.ruleFars.isNotEmpty()) {
+                DebugLog.i(TAG, "ITN 后处理已启用: ruleFars=${postProcessing.ruleFars}")
+            }
+            if (postProcessing.hrLexicon.isNotEmpty()) {
+                DebugLog.i(TAG, "同音字替换已启用: lexicon=${postProcessing.hrLexicon}, ruleFsts=${postProcessing.hrRuleFsts}")
+            }
 
             recognizer = OnlineRecognizer(config = config)
             stream = recognizer!!.createStream()
@@ -237,5 +266,85 @@ class StreamingRecognizer {
         throw IllegalArgumentException(
             "Model file not found (candidates: ${candidates.joinToString("/")}, dir: [$found])"
         )
+    }
+
+    /**
+     * 后处理资源配置（自动从模型目录检测）。
+     *
+     * sherpa-onnx OnlineRecognizer 在 GetResult() 中内置两个后处理步骤：
+     * - **ITN** (Inverse Text Normalization): "一百二十三" → "123"，需要 .fst/.far 文件
+     * - **同音字替换**: 根据词表和 FST 规则矫正同音错字，需要 lexicon.txt + .fst 文件
+     *
+     * 如果模型目录中没有这些文件，对应后处理不启用（不会报错）。
+     */
+    private data class PostProcessingConfig(
+        val ruleFsts: String = "",       // ITN 用 FST 规则文件（逗号分隔多个）
+        val ruleFars: String = "",       // ITN 用 FAR 归档文件（逗号分隔多个）
+        val hrDictDir: String = "",      // 同音字替换词典目录
+        val hrLexicon: String = "",      // 同音字替换词表文件
+        val hrRuleFsts: String = "",     // 同音字替换 FST 规则文件
+    )
+
+    /**
+     * 从模型目录中自动检测后处理资源文件。
+     *
+     * 检测规则：
+     * 1. **ITN (.fst)**: 目录下所有 *.fst 文件（排除 replace.fst，那个是同音字用的）
+     * 2. **ITN (.far)**: 目录下所有 *.far 文件
+     * 3. **同音字替换**: 同时存在 lexicon.txt + replace.fst（或含 "replace" 的 .fst）时启用
+     */
+    private fun detectPostProcessingFiles(modelDir: File): PostProcessingConfig {
+        val files = modelDir.listFiles()?.toList().orEmpty()
+
+        // --- ITN: 收集 .fst 文件（排除同音字替换专用的 replace.fst）---
+        val itnFstFiles = files
+            .filter { it.extension == "fst" && !it.name.contains("replace") }
+            .sortedBy { it.name.lowercase() }
+            .map { it.absolutePath }
+
+        // --- ITN: 收集 .far 归档文件 ---
+        val itnFarFiles = files
+            .filter { it.extension == "far" }
+            .sortedBy { it.name.lowercase() }
+            .map { it.absolutePath }
+
+        // --- 同音字替换: 查找 lexicon.txt + replace*.fst ---
+        val lexiconFile = files.find {
+            it.name.equals("lexicon.txt", ignoreCase = true)
+        }
+        val hrFstFile = files.find {
+            it.extension == "fst" && (
+                it.name.contains("replace", ignoreCase = true) ||
+                it.name.contains("hr", ignoreCase = true)
+            )
+        }
+        // 同音字词典目录：查找 dict/ 子目录
+        val dictDir = files.find {
+            it.isDirectory && it.name.equals("dict", ignoreCase = true)
+        }
+
+        val config = PostProcessingConfig(
+            ruleFsts = itnFstFiles.joinToString(","),
+            ruleFars = itnFarFiles.joinToString(","),
+            hrDictDir = dictDir?.absolutePath.orEmpty(),
+            hrLexicon = lexiconFile?.absolutePath.orEmpty(),
+            hrRuleFsts = hrFstFile?.absolutePath.orEmpty(),
+        )
+
+        val hasAnyProcessing = config.ruleFsts.isNotEmpty() ||
+                               config.ruleFars.isNotEmpty() ||
+                               (config.hrLexicon.isNotEmpty() && config.hrRuleFsts.isNotEmpty())
+
+        if (hasAnyProcessing) {
+            DebugLog.i(TAG, "检测到后处理资源: ITN_FSTs=${itnFstFiles.map { File(it).name }}, " +
+                         "ITN_FARs=${itnFarFiles.map { File(it).name }}, " +
+                         "HR_lexicon=${lexiconFile?.name}, HR_fst=${hrFstFile?.name}, HR_dict=${dictDir?.name}")
+        } else {
+            DebugLog.d(TAG, "模型目录中未检测到后处理资源文件 (.fst/.far/lexicon.txt)。ITN 和同音字替换将不启用。")
+            DebugLog.d(TAG, "提示: 可从 sherpa-onnx releases 下载 itn_zh_number.fst (中文数字ITN) " +
+                         "放到模型目录即可启用")
+        }
+
+        return config
     }
 }

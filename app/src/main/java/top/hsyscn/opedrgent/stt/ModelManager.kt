@@ -10,6 +10,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
 import okio.sink
+import okio.source
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -23,6 +25,9 @@ object ModelManager {
 
     /** ModelScope 国内直连 base */
     private const val MODELSCOPE_BASE = "https://www.modelscope.cn/models"
+
+    /** GitHub sherpa-onnx releases — HR (同音字替换) 资源文件 */
+    private const val GITHUB_HR_BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/hr-files"
 
     /** 下载源类型 */
     enum class DownloadSource(val label: String) {
@@ -50,15 +55,24 @@ object ModelManager {
          * - MODELSCOPE: https://www.modelscope.cn/models/{repoPath}/resolve/master/{file}
          * - HUGGINGFACE: https://hf-mirror.com/{repoPath}/resolve/main/{file}
          * - GITHUB: https://github.com/{repoPath}/releases/download/asr-models/{file}
+         *
+         * 特殊处理: 远程文件名以 "hr-files/" 开头的资源（同音字替换HR资源）
+         *          自动路由到 GitHub hr-files release，不受 primarySource 影响。
          */
         fun downloadTasks(): List<Triple<String, String, String>> {
-            val baseUrl = when (primarySource) {
-                DownloadSource.MODELSCOPE -> "$MODELSCOPE_BASE/$repoPath/resolve/master"
-                DownloadSource.HUGGINGFACE -> "https://hf-mirror.com/$repoPath/resolve/main"
-                DownloadSource.GITHUB -> "https://github.com/$repoPath/releases/download/asr-models"
-            }
             return files.map { (remoteName, localName) ->
-                Triple(primarySource.label, "$baseUrl/$remoteName", localName)
+                if (remoteName.startsWith("hr-files/")) {
+                    // HR 资源统一从 GitHub sherpa-onnx/hr-files release 下载
+                    val hrFileName = remoteName.removePrefix("hr-files/")
+                    Triple("GitHub(HR)", "$GITHUB_HR_BASE/$hrFileName", localName)
+                } else {
+                    val baseUrl = when (primarySource) {
+                        DownloadSource.MODELSCOPE -> "$MODELSCOPE_BASE/$repoPath/resolve/master"
+                        DownloadSource.HUGGINGFACE -> "https://hf-mirror.com/$repoPath/resolve/main"
+                        DownloadSource.GITHUB -> "https://github.com/$repoPath/releases/download/asr-models"
+                    }
+                    Triple(primarySource.label, "$baseUrl/$remoteName", localName)
+                }
             }
         }
 
@@ -66,22 +80,37 @@ object ModelManager {
         fun fallbackTasks(): List<Triple<String, String, String>>? {
             return when (type) {
                 ModelType.STREAMING_PARAFORMER -> {
-                    // ModelScope 主源失败 → GitHub 备用
-                    if (primarySource == DownloadSource.MODELSCOPE) {
-                        val baseUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
-                        files.map { (remoteName, localName) ->
-                            val ghRemoteName = "sherpa-onnx-streaming-paraformer-bilingual-zh-en/${localName}"
-                            Triple("GitHub(备用)", "$baseUrl/$ghRemoteName", localName)
-                        }
-                    } else {
-                        // GitHub 主源失败 → ModelScope 备用
-                        val fallbackRepo = "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
-                        val baseUrl = "$MODELSCOPE_BASE/$fallbackRepo/resolve/master"
-                        files.map { (remoteName, localName) ->
-                            val msRemoteName = remoteName.substringAfterLast("/")
-                            Triple("ModelScope(备用)", "$baseUrl/$msRemoteName", localName)
+                    // 分离 HR 文件和模型文件，分别处理备用源
+                    val hrFiles = files.filter { it.first.startsWith("hr-files/") }
+                    val modelFiles = files.filter { !it.first.startsWith("hr-files/") }
+
+                    val fallbacks = mutableListOf<Triple<String, String, String>>()
+
+                    // HR 文件: 备用源仍然是 GitHub hr-files（唯一来源）
+                    for ((remoteName, localName) in hrFiles) {
+                        val hrFileName = remoteName.removePrefix("hr-files/")
+                        fallbacks.add(Triple("GitHub(HR-备用)", "$GITHUB_HR_BASE/$hrFileName", localName))
+                    }
+
+                    // 模型文件: ModelScope ↔ GitHub 互备
+                    if (modelFiles.isNotEmpty()) {
+                        if (primarySource == DownloadSource.MODELSCOPE) {
+                            val baseUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
+                            for ((remoteName, localName) in modelFiles) {
+                                val ghRemoteName = "sherpa-onnx-streaming-paraformer-bilingual-zh-en/${localName}"
+                                fallbacks.add(Triple("GitHub(备用)", "$baseUrl/$ghRemoteName", localName))
+                            }
+                        } else {
+                            val fallbackRepo = "pengzhendong/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
+                            val baseUrl = "$MODELSCOPE_BASE/$fallbackRepo/resolve/master"
+                            for ((remoteName, localName) in modelFiles) {
+                                val msRemoteName = remoteName.substringAfterLast("/")
+                                fallbacks.add(Triple("ModelScope(备用)", "$baseUrl/$msRemoteName", localName))
+                            }
                         }
                     }
+
+                    fallbacks.ifEmpty { null }
                 }
                 else -> null
             }
@@ -140,6 +169,12 @@ object ModelManager {
                 "encoder.int8.onnx" to "encoder.int8.onnx",
                 "decoder.int8.onnx" to "decoder.int8.onnx",
                 "tokens.txt" to "tokens.txt",
+                // 后处理资源: 同音字替换(Homophone Replacer)
+                // 详见 https://k2-fsa.github.io/sherpa/onnx/homophone-replacer/index.html
+                // 这三个文件从 GitHub hr-files release 下载（见 downloadTasks 路由逻辑）
+                "hr-files/dict.tar.bz2" to "dict.tar.bz2",       // → 解压为 dict/ 目录(jieba分词词典)
+                "hr-files/lexicon.txt" to "lexicon.txt",           // 汉字→拼音映射表(通用)
+                "hr-files/replace.fst" to "replace.fst",           // 同音字替换规则FST(通用规则)
             ),
         ),
     )
@@ -200,7 +235,11 @@ object ModelManager {
 
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: return false
         val subDir = getModelSubDir(context, modelInfo)
-        val result = modelInfo.files.all { File(subDir, it.second).exists() } &&
+        // 核心模型文件必须全部存在；HR后处理资源（dict.tar.bz2/lexicon.txt/replace.fst）是可选增强，
+        // 缺失不影响模型可用性（只是HR矫正不启用），避免旧安装被误判为"未下载"
+        val requiredFiles = modelInfo.files.filter { !it.first.startsWith("hr-files/") }
+        val result = requiredFiles.all { File(subDir, it.second).exists() } &&
+                ensureHrResourcesExtracted(subDir) &&
                 ensureTokensTxtExists(subDir)
         downloadStatusCache[modelType] = result
         return result
@@ -237,6 +276,105 @@ object ModelManager {
         return txtFile.exists()
     }
 
+    /**
+     * 确保 HR 资源中的 dict.tar.bz2 已解压为 dict/ 目录。
+     *
+     * sherpa-onnx 同音字替换需要三个文件：
+     * - dict.tar.bz2 → 解压为 dict/ (jieba 分词词典目录)
+     * - lexicon.txt   (汉字→拼音映射)
+     * - replace.fst   (同音字替换 FST 规则)
+     *
+     * 只有当 dict.tar.bz2 存在但 dict/ 不存在时才执行解压。
+     */
+    private fun ensureHrResourcesExtracted(modelDir: File): Boolean {
+        val dictTar = File(modelDir, "dict.tar.bz2")
+        val dictDir = File(modelDir, "dict")
+
+        // 没有 HR 资源文件，跳过（不是错误）
+        if (!dictTar.exists()) return true
+
+        // 已解压，直接通过
+        if (dictDir.exists() && dictDir.isDirectory && dictDir.listFiles()?.isNotEmpty() == true) {
+            return true
+        }
+
+        DebugLog.i("$TAG: 检测到 dict.tar.bz2 未解压，开始解压...")
+        return try {
+            extractTarBz2(dictTar, modelDir)
+            val success = dictDir.exists() && dictDir.listFiles()?.isNotEmpty() == true
+            if (success) {
+                DebugLog.i("$TAG: dict.tar.bz2 解压完成 (${dictDir.listFiles()?.size} 个文件)")
+            } else {
+                DebugLog.e("$TAG: dict.tar.bz2 解压后 dict/ 为空")
+            }
+            success
+        } catch (e: Exception) {
+            DebugLog.e("$TAG: 解压 dict.tar.bz2 失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 解压 .tar.bz2 文件到目标目录。
+     *
+     * 使用 Apache Commons Compress 处理 bz2 解包 + tar 归档提取。
+     */
+    private fun extractTarBz2(tarBz2File: File, targetDir: File) {
+        tarBz2File.inputStream().use { fis ->
+            BZip2CompressorInputStream(fis).use { bzis ->
+                // 手动解析 tar 格式（避免引入额外 tar 依赖）
+                val buffer = ByteArray(512)
+                while (true) {
+                    val read = bzis.read(buffer)
+                    if (read < 512) break
+
+                    // TAR header: name (100) + mode (8) + uid (8) + gid (8) + size (12) + ...
+                    if (buffer[0].toInt() == 0) break // 全零块 = 结束标记
+
+                    val name = String(buffer, 0, 100, Charsets.US_ASCII).trimEnd('\u0000')
+                    if (name.isEmpty()) break
+
+                    // size 字段在 offset 512-524（八进制字符串）
+                    val sizeStr = String(buffer, 124, 12, Charsets.US_ASCII).trimEnd('\u0000', ' ')
+                    if (sizeStr.isEmpty()) continue
+                    val fileSize = sizeStr.toLong(8)
+
+                    // 跳过非普通文件（目录、链接等）
+                    val typeFlag = buffer[156].toInt()
+                    if (typeFlag != 0 && typeFlag != 48) { // '0' = 48
+                        // 目录或特殊条目：跳过文件数据
+                        val blocks = (fileSize + 511L) / 512L
+                        repeat(blocks.toInt()) { bzis.read(buffer) }
+                        continue
+                    }
+
+                    // 提取文件
+                    val outFile = File(targetDir, name)
+                    outFile.parentFile?.mkdirs()
+
+                    if (fileSize > 0) {
+                        outFile.outputStream().use { fos ->
+                            var remaining = fileSize
+                            while (remaining > 0) {
+                                val toRead = minOf(remaining, buffer.size.toLong()).toInt()
+                                val n = bzis.read(buffer, 0, toRead)
+                                if (n == -1) break
+                                fos.write(buffer, 0, n)
+                                remaining -= n
+                            }
+                        }
+                    } else {
+                        outFile.createNewFile()
+                    }
+
+                    // 对齐到 512 字节块
+                    val padding = (512L - (fileSize % 512L)) % 512L
+                    if (padding > 0) bzis.skip(padding)
+                }
+            }
+        }
+    }
+
     /** 获取模型的存储目录 */
     fun getModelPath(context: Context, modelType: ModelType): File? {
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: return null
@@ -271,13 +409,13 @@ object ModelManager {
             // 下载文件并在循环中直接 emit 进度
             var downloadResult = downloadWithProgress(url, localFile, totalBytes)
 
-            // GitHub 超时/失败时，尝试 ModelScope 备用源
+            // 主源超时/失败时，尝试备用源
             if (downloadResult is DownloadResult.Stalled || downloadResult is DownloadResult.Failed) {
                 val fallback = modelInfo.fallbackTasks()
                 if (fallback != null && index < fallback.size) {
-                    val (_, fbUrl, _) = fallback[index]
-                    DebugLog.w("$TAG: 主源下载失败，切换到 ModelScope 备用: $fbUrl")
-                    emit(DownloadProgress.SourceSwitch("ModelScope(备用)", index + 1, tasks.size))
+                    val (fbSourceName, fbUrl, _) = fallback[index]
+                    DebugLog.w("$TAG: 主源下载失败，切换到备用源: $fbSourceName")
+                    emit(DownloadProgress.SourceSwitch(fbSourceName, index + 1, tasks.size))
                     downloadResult = downloadWithProgress(fbUrl, localFile, totalBytes)
                 }
             }
@@ -300,7 +438,10 @@ object ModelManager {
         // 验证所有文件都存在
         val allExist = tasks.all { File(modelDir, it.third).exists() }
         if (allExist) {
-            // 后处理: 转换 tokens.json → tokens.txt（部分模型源提供 JSON 格式）
+            // 后处理1: 解压 dict.tar.bz2 → dict/ (HR 同音字替换资源)
+            ensureHrResourcesExtracted(modelDir)
+
+            // 后处理2: 转换 tokens.json → tokens.txt（部分模型源提供 JSON 格式）
             convertTokensJsonToTxt(modelDir)
 
             downloadStatusCache[modelType] = true
