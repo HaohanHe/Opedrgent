@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -78,7 +79,7 @@ fun MessageBodyError(
             imageVector = Icons.Default.Error,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = Color(0xFFD32F2F),
+            tint = MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.width(8.dp))
         Column(
@@ -91,7 +92,7 @@ fun MessageBodyError(
                 } else {
                     errorText.lines().take(5).joinToString("\n")
                 },
-                color = Color(0xFFC62828),
+                color = MaterialTheme.colorScheme.onErrorContainer,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 maxLines = if (expanded) Int.MAX_VALUE else maxLines.intValue,
@@ -100,7 +101,7 @@ fun MessageBodyError(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = "查看全部",
-                    color = Color(0xFFD32F2F),
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier

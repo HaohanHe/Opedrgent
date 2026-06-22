@@ -5,14 +5,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun BalloonEmptyIllustration(modifier: Modifier = Modifier) {
-    val strokeColor = Color(0xFF1A1A1A)
+    val strokeColor = MaterialTheme.colorScheme.onSurface
     Canvas(modifier = modifier.size(100.dp)) {
         val strokeWidth = 2.dp.toPx()
         val style = Stroke(width = strokeWidth, cap = StrokeCap.Round)

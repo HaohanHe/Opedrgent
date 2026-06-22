@@ -41,7 +41,7 @@ fun MessageBodyInfo(
             imageVector = Icons.Default.Info,
             contentDescription = null,
             modifier = Modifier.size(20.dp),
-            tint = Color(0xFF5C6BC0),
+            tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.width(4.dp))
         Text(
