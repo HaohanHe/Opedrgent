@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,8 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -159,9 +162,7 @@ fun StreamingCard(
             }
 
             if (hasTools) {
-                toolParts.forEach { tp ->
-                    ToolStatusRow(toolPart = tp)
-                }
+                ToolStatusGroup(toolParts = toolParts)
             }
 
             if (hasText) {
@@ -273,17 +274,20 @@ fun ToolStatusRow(toolPart: ToolPart) {
     val statusText = when (toolPart.state.status) {
         ToolStateType.PENDING -> "等待执行..."
         ToolStateType.RUNNING -> {
-            val q = toolPart.state.input["query"]
+            val q = extractCleanQuery(toolPart.state.input)
             val u = toolPart.state.input["url"]
             when {
-                !q.isNullOrBlank() -> "查询: $q"
-                !u.isNullOrBlank() -> "读取: ${runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))}"
+                q.isNotBlank() -> "正在搜索: $q"
+                !u.isNullOrBlank() -> "正在读取: ${runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))}"
                 else -> "执行中..."
             }
         }
         ToolStateType.COMPLETED -> {
             when (toolPart.tool) {
-                "web_search" -> "搜索完成"
+                "web_search" -> {
+                    val q = extractCleanQuery(toolPart.state.input)
+                    if (q.isNotBlank()) "搜索: $q" else "搜索完成"
+                }
                 "read_url" -> "读取完成"
                 else -> "完成"
             }
@@ -315,7 +319,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                        append(toolPart.tool)
+                        append(toolDisplayName(toolPart.tool))
                     }
                     append(" ")
                     append(statusText)
@@ -333,6 +337,122 @@ fun ToolStatusRow(toolPart: ToolPart) {
             )
         }
     }
+}
+
+/**
+ * 合并展示同类工具调用（如多次 web_search 合并为一行）
+ */
+@Composable
+fun ToolStatusGroup(toolParts: List<ToolPart>) {
+    val grouped = toolParts.groupBy { it.tool }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        grouped.forEach { (toolName, parts) ->
+            if (parts.size == 1) {
+                ToolStatusRow(toolPart = parts[0])
+            } else {
+                ToolStatusCollapsedGroup(toolName = toolName, parts = parts)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val completedCount = parts.count { it.state.status == ToolStateType.COMPLETED }
+    val hasRunning = parts.any { it.state.status == ToolStateType.RUNNING }
+    val hasError = parts.any { it.state.status == ToolStateType.ERROR }
+
+    val statusIcon = when {
+        hasRunning -> Icons.Default.HourglassEmpty
+        hasError -> Icons.Default.Cancel
+        else -> Icons.Default.CheckCircle
+    }
+    val statusColor = when {
+        hasRunning -> AccentBlue
+        hasError -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { expanded = !expanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = statusColor,
+            )
+            Text(
+                text = "${toolDisplayName(toolName)} ${completedCount}/${parts.size}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = themeTextDark(),
+                modifier = Modifier.weight(1f),
+            )
+            // 显示所有查询的摘要
+            val queries = parts.mapNotNull { extractCleanQuery(it.state.input).ifBlank { null } }
+            if (queries.isNotEmpty() && !expanded) {
+                Text(
+                    text = queries.joinToString(", ").take(50) + if (queries.joinToString(", ").length > 50) "..." else "",
+                    fontSize = 11.sp,
+                    color = themeTextGrey(),
+                    maxLines = 1,
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = themeTextGrey(),
+            )
+            if (hasRunning) {
+                CircularProgressIndicator(
+                    modifier = Modifier.height(12.dp).width(12.dp),
+                    strokeWidth = 1.5.dp,
+                    color = AccentBlue,
+                )
+            }
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier.padding(start = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                parts.forEach { tp ->
+                    ToolStatusRow(toolPart = tp)
+                }
+            }
+        }
+    }
+}
+
+/** 工具名显示映射 */
+private fun toolDisplayName(tool: String): String = when (tool) {
+    "web_search" -> "搜索"
+    "read_url" -> "阅读"
+    "step_search" -> "搜索"
+    "step_rag" -> "知识库"
+    "speech_to_text" -> "语音转文字"
+    else -> tool
+}
+
+/** 从 input map 中提取干净的查询文本（处理嵌套JSON） */
+private fun extractCleanQuery(input: Map<String, String>): String {
+    val raw = input["query"] ?: input["keyword"] ?: return ""
+    // 如果值本身是 JSON，尝试解析提取 query 字段
+    val cleaned = runCatching {
+        val json = org.json.JSONObject(raw)
+        json.optString("query", json.optString("keyword", raw))
+    }.getOrDefault(raw)
+    return cleaned.trim().take(80)
 }
 
 @Composable
