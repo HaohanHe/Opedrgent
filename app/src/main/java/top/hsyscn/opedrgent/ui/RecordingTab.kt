@@ -126,6 +126,7 @@ import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.stt.EngineType
 import top.hsyscn.opedrgent.stt.MeetingSegment
 import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
+import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.stt.SystemAudioRecorder
 import top.hsyscn.opedrgent.ui.components.AudioPlayer
@@ -417,16 +418,30 @@ fun RecordingTab(
         audioRecord.value = recorder
         startTime.value = System.currentTimeMillis()
 
-        // 启动流式识别（伪流式模式下，仅对支持 feedAudioData 的引擎）
+        // 启动流式识别
         val isBatchMode = vm.getSttStreamingMode() == "batch"
+        val isStreamingModelSelected = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
         if (!isBatchMode) {
             scope.launch {
                 try {
+                    // 如果选了流式模型但引擎不是流式的，强制重新初始化
+                    if (isStreamingModelSelected && !vm.asrManager.isCurrentEngineStreaming()) {
+                        DebugLog.i("RecordingTab", "检测到流式模型但引擎不是流式，强制重新初始化")
+                        vm.asrManager.invalidateEngine()
+                    }
                     vm.asrManager.ensureInitialized()
                     val engine = vm.asrManager.getCachedEngine()
                     if (engine?.engineType == EngineType.ANDROID_SPEECH_RECOGNIZER) {
                         DebugLog.i("RecordingTab", "AndroidSpeechRecognizer 不支持 feedAudioData，跳过实时流式")
                     } else {
+                        val isTrueStreaming = vm.asrManager.isCurrentEngineStreaming()
+                        DebugLog.i("RecordingTab", "流式识别启动: isTrueStreaming=$isTrueStreaming, engine=${engine?.engineType}")
+                        if (isStreamingModelSelected && !isTrueStreaming) {
+                            // 流式模型降级到伪流式，通知用户
+                            scope.launch {
+                                snackbar.showSnackbar("OnlineRecognizer 不可用，已降级为伪流式模式")
+                            }
+                        }
                         isStreamingActive = true
                         vm.asrManager.startStreaming().collect { state ->
                             when (state) {

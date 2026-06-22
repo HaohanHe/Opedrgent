@@ -671,35 +671,46 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             )
                         }
 
-                        // 识别模式选择（伪流式 vs 录制后识别）
+                        // 识别模式选择
+                        val isStreamingModel = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         Text(
                             text = "识别模式",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        ) {
-                            FilterChip(
-                                selected = sttStreamingMode == "pseudo",
-                                onClick = { sttStreamingMode = "pseudo" },
-                                label = { Text("伪流式（实时显示）", fontSize = 12.sp) },
-                                shape = RoundedCornerShape(20.dp),
+                        if (isStreamingModel) {
+                            // 流式模型：自动使用真流式，无需选择
+                            sttStreamingMode = "streaming"
+                            Text(
+                                text = "Paraformer 流式模型：实时流式识别（文本可修正）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
                             )
-                            FilterChip(
-                                selected = sttStreamingMode == "batch",
-                                onClick = { sttStreamingMode = "batch" },
-                                label = { Text("录制后识别（更准确）", fontSize = 12.sp) },
-                                shape = RoundedCornerShape(20.dp),
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            ) {
+                                FilterChip(
+                                    selected = sttStreamingMode == "pseudo",
+                                    onClick = { sttStreamingMode = "pseudo" },
+                                    label = { Text("伪流式（实时显示）", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                FilterChip(
+                                    selected = sttStreamingMode == "batch",
+                                    onClick = { sttStreamingMode = "batch" },
+                                    label = { Text("录制后识别（更准确）", fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                            }
+                            Text(
+                                text = "非流式模型下，录制后识别可获得更准确的结果",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
                             )
                         }
-                        Text(
-                            text = "非流式模型下，录制后识别可获得更准确的结果",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = themeTextGrey(),
-                        )
 
                         // ★ 本地语音模型下载管理
                         if (sttEngine == "local") {

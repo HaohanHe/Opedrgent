@@ -58,6 +58,8 @@ class SherpaOnnxEngine(
     private var streamingRecognizer: StreamingRecognizer? = null
     /** 当前是否为流式模型 */
     private var isStreamingModel = false
+    /** 是否使用真流式识别器（OnlineRecognizer），供外部查询 */
+    val isStreamingEngine: Boolean get() = isStreamingModel && streamingRecognizer?.isActive == true
     private var _isInitialized = AtomicBoolean(false)
     private var streamingActive = AtomicBoolean(false)
     private var currentModelDir: File? = null
