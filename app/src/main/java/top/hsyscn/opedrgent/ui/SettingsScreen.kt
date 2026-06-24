@@ -1446,6 +1446,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     label = { Text(stringResource(R.string.settings_provider_builtin), fontSize = 12.sp) },
                                     shape = RoundedCornerShape(20.dp),
                                 )
+                                FilterChip(
+                                    selected = webSearchSource == "external",
+                                    onClick = { webSearchSource = "external"; vm.saveWebSearchSource("external") },
+                                    label = { Text(stringResource(R.string.settings_external_api), fontSize = 12.sp) },
+                                    shape = RoundedCornerShape(20.dp),
+                                )
                             }
                         }
                         if (webSearchSource == "own") {
@@ -1460,6 +1466,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 text = stringResource(R.string.settings_provider_builtin_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE67E22),
+                            )
+                        }
+                        if (webSearchSource == "external") {
+                            Text(
+                                text = stringResource(R.string.settings_external_api_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
                             )
                         }
                     } else {
@@ -1871,11 +1884,11 @@ Spacer(Modifier.height(12.dp))
                             }
                         }
 
-                        // 搜索引擎 API Key（高级）
-                        if (webSearchEnabled && webSearchSource == "own") {
+                        // 外挂 API 配置（Tavily / Brave）
+                        if (webSearchEnabled && webSearchSource == "external") {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Text(
-                                text = "搜索引擎 API Key（可选，配置后搜索更稳定）",
+                                text = "外挂搜索 API 配置",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary,
@@ -1897,7 +1910,7 @@ Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = searchProviderOrder,
                                 onValueChange = { searchProviderOrder = it },
-                                label = { Text("搜索优先级（如 bing,baidu,ddg,tavily,brave）") },
+                                label = { Text("搜索优先级（如 tavily,brave,bing,baidu,ddg）") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                             )

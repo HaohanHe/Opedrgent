@@ -278,10 +278,12 @@
     <string name="settings_web_search_label">Web Search</string>
     <string name="settings_web_search_desc">When enabled, AI can search the web for up-to-date information during conversations</string>
     <string name="settings_search_engine">Search Engine</string>
-    <string name="settings_own_engine">Built-in Engine</string>
+    <string name="settings_own_engine">Self-hosted</string>
     <string name="settings_provider_builtin">Provider Built-in</string>
+    <string name="settings_external_api">External API</string>
     <string name="settings_own_engine_desc">Use Opedrgent\'s built-in multi-engine search (Baidu / Bing / DuckDuckGo / Jina, etc.) with customizable search engine order and API keys</string>
-    <string name="settings_provider_builtin_desc">Use the built-in web search provided by the current LLM model provider (e.g., DeepSeek / MiMo built-in search). No additional configuration needed</string>
+    <string name="settings_provider_builtin_desc">Use the built-in web search provided by the current LLM model provider (e.g., SiliconFlow / DeepSeek / MiMo built-in search). No additional configuration needed</string>
+    <string name="settings_external_api_desc">Connect third-party search APIs (Tavily / Brave Search) for more precise AI-powered search results. Requires separate API key registration</string>
     <string name="settings_web_search_off_desc">When disabled, AI answers questions based only on local knowledge and existing notes, without making any network requests</string>
     <string name="settings_bg_run_section">Background Running</string>
     <string name="settings_bg_run_label">Background Running</string>
