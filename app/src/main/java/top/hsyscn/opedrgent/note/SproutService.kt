@@ -265,41 +265,14 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                 .optString("content", "")
 
             val jsonStr = extractJsonFromMarkdown(content) ?: content.trim()
-            val fixedJson = fixJsonString(jsonStr)
-            val reportJson = JSONObject(fixedJson)
-
-            val article = SproutArticle(
-                generatedAt = System.currentTimeMillis(),
-                modelUsed = modelUsed,
-                summary = reportJson.optString("summary", ""),
-                articles = reportJson.optJSONArray("articles")?.let { arr ->
-                    (0 until arr.length()).mapNotNull { i ->
-                        try {
-                            val obj = arr.getJSONObject(i)
-                            ArticleSection(
-                                title = obj.optString("title", ""),
-                                seed = obj.optString("seed", ""),
-                                body = obj.optString("body", ""),
-                                ahaMoment = obj.optString("ahaMoment", ""),
-                                importance = obj.optInt("importance", 3).coerceIn(1, 5),
-                            )
-                        } catch (_: Exception) { null }
-                    }.filter { it.title.isNotEmpty() && it.body.isNotEmpty() }
-                } ?: emptyList(),
-                actionItems = reportJson.optJSONArray("actionItems")?.let { arr ->
-                    (0 until arr.length()).map { arr.getString(it) }
-                } ?: emptyList(),
-                relatedConcepts = reportJson.optJSONArray("relatedConcepts")?.let { arr ->
-                    (0 until arr.length()).map { arr.getString(it) }
-                } ?: emptyList(),
-                sentiment = try {
-                    Sentiment.valueOf(reportJson.optString("sentiment", "NEUTRAL"))
-                } catch (_: Exception) { Sentiment.NEUTRAL },
-                readingTimeMinutes = reportJson.optInt("readingTimeMinutes", 0),
-            )
-
-            DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
-            Result.success(article)
+            val articleResult = extractSproutArticle(jsonStr)
+            if (articleResult.isSuccess) {
+                val article = articleResult.getOrThrow().copy(modelUsed = modelUsed)
+                DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
+                Result.success(article)
+            } else {
+                articleResult
+            }
         } catch (e: Exception) {
             DebugLog.e(TAG, "解析发芽响应失败: ${e.message}")
             Result.failure(e)
@@ -314,7 +287,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     /**
      * 修复 LLM 返回的 JSON 字符串值内的实际换行符。
      * LLM 常在 body/seed 等长文本字段中输出真正的换行，
-     * 这在 JSON 字符串值内是非法的，导致 "Unterminated string" 解析失败。
+     * 这在 JSON 字符串值内是非法的，导致 "Unterminated string" 或 "Unterminated array" 解析失败。
      */
     private fun fixJsonString(raw: String): String {
         val sb = StringBuilder(raw.length)
@@ -345,6 +318,70 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
             i++
         }
         return sb.toString()
+    }
+
+    /**
+     * 从 LLM 输出中提取 JSON 对象。
+     * 如果 fixJsonString 后仍解析失败，尝试按字段逐块提取。
+     */
+    private fun extractSproutArticle(jsonStr: String): Result<SproutArticle> {
+        // 第一次尝试：标准 JSON 解析
+        val fixed = fixJsonString(jsonStr)
+        val tryParse = runCatching {
+            val obj = JSONObject(fixed)
+            parseSproutJson(obj)
+        }
+        if (tryParse.isSuccess) return tryParse
+
+        // 第二次尝试：用正则逐字段提取
+        DebugLog.w("SproutService: standard JSON parse failed, trying regex extraction")
+        return try {
+            val summary = Regex("\"summary\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
+            val title = Regex("\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
+            val seed = Regex("\"seed\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
+            val ahaMoment = Regex("\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
+
+            // body 可能很长且含换行，用贪心匹配到最后一个 } 之前
+            val body = Regex("\"body\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"", RegexOption.DOT_MATCHES_ALL).find(fixed)?.groupValues?.get(1) ?: ""
+
+            val article = SproutArticle(
+                generatedAt = System.currentTimeMillis(),
+                modelUsed = "",
+                summary = summary.replace("\\n", "\n").replace("\\\"", "\""),
+                articles = listOf(ArticleSection(
+                    title = title.replace("\\\"", "\""),
+                    seed = seed.replace("\\n", "\n").replace("\\\"", "\""),
+                    body = body.replace("\\n", "\n").replace("\\\"", "\""),
+                    ahaMoment = ahaMoment.replace("\\\"", "\""),
+                ))
+            )
+            Result.success(article)
+        } catch (e: Exception) {
+            Result.failure(RuntimeException("JSON 解析失败: ${e.message}"))
+        }
+    }
+
+    private fun parseSproutJson(obj: JSONObject): SproutArticle {
+        val articles = obj.optJSONArray("articles")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                try {
+                    val secObj = arr.getJSONObject(i)
+                    ArticleSection(
+                        title = secObj.optString("title", ""),
+                        seed = secObj.optString("seed", ""),
+                        body = secObj.optString("body", ""),
+                        ahaMoment = secObj.optString("ahaMoment", ""),
+                        importance = secObj.optInt("importance", 3).coerceIn(1, 5),
+                    )
+                } catch (_: Exception) { null }
+            }
+        } ?: emptyList()
+        return SproutArticle(
+            generatedAt = System.currentTimeMillis(),
+            modelUsed = "",
+            summary = obj.optString("summary", ""),
+            articles = articles
+        )
     }
 }
 
