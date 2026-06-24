@@ -280,8 +280,10 @@
     <string name="settings_search_engine">検索エンジン</string>
     <string name="settings_own_engine">自社エンジン</string>
     <string name="settings_provider_builtin">ベンダー内蔵</string>
+    <string name="settings_external_api">外部API</string>
     <string name="settings_own_engine_desc">Opedrgent独自のマルチエンジン検索を使用（Bing / DuckDuckGo / Jinaなど）。検索エンジンの順序とAPI Keyのカスタマイズに対応</string>
-    <string name="settings_provider_builtin_desc">現在のLLMモデルベンダーが提供する内蔵ネット検索機能を使用（DeepSeek / Mimoなどのモデルに搭載）。追加設定は不要です</string>
+    <string name="settings_provider_builtin_desc">現在のLLMモデルベンダーが提供する内蔵ネット検索機能を使用（SiliconFlow / DeepSeek / Mimoなどのモデルに搭載）。追加設定は不要です</string>
+    <string name="settings_external_api_desc">サードパーティ検索API（Tavily / Brave Search）に接続。より正確なAI検索結果を提供。別途API Keyの登録が必要です</string>
     <string name="settings_web_search_off_desc">無効にすると、AIはローカルナレッジと既存ノートのみに基づいて回答し、ネットリクエストは行いません</string>
     <string name="settings_bg_run_section">バックグラウンド実行</string>
     <string name="settings_bg_run_label">バックグラウンド実行</string>
