@@ -174,8 +174,6 @@ fun StreamingCard(
                     thinkingText = reasoning,
                     isComplete = hasText || isComplete,
                 )
-            } else if (showThinkingIndicator && phase.isNotEmpty()) {
-                ThinkingIndicator(phase = phase)
             }
 
             if (hasTools) {
