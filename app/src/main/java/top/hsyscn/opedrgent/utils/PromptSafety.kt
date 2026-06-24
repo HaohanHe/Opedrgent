@@ -33,29 +33,37 @@ object PromptSafety {
             return SanitizedContent(content = "", blocked = false, findings = emptyList())
         }
 
+        // 第一步：剥离不可见字符（中文网页常见零宽空格，不应阻断内容）
+        val cleaned = trimmed.replace(invisibleRegex, "")
+
         val findings = mutableListOf<String>()
 
+        // 检测不可见字符（仅记录，不阻断 — 中文网页普遍含零宽空格）
         for (char in trimmed) {
             if (char in invisibleChars) {
                 findings.add("invisible_unicode_U+${"%04X".format(char.code)}")
             }
         }
 
+        // 第二步：检查实际的 prompt 注入威胁（这些才应该阻断）
+        val threatFindings = mutableListOf<String>()
         for ((rx, id) in threatPatterns) {
-            if (rx.containsMatchIn(trimmed)) {
-                findings.add(id)
+            if (rx.containsMatchIn(cleaned)) {
+                threatFindings.add(id)
             }
         }
 
-        val uniqueFindings = findings.distinct()
+        val uniqueThreats = threatFindings.distinct()
 
-        if (uniqueFindings.isEmpty()) {
-            return SanitizedContent(content = trimmed, blocked = false, findings = emptyList())
+        if (uniqueThreats.isEmpty()) {
+            // 无注入威胁 — 返回清理后的内容（不可见字符已剥离）
+            return SanitizedContent(content = cleaned, blocked = false, findings = findings)
         }
 
-        val message = "[BLOCKED: $sourceLabel contained potential prompt injection (${uniqueFindings.joinToString(", ")}). Content not loaded.]"
-        DebugLog.w("PromptSafety: blocked $sourceLabel - ${uniqueFindings.joinToString()}")
-        return SanitizedContent(content = message, blocked = true, findings = uniqueFindings)
+        // 有注入威胁 — 阻断
+        val message = "[BLOCKED: $sourceLabel contained potential prompt injection (${uniqueThreats.joinToString(", ")}). Content not loaded.]"
+        DebugLog.w("PromptSafety: blocked $sourceLabel - ${uniqueThreats.joinToString()}")
+        return SanitizedContent(content = message, blocked = true, findings = uniqueThreats)
     }
 
     fun sanitizeStreamChunk(chunk: String, state: StreamSanitizeState): String {

@@ -9,6 +9,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -468,6 +469,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
     private val cancelled = AtomicBoolean(false)
+    @Volatile
+    private var lastStreamingContent: String = ""
     private val sessionCache = mutableMapOf<String, ResearchSession>()
     // Tool executor serialized via limitedParallelism(1) dispatcher to prevent concurrent duplicate searches
     private val searchDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -531,13 +534,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         const val INITIAL_DELAY_MS = 2000L
         const val BACKOFF_FACTOR = 2.0
         const val MAX_DELAY_MS = 30_000L
-        const val MAX_RETRIES = 3
+        const val MAX_RETRIES = 5
+        private val jitterRandom = java.util.Random()
 
         fun delay(attempt: Int, error: Exception): Long {
-            return minOf(
+            val base = minOf(
                 INITIAL_DELAY_MS * BACKOFF_FACTOR.pow(attempt),
                 MAX_DELAY_MS.toDouble(),
             ).toLong()
+            // jitter: +/- 20% 防止多客户端同时重试（thundering herd）
+            val jitter = (base * 0.2 * (jitterRandom.nextDouble() * 2 - 1)).toLong()
+            return (base + jitter).coerceAtLeast(1000L)
         }
 
         fun isRetryable(error: Exception): Boolean {
@@ -2352,14 +2359,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // 3. Token 预算检查（★ BUG-05 修复：统计所有消息，不只是 toolMessages）
                 val currentTokens = run {
-                    val sess = store.getSession(ctx.sessionId) ?: return@run ctx.toolMessages.sumOf { top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(it.textContent) }
+                    val sess = store.getSession(ctx.sessionId) ?: return@run ctx.toolMessages.sumOf { top.hsyscn.opedrgent.utils.ContextCompressor.estimateMessageTokens(it) }
                     var total = 0
                     // 系统 prompt
                     total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(buildSystemPrompt(sess))
-                    // 历史消息
-                    for (msg in sess.messages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(msg.textContent)
+                    // 历史消息（用完整消息token估算，包括ToolCall/Reasoning）
+                    for (msg in sess.messages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateMessageTokens(msg)
                     // 工具消息
-                    for (msg in ctx.toolMessages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(msg.textContent)
+                    for (msg in ctx.toolMessages) total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateMessageTokens(msg)
                     // 当前累积文本
                     total += top.hsyscn.opedrgent.utils.ContextCompressor.estimateTokens(ctx.accumulatedText)
                     total
@@ -2434,6 +2441,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val allMessages = session.messages + ctx.toolMessages
         val compressed = ContextCompressor.compress(allMessages, system, ctx.maxContextTokens)
+        // ★ P2-4 修复：将压缩摘要持久化到 session，使下次 compress 的 findPreviousSummary 能找到锚点
+        if (compressed.summary != null) {
+            store.addMessage(
+                sessionId = ctx.sessionId,
+                role = Role.SYSTEM,
+                content = compressed.summary!!,
+                parts = listOf(MessagePart.Compaction(compressed.summary!!, auto = true)),
+            )
+        }
         val compressedSystem = buildString {
             append(if (compressed.summary != null) "$system\n\n${compressed.summary}" else system)
             // 注入"我的笔记"海马体记忆上下文
@@ -2508,8 +2524,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         // 处理 LLM 返回的错误
         if (result.error != null) {
+            val httpCode = Regex("HTTP\\s+(\\d{3})").find(result.error)?.groupValues?.get(1)?.toIntOrNull()
             val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
-                java.lang.Exception(result.error), null, null
+                java.lang.Exception(result.error), httpCode, null
             )
             DebugLog.e("executeOneRound: LLM returned error: ${result.error}, roundsUsed=${state.roundsUsed}")
             DebugLog.e("executeOneRound: error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
@@ -2517,11 +2534,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 ctx.accumulatedText += (if (ctx.accumulatedText.isNotBlank()) "\n\n" else "") + result.content
             }
             val enhancedErrorMsg = when (classified.type) {
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.AUTH_ERROR -> "${result.error} (API Key 无效或已过期，请在设置中检查)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.BALANCE -> "${result.error} (账户余额不足，请及时充值)"
                 top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "${result.error} (请求过于频繁，请稍后重试)"
                 top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "${result.error} (请求超时，请检查网络)"
                 top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "${result.error} (触发了人机验证，可能需要更换API Key或节点)"
                 top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "${result.error} (SSL证书错误)"
                 top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "${result.error} (访问被拒绝，请检查API Key是否有效)"
+                top.hsyscn.opedrgent.network.ClassifiedErrorType.CONTENT_FILTER -> "${result.error} (内容被安全策略拦截)"
                 else -> result.error
             }
             state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
@@ -2570,18 +2590,43 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
             val parsedArgs: Map<String, String> = runCatching {
                 val argsStr = tc.arguments ?: "{}"
-                // 尝试修复常见 JSON 格式问题
-                val fixedArgs = argsStr
-                    .replace(Regex(",\\s*}"), "}")   // 移除尾部逗号
-                    .replace(Regex(",\\s*]"), "]")   // 移除数组尾部逗号
-                org.json.JSONObject(fixedArgs).let { json ->
-                    json.keys().asSequence().associateWith { json.opt(it).toString() }
+                // 先直接解析（LLM 返回的 JSON 通常是合法的）
+                try {
+                    org.json.JSONObject(argsStr).let { json ->
+                        json.keys().asSequence().associateWith { json.opt(it).toString() }
+                    }
+                } catch (_: Exception) {
+                    // 解析失败才做修复：去掉尾部逗号（字符串操作，避免正则平台兼容问题）
+                    val fixed = argsStr
+                        .replace(",}", "}")
+                        .replace(", }", "}")
+                        .replace(",]", "]")
+                        .replace(", ]", "]")
+                    org.json.JSONObject(fixed).let { json ->
+                        json.keys().asSequence().associateWith { json.opt(it).toString() }
+                    }
                 }
             }.getOrElse { e ->
                 DebugLog.w("工具参数 JSON 解析失败: ${tc.arguments?.take(100)} -> ${e.message}")
-                // 如果解析失败，尝试将原始字符串作为 query 参数传递
-                val fallback = tc.arguments?.take(500) ?: ""
-                if (fallback.isNotBlank()) mapOf("query" to fallback) else emptyMap()
+                // 智能 fallback：尝试从原始字符串中提取 url / query 等常见参数名
+                val raw = tc.arguments ?: ""
+                val extracted = mutableMapOf<String, String>()
+                for (key in listOf("url", "query", "code", "address", "skill_name")) {
+                    val pattern = "\"$key\""
+                    val keyIdx = raw.indexOf(pattern)
+                    if (keyIdx >= 0) {
+                        val afterKey = raw.substring(keyIdx + pattern.length).trimStart(' ', ':', ' ')
+                        if (afterKey.startsWith("\"")) {
+                            val endQuote = afterKey.indexOf('"', 1)
+                            if (endQuote > 1) {
+                                extracted[key] = afterKey.substring(1, endQuote)
+                            }
+                        }
+                    }
+                }
+                if (extracted.isNotEmpty()) extracted
+                else if (raw.isNotBlank()) mapOf("query" to raw.take(500))
+                else emptyMap()
             }
             ToolPart(
                 tool = tc.name,
@@ -2677,7 +2722,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
-                            // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
+                            // ★ P4-1 修复：将结果写入 toolExecCache，确保下一轮 LLM 调用能收到用户答案
+                            ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
                             // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
                             _questionRequest.value = null
@@ -2747,7 +2793,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
                             _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
-                            // 注意：不在此处添加 ctx.toolMessages，由正常流程在 assistant 消息之后添加
+                            // ★ P4-1 修复：将结果写入 toolExecCache，确保下一轮 LLM 调用能收到用户确认
+                            ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
                             // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
                             _confirmationRequest.value = null
@@ -2870,13 +2917,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT -> {
                             DebugLog.w("ToolCallGuardrail: HALT — 工具调用死循环检测，终止 Agent 循环")
                             guardrailHalted = true
+                            lastError = "工具调用保护: 检测到重复失败，已自动停止"
                             _state.value = _state.value.copy(
                                 streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到重复失败，已自动停止。",
                             )
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
-                            DebugLog.w("ToolCallGuardrail: BLOCK — 工具调用无进展")
+                            DebugLog.w("ToolCallGuardrail: BLOCK — 工具调用无进展或doom loop")
                             guardrailHalted = true
+                            lastError = "工具调用保护: 工具调用无进展，已自动停止"
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
                             DebugLog.w("ToolCallGuardrail: WARN — 工具 '${tp.tool}' 连续失败")
@@ -3143,9 +3192,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
-                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        val t = delta.text ?: ""
                                         if (t.isNotEmpty()) {
-                                            contentBuilder.append(t)
+                                            contentBuilder.append(t); lastStreamingContent = contentBuilder.toString()
                                             val now = System.currentTimeMillis()
                                             if (now - lastFlushTime >= throttleIntervalMs) {
                                                 lastFlushTime = now
@@ -3160,7 +3209,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         }
                                     }
                                     is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
-                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        val t = delta.text ?: ""
                                         if (t.isNotEmpty()) {
                                             reasoningBuilder.append(t)
                                             val now = System.currentTimeMillis()
@@ -3224,16 +3273,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                             error = err,
                                         )))
                                     } else {
+                                        // 从错误消息中提取 HTTP 状态码（如 "请求失败: HTTP 401"）
+                                        val httpCode = Regex("HTTP\\s+(\\d{3})").find(err)?.groupValues?.get(1)?.toIntOrNull()
                                         val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
-                                            java.lang.Exception(err), null, null
+                                            java.lang.Exception(err), httpCode, null
                                         )
                                         DebugLog.e("streamLlm error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
                                         val enhancedError = when (classified.type) {
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.AUTH_ERROR -> "$err (API Key 无效或已过期，请在设置中检查)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.BALANCE -> "$err (账户余额不足，请及时充值)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "$err (请求过于频繁，请稍后重试)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "$err (请求超时，请检查网络)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "$err (触发了人机验证，可能需要更换API Key或节点)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "$err (SSL证书错误)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "$err (访问被拒绝，请检查API Key是否有效)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CONTENT_FILTER -> "$err (内容被安全策略拦截)"
                                             else -> err
                                         }
                                         continuation.resumeWith(Result.success(StreamResult(error = enhancedError)))
@@ -3299,9 +3353,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
-                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        val t = delta.text ?: ""
                                         if (t.isNotEmpty()) {
-                                            contentBuilder.append(t)
+                                            contentBuilder.append(t); lastStreamingContent = contentBuilder.toString()
                                             val now = System.currentTimeMillis()
                                             if (now - lastFlushTime >= throttleIntervalMs) {
                                                 lastFlushTime = now
@@ -3316,7 +3370,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         }
                                     }
                                     is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
-                                        val t = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(delta.text)
+                                        val t = delta.text ?: ""
                                         if (t.isNotEmpty()) {
                                             reasoningBuilder.append(t)
                                             val now = System.currentTimeMillis()
@@ -3369,16 +3423,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                             error = err,
                                         )))
                                     } else {
+                                        val httpCode = Regex("HTTP\\s+(\\d{3})").find(err)?.groupValues?.get(1)?.toIntOrNull()
                                         val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
-                                            java.lang.Exception(err), null, null
+                                            java.lang.Exception(err), httpCode, null
                                         )
                                         DebugLog.e("streamMultimodalLlm error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
                                         val enhancedError = when (classified.type) {
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.AUTH_ERROR -> "$err (API Key 无效或已过期，请在设置中检查)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.BALANCE -> "$err (账户余额不足，请及时充值)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.RATE_LIMIT -> "$err (请求过于频繁，请稍后重试)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.TIMEOUT -> "$err (请求超时，请检查网络)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.CAPTCHA -> "$err (触发了人机验证，可能需要更换API Key或节点)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.SSL_ERROR -> "$err (SSL证书错误)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.FORBIDDEN -> "$err (访问被拒绝，请检查API Key是否有效)"
+                                            top.hsyscn.opedrgent.network.ClassifiedErrorType.CONTENT_FILTER -> "$err (内容被安全策略拦截)"
                                             else -> err
                                         }
                                         continuation.resumeWith(Result.success(StreamResult(error = enhancedError)))
@@ -3493,6 +3551,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveSttStreamingMode(mode: String) { apiSettings.saveSttStreamingMode(mode) }
     fun isHrEnabled(): Boolean = apiSettings.isHrEnabled()
     fun saveHrEnabled(enabled: Boolean) { apiSettings.saveHrEnabled(enabled) }
+    fun isSegmentEnabled(): Boolean = apiSettings.isSegmentEnabled()
+    fun saveSegmentEnabled(enabled: Boolean) { apiSettings.saveSegmentEnabled(enabled) }
     fun isTtsDownloadOnly(): Boolean = apiSettings.isTtsDownloadOnly()
     fun isBackgroundRunning(): Boolean = apiSettings.isBackgroundRunning()
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
@@ -3880,7 +3940,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     private fun savePartialStreamingContent() {
         val s = _state.value
-        val text = s.streamingText
+        val text = if (s.isStreaming) lastStreamingContent.ifEmpty { s.streamingText } else s.streamingText; lastStreamingContent = ""
         val reasoning = s.streamingReasoning
         val toolParts = s.streamingToolParts
         val sessionId = s.streamingSessionId ?: s.current?.id ?: return
@@ -3986,6 +4046,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun saveDeepThinking(enabled: Boolean) {
         apiSettings.saveDeepThinking(enabled)
+    }
+
+    fun isCalendarEnabled(): Boolean = apiSettings.isCalendarEnabled()
+
+    fun saveCalendarEnabled(enabled: Boolean) {
+        apiSettings.saveCalendarEnabled(enabled)
+    }
+
+    fun isHealthEnabled(): Boolean = apiSettings.isHealthEnabled()
+
+    fun saveHealthEnabled(enabled: Boolean) {
+        apiSettings.saveHealthEnabled(enabled)
     }
 
     fun isProviderWebSearchEnabled(): Boolean = apiSettings.isProviderWebSearchEnabled()
@@ -4588,7 +4660,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             hasCalendar = true
         )
 
-        return PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, cachedSkillNames)
+        val system = PromptBuilder.buildSystemPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, cachedSkillNames, hippocampus)
+
+        // 如果开启了运动健康，注入今日健康摘要到系统提示
+        if (apiSettings.isHealthEnabled()) {
+            val healthSummary = runBlocking {
+                try {
+                    top.hsyscn.opedrgent.health.HealthConnectHelper.getHealthSummaryForPrompt(app)
+                } catch (_: Exception) { null }
+            }
+            if (!healthSummary.isNullOrBlank()) {
+                return "$system\n\n# 用户运动健康数据\n$healthSummary\n\n当用户询问运动、健康相关问题时，可基于以上数据回答，或调用 health_read 工具获取更详细数据。"
+            }
+        }
+
+        return system
     }
 
     private fun inferProviderFromUrl(baseUrl: String): String {

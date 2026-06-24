@@ -169,12 +169,6 @@ object ModelManager {
                 "encoder.int8.onnx" to "encoder.int8.onnx",
                 "decoder.int8.onnx" to "decoder.int8.onnx",
                 "tokens.txt" to "tokens.txt",
-                // 后处理资源: 同音字替换(Homophone Replacer)
-                // 详见 https://k2-fsa.github.io/sherpa/onnx/homophone-replacer/index.html
-                // 这三个文件从 GitHub hr-files release 下载（见 downloadTasks 路由逻辑）
-                "hr-files/dict.tar.bz2" to "dict.tar.bz2",       // → 解压为 dict/ 目录(jieba分词词典)
-                "hr-files/lexicon.txt" to "lexicon.txt",           // 汉字→拼音映射表(通用)
-                "hr-files/replace.fst" to "replace.fst",           // 同音字替换规则FST(通用规则)
             ),
         ),
     )
@@ -314,6 +308,80 @@ object ModelManager {
         }
     }
 
+    // ── HR 资源单独下载 ──────────────────────────────────────────
+
+    /** HR 资源文件列表 (远程路径 to 本地名) */
+    private val HR_FILES = listOf(
+        "dict.tar.bz2" to "dict.tar.bz2",
+        "lexicon.txt" to "lexicon.txt",
+        "replace.fst" to "replace.fst",
+    )
+
+    /** HR 资源下载地址 (GitHub hr-files release) */
+    private const val HR_BASE_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/hr-files"
+
+    /**
+     * 检查 HR 资源是否已下载（3 个文件都在模型目录中）
+     */
+    fun isHrDownloaded(context: Context): Boolean {
+        val modelDir = getModelPath(context, ModelType.STREAMING_PARAFORMER) ?: return false
+        return HR_FILES.all { File(modelDir, it.second).exists() }
+    }
+
+    /**
+     * 单独下载 HR 资源（不跟核心模型一起下）
+     * 只有用户主动点击按钮时才触发
+     */
+    fun downloadHrResources(context: Context): Flow<DownloadProgress> = flow {
+        val modelDir = getModelPath(context, ModelType.STREAMING_PARAFORMER) ?: run {
+            emit(DownloadProgress.Error("请先下载流式Paraformer模型"))
+            return@flow
+        }
+
+        if (isHrDownloaded(context)) {
+            DebugLog.i("$TAG: HR 资源已存在，跳过下载")
+            emit(DownloadProgress.Complete)
+            return@flow
+        }
+
+        val totalHrBytes = 5 * 1024 * 1024L  // ~5MB 总量
+        var downloadedBytes = 0L
+        DebugLog.i("$TAG: 开始下载 HR 资源 (同音字替换), 共 ${HR_FILES.size} 个文件")
+
+        for ((remoteName, localName) in HR_FILES) {
+            val localFile = File(modelDir, localName)
+            if (localFile.exists() && localFile.length() > 0) {
+                downloadedBytes += localFile.length()
+                continue
+            }
+
+            val url = "$HR_BASE_URL/$remoteName"
+            DebugLog.i("$TAG: 下载 HR: $localName <- $url")
+            emit(DownloadProgress.SourceSwitch("GitHub(hr-files)", 1, 1))
+
+            val result = downloadWithProgress(url, localFile, totalHrBytes, downloadedBytes)
+            when (result) {
+                is DownloadResult.Success -> {
+                    downloadedBytes += localFile.length()
+                    DebugLog.i("$TAG: HR $localName 下载完成 (${formatSize(localFile.length())})")
+                }
+                is DownloadResult.Stalled -> {
+                    emit(DownloadProgress.Error("HR下载卡住: ${result.reason}"))
+                    return@flow
+                }
+                is DownloadResult.Failed -> {
+                    emit(DownloadProgress.Error("HR下载失败: ${result.reason}"))
+                    return@flow
+                }
+            }
+        }
+
+        // 自动解压 dict.tar.bz2
+        ensureHrResourcesExtracted(modelDir)
+        DebugLog.i("$TAG: HR 资源下载完成")
+        emit(DownloadProgress.Complete)
+    }.flowOn(Dispatchers.IO)
+
     /**
      * 解压 .tar.bz2 文件到目标目录。
      *
@@ -397,17 +465,25 @@ object ModelManager {
         val modelDir = getModelSubDir(context, modelInfo)
         modelDir.mkdirs()
         val totalBytes = modelInfo.sizeBytes
+        var downloadedBytes = 0L  // 已下载的累计字节数（用于跨文件进度计算）
         DebugLog.i("$TAG: 开始下载模型 ${modelInfo.modelName} (${formatSize(totalBytes)}), 共 ${tasks.size} 个文件")
 
         for ((index, task) in tasks.withIndex()) {
             val (sourceName, url, localName) = task
             val localFile = File(modelDir, localName)
 
+            // 跳过已下载的文件（断点续传）
+            if (localFile.exists() && localFile.length() > 0) {
+                DebugLog.i("$TAG: [${index + 1}/${tasks.size}] $localName 已存在 (${formatSize(localFile.length())})，跳过")
+                downloadedBytes += localFile.length()
+                continue
+            }
+
             DebugLog.i("$TAG: [${index + 1}/${tasks.size}] 下载 $localName <- $sourceName")
             emit(DownloadProgress.SourceSwitch(sourceName, index + 1, tasks.size))
 
             // 下载文件并在循环中直接 emit 进度
-            var downloadResult = downloadWithProgress(url, localFile, totalBytes)
+            var downloadResult = downloadWithProgress(url, localFile, totalBytes, downloadedBytes)
 
             // 主源超时/失败时，尝试备用源
             if (downloadResult is DownloadResult.Stalled || downloadResult is DownloadResult.Failed) {
@@ -416,12 +492,13 @@ object ModelManager {
                     val (fbSourceName, fbUrl, _) = fallback[index]
                     DebugLog.w("$TAG: 主源下载失败，切换到备用源: $fbSourceName")
                     emit(DownloadProgress.SourceSwitch(fbSourceName, index + 1, tasks.size))
-                    downloadResult = downloadWithProgress(fbUrl, localFile, totalBytes)
+                    downloadResult = downloadWithProgress(fbUrl, localFile, totalBytes, downloadedBytes)
                 }
             }
 
             when (downloadResult) {
                 is DownloadResult.Success -> {
+                    downloadedBytes += localFile.length()
                     DebugLog.i("$TAG: $localName 下载完成 (${formatSize(localFile.length())})")
                 }
                 is DownloadResult.Stalled -> {
@@ -454,11 +531,13 @@ object ModelManager {
 
     /**
      * 下载文件并emit进度（在 Flow 上下文中调用）
+     * @param alreadyDownloadedBytes 之前已下载文件的累计字节数（跨文件进度计算）
      */
     private suspend fun kotlinx.coroutines.flow.FlowCollector<DownloadProgress>.downloadWithProgress(
         url: String,
         localFile: File,
         totalBytes: Long,
+        alreadyDownloadedBytes: Long = 0L,
     ): DownloadResult {
         try {
             val request = Request.Builder().url(url).build()
@@ -485,9 +564,10 @@ object ModelManager {
                     totalRead += read
 
                     val now = System.currentTimeMillis()
-                    // 每 300ms 上报一次进度
+                    // 每 300ms 上报一次进度（用累计字节数算，避免跨文件跳动）
                     if (now - lastEmitTime >= 300) {
-                        val progress = (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                        val cumulativeRead = alreadyDownloadedBytes + totalRead
+                        val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
                         emit(DownloadProgress.Downloading(progress))
                         lastEmitTime = now
                     }
@@ -502,7 +582,8 @@ object ModelManager {
                     }
                 }
                 // 最终上报一次
-                val progress = (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                val cumulativeRead = alreadyDownloadedBytes + totalRead
+                val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
                 emit(DownloadProgress.Downloading(progress))
             }
 

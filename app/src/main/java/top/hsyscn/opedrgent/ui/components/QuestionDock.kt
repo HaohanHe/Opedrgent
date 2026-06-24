@@ -58,6 +58,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
@@ -146,6 +147,8 @@ fun QuestionDock(
                         fontSize = 15.sp,
                         color = themeTextDark(),
                         lineHeight = 22.sp,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     if (currentQ.multiple) {
@@ -373,6 +376,8 @@ private fun OptionRow(
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     fontSize = 14.sp,
                     color = textColor,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (description.isNotBlank()) {
                     Text(
@@ -380,6 +385,8 @@ private fun OptionRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = descColor,
                         fontSize = 12.sp,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

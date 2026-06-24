@@ -28,6 +28,19 @@ data class SearchResult(
     val snippet: String?,
     val sourceEngines: Set<String> = emptySet(),
     var score: Double = 0.0,
+    val rawContent: String? = null,  // Tavily Extract 返回的完整内容
+)
+
+/** Tavily Search API 响应 */
+data class TavilySearchResponse(
+    val results: List<SearchResult>,
+    val answer: String?,  // Tavily 生成的 LLM 摘要答案
+)
+
+/** Tavily Extract API 响应 */
+data class TavilyExtractResult(
+    val url: String,
+    val rawContent: String,
 )
 
 data class SearchConfig(
@@ -1263,25 +1276,53 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         }
     }
 
-    fun searchTavily(query: String, limit: Int = 5, apiKey: String): List<SearchResult> {
-        if (apiKey.isBlank()) return emptyList()
+    /**
+     * Tavily Search API (2026年6月最新文档)
+     *
+     * 支持参数：search_depth, topic, time_range, country,
+     * include_answer, include_raw_content, include_images,
+     * include_domains, exclude_domains, exact_match, auto_parameters
+     */
+    fun searchTavily(
+        query: String,
+        limit: Int = 5,
+        apiKey: String,
+        topic: String = "general",        // general / news / finance
+        timeRange: String? = null,         // day / week / month / year
+        country: String? = null,           // china / united_states / ...
+        includeAnswer: Boolean = true,
+        includeRawContent: Boolean = false,
+        searchDepth: String = "basic",     // basic / advanced / fast / ultra-fast
+        includeDomains: List<String>? = null,
+        excludeDomains: List<String>? = null,
+    ): TavilySearchResponse {
+        val emptyResponse = TavilySearchResponse(emptyList(), null)
+        if (apiKey.isBlank()) return emptyResponse
         val url = "https://api.tavily.com/search"
-        
-        val jsonBody = org.json.JSONObject()
-            .put("api_key", apiKey)
-            .put("query", query)
-            .put("max_results", limit)
-            .put("search_depth", "basic")
-            .put("include_answer", false)
-            .toString()
-        
-        DebugLog.i("WebSearcher Tavily: $query")
+
+        val jsonBody = org.json.JSONObject().apply {
+            put("query", query)
+            put("max_results", limit)
+            put("search_depth", searchDepth)
+            put("topic", topic)
+            put("include_answer", includeAnswer)
+            put("include_raw_content", includeRawContent)
+            put("include_images", false)
+            put("auto_parameters", false)
+            if (timeRange != null) put("time_range", timeRange)
+            if (country != null) put("country", country)
+            if (!includeDomains.isNullOrEmpty()) put("include_domains", org.json.JSONArray(includeDomains))
+            if (!excludeDomains.isNullOrEmpty()) put("exclude_domains", org.json.JSONArray(excludeDomains))
+        }
+
+        DebugLog.i("WebSearcher Tavily: query='$query', depth=$searchDepth, topic=$topic, time=$timeRange, country=$country")
 
         val req = Request.Builder()
             .url(url)
             .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer $apiKey")
             .header("User-Agent", UserAgentPool.generate())
-            .post(jsonBody.toRequestBody("application/json".toMediaType()))
+            .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         return try {
@@ -1289,28 +1330,40 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 if (!resp.isSuccessful) {
                     val errorBody = resp.body?.string().orEmpty()
                     DebugLog.w("WebSearcher Tavily failed: HTTP ${resp.code} - $errorBody")
-                    return@use emptyList()
+                    return@use emptyResponse
                 }
                 val body = resp.body?.string().orEmpty()
                 if (body.isBlank()) {
                     DebugLog.w("WebSearcher Tavily: empty response body")
-                    return@use emptyList()
+                    return@use emptyResponse
                 }
 
                 try {
                     val json = org.json.JSONObject(body)
-                    
+
                     if (json.has("error")) {
                         val errorMsg = json.optString("error", "Unknown error")
                         DebugLog.w("WebSearcher Tavily API error: $errorMsg")
-                        return@use emptyList()
+                        return@use emptyResponse
                     }
-                    
+
+                    // 提取 Tavily 生成的摘要答案
+                    val answer = json.optString("answer", "").ifBlank { null }
+                    if (answer != null) {
+                        DebugLog.i("WebSearcher Tavily: got answer (${answer.length} chars)")
+                    }
+
+                    // 提取自动参数（如果启用了 auto_parameters）
+                    val autoParams = json.optJSONObject("auto_parameters")
+                    if (autoParams != null) {
+                        DebugLog.d("WebSearcher Tavily: auto_params=$autoParams")
+                    }
+
                     val results = json.optJSONArray("results") ?: run {
                         DebugLog.w("WebSearcher Tavily: no 'results' array in response")
-                        return@use emptyList()
+                        return@use emptyResponse.copy(answer = answer)
                     }
-                    
+
                     val out = ArrayList<SearchResult>()
                     for (i in 0 until results.length()) {
                         if (out.size >= limit) break
@@ -1320,43 +1373,107 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                                 .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
                             val href = item.optString("url", "").trim()
                             val snippet = item.optString("content", "").trim().take(200).ifBlank { null }
-                            
+                            val rawContent = item.optString("raw_content", "").ifBlank { null }
+                            val score = item.optDouble("score", 0.0)
+
                             if (href.isBlank() || title.isBlank()) continue
-                            
+
                             out.add(SearchResult(
                                 title = StringUtils.sanitizeJsonNull(title),
                                 url = href,
                                 snippet = snippet?.let { StringUtils.sanitizeJsonNull(it) },
-                                sourceEngines = setOf("tavily")
+                                sourceEngines = setOf("tavily"),
+                                score = score,
+                                rawContent = rawContent,
                             ))
                         } catch (e: Exception) {
                             DebugLog.w("WebSearcher Tavily: failed to parse result[$i]: ${e.message}")
                             continue
                         }
                     }
-                    
+
                     if (out.isNotEmpty()) {
-                        DebugLog.i("WebSearcher Tavily: ${out.size} results")
+                        DebugLog.i("WebSearcher Tavily: ${out.size} results, answer=${answer != null}")
                     } else {
                         DebugLog.w("WebSearcher Tavily: parsed 0 results from ${results.length()} items")
                     }
-                    out
+                    TavilySearchResponse(out, answer)
                 } catch (e: Exception) {
                     DebugLog.e("WebSearcher Tavily JSON parse error: ${e.message}\nResponse: ${body.take(500)}")
-                    emptyList()
+                    emptyResponse
                 }
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher Tavily timeout: ${e.message}")
-            emptyList()
+            emptyResponse
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher Tavily SSL error: ${e.message}")
-            emptyList()
+            emptyResponse
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher Tavily DNS error: ${e.message}")
-            emptyList()
+            emptyResponse
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Tavily error: ${e.javaClass.simpleName} - ${e.message}")
+            emptyResponse
+        }
+    }
+
+    /**
+     * Tavily Extract API — 从指定 URL 提取干净的网页内容
+     *
+     * 比 read_url 更干净，支持 chunks、markdown/text 格式
+     */
+    fun extractTavily(
+        urls: List<String>,
+        apiKey: String,
+        extractDepth: String = "basic",   // basic / advanced
+        query: String? = null,
+    ): List<TavilyExtractResult> {
+        if (apiKey.isBlank() || urls.isEmpty()) return emptyList()
+        val url = "https://api.tavily.com/extract"
+
+        val jsonBody = org.json.JSONObject().apply {
+            put("urls", org.json.JSONArray(urls))
+            put("extract_depth", extractDepth)
+            put("format", "markdown")
+            put("include_images", false)
+            if (query != null) put("query", query)
+        }
+
+        DebugLog.i("WebSearcher TavilyExtract: ${urls.size} urls, depth=$extractDepth")
+
+        val req = Request.Builder()
+            .url(url)
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer $apiKey")
+            .header("User-Agent", UserAgentPool.generate())
+            .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        return try {
+            http.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    val errorBody = resp.body?.string().orEmpty()
+                    DebugLog.w("WebSearcher TavilyExtract failed: HTTP ${resp.code} - $errorBody")
+                    return@use emptyList()
+                }
+                val body = resp.body?.string().orEmpty()
+                val json = org.json.JSONObject(body)
+                val results = json.optJSONArray("results") ?: return@use emptyList()
+
+                val out = ArrayList<TavilyExtractResult>()
+                for (i in 0 until results.length()) {
+                    val item = results.getJSONObject(i)
+                    out.add(TavilyExtractResult(
+                        url = item.optString("url", ""),
+                        rawContent = item.optString("raw_content", ""),
+                    ))
+                }
+                DebugLog.i("WebSearcher TavilyExtract: ${out.size} results")
+                out
+            }
+        } catch (e: Exception) {
+            DebugLog.e("WebSearcher TavilyExtract error: ${e.message}")
             emptyList()
         }
     }
@@ -1923,7 +2040,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                                 "tavily" -> {
                                     val key = config.tavilyApiKey ?: ""
                                     if (key.isBlank()) { engineStatus[provider] = "SKIP(no-api-key)"; null }
-                                    else runCatching { searchTavily(query, limit, key) }.getOrNull()
+                                    else runCatching { searchTavily(query, limit, key, country = "china").results }.getOrNull()
                                 }
                                 "yandex" -> runCatching { searchYandex(query, limit) }.getOrNull()
                                 "sogou" -> runCatching { searchSogou(query, limit) }.getOrNull()

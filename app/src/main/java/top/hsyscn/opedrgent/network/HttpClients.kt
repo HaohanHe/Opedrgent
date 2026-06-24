@@ -104,6 +104,47 @@ object HttpClients {
             .callTimeout(10, TimeUnit.MINUTES)      // 10分钟总超时
             .build()
     }
+
+    /**
+     * 长时间运行客户端（用于TTS/ASR/工具执行等）
+     */
+    val longRunning: OkHttpClient by lazy {
+        default.newBuilder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)       // 5分钟读取超时
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(10, TimeUnit.MINUTES)      // 10分钟总超时
+            .build()
+    }
+
+    /**
+     * 下载客户端（用于大文件下载）
+     */
+    val download: OkHttpClient by lazy {
+        default.newBuilder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.MINUTES)      // 10分钟读取超时
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.MINUTES)      // 30分钟总超时
+            .build()
+    }
+
+    /**
+     * 获取自定义超时的客户端
+     */
+    fun getClientWithTimeout(
+        connectSeconds: Long = 15,
+        readSeconds: Long = 30,
+        writeSeconds: Long = 30,
+        callSeconds: Long = 60
+    ): OkHttpClient {
+        return default.newBuilder()
+            .connectTimeout(connectSeconds, TimeUnit.SECONDS)
+            .readTimeout(readSeconds, TimeUnit.SECONDS)
+            .writeTimeout(writeSeconds, TimeUnit.SECONDS)
+            .callTimeout(callSeconds, TimeUnit.SECONDS)
+            .build()
+    }
     
     /**
      * 获取性能统计信息

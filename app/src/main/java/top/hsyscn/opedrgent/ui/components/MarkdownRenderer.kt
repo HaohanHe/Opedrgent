@@ -59,6 +59,17 @@ private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
 
 private val SNAPSHOT_PATTERN = Regex("""[\s.,!?;:)\]]""")
 
+private val ORDERED_BULLET_PATTERN = Regex("""^\d+\.\s""")
+private val TABLE_SEPARATOR_PATTERN = Regex("""\|[\s\-:\|]+\|""")
+
+private val MD_BOLD_PATTERN = Regex("""\*\*(.+?)\*\*""")
+private val MD_ITALIC_PATTERN = Regex("""\*(.+?)\*""")
+private val MD_STRIKETHROUGH_PATTERN = Regex("""~~(.+?)~~""")
+private val MD_CODE_PATTERN = Regex("""`(.+?)`""")
+private val MD_LINK_PATTERN = Regex("""\[([^\]]+)\]\(([^)]+)\)""")
+private val MD_CITATION_PATTERN = Regex("""\[S\d+]""")
+private val MD_ORDERED_LIST_PATTERN = Regex("""^(\d+)\.\s(.+)""")
+
 fun healPartialMarkdown(text: String): String {
     val sb = StringBuilder(text)
     var inFencedCode = false
@@ -141,7 +152,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
     val isCodeBlock = { line: String -> line.startsWith("```") }
     val isHeading = { line: String -> line.startsWith("#") }
     val isBullet = { line: String -> line.trimStart().startsWith("- ") || line.trimStart().startsWith("* ") }
-    val isOrderedBullet = { line: String -> Regex("""^\d+\.\s""").matches(line.trimStart()) }
+    val isOrderedBullet = { line: String -> ORDERED_BULLET_PATTERN.matches(line.trimStart()) }
     val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
     val isBlockquote = { line: String -> line.trimStart().startsWith("> ") }
 
@@ -150,10 +161,13 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
         var inCodeBlock = false
         var codeBlockLang = ""
         val codeBlockLines = mutableListOf<String>()
+        val maxLines = 1000  // 大幅放宽渲染行数上限（ContextCompressor 已在上游控制内容大小）
+        val effectiveLines = if (lines.size > maxLines) lines.subList(0, maxLines) else lines
+        val truncated = lines.size > maxLines
         var i = 0
 
-        while (i < lines.size) {
-            val line = lines[i]
+        while (i < effectiveLines.size) {
+            val line = effectiveLines[i]
 
             if (isCodeBlock(line)) {
                 if (inCodeBlock) {
@@ -253,6 +267,13 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
             val code = codeBlockLines.joinToString("\n")
             RenderCodeBlock(code, codeBlockLang)
         }
+        if (truncated) {
+            Text(
+                text = "... (内容过长，已截断显示)",
+                style = MaterialTheme.typography.bodySmall,
+                color = themeTextGrey(),
+            )
+        }
         if (t.length > maxChars) {
             TextButton(onClick = { expanded = !expanded }) {
                 Text(if (expanded) "收起" else "展开", color = AccentBlue)
@@ -319,7 +340,7 @@ fun MarkdownTable(tableLines: List<String>) {
     }
 
     var sepIdx = cleanLines.indexOfFirst { line ->
-        Regex("""\|[\s\-:\|]+\|""").matches(line)
+        TABLE_SEPARATOR_PATTERN.matches(line)
     }
 
     if (sepIdx < 1) {
@@ -411,13 +432,13 @@ fun AnnotatedString.Builder.appendMarkdownInline(
     strikeColor: Color = Color(0xFF999999),
     inlineCodeBackground: Color = Color(0xFF2A2D33),
 ) {
-    val boldPattern = Regex("""\*\*(.+?)\*\*""")
-    val italicPattern = Regex("""\*(.+?)\*""")
-    val strikethroughPattern = Regex("""~~(.+?)~~""")
-    val codePattern = Regex("""`(.+?)`""")
-    val linkPattern = Regex("""\[([^\]]+)\]\(([^)]+)\)""")
-    val citationPattern = Regex("""\[S\d+]""")
-    val orderedListPattern = Regex("""^(\d+)\.\s(.+)""")
+    val boldPattern = MD_BOLD_PATTERN
+    val italicPattern = MD_ITALIC_PATTERN
+    val strikethroughPattern = MD_STRIKETHROUGH_PATTERN
+    val codePattern = MD_CODE_PATTERN
+    val linkPattern = MD_LINK_PATTERN
+    val citationPattern = MD_CITATION_PATTERN
+    val orderedListPattern = MD_ORDERED_LIST_PATTERN
 
     var remaining = text
     while (remaining.isNotEmpty()) {

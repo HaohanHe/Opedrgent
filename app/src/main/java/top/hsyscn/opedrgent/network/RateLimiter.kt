@@ -27,8 +27,8 @@ object RateLimiter {
     /** 长时总量窗口最大请求数，默认 15 */
     var longMaxRequests: Int = 15
 
-    /** 旧记录清理阈值（毫秒），默认 60_000（1 分钟） */
-    var cleanupThresholdMs: Long = 60_000L
+    /** 旧记录清理阈值（毫秒），默认 600_000（10 分钟，必须 >= longWindowMs 否则长窗口限流失效） */
+    var cleanupThresholdMs: Long = 600_000L
 
     // ---------- 内部存储 ----------
 

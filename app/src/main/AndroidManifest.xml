@@ -23,8 +23,18 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
+    <!-- Health Connect (运动健康数据) -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+
     <queries>
         <package android:name="com.google.android.gms" />
+        <package android:name="com.google.android.apps.healthdata" />
     </queries>
 
     <application
@@ -116,6 +126,21 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- Health Connect 权限说明页（Health Connect 要求声明） -->
+        <activity-alias
+            android:name="HealthConnectPermissionsRationaleActivity"
+            android:targetActivity=".MainActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Health Connect 隐私政策声明 -->
+        <meta-data
+            android:name="health_permissions_privacy_policy"
+            android:resource="@string/app_name" />
 
         <receiver
             android:name=".widget.OpedrgentWidget"

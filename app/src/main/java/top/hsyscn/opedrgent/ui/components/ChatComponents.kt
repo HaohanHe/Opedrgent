@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -86,7 +88,8 @@ fun UserBubble(
 
             Box(
                 modifier = Modifier
-                    .width(220.dp),
+                    .widthIn(max = 280.dp)  // 弹性宽度：内容自适应，最大 280dp
+                    .wrapContentWidth(Alignment.End),
             ) {
                 Box(
                     modifier = Modifier
@@ -243,7 +246,8 @@ fun AIMessageCard(
                 }
 
                 if (message.textContent.isNotBlank()) {
-                    MarkdownText(text = message.textContent, maxChars = 900)
+                    // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
+                    MarkdownText(text = message.textContent, maxChars = Int.MAX_VALUE)
                 }
 
                 val sources = extractSources(message.textContent)
