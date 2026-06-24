@@ -30,6 +30,7 @@ class SherpaOnnxEngine(
 ) : SpeechEngine {
 
     private val vocabularyStore = VocabularyStore(context)
+    private val apiSettings = ApiSettings(context)
 
     companion object {
         private const val TAG = "SherpaOnnxEngine"
@@ -42,6 +43,8 @@ class SherpaOnnxEngine(
         private const val MIN_CHUNK_MS = 1500L            // 最少累积 1.5 秒才识别
         private const val MAX_CHUNK_MS = 4000L            // 超过 4 秒强制提交
         private const val CHUNK_OVERLAP_MS = 200L         // 段间重叠 200ms 避免断词
+        private const val MAX_PENDING_BUFFER_SECONDS = 60 // 缓冲区上限 60 秒
+        private val MAX_PENDING_BUFFER_SAMPLES = TARGET_SAMPLE_RATE * MAX_PENDING_BUFFER_SECONDS
 
         /**
          * 检测最佳推理后端。
@@ -68,9 +71,11 @@ class SherpaOnnxEngine(
     // ==================== 伪流式识别状态 ====================
     /** pendingBuffer 访问锁 */
     private val bufferLock = Any()
-    /** 待识别的音频缓冲区（通过 bufferLock 同步访问） */
+    /** 待识别的音频缓冲区（固定大小，通过 bufferLock 同步访问） */
+    private val pendingBuffer = FloatArray(MAX_PENDING_BUFFER_SAMPLES)
+    /** 缓冲区中已写入的采样点数量 */
     @Volatile
-    private var pendingBuffer = FloatArray(0)
+    private var pendingBufferSize = 0
     /** 已确认的文本（分段提交后追加，不再变化） */
     @Volatile
     private var confirmedText = StringBuilder()
@@ -434,7 +439,7 @@ class SherpaOnnxEngine(
             val recognizer = offlineRecognizer!!
 
             // 重置流式状态
-            pendingBuffer = FloatArray(0)
+            synchronized(bufferLock) { pendingBufferSize = 0 }
             confirmedText = StringBuilder()
             streamingActive.set(true)
             streamingChannel = this
@@ -451,14 +456,14 @@ class SherpaOnnxEngine(
                         val chunkToRecognize: FloatArray
                         val bufferMs: Long
                         synchronized(bufferLock) {
-                            val buffer = pendingBuffer
-                            bufferMs = buffer.size.toLong() * 1000L / TARGET_SAMPLE_RATE
+                            bufferMs = pendingBufferSize.toLong() * 1000L / TARGET_SAMPLE_RATE
 
                             if (bufferMs < MIN_CHUNK_MS) continue
 
-                            // 取出缓冲区进行识别（强制截断，避免无限增长）
-                            chunkToRecognize = pendingBuffer
-                            pendingBuffer = FloatArray(0)
+                            // 取出缓冲区进行识别
+                            chunkToRecognize = FloatArray(pendingBufferSize)
+                            System.arraycopy(pendingBuffer, 0, chunkToRecognize, 0, pendingBufferSize)
+                            pendingBufferSize = 0
                         }
 
                         // 识别当前段
@@ -477,8 +482,9 @@ class SherpaOnnxEngine(
 
                     // 会话结束：识别剩余缓冲区
                     val remaining = synchronized(bufferLock) {
-                        val r = pendingBuffer
-                        pendingBuffer = FloatArray(0)
+                        val r = FloatArray(pendingBufferSize)
+                        System.arraycopy(pendingBuffer, 0, r, 0, pendingBufferSize)
+                        pendingBufferSize = 0
                         r
                     }
                     if (remaining.isNotEmpty()) {
@@ -536,13 +542,21 @@ class SherpaOnnxEngine(
             // 真流式: 直接喂入 OnlineRecognizer
             streamingRecognizer?.feedAudio(samples, TARGET_SAMPLE_RATE) ?: return
         } else {
-            // 伪流式: 追加到缓冲区
+            // 伪流式: 追加到固定大小缓冲区（超过上限时丢弃最旧的数据）
             synchronized(bufferLock) {
-                val old = pendingBuffer
-                val newBuffer = FloatArray(old.size + samples.size)
-                System.arraycopy(old, 0, newBuffer, 0, old.size)
-                System.arraycopy(samples, 0, newBuffer, old.size, samples.size)
-                pendingBuffer = newBuffer
+                val available = MAX_PENDING_BUFFER_SAMPLES - pendingBufferSize
+                if (samples.size > available) {
+                    // 缓冲区将满：丢弃最旧的数据，腾出空间
+                    val discard = samples.size - available
+                    val remaining = pendingBufferSize - discard
+                    if (remaining > 0) {
+                        System.arraycopy(pendingBuffer, discard, pendingBuffer, 0, remaining)
+                    }
+                    pendingBufferSize = remaining
+                    DebugLog.w(TAG, "缓冲区已满(${MAX_PENDING_BUFFER_SECONDS}s)，丢弃最旧 ${discard / TARGET_SAMPLE_RATE}s 音频")
+                }
+                System.arraycopy(samples, 0, pendingBuffer, pendingBufferSize, samples.size)
+                pendingBufferSize += samples.size
             }
         }
     }
@@ -635,62 +649,93 @@ class SherpaOnnxEngine(
 
     /**
      * 使用离线模型 (OfflineRecognizer) 识别音频。
-     * 将音频分段后逐段识别，适用于长时间音频。
+     *
+     * 分段策略：
+     * - 短音频 (<=30秒)：整段一次性识别，避免分段开销
+     * - 长音频 (>30秒)：基于静音检测智能分段，每段独立解码后拼接
+     *   分段将 attention 复杂度从 O(n²) 降为 O(k×(n/k)²)，显著加速长音频识别
      */
     private fun recognizeWithOfflineModel(
         audioData: FloatArray, totalSamples: Int, durationMs: Long, startTimeMs: Long,
     ): SttResult {
         val recognizer = offlineRecognizer ?: return SttResult("", 0f, emptyList(), 0, 0, EngineType.SHERPA_ONNX, "")
-        val segmentLengthSamples = min(DEFAULT_SEGMENT_SAMPLES, totalSamples)
-        val segments = mutableListOf<SttSegment>()
-        val fullText = StringBuilder()
-        var offset = 0
-        var segmentIndex = 0
 
-        while (offset < totalSamples) {
-            val end = min(offset + segmentLengthSamples, totalSamples)
-            val chunkSize = end - offset
-            val chunk = FloatArray(chunkSize)
-            System.arraycopy(audioData, offset, chunk, 0, chunkSize)
-
-            val segStartMs = (offset.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-            val segEndMs = (end.toFloat() / TARGET_SAMPLE_RATE * 1000).toLong()
-
-            DebugLog.d(TAG, "处理段[$segmentIndex]: ${chunkSize} samples (${segStartMs}ms-${segEndMs}ms)")
-
-            val segmentText = decodeSegment(recognizer, chunk)
-            val trimmedText = segmentText.trim()
-
-            if (trimmedText.isNotEmpty()) {
-                if (fullText.isNotEmpty()) fullText.append(" ")
-                fullText.append(trimmedText)
-
-                segments.add(
-                    SttSegment(
-                        text = trimmedText,
-                        startTimeMs = segStartMs,
-                        endTimeMs = segEndMs,
-                        confidence = 1f,
-                    )
-                )
-
-                DebugLog.d(TAG, "段[$segmentIndex] 结果: ${trimmedText.take(60)}")
+        // 短音频或未启用分段：整段识别
+        val segmentEnabled = apiSettings.isSegmentEnabled()
+        if (!segmentEnabled || durationMs <= 30_000L || totalSamples <= DEFAULT_SEGMENT_SAMPLES) {
+            if (!segmentEnabled && durationMs > 30_000L) {
+                DebugLog.i(TAG, "分段识别已关闭，整段识别: ${durationMs}ms (${totalSamples} samples)")
+            } else {
+                DebugLog.d(TAG, "离线一次性识别: $totalSamples samples (${durationMs}ms)")
             }
-
-            offset = end
-            segmentIndex++
+            val resultText = decodeSegment(recognizer, audioData).trim()
+            val processingTimeMs = System.currentTimeMillis() - startTimeMs
+            DebugLog.i(TAG, "离线识别完成: ${resultText.length}字, 耗时=${processingTimeMs}ms")
+            return SttResult(
+                text = resultText,
+                confidence = if (resultText.isNotEmpty()) 1f else 0f,
+                segments = if (resultText.isNotEmpty()) listOf(
+                    SttSegment(text = resultText, startTimeMs = 0, endTimeMs = durationMs, confidence = 1f),
+                ) else emptyList(),
+                durationMs = durationMs,
+                processingTimeMs = processingTimeMs,
+                engineType = EngineType.SHERPA_ONNX,
+                modelUsed = config.modelType.name,
+            )
         }
 
-        val processingTimeMs = System.currentTimeMillis() - startTimeMs
-        DebugLog.i(TAG, "识别完成: 共${segmentIndex}段, 文本长度=${fullText.length}, 耗时=${processingTimeMs}ms")
+        // 长音频：智能分段识别
+        DebugLog.i(TAG, "长音频分段识别: ${durationMs}ms (${totalSamples} samples), 开始智能分段")
+        val rawSegments = AudioProcessor.segmentAudio(durationMs, AudioProcessor.DEFAULT_SEGMENT_LENGTH_MS, audioData, TARGET_SAMPLE_RATE)
 
-        val resultText = vocabularyStore.applyVocabulary(fullText.toString())
-        val resultSegments = segments.map { it.copy(text = vocabularyStore.applyVocabulary(it.text)) }
+        // 强制最大段长：音乐文件静音少，智能分段可能产生超大段（如273秒）
+        // attention 复杂度 O(n²)，必须限制每段不超过 30 秒
+        val MAX_SEG_MS = 30_000L
+        val segments = mutableListOf<AudioSegment>()
+        for (seg in rawSegments) {
+            if (seg.endTimeMs - seg.startTimeMs <= MAX_SEG_MS) {
+                segments.add(seg.copy(index = segments.size))
+            } else {
+                var start = seg.startTimeMs
+                while (start < seg.endTimeMs) {
+                    val end = minOf(start + MAX_SEG_MS, seg.endTimeMs)
+                    segments.add(AudioSegment("", start, end, segments.size))
+                    start = end
+                }
+            }
+        }
+        DebugLog.i(TAG, "分段完成: ${rawSegments.size}段 → 强制切分后${segments.size}段 (每段<=30s)")
+
+        val segmentResults = mutableListOf<SttSegment>()
+        val textBuilder = StringBuilder()
+        var segDecodeStart = System.currentTimeMillis()
+
+        for ((index, seg) in segments.withIndex()) {
+            val startSample = (seg.startTimeMs * TARGET_SAMPLE_RATE / 1000).toInt()
+            val endSample = minOf((seg.endTimeMs * TARGET_SAMPLE_RATE / 1000).toInt(), totalSamples)
+            if (startSample >= endSample) continue
+
+            val segSamples = audioData.copyOfRange(startSample, endSample)
+            val segText = decodeSegment(recognizer, segSamples).trim()
+            val segCost = System.currentTimeMillis() - segDecodeStart
+            DebugLog.d(TAG, "段${index + 1}/${segments.size}: ${seg.startTimeMs}-${seg.endTimeMs}ms, ${segSamples.size}samples, 耗时${segCost}ms, '${segText.take(40)}'")
+            segDecodeStart = System.currentTimeMillis()
+
+            if (segText.isNotEmpty()) {
+                if (textBuilder.isNotEmpty()) textBuilder.append(' ')
+                textBuilder.append(segText)
+                segmentResults.add(SttSegment(text = segText, startTimeMs = seg.startTimeMs, endTimeMs = seg.endTimeMs, confidence = 1f))
+            }
+        }
+
+        val resultText = textBuilder.toString().trim()
+        val processingTimeMs = System.currentTimeMillis() - startTimeMs
+        DebugLog.i(TAG, "分段识别完成: ${resultText.length}字, ${segments.size}段, 总耗时=${processingTimeMs}ms (音频${durationMs}ms, 实时比=${String.format("%.2f", durationMs.toDouble() / processingTimeMs)}x)")
 
         return SttResult(
             text = resultText,
-            confidence = if (resultSegments.isNotEmpty()) 1f else 0f,
-            segments = resultSegments,
+            confidence = if (resultText.isNotEmpty()) 1f else 0f,
+            segments = segmentResults,
             durationMs = durationMs,
             processingTimeMs = processingTimeMs,
             engineType = EngineType.SHERPA_ONNX,
@@ -718,217 +763,16 @@ class SherpaOnnxEngine(
 
     private fun decodeAudioFile(file: File): FloatArray {
         val extension = file.extension.lowercase()
-        return when (extension) {
-            "wav" -> decodeWavFile(file)
-            "pcm", "raw" -> decodeRawPcmFile(file, TARGET_SAMPLE_RATE, 16, 1)
-            else -> {
-                // Non-WAV/non-PCM formats (MP3/FLAC/AAC/OGG etc): use AudioProcessor
-                // which delegates to MediaCodec for proper decoding.
-                // Previously this fell through to tryDecodeAsWavOrPcm() which attempted
-                // to parse these as raw PCM — producing garbage output.
-                DebugLog.i(TAG, "非 WAV/PCM 格式 (.$extension)，使用 MediaCodec 解码: ${file.name}")
-                try {
-                    val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
-                    pair?.first ?: FloatArray(0)
-                } catch (e: Exception) {
-                    DebugLog.e(TAG, "MediaCodec 解码失败 (${file.name}): ${e.message}", e)
-                    FloatArray(0)
-                }
-            }
+        return try {
+            // 统一使用 AudioProcessor 解码，支持 WAV/PCM/MP3/AAC/FLAC 等所有格式
+            val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
+            pair?.first ?: FloatArray(0)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "音频解码失败 (${file.name}): ${e.message}", e)
+            FloatArray(0)
         }.also { data ->
             DebugLog.i(TAG, "音频解码结果: ${data.size} float samples (${file.name})")
         }
-    }
-
-    // ==================== 音频解码（使用线性插值重采样，与 AudioProcessor 统一）====================
-
-    private fun decodeWavFile(file: File): FloatArray {
-        FileInputStream(file).use { fis ->
-            val header = ByteArray(WAV_HEADER_SIZE)
-            val bytesRead = fis.read(header)
-            if (bytesRead < WAV_HEADER_SIZE) {
-                throw IOException("WAV 文件头不完整: 仅读取 $bytesRead 字节")
-            }
-
-            val bb = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
-            val riffId = String(bb.array(), 0, 4)
-            val waveId = String(bb.array(), 8, 4)
-
-            if (riffId != "RIFF" || waveId != "WAVE") {
-                throw IOException("无效的 WAV 文件格式 (RIFF=$riffId, WAVE=$waveId)")
-            }
-
-            bb.position(16)
-            val audioFormat = bb.getShort().toInt()
-            val channels = bb.getShort().toInt()
-            val sampleRate = bb.getInt()
-            // byteRate, blockAlign skip
-            bb.getShort() // blockAlign
-            val bitsPerSample = bb.getShort().toInt()
-
-            if (audioFormat != 1 && audioFormat != 3) {
-                throw IOException("不支持的 WAV 音频格式: format=$audioFormat")
-            }
-
-            DebugLog.d(TAG, "WAV 信息: rate=$sampleRate, ch=$channels, bits=$bitsPerSample")
-
-            val dataSizeLong = file.length() - WAV_HEADER_SIZE
-            val dataSize = dataSizeLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            if (dataSize <= 0) {
-                DebugLog.w(TAG, "WAV 文件无音频数据")
-                return FloatArray(0)
-            }
-
-            val rawPcm = ByteArray(dataSize)
-            var totalRead = 0
-            while (totalRead < dataSize) {
-                val read = fis.read(rawPcm, totalRead, dataSize - totalRead)
-                if (read == -1) break
-                totalRead += read
-            }
-
-            val floats = when (bitsPerSample) {
-                16 -> pcm16ToFloat(rawPcm, channels, sampleRate)
-                32 -> {
-                    if (audioFormat == 3) pcmFloat32ToFloat(rawPcm, channels, sampleRate)
-                    else pcm32ToFloat(rawPcm, channels, sampleRate)
-                }
-                8 -> pcm8ToFloat(rawPcm, channels, sampleRate)
-                24 -> pcm24ToFloat(rawPcm, channels, sampleRate)
-                else -> throw IOException("不支持位深度: ${bitsPerSample}bit")
-            }
-            return floats
-        }
-    }
-
-    private fun decodeRawPcmFile(file: File, expectedSampleRate: Int, bitsPerSample: Int, channels: Int): FloatArray {
-        FileInputStream(file).use { fis ->
-            val sizeLong = file.length()
-            val size = sizeLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            if (size == 0) return FloatArray(0)
-
-            val rawPcm = ByteArray(size)
-            fis.read(rawPcm)
-
-            return when (bitsPerSample) {
-                16 -> pcm16ToFloat(rawPcm, channels, expectedSampleRate)
-                else -> {
-                    DebugLog.w(TAG, "原始 PCM 位深度 $bitsPerSample 不受支持，尝试按 16-bit 解析")
-                    pcm16ToFloat(rawPcm, channels, expectedSampleRate)
-                }
-            }
-        }
-    }
-
-    // ---- PCM → Float 转换 + 线性插值重采样（与 AudioProcessor.resample 一致）----
-
-    private fun pcm16ToFloat(raw: ByteArray, channels: Int, sourceSampleRate: Int): FloatArray {
-        val bb = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
-        val totalSamples = raw.size / 2
-        val monoSamples = if (channels > 1) totalSamples / channels else totalSamples
-        val result = FloatArray(monoSamples)
-        var outIdx = 0
-
-        for (i in 0 until totalSamples step channels) {
-            val sample = bb.getShort(i * 2).toInt().toFloat() / 32768f
-            result[outIdx++] = sample.coerceIn(-1f, 1f)
-        }
-
-        return if (sourceSampleRate == TARGET_SAMPLE_RATE) result
-        else resampleLinear(result, sourceSampleRate, TARGET_SAMPLE_RATE)
-    }
-
-    private fun pcm32ToFloat(raw: ByteArray, channels: Int, sourceSampleRate: Int): FloatArray {
-        val bb = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
-        val totalSamples = raw.size / 4
-        val monoSamples = if (channels > 1) totalSamples / channels else totalSamples
-        val result = FloatArray(monoSamples)
-        var outIdx = 0
-
-        for (i in 0 until totalSamples step channels) {
-            val sample = bb.getInt(i * 4).toFloat() / Int.MAX_VALUE.toFloat()
-            result[outIdx++] = sample.coerceIn(-1f, 1f)
-        }
-
-        return if (sourceSampleRate == TARGET_SAMPLE_RATE) result
-        else resampleLinear(result, sourceSampleRate, TARGET_SAMPLE_RATE)
-    }
-
-    private fun pcmFloat32ToFloat(raw: ByteArray, channels: Int, sourceSampleRate: Int): FloatArray {
-        val bb = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
-        val totalSamples = raw.size / 4
-        val monoSamples = if (channels > 1) totalSamples / channels else totalSamples
-        val result = FloatArray(monoSamples)
-        var outIdx = 0
-
-        for (i in 0 until totalSamples step channels) {
-            result[outIdx++] = bb.getFloat(i * 4).coerceIn(-1f, 1f)
-        }
-
-        return if (sourceSampleRate == TARGET_SAMPLE_RATE) result
-        else resampleLinear(result, sourceSampleRate, TARGET_SAMPLE_RATE)
-    }
-
-    private fun pcm8ToFloat(raw: ByteArray, channels: Int, sourceSampleRate: Int): FloatArray {
-        val totalSamples = raw.size
-        val monoSamples = if (channels > 1) totalSamples / channels else totalSamples
-        val result = FloatArray(monoSamples)
-        var outIdx = 0
-
-        for (i in 0 until totalSamples step channels) {
-            val unsigned = raw[i].toInt() and 0xFF
-            val sample = (unsigned - 128).toFloat() / 128f
-            result[outIdx++] = sample.coerceIn(-1f, 1f)
-        }
-
-        return if (sourceSampleRate == TARGET_SAMPLE_RATE) result
-        else resampleLinear(result, sourceSampleRate, TARGET_SAMPLE_RATE)
-    }
-
-    private fun pcm24ToFloat(raw: ByteArray, channels: Int, sourceSampleRate: Int): FloatArray {
-        val totalSamples = raw.size / 3
-        val monoSamples = if (channels > 1) totalSamples / channels else totalSamples
-        val result = FloatArray(monoSamples)
-        var outIdx = 0
-
-        for (i in 0 until totalSamples step channels) {
-            val base = i * 3
-            val sample = ((raw[base + 2].toInt() and 0xFF shl 16) or
-                    (raw[base + 1].toInt() and 0xFF shl 8) or
-                    (raw[base].toInt() and 0xFF)).toFloat() / 8388608f
-            result[outIdx++] = sample.coerceIn(-1f, 1f)
-        }
-
-        return if (sourceSampleRate == TARGET_SAMPLE_RATE) result
-        else resampleLinear(result, sourceSampleRate, TARGET_SAMPLE_RATE)
-    }
-
-    /**
-     * 线性插值重采样（与 AudioProcessor.resample 算法一致）。
-     * 比最近邻插值质量更好，避免引入明显失真。
-     */
-    private fun resampleLinear(input: FloatArray, fromRate: Int, toRate: Int): FloatArray {
-        if (fromRate == toRate) return input
-        if (input.isEmpty()) return FloatArray(0)
-
-        val ratio = fromRate.toDouble() / toRate.toDouble()
-        val outputLength = ((input.size.toDouble() / ratio)).toInt().coerceAtLeast(0)
-        val output = FloatArray(outputLength)
-
-        for (i in 0 until outputLength) {
-            val position = i.toDouble() * ratio
-            val index = position.toInt()
-            val fraction = position - index.toDouble()
-
-            if (index + 1 < input.size) {
-                output[i] = (input[index] * (1.0 - fraction) + input[index + 1] * fraction).toFloat()
-            } else if (index < input.size) {
-                output[i] = input[index]
-            }
-        }
-
-        DebugLog.d(TAG, "重采样: ${fromRate}Hz → ${toRate}Hz (${input.size} → ${output.size} samples)")
-        return output
     }
 
     // ==================== 配置构建 ====================
@@ -1021,12 +865,14 @@ class SherpaOnnxEngine(
 
     private fun resolveOptimalThreadCount(): Int {
         val cores = Runtime.getRuntime().availableProcessors()
+        // 流式模型保持保守线程数（避免抢UI资源）；文件转录模式可使用更多线程加速
+        val isStreaming = config.modelType == ModelType.STREAMING_PARAFORMER
         val optimal = when {
-            cores >= 8 -> 4
-            cores >= 4 -> 2
+            cores >= 8 -> if (isStreaming) 4 else 6  // 8核：流式4线程，文件模式6线程（保留1-2核给系统）
+            cores >= 4 -> if (isStreaming) 2 else 4  // 4核：流式2线程，文件模式4线程
             else -> 1
         }
-        DebugLog.d(TAG, "CPU 核心数=$cores, 最优线程数=$optimal")
+        DebugLog.d(TAG, "CPU 核心数=$cores, 模型=${config.modelType.name}, 最优线程数=$optimal (streaming=$isStreaming)")
         return optimal
     }
 

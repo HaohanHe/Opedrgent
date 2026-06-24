@@ -5,6 +5,7 @@ import top.hsyscn.opedrgent.model.ResearchSession
 import top.hsyscn.opedrgent.model.Source
 import top.hsyscn.opedrgent.mcp.skills.SkillLoader
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.MemoryStore
 
 object PromptBuilder {
@@ -57,6 +58,7 @@ object PromptBuilder {
         modelInfo: ModelInfo? = null,
         platformCtx: PlatformContext? = null,
         skillNames: List<Pair<String, String>> = emptyList(),
+        hippocampusIndex: HippocampusIndex? = null,
     ): String {
         val layers = mutableListOf<String?>()
 
@@ -80,11 +82,12 @@ object PromptBuilder {
         }
 
         layers += PromptCache.getOrComputeSession("layer3_memory") {
-            buildMemorySection(apiSettings, memoryStore)
+            buildMemorySection(apiSettings, memoryStore, hippocampusIndex)
         }
 
+        val maxTokens = ModelLimits.inferMaxContextTokens(resolvedModel.modelId)
         layers += PromptCache.getOrComputeSession("layer3_notes") {
-            buildNotesSection(session)
+            buildNotesSection(session, maxTokens)
         }
 
         layers += PromptCache.getOrComputeSession("layer3_sources") {
@@ -109,9 +112,10 @@ object PromptBuilder {
         modelInfo: ModelInfo? = null,
         platformCtx: PlatformContext? = null,
         skillNames: List<Pair<String, String>> = emptyList(),
+        hippocampusIndex: HippocampusIndex? = null,
     ): String {
         val static = buildStaticPrompt()
-        val dynamic = buildDynamicPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, skillNames)
+        val dynamic = buildDynamicPrompt(apiSettings, session, memoryStore, envInfo, modelInfo, platformCtx, skillNames, hippocampusIndex)
         return "$static$PROMPT_CACHE_BOUNDARY\n$dynamic"
     }
 
@@ -211,9 +215,17 @@ Do NOT manually browse or construct URLs when a tool exists for that purpose.
 ## 工具规则
 - 一次只调一个工具，拿到结果再决定下一步
 - 中文查询自动双语搜索，也可主动构造英文关键词
-- 搜索为空 ≠ 无解，是关键词不好，换词再试
+- 搜索为空 ≠ 无解，是关键词不好，换词再试（最多换2次不同关键词）
 - 多个独立操作可以并行调用
 - **URL 处理优先级**：用户消息中的 URL → read_url（直接访问）；无 URL 的问题 → web_search（搜索）
+
+### ★ 工具失败处理（重要）
+- **同一工具连续失败 2 次后，立即停止调用该工具**，换用其他工具或基于已有知识回答
+- **web_search 失败时**：不要无限重试搜索。如果搜索2次都失败或返回空结果，直接根据训练数据回答并标注[待验证]
+- **read_url 失败时**：换用 web_search 搜索相关关键词作为替代
+- **网络类错误**（超时、DNS失败、连接拒绝）：说明网络有问题，不要反复重试，告诉用户网络状况后基于已有知识回答
+- **绝对禁止**：在同一个会话中对同一工具使用相同参数重复调用超过3次
+- 如果上下文中包含之前的"工具执行记录"显示某工具已连续失败，**必须**避免再次调用该工具
 
 ${buildToolDetails()}
 
@@ -373,7 +385,12 @@ ${buildToolDetails()}
         if (ctx.hasStt) caps.add("- **Sherpa-ONNX 离线语音识别(STT)**：支持离线语音转文字输入")
         if (ctx.hasVoiceInput) caps.add("- 语音输入(STT)：支持语音识别提问")
         if (ctx.hasLocation) caps.add("- 位置感知：可获取用户地理位置")
-        if (ctx.hasBrowser) caps.add("- 浏览器集成：可打开和浏览网页")
+        if (ctx.hasBrowser) {
+            caps.add("- **浏览器Agent**：可自动化浏览网页、填写表单、点击按钮等操作")
+            caps.add("  - 使用 `open_browser` 工具打开网页")
+            caps.add("  - 使用 `read_url` 工具读取网页内容")
+            caps.add("  - 需要用户确认时使用 `ask_confirmation` 请求授权")
+        }
         if (ctx.hasCalendar) caps.add("- 日历访问：可读取和管理日历事件")
         
         if (ctx.hasTTS && caps.isNotEmpty()) {
@@ -402,8 +419,15 @@ ${buildToolDetails()}
         return entry.content
     }
 
-    private fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?): String? {
+    private fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?, hippocampusIndex: HippocampusIndex? = null): String? {
         val memory = memoryStore?.getMemoryBlock()?.trim().orEmpty().ifBlank { apiSettings.getMemory() }
+
+        // 弹性截断：根据模型上下文窗口按比例计算
+        val maxTokens = ModelLimits.inferMaxContextTokens(apiSettings.getModel() ?: "")
+        val memMaxChars = ModelLimits.memoryMaxChars(maxTokens)
+        val noteMaxChars = ModelLimits.noteMemoryMaxChars(maxTokens)
+        val convMaxChars = ModelLimits.conversationMemoryMaxChars(maxTokens)
+        val summaryMaxChars = ModelLimits.hippocampusSummary(maxTokens)
 
         // 笔记记忆段落
         val noteMemories = memoryStore?.getNoteMemories()
@@ -415,17 +439,32 @@ ${buildToolDetails()}
 
         val sections = mutableListOf<String>()
         if (memory.isNotBlank()) {
-            sections.add("# 记忆\n${PromptBlocks.wrapUntrustedBlock("M", memory, maxChars=3000)}")
+            sections.add("# 记忆\n${PromptBlocks.wrapUntrustedBlock("M", memory, maxChars = memMaxChars)}")
         }
         if (noteMemories.isNotBlank()) {
-            sections.add("[笔记记忆]\n${PromptBlocks.wrapUntrustedBlock("NM", noteMemories, maxChars=2000)}")
+            sections.add("[笔记记忆]\n${PromptBlocks.wrapUntrustedBlock("NM", noteMemories, maxChars = noteMaxChars)}")
+        }
+
+        // 海马体对话历史段落：注入最近对话的 summary 内容（不只是 title）
+        val queryLimit = ModelLimits.hippocampusQueryLimit(maxTokens)
+        val conversationMemories = hippocampusIndex?.let { hip ->
+            hip.query("", limit = queryLimit)
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(separator = "\n") { item ->
+                    val summary = item.summary.take(summaryMaxChars)
+                    "- [${item.sourceType.label}] ${item.title}: $summary"
+                }
+                ?.trim()
+        }.orEmpty()
+        if (conversationMemories.isNotBlank()) {
+            sections.add("[对话历史记忆]\n${PromptBlocks.wrapUntrustedBlock("HM", conversationMemories, maxChars = convMaxChars)}")
         }
 
         return if (sections.isEmpty()) null else sections.joinToString("\n\n")
     }
 
-    private fun buildNotesSection(session: ResearchSession): String? {
-        return if (session.notes.isBlank()) null else "## 会话笔记\n${PromptBlocks.wrapUntrustedBlock("N", session.notes, maxChars=2000)}"
+    private fun buildNotesSection(session: ResearchSession, maxTokens: Int = ModelLimits.DEFAULT_MAX_TOKENS): String? {
+        return if (session.notes.isBlank()) null else "## 会话笔记\n${PromptBlocks.wrapUntrustedBlock("N", session.notes, maxChars = ModelLimits.noteMemoryMaxChars(maxTokens))}"
     }
 
     private fun buildSourcesSection(session: ResearchSession): String? {

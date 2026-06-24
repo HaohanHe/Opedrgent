@@ -31,7 +31,7 @@ val PROVIDER_PRESETS = listOf(
     ProviderPreset("月之暗面 Moonshot", "https://api.moonshot.cn/v1", listOf("moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k")),
     ProviderPreset("智谱 AI", "https://open.bigmodel.cn/api/paas/v4", listOf("glm-4-plus", "glm-4-flash", "glm-4-long")),
     ProviderPreset("零一万物", "https://api.lingyiwanwu.com/v1", listOf("yi-large", "yi-medium", "yi-spark")),
-    ProviderPreset("SiliconFlow", "https://api.siliconflow.com/v1", listOf("deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "THUDM/glm-4-9b-chat")),
+    ProviderPreset("SiliconFlow", "https://api.siliconflow.cn/v1", listOf("Qwen/Qwen3.5-9B", "deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "THUDM/glm-4-9b-chat")),
     ProviderPreset("Groq (Gemma 4)", "https://api.groq.com/openai/v1", listOf("gemma-4-31b-it", "gemma-4-12b-it", "gemma-4-4b-it", "llama-3.3-70b-versatile", "mixtral-8x7b-32768")),
     ProviderPreset("Ollama (本地)", "http://localhost:11434/v1", listOf("llama3", "qwen2.5", "deepseek-v2.5", "gemma4")),
     ProviderPreset("LM Studio (本地)", "http://localhost:1234/v1", listOf("local-model")),
@@ -104,6 +104,11 @@ class ApiSettings(private val context: Context) {
     fun isHrEnabled(): Boolean = prefs.getBoolean("hrEnabled", true)
     fun saveHrEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("hrEnabled", enabled).apply()
+    }
+    /** 长音频自动分段处理开关: 默认开启 */
+    fun isSegmentEnabled(): Boolean = prefs.getBoolean("segmentEnabled", true)
+    fun saveSegmentEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("segmentEnabled", enabled).apply()
     }
     fun isBackgroundRunning(): Boolean = prefs.getBoolean("backgroundRunning", false)
     fun isLocationEnabled(): Boolean = prefs.getBoolean("locationEnabled", false)
@@ -278,6 +283,22 @@ class ApiSettings(private val context: Context) {
 
     fun saveDeepResearch(enabled: Boolean) {
         prefs.edit().putBoolean("deepResearch", enabled).apply()
+    }
+
+    // ==================== 日历访问 ====================
+
+    fun isCalendarEnabled(): Boolean = prefs.getBoolean("calendarEnabled", false)
+
+    fun saveCalendarEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("calendarEnabled", enabled).apply()
+    }
+
+    // ==================== 运动健康 ====================
+
+    fun isHealthEnabled(): Boolean = prefs.getBoolean("healthEnabled", false)
+
+    fun saveHealthEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("healthEnabled", enabled).apply()
     }
 
     fun saveLastLocation(location: String) {

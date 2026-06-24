@@ -48,22 +48,23 @@ import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.TextPrimary
 import top.hsyscn.opedrgent.ui.theme.TextSecondary
-import top.hsyscn.opedrgent.ui.theme.AccentOrange
-import top.hsyscn.opedrgent.ui.theme.ChipWarningText
-import top.hsyscn.opedrgent.ui.theme.DisabledColor
-import top.hsyscn.opedrgent.ui.theme.SproutBackground
-import top.hsyscn.opedrgent.ui.theme.SproutQuoteBg
-import top.hsyscn.opedrgent.ui.theme.SproutChipBg
-import top.hsyscn.opedrgent.ui.theme.SproutDivider
-import top.hsyscn.opedrgent.ui.theme.SproutSeedText
-import top.hsyscn.opedrgent.ui.theme.SproutMetaText
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeSproutBackground
+import top.hsyscn.opedrgent.ui.theme.themeSproutChipBg
+import top.hsyscn.opedrgent.ui.theme.themeSproutDivider
+import top.hsyscn.opedrgent.ui.theme.themeSproutMetaText
+import top.hsyscn.opedrgent.ui.theme.themeSproutQuoteBg
+import top.hsyscn.opedrgent.ui.theme.themeSproutSeedText
+import top.hsyscn.opedrgent.ui.theme.themeSproutSummaryEnd
+import top.hsyscn.opedrgent.ui.theme.themeSproutSummaryStart
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
 /**
  * 笔记发芽报告页 — Opedrgent 核心特色（v2 叙事式）
@@ -211,7 +212,7 @@ fun NoteSproutScreen(
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).background(SproutBackground)) {
+        Box(Modifier.fillMaxSize().padding(padding).background(themeSproutBackground())) {
             when {
                 isGenerating && article == null -> SproutLoadingView()
                 errorMessage != null && article == null -> SproutErrorView(message = errorMessage!!, onRetry = {
@@ -379,8 +380,8 @@ private fun ReportHeader(dateStr: String, modelName: String) {
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Description, null, tint = SproutMetaText, modifier = Modifier.size(14.dp))
-            Text(dateStr, style = MaterialTheme.typography.labelSmall, color = SproutMetaText)
+            Icon(Icons.Default.Description, null, tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
+            Text(dateStr, style = MaterialTheme.typography.labelSmall, color = themeSproutMetaText())
         }
     }
 }
@@ -392,7 +393,7 @@ private fun SummaryBlock(summary: String) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(listOf(Color(0xFF34D399), Color(0xFF059669))))
+            .background(Brush.linearGradient(listOf(themeSproutSummaryStart(), themeSproutSummaryEnd())))
             .padding(18.dp),
     ) {
         Text(summary, style = MaterialTheme.typography.bodyLarge.copy(
@@ -436,7 +437,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
                 AhaBlock(moment = section.ahaMoment, importance = section.importance)
             }
 
-            HorizontalDivider(color = SproutDivider, thickness = 1.dp)
+            HorizontalDivider(color = themeSproutDivider(), thickness = 1.dp)
         }
     }
 }
@@ -450,7 +451,7 @@ private fun SeedBlock(seed: String) {
         Text(
             text = seed,
             style = MaterialTheme.typography.bodyMedium,
-            color = SproutSeedText,
+            color = themeSproutSeedText(),
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
             lineHeight = 20.sp,
             modifier = Modifier.weight(1f),
@@ -487,7 +488,7 @@ private fun BoldText(text: String) {
 
 @Composable
 private fun QuoteBlock(text: String) {
-    Box(Modifier.fillMaxWidth().background(SproutQuoteBg).padding(horizontal = 14.dp, vertical = 10.dp)) {
+    Box(Modifier.fillMaxWidth().background(themeSproutQuoteBg()).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary, lineHeight = 22.sp))
     }
 }
@@ -500,7 +501,7 @@ private fun AhaBlock(moment: String, importance: Int) {
         Text(text = "  ", fontSize = 15.sp)
         Column(Modifier.weight(1f)) {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(importance) { Text("●", color = Color(0xFFFFA000), fontSize = 10.sp) }
+                repeat(importance) { Text("●", color = AccentOrange, fontSize = 10.sp) }
             }
             Spacer(Modifier.height(4.dp))
             val displayText = "\"$moment\""
@@ -568,7 +569,7 @@ private fun ConceptsSection(concepts: List<String>) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.wrapContentHeight()) {
             concepts.forEach {
                 SuggestionChip(onClick = {}, label = { Text(it) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = SproutChipBg))
+                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = themeSproutChipBg()))
             }
         }
     }

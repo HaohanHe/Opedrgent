@@ -318,7 +318,7 @@ data class DynamicRole(
         return EditorRole.allRoles.minByOrNull { role ->
             levenshteinDistance(name.lowercase(), role.displayName.lowercase()) +
             levenshteinDistance(alias.lowercase(), role.alias.lowercase())
-        }?.takeIf { dist(name, it.displayName) < 3 }
+        }?.takeIf { levenshteinDistance(name.lowercase(), it.displayName.lowercase()) < 3 }
     }
 
     /** 获取显示颜色（优先匹配预设，否则随机分配） */

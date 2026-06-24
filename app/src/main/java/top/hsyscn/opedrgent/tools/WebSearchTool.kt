@@ -207,6 +207,11 @@ class WebSearchTool(
         systemPrompt: String,
         useProviderSearch: Boolean,
     ): ToolResult {
+        // 弹性截断：根据模型上下文窗口按比例计算
+        val maxContentChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
+            top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
+        )
+        val maxSnippetChars = (maxContentChars * 0.4).toInt() // 摘要取正文的 40%
         var query = tp.state.input["query"] ?: tp.state.input["keyword"] ?: return emptyResult(tp, "缺少搜索关键词")
 
         // ★ Bugfix: LLM 有时将查询词包装为 JSON 字符串 {"query": "..."}，需要解包提取真实内容
@@ -302,14 +307,14 @@ class WebSearchTool(
                     val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
                     if (jinaResult != null && jinaResult.text.length > 100) {
                         val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
-                        val content = smartTruncate(sanitized.content, 4000)
+                        val content = smartTruncate(sanitized.content, maxContentChars)
                         val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(jinaResult.title).let { if (it.isBlank()) result.title else it }
                         return@async Pair("\n--- 来源：${safeTitle} (${result.url}) ---\n$content\n", result.url)
                     }
 
                     // Jina 失败，用搜索摘要
                     if (result.snippet != null && result.snippet.isNotBlank()) {
-                        val effectiveSnippet = smartTruncate(result.snippet, 1500)
+                        val effectiveSnippet = smartTruncate(result.snippet, maxSnippetChars)
                         return@async Pair("\n--- 来源：${result.title} (${result.url}) ---\n${effectiveSnippet}\n", result.url)
                     }
 
@@ -354,6 +359,10 @@ class WebSearchTool(
     }
 
     private suspend fun webviewSearch(tp: ToolPart, query: String): ToolResult {
+        // 弹性截断：使用默认上下文窗口计算
+        val maxContentChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
+            top.hsyscn.opedrgent.utils.ModelLimits.DEFAULT_MAX_TOKENS
+        )
         val maxResults = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 3).coerceIn(1, 8)
         val results = runCatching { getWebViewAgent().searchQuery(query, maxResults = maxResults) }.getOrNull()
 
@@ -383,7 +392,7 @@ class WebSearchTool(
                 if (r.url.isNotBlank()) {
                     async(Dispatchers.IO) {
                         runCatching { getWebViewAgent().fetchUrl(r.url) }.getOrNull()?.let { wvFetched ->
-                            val content = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = r.url).content.take(4000)
+                            val content = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = r.url).content.take(maxContentChars)
                             Pair("\n--- 来源：${wvFetched.title} (${r.url}) ---\n$content\n", r.url)
                         }
                     }

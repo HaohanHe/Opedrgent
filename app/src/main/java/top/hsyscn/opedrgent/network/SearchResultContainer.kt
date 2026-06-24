@@ -621,6 +621,23 @@ class SearchResultContainer {
     )
 
     /**
+     * 字典/百科类域名 — 搜索招聘/公司信息时应降权
+     * 这些站点内容是字典释义，不是用户要找的实际信息
+     */
+    private val DICTIONARY_DOMAINS = setOf(
+        "baike.baidu.com",           // 百度百科
+        "hanyuguoxue.com",           // 汉语国学（字典）
+        "zidian.gushici.net",        // 古诗文网字典
+        "zdic.net",                  // 汉典
+        "guoxuedashi.net",           // 国学大师
+        "hydcd.com",                 // 汉语大词典
+        "baike.so.com",              // 360百科
+        "baike.sogou.com",           // 搜狗百科
+        "en.wikipedia.org",          // 英文维基（中文搜索时通常不相关）
+        "zh.wikipedia.org",          // 中文维基
+    )
+
+    /**
      * 智能相关性过滤 - 移除不相关的垃圾结果
      *
      * 过滤规则：
@@ -660,16 +677,36 @@ class SearchResultContainer {
                     DebugLog.d("SearchResultContainer: filtered spam domain: $host")
                     continue
                 }
+                // 规则1b：字典/百科降权 — 如果查询包含公司名或招聘意图，直接过滤字典结果
+                if (DICTIONARY_DOMAINS.any { host.endsWith(it) || host == it }) {
+                    val hasCompanyIntent = queryKeywords.any { kw ->
+                        kw.length >= 2 && !kw.all { it.isDigit() }  // 排除纯数字如"2026"
+                    }
+                    if (hasCompanyIntent) {
+                        iterator.remove()
+                        keywordFiltered++
+                        DebugLog.d("SearchResultContainer: filtered dictionary domain: $host (query has company intent)")
+                        continue
+                    }
+                }
             } catch (e: Exception) {}
 
-            // 规则2：关键词匹配检查（改进版：双向子串匹配）
+            // 规则2：关键词匹配检查（改进版：要求完整词匹配，避免子串误匹配）
             if (queryKeywords.isNotEmpty()) {
                 val titleLower = result.title.lowercase()
                 val snippetLower = (result.snippet ?: "").lowercase()
+                val combinedText = "$titleLower $snippetLower"
+
+                // 改进：对2字以上的查询词，要求完整出现（不拆分）
+                // 对单字查询词，允许子串匹配
                 val matchCount = queryKeywords.count { keyword ->
-                    // 双向子串匹配：keyword包含在文本中，或文本包含在keyword中
-                    titleLower.contains(keyword) || snippetLower.contains(keyword) ||
-                    keyword.contains(titleLower) || keyword.contains(snippetLower)
+                    if (keyword.length >= 2) {
+                        // 长关键词：要求完整出现在标题或摘要中
+                        combinedText.contains(keyword)
+                    } else {
+                        // 单字关键词：允许子串匹配
+                        titleLower.contains(keyword) || snippetLower.contains(keyword)
+                    }
                 }
 
                 if (matchCount < minKeywordMatch) {

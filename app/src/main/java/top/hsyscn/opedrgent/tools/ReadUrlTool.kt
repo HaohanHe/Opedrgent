@@ -40,6 +40,10 @@ class ReadUrlTool(
     ): ToolResult {
         val url = tp.state.input["url"] ?: return emptyResult(tp, "缺少 URL")
         DebugLog.i("read_url: $url")
+        // 弹性截断：根据模型上下文窗口按比例计算
+        val maxChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
+            top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
+        )
 
         val fetched = runCatching { fetcher.fetchUrl(url) }.getOrNull()
         if (fetched != null) {
@@ -49,7 +53,7 @@ class ReadUrlTool(
                 appendLine("页面标题：$title")
                 appendLine("URL：${fetched.url}")
                 appendLine()
-                appendLine(sanitized.content.take(6000))
+                appendLine(sanitized.content.take(maxChars))
             }
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())))
         }
@@ -63,7 +67,7 @@ class ReadUrlTool(
                 appendLine("URL：$url")
                 appendLine("（通过内置浏览器获取）")
                 appendLine()
-                appendLine(sanitized.content.take(6000))
+                appendLine(sanitized.content.take(maxChars))
             }
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())))
         }
@@ -73,6 +77,15 @@ class ReadUrlTool(
             status = ToolStateType.ERROR,
             error = "读取失败：$url（SourceFetcher 和 WebView 均失败，请尝试其他来源或搜索关键词）",
             endTime = System.currentTimeMillis())))
+    }
+
+    /**
+     * 释放 WebViewAgent 资源，不使用时必须调用以避免内存泄漏。
+     * WebView 单个实例占用 50-100MB 内存。
+     */
+    fun destroy() {
+        webViewAgent?.destroy()
+        webViewAgent = null
     }
 
     override fun getTools(): Map<String, ToolBinding> {

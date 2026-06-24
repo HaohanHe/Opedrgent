@@ -28,14 +28,14 @@ class SmartCircuitBreaker(
     private val config: CircuitBreakerConfig = CircuitBreakerConfig(),
     private val httpClient: OkHttpClient = HttpClients.default
 ) {
-    var state: CircuitState = CircuitState.CLOSED
+    @Volatile var state: CircuitState = CircuitState.CLOSED
         private set
 
-    private var consecutiveFailures = 0
-    private var openSince: Long = 0
-    private var currentBackoffMs: Long = config.baseBackoffMs
-    private var halfOpenProbeCount = 0
-    private var lastHealthCheckTime: Long = 0
+    @Volatile private var consecutiveFailures = 0
+    @Volatile private var openSince: Long = 0
+    @Volatile private var currentBackoffMs: Long = config.baseBackoffMs
+    @Volatile private var halfOpenProbeCount = 0
+    @Volatile private var lastHealthCheckTime: Long = 0
 
     private val recentResults = ConcurrentLinkedDeque<Boolean>()
 

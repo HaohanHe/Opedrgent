@@ -294,6 +294,10 @@
     <string name="settings_deep_thinking_desc">有効にすると、モデルが推論思考プロセスを表示します（thinking対応モデルのみ）</string>
     <string name="settings_debug_mode">Debugモード</string>
     <string name="settings_debug_mode_desc">有効にすると、logcatに詳細なログを出力します（タグ: Opedrgent）</string>
+    <string name="settings_calendar">カレンダーアクセス</string>
+    <string name="settings_calendar_desc">AI がスケジュール管理やリマインダーのためにカレンダーを閲覧/変更できます</string>
+    <string name="settings_health">ヘルス&amp;フィットネス</string>
+    <string name="settings_health_desc">AI が歩数や心拍数などの健康データを読み取って健康分析に活用できます</string>
     <string name="settings_local_model_title">ローカルモデル (Gemma 4 オフライン)</string>
     <string name="settings_local_model_offline_desc">Gemma 4 モデルをデバイスにダウンロードし、完全オフラインで動作します。ネット接続不要</string>
     <string name="settings_select_model">モデルを選択 / ダウンロード</string>

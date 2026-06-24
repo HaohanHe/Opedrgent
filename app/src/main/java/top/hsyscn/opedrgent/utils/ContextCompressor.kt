@@ -106,6 +106,34 @@ object ContextCompressor {
     }
 
     /**
+     * 估算单条消息的完整 token（包括 ToolCall、Reasoning 等所有 parts）。
+     * 避免 textContent 只统计 Text 部分导致的低估。
+     */
+    fun estimateMessageTokens(msg: ChatMessage): Int {
+        // 优先用 parts（新模型），否则 fallback 到 content + toolParts + reasoningParts
+        return if (msg.parts.isNotEmpty()) {
+            msg.parts.sumOf { part ->
+                when (part) {
+                    is MessagePart.Text -> estimateTokens(part.content)
+                    is MessagePart.ToolCall -> {
+                        estimateTokens(part.input.values.joinToString()) +
+                            (part.output?.let { estimateTokens(it) } ?: 0)
+                    }
+                    is MessagePart.Reasoning -> estimateTokens(part.content)
+                    else -> 0
+                }
+            }
+        } else {
+            estimateTokens(msg.content) +
+                msg.toolParts.sumOf { tp ->
+                    estimateTokens(tp.state.input.values.joinToString()) +
+                        (tp.state.output?.let { estimateTokens(it) } ?: 0)
+                } +
+                msg.reasoningParts.sumOf { estimateTokens(it.text) }
+        }
+    }
+
+    /**
      * Pre-flight 上下文预检（Kilo 风格）。
      * 快速估算消息的 token 总量，不执行压缩。
      * 用于在发送 LLM 请求前判断是否需要压缩，避免浪费 API 调用。
@@ -115,27 +143,8 @@ object ContextCompressor {
     fun estimateTotalTokens(messages: List<ChatMessage>, systemPrompt: String): Int {
         var total = estimateTokens(systemPrompt)
         for (msg in messages) {
-            total += estimateTokens(msg.content)
-            // 估算 parts 的 token
-            for (part in msg.parts) {
-                when (part) {
-                    is MessagePart.Text -> total += estimateTokens(part.content)
-                    is MessagePart.ToolCall -> {
-                        total += estimateTokens(part.input.values.joinToString())
-                        if (part.output != null) total += estimateTokens(part.output)
-                    }
-                    is MessagePart.Reasoning -> total += estimateTokens(part.content)
-                    else -> {}
-                }
-            }
-            // 旧模型兼容
-            for (tp in msg.toolParts) {
-                total += estimateTokens(tp.state.input.values.joinToString())
-                tp.state.output?.let { total += estimateTokens(it) }
-            }
-            for (rp in msg.reasoningParts) {
-                total += estimateTokens(rp.text)
-            }
+            // 使用 estimateMessageTokens 避免 content + parts 双重计数
+            total += estimateMessageTokens(msg)
         }
         return total
     }
@@ -242,7 +251,7 @@ $newTurnsSummary"""
             )
         }
 
-        val totalTokens = sysTokens + messages.sumOf { estimateTokens(it.textContent) }
+        val totalTokens = sysTokens + messages.sumOf { estimateMessageTokens(it) }
         val ratio = totalTokens.toFloat() / maxTokens.coerceAtLeast(1)
 
         // 未超过阈值，不压缩
@@ -276,13 +285,21 @@ $newTurnsSummary"""
         }
 
         // 4b. 单条消息长度限制：防止一条超长消息撑爆上下文
+        // ★ P1-1修复：截断时保留ToolCall/Reasoning/Compaction等结构化parts，只截断Text部分
         val perMessageLimit = (maxTokens / 4).coerceAtLeast(1000)
         prunedKeep = prunedKeep.map { msg ->
-            val msgTokens = estimateTokens(msg.textContent)
+            val msgTokens = estimateMessageTokens(msg)
             if (msgTokens > perMessageLimit) {
-                val maxChars = perMessageLimit * 4 // 粗略: 1 token ~ 4 chars
-                val truncated = msg.textContent.take(maxChars) + "\n\n[内容过长，已截断]"
-                msg.copy(content = truncated, parts = listOf(MessagePart.Text(content = truncated)))
+                val maxChars = perMessageLimit * if (Regex("[\\u4e00-\\u9fa5]").containsMatchIn(msg.textContent)) 2 else 4
+                // 保留非Text parts（ToolCall/Reasoning/Compaction等），只截断Text内容
+                val nonTextParts = msg.parts.filter { it !is MessagePart.Text }
+                val textParts = msg.parts.filterIsInstance<MessagePart.Text>()
+                val truncatedText = if (textParts.isNotEmpty()) {
+                    val combined = textParts.joinToString("") { it.content }
+                    combined.take(maxChars) + "\n\n[内容过长，已截断]"
+                } else msg.textContent.take(maxChars)
+                val newParts = listOf(MessagePart.Text(content = truncatedText)) + nonTextParts
+                msg.copy(content = truncatedText, parts = newParts)
             } else msg
         }
 
@@ -294,7 +311,7 @@ $newTurnsSummary"""
         )
 
         val resultMessages = listOf(compactedMessage) + prunedKeep
-        val resultTokens = sysTokens + resultMessages.sumOf { estimateTokens(it.textContent) }
+        val resultTokens = sysTokens + resultMessages.sumOf { estimateMessageTokens(it) }
 
         DebugLog.d(
             "ContextCompressor: $resultTokens/$maxTokens (${String.format("%.0f%%", resultTokens.toFloat() / maxTokens.coerceAtLeast(1) * 100)}) " +
@@ -514,7 +531,7 @@ $turnsSummary
             )
         }
 
-        val totalTokens = sysTokens + messages.sumOf { estimateTokens(it.textContent) }
+        val totalTokens = sysTokens + messages.sumOf { estimateMessageTokens(it) }
         val ratio = totalTokens.toFloat() / maxTokens.coerceAtLeast(1)
 
         // 未超过阈值，不压缩
@@ -583,7 +600,7 @@ $turnsSummary
         } else null
 
         val resultMessages = listOfNotNull(compactedMessage) + prunedKeep
-        val resultTokens = sysTokens + resultMessages.sumOf { estimateTokens(it.textContent) }
+        val resultTokens = sysTokens + resultMessages.sumOf { estimateMessageTokens(it) }
 
         DebugLog.d(
             "ContextCompressor.TLDR: $resultTokens/$maxTokens (${String.format("%.0f%%", resultTokens.toFloat() / maxTokens.coerceAtLeast(1) * 100)}) " +
@@ -622,7 +639,7 @@ $turnsSummary
         }
 
         val resultMessages = listOfNotNull(compactedMessage) + keepTurnsList.flatten()
-        val resultTokens = sysTokens + resultMessages.sumOf { estimateTokens(it.textContent) }
+        val resultTokens = sysTokens + resultMessages.sumOf { estimateMessageTokens(it) }
 
         return CompressResult(messages = resultMessages, summary = tldr?.toDisplayText(), tokenCount = resultTokens, usageRatio = resultTokens.toFloat() / maxTokens.coerceAtLeast(1))
     }
@@ -635,7 +652,7 @@ $turnsSummary
         sysTokens: Int,
     ): CompressResult {
         val pruned = messages.map { pruneToolOutput(it) }
-        val tokens = sysTokens + pruned.sumOf { estimateTokens(it.textContent) }
+        val tokens = sysTokens + pruned.sumOf { estimateMessageTokens(it) }
         return CompressResult(messages = pruned, summary = null, tokenCount = tokens, usageRatio = tokens.toFloat() / maxTokens.coerceAtLeast(1))
     }
 
@@ -648,7 +665,7 @@ $turnsSummary
         sysTokens: Int,
     ): CompressResult {
         val kept = turns.takeLast(keepTurns.coerceAtMost(turns.size)).flatten()
-        val tokens = sysTokens + kept.sumOf { estimateTokens(it.textContent) }
+        val tokens = sysTokens + kept.sumOf { estimateMessageTokens(it) }
         val droppedCount = turns.size - minOf(keepTurns, turns.size)
         val summary = if (droppedCount > 0) "[已丢弃 $droppedCount 轮旧对话]" else null
         return CompressResult(messages = kept, summary = summary, tokenCount = tokens, usageRatio = tokens.toFloat() / maxTokens.coerceAtLeast(1))

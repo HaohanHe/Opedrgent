@@ -377,19 +377,7 @@ fun RecordingTab(
         }
     }
 
-    // 波形动画条
-    var waveformBars by remember { mutableStateOf(List(24) { 0.2f }) }
-    LaunchedEffect(recordingState) {
-        while (recordingState == RecordingState.RECORDING || recordingState == RecordingState.PAUSED) {
-            waveformBars = List(24) { index ->
-                val base = if (amplitude > 0.05f) amplitude else 0.05f
-                val wave = kotlin.math.sin((System.currentTimeMillis() / 250.0) + index * 0.6).toFloat() * 0.4f
-                val noise = kotlin.random.Random.nextFloat() * 0.2f
-                ((base * 0.8f + 0.2f) + wave * base + noise * base).coerceIn(0.05f, 1f)
-            }
-            delay(80)
-        }
-    }
+    // 波形动画条（独立 Composable，不触发 RecordingTab 重组）
 
     // 实时转录文本自动滚动（仅在文本增长时滚动到底，回退修正时不滚动避免抖动）
     LaunchedEffect(streamingText) {
@@ -751,7 +739,7 @@ fun RecordingTab(
                         state = recordingState ?: RecordingState.RECORDING,
                         elapsedSeconds = elapsedSeconds,
                         streamingText = streamingText,
-                        waveformBars = waveformBars,
+                        amplitude = amplitude,
                         scrollState = transcriptScrollState,
                         onPause = { recordingState = RecordingState.PAUSED },
                         onResume = { recordingState = RecordingState.RECORDING },
@@ -1285,7 +1273,7 @@ private fun RecordingScreen(
     state: RecordingState,
     elapsedSeconds: Int,
     streamingText: String,
-    waveformBars: List<Float>,
+    amplitude: Float,
     scrollState: androidx.compose.foundation.ScrollState,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -1371,7 +1359,7 @@ private fun RecordingScreen(
                             .verticalScroll(scrollState),
                     ) {
                         Text(
-                            text = streamingText,
+                            text = if (streamingText.length > 5000) streamingText.takeLast(5000) else streamingText,
                             fontSize = 18.sp,
                             color = themeTextDark(),
                             lineHeight = (18 * 1.8).sp,
@@ -1396,7 +1384,7 @@ private fun RecordingScreen(
                 color = themeTextDark(),
             )
             Spacer(Modifier.height(8.dp))
-            WaveformBars(bars = waveformBars, color = CoralRed)
+            WaveformBars(amplitude = amplitude, isRecording = state == RecordingState.RECORDING, color = CoralRed)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -1521,12 +1509,26 @@ private fun ToolIcon(icon: ImageVector, label: String, onClick: (() -> Unit)? = 
 
 @Composable
 private fun WaveformBars(
-    bars: List<Float>,
+    amplitude: Float,
+    isRecording: Boolean,
     color: Color,
     barWidth: androidx.compose.ui.unit.Dp = 4.dp,
     barSpacing: androidx.compose.ui.unit.Dp = 3.dp,
     maxHeight: androidx.compose.ui.unit.Dp = 32.dp,
 ) {
+    // 自管理动画状态，不触发父组件重组
+    var bars by remember { mutableStateOf(List(24) { 0.2f }) }
+    LaunchedEffect(isRecording) {
+        while (isRecording) {
+            bars = List(24) { index ->
+                val base = if (amplitude > 0.05f) amplitude else 0.05f
+                val wave = kotlin.math.sin((System.currentTimeMillis() / 250.0) + index * 0.6).toFloat() * 0.4f
+                val noise = kotlin.random.Random.nextFloat() * 0.2f
+                ((base * 0.8f + 0.2f) + wave * base + noise * base).coerceIn(0.05f, 1f)
+            }
+            delay(80)
+        }
+    }
     Row(
         modifier = Modifier.height(maxHeight),
         horizontalArrangement = Arrangement.spacedBy(barSpacing, Alignment.CenterHorizontally),

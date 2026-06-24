@@ -30,6 +30,7 @@ import top.hsyscn.opedrgent.tools.StepVisionTool
 import top.hsyscn.opedrgent.tools.StepImageEditTool
 import top.hsyscn.opedrgent.tools.StepImageGenTool
 import top.hsyscn.opedrgent.tools.StepVideoSummaryTool
+import top.hsyscn.opedrgent.tools.HealthTool
 import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.mcp.skills.SkillLoader
@@ -92,6 +93,8 @@ class ToolExecutor(
         register(StepImageEditTool(context))
         register(StepImageGenTool())
         register(StepVideoSummaryTool(context, llm, apiSettings))
+        // Health Connect 运动健康数据读取工具
+        register(HealthTool(context))
     }
 
     suspend fun execute(
@@ -192,8 +195,10 @@ class ToolExecutor(
     fun destroy() {
         webViewAgent?.destroy()
         webViewAgent = null
-        // Also destroy WebSearchTool's WebView
+        // Destroy all tools that hold WebViewAgent instances
         toolRegistry.getAll().filterIsInstance<WebSearchTool>().forEach { it.destroy() }
+        toolRegistry.getAll().filterIsInstance<ReadUrlTool>().forEach { it.destroy() }
+        toolRegistry.getAll().filterIsInstance<DeepResearchTool>().forEach { it.destroy() }
     }
 
     /**

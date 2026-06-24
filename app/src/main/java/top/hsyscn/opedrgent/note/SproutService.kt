@@ -265,7 +265,8 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                 .optString("content", "")
 
             val jsonStr = extractJsonFromMarkdown(content) ?: content.trim()
-            val reportJson = JSONObject(jsonStr)
+            val fixedJson = fixJsonString(jsonStr)
+            val reportJson = JSONObject(fixedJson)
 
             val article = SproutArticle(
                 generatedAt = System.currentTimeMillis(),
@@ -308,6 +309,42 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     private fun extractJsonFromMarkdown(content: String): String? {
         val regex = Regex("```(?:json)?\\s*([\\s\\S]*?)```")
         return regex.find(content)?.groupValues?.get(1)?.trim()
+    }
+
+    /**
+     * 修复 LLM 返回的 JSON 字符串值内的实际换行符。
+     * LLM 常在 body/seed 等长文本字段中输出真正的换行，
+     * 这在 JSON 字符串值内是非法的，导致 "Unterminated string" 解析失败。
+     */
+    private fun fixJsonString(raw: String): String {
+        val sb = StringBuilder(raw.length)
+        var inString = false
+        var i = 0
+        while (i < raw.length) {
+            val c = raw[i]
+            if (c == '\\' && inString) {
+                sb.append(c)
+                if (i + 1 < raw.length) {
+                    sb.append(raw[i + 1])
+                    i += 2
+                    continue
+                }
+            } else if (c == '"') {
+                inString = !inString
+                sb.append(c)
+            } else if (inString) {
+                when (c) {
+                    '\n' -> sb.append("\\n")
+                    '\r' -> { /* 跳过 */ }
+                    '\t' -> sb.append("\\t")
+                    else -> sb.append(c)
+                }
+            } else {
+                sb.append(c)
+            }
+            i++
+        }
+        return sb.toString()
     }
 }
 

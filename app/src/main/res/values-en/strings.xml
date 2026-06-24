@@ -294,6 +294,10 @@
     <string name="settings_deep_thinking_desc">When enabled, the model displays its reasoning process (for models that support thinking)</string>
     <string name="settings_debug_mode">Debug Mode</string>
     <string name="settings_debug_mode_desc">When enabled, detailed logs are output to logcat (tag: Opedrgent)</string>
+    <string name="settings_calendar">Calendar Access</string>
+    <string name="settings_calendar_desc">AI can view/modify your calendar for schedule management and smart reminders</string>
+    <string name="settings_health">Health &amp; Fitness</string>
+    <string name="settings_health_desc">AI can read step count, heart rate and other health data for health analysis</string>
     <string name="settings_local_model_title">Local Model (Gemma 4 Offline)</string>
     <string name="settings_local_model_offline_desc">Download Gemma 4 model to your device for fully offline operation, no internet required</string>
     <string name="settings_select_model">Select Model / Download</string>

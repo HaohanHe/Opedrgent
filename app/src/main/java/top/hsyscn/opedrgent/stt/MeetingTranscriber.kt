@@ -378,66 +378,79 @@ class MeetingTranscriber(
 
     /**
      * 从 WAV 文件中截取指定时间范围的片段，输出为新的 WAV 文件。
+     * 使用 RandomAccessFile 只读取需要的部分，避免全量加载到内存。
      */
     private fun extractWavSegment(audioFile: File, startMs: Long, durationMs: Long): File? {
         return try {
-            val bytes = audioFile.readBytes()
-            if (bytes.size < 44) return null
+            java.io.RandomAccessFile(audioFile, "r").use { raf ->
+                // 读取 WAV 头（44字节）
+                val header = ByteArray(44)
+                if (raf.read(header) < 44) return null
 
-            // 解析 WAV 头
-            val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            bb.position(22)
-            val channels = bb.short.toInt()
-            bb.position(24)
-            val sampleRate = bb.int
-            bb.position(34)
-            val bitsPerSample = bb.short.toInt()
+                val bb = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+                bb.position(22)
+                val channels = bb.short.toInt()
+                bb.position(24)
+                val sampleRate = bb.int
+                bb.position(34)
+                val bitsPerSample = bb.short.toInt()
 
-            // 查找 data chunk
-            var dataOffset = -1
-            for (i in 12 until bytes.size - 4) {
-                if (bytes[i] == 'd'.code.toByte() && bytes[i + 1] == 'a'.code.toByte() &&
-                    bytes[i + 2] == 't'.code.toByte() && bytes[i + 3] == 'a'.code.toByte()
-                ) {
-                    dataOffset = i + 8
-                    break
+                // 查找 data chunk
+                raf.seek(12)
+                var dataOffset = -1L
+                var dataSize = 0L
+                val chunkHeader = ByteArray(8)
+                while (raf.filePointer < raf.length() - 8) {
+                    if (raf.read(chunkHeader) < 8) break
+                    val chunkId = String(chunkHeader, 0, 4)
+                    val chunkSize = ByteBuffer.wrap(chunkHeader, 4, 4).order(ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xFFFFFFFFL
+                    if (chunkId == "data") {
+                        dataOffset = raf.filePointer
+                        dataSize = chunkSize
+                        break
+                    }
+                    raf.skipBytes(chunkSize.toInt())
                 }
+                if (dataOffset < 0) return null
+
+                val bytesPerSample = bitsPerSample / 8
+                val bytesPerFrame = bytesPerSample * channels
+                val bytesPerMs = sampleRate * bytesPerFrame / 1000
+
+                val segmentStart = dataOffset + (startMs * bytesPerMs)
+                val segmentBytes = (durationMs * bytesPerMs).toInt()
+                val segmentEnd = (segmentStart + segmentBytes).coerceAtMost(dataOffset + dataSize)
+
+                if (segmentStart >= dataOffset + dataSize || segmentStart >= segmentEnd) return null
+
+                // 只读取需要的 PCM 数据
+                raf.seek(segmentStart)
+                val pcmData = ByteArray((segmentEnd - segmentStart).toInt())
+                raf.readFully(pcmData)
+
+                // 写入临时 WAV 文件
+                val tmpFile = File(context.cacheDir, "vp_segment_${System.currentTimeMillis()}.wav")
+                val byteRate = sampleRate * channels * bitsPerSample / 8
+                val blockAlign = channels * bitsPerSample / 8
+
+                java.io.FileOutputStream(tmpFile).use { fos ->
+                    fos.write("RIFF".toByteArray())
+                    fos.write(intToLittleEndian(36 + pcmData.size))
+                    fos.write("WAVE".toByteArray())
+                    fos.write("fmt ".toByteArray())
+                    fos.write(intToLittleEndian(16))
+                    fos.write(shortToLittleEndian(1))
+                    fos.write(shortToLittleEndian(channels.toShort()))
+                    fos.write(intToLittleEndian(sampleRate))
+                    fos.write(intToLittleEndian(byteRate))
+                    fos.write(shortToLittleEndian(blockAlign.toShort()))
+                    fos.write(shortToLittleEndian(bitsPerSample.toShort()))
+                    fos.write("data".toByteArray())
+                    fos.write(intToLittleEndian(pcmData.size))
+                    fos.write(pcmData)
+                }
+                tmpFile
             }
-            if (dataOffset < 0) return null
-
-            val bytesPerSample = bitsPerSample / 8
-            val bytesPerFrame = bytesPerSample * channels
-            val bytesPerMs = sampleRate * bytesPerFrame / 1000
-
-            val segmentStart = dataOffset + (startMs * bytesPerMs).toInt()
-            val segmentBytes = (durationMs * bytesPerMs).toInt()
-            val segmentEnd = (segmentStart + segmentBytes).coerceAtMost(bytes.size)
-
-            if (segmentStart >= bytes.size || segmentStart >= segmentEnd) return null
-
-            // 写入临时 WAV 文件
-            val tmpFile = File(context.cacheDir, "vp_segment_${System.currentTimeMillis()}.wav")
-            val pcmData = bytes.sliceArray(segmentStart until segmentEnd)
-            val byteRate = sampleRate * channels * bitsPerSample / 8
-            val blockAlign = channels * bitsPerSample / 8
-
-            java.io.FileOutputStream(tmpFile).use { fos ->
-                fos.write("RIFF".toByteArray())
-                fos.write(intToLittleEndian(36 + pcmData.size))
-                fos.write("WAVE".toByteArray())
-                fos.write("fmt ".toByteArray())
-                fos.write(intToLittleEndian(16))
-                fos.write(shortToLittleEndian(1))
-                fos.write(shortToLittleEndian(channels.toShort()))
-                fos.write(intToLittleEndian(sampleRate))
-                fos.write(intToLittleEndian(byteRate))
-                fos.write(shortToLittleEndian(blockAlign.toShort()))
-                fos.write(shortToLittleEndian(bitsPerSample.toShort()))
-                fos.write("data".toByteArray())
-                fos.write(intToLittleEndian(pcmData.size))
-                fos.write(pcmData)
-            }
-            tmpFile
         } catch (e: Exception) {
             DebugLog.w(TAG, "WAV 片段截取失败: ${e.message}")
             null

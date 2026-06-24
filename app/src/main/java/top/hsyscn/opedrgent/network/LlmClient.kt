@@ -72,6 +72,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
             // 阶跃星辰 Step Plan — 支持三档推理强度 low/medium/high
             "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603",
+            // Qwen3.5 系列 — SiliconFlow enable_thinking
+            "qwen3.5",
         )
         private val DEEPSEEK_MODELS = setOf(
             "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4",
@@ -118,6 +120,23 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
         fun isDeepSeekV4(model: String): Boolean {
             return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
+        }
+
+        /** Qwen3.5 系列使用 enable_thinking 而非 thinking: {"type": "enabled"} */
+        fun isQwenThinkingModel(model: String): Boolean {
+            return model.contains("qwen3.5", ignoreCase = true)
+        }
+
+        /**
+         * SiliconFlow 的 Qwen 模型不支持 role:"tool" 和 tool_calls，
+         * 需要把工具结果转为 user 消息，去掉 assistant 的 tool_calls。
+         */
+        fun supportsNativeToolRole(model: String, baseUrl: String): Boolean {
+            if (baseUrl.contains("siliconflow", ignoreCase = true)
+                && model.contains("qwen", ignoreCase = true)) {
+                return false
+            }
+            return true
         }
 
         fun getDeepSeekMaxContext(): Int = DEEPSEEK_MAX_CONTEXT
@@ -204,26 +223,46 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 put("max_tokens", maxOutputTokens)
             }
             put("stream", true)
+            val nativeToolRole = supportsNativeToolRole(config.model, config.baseUrl)
             put(
                 "messages",
                 JSONArray().apply {
                     put(JSONObject().put("role", "system").put("content", system))
                     messages.forEach { m ->
                         if (m.toolCallId != null) {
-                            put(JSONObject().apply {
-                                put("role", "tool")
-                                put("tool_call_id", m.toolCallId)
-                                put("content", m.content)
-                            })
-                        } else if (m.apiToolCallsJson != null) {
-                            val assistantMsg = JSONObject().apply {
-                                put("role", "assistant")
-                                put("content", m.content.ifEmpty { "" })
-                                put("tool_calls", JSONArray(m.apiToolCallsJson))
+                            if (nativeToolRole) {
+                                put(JSONObject().apply {
+                                    put("role", "tool")
+                                    put("tool_call_id", m.toolCallId)
+                                    put("content", m.content)
+                                })
+                            } else {
+                                // SiliconFlow Qwen: tool 结果转为 user 消息
+                                put(JSONObject().apply {
+                                    put("role", "user")
+                                    put("content", "[工具结果 ${m.toolCallId}]\n${m.content}")
+                                })
                             }
-                            val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
-                            if (reasoningText.isNotEmpty()) assistantMsg.put("reasoning_content", reasoningText)
-                            put(assistantMsg)
+                        } else if (m.apiToolCallsJson != null) {
+                            if (nativeToolRole) {
+                                val assistantMsg = JSONObject().apply {
+                                    put("role", "assistant")
+                                    put("content", m.content.ifEmpty { "" })
+                                    put("tool_calls", JSONArray(m.apiToolCallsJson))
+                                }
+                                val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                                if (reasoningText.isNotEmpty()) assistantMsg.put("reasoning_content", reasoningText)
+                                put(assistantMsg)
+                            } else {
+                                // SiliconFlow Qwen: 去掉 tool_calls，只保留 content
+                                val assistantMsg = JSONObject().apply {
+                                    put("role", "assistant")
+                                    put("content", m.content.ifEmpty { "" })
+                                }
+                                val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                                if (reasoningText.isNotEmpty()) assistantMsg.put("reasoning_content", reasoningText)
+                                put(assistantMsg)
+                            }
                         } else {
                             put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
                         }
@@ -232,6 +271,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             )
             val isDS = isDeepSeek(config.model)
             val isSP = isStepPlan(config.model)
+            val isQwen = isQwenThinkingModel(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
             if (isThinkingModel(config.model)) {
                 if (thinkingEnabled || defaultReasoning) {
@@ -243,10 +283,17 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         // StepFun 默认返回 reasoning 字段，设为 deepseek-style 兼容现有解析逻辑
                         put("reasoning_format", "deepseek-style")
                     }
-                    put("thinking", JSONObject().apply { put("type", "enabled") })
+                    if (isQwen) {
+                        // Qwen3.5 系列使用 enable_thinking: true（SiliconFlow API 格式）
+                        put("enable_thinking", true)
+                    } else {
+                        put("thinking", JSONObject().apply { put("type", "enabled") })
+                    }
                 } else {
                     if (isDS) {
                         put("thinking_mode", "non-thinking")
+                    } else if (isQwen) {
+                        put("enable_thinking", false)
                     } else {
                         put("thinking", JSONObject().apply { put("type", "disabled") })
                     }
@@ -282,8 +329,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     if (!response.isSuccessful) {
                         val raw = response.body?.string().orEmpty()
                         val msg = runCatching {
-                            JSONObject(raw).optJSONObject("error")?.optString("message")
+                            val json = JSONObject(raw)
+                            // OpenAI 格式: {"error": {"message": "..."}}
+                            // SiliconFlow 格式: {"code": xxx, "message": "..."}
+                            json.optJSONObject("error")?.optString("message")
+                                ?: json.optString("message").takeIf { it.isNotBlank() }
                         }.getOrNull()
+                        DebugLog.e("streamChatCompletions HTTP ${response.code}: ${raw.take(500)}")
                         onError(msg?.takeIf { it.isNotBlank() } ?: "请求失败: HTTP ${response.code}")
                         return
                     }
@@ -320,6 +372,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         var inThinkingTag = false
         var lastFinishReason: String? = null
         var totalChunks = 0
+        var pendingBuffer = ""
 
         while (!source.exhausted()) {
             val line = source.readUtf8Line() ?: continue
@@ -355,7 +408,24 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 }
                 totalChunks++
 
-                var remainingContent = content
+                val combined = pendingBuffer + content
+                val tags = listOf("<thinking>", "</thinking>")
+                var prefix = ""
+                for (tag in tags) {
+                    for (i in 1 until tag.length) {
+                        if (combined.endsWith(tag.substring(0, i)) && i > prefix.length) {
+                            prefix = tag.substring(0, i)
+                        }
+                    }
+                }
+                val effectiveContent = if (prefix.isNotEmpty()) {
+                    pendingBuffer = prefix
+                    combined.dropLast(prefix.length)
+                } else {
+                    pendingBuffer = ""
+                    combined
+                }
+                var remainingContent = effectiveContent
 
                 if (inThinkingTag) {
                     val endTagIdx = remainingContent.indexOf("</thinking>")
@@ -430,7 +500,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
                         onToolCallDelta?.invoke(
                             ToolCallDelta(
-                                id = toolIdMap[idx].orEmpty(),
+                                id = toolIdMap[idx]?.ifEmpty { "call_${idx}" } ?: "call_${idx}",
                                 index = idx,
                                 nameDelta = nameDelta,
                                 argsDelta = argsDelta,
@@ -443,13 +513,24 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        if (pendingBuffer.isNotEmpty()) {
+            if (inThinkingTag) {
+                fullReasoning.append(pendingBuffer)
+                onDelta(StreamDelta.ReasoningDelta(pendingBuffer))
+            } else {
+                fullContent.append(pendingBuffer)
+                onDelta(StreamDelta.TextDelta(pendingBuffer))
+            }
+            pendingBuffer = ""
+        }
+
         if (totalChunks == 0) {
             DebugLog.w("parseSse: ZERO chunks received! Stream was empty or all parse failures")
         }
 
         val toolCalls = toolCallMap.map { (idx, nameBuilder) ->
             CompletedToolCall(
-                id = toolIdMap[idx].orEmpty(),
+                id = toolIdMap[idx]?.ifEmpty { "call_${idx}_${System.currentTimeMillis()}" } ?: "call_${idx}_${System.currentTimeMillis()}",
                 name = nameBuilder.toString().trim(),
                 arguments = toolArgMap[idx]?.toString().orEmpty().trim(),
             )
@@ -458,14 +539,14 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         val finalContent = fullContent.toString()
         val finalReasoning = fullReasoning.toString()
         if (finalContent.isBlank() && finalReasoning.isNotBlank()) {
-            DebugLog.w("LlmClient: content empty but reasoning=${finalReasoning.take(100)}... using reasoning as fallback")
+            DebugLog.w("LlmClient: content empty but reasoning=${finalReasoning.take(100)}... (NOT leaking reasoning as content)")
         }
         if (finalContent.isBlank() && finalReasoning.isBlank() && toolCalls.isEmpty()) {
             DebugLog.w("LlmClient: completely empty response!")
         }
 
         onDone(StreamResult(
-            content = if (finalContent.isNotBlank()) finalContent else finalReasoning,
+            content = finalContent,
             reasoning = finalReasoning,
             toolCalls = toolCalls,
             finishReason = lastFinishReason,
@@ -777,13 +858,23 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                                 is MultimodalContent.ImageBase64 ->
                                     contentArr.put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", "data:${c.mimeType};base64,${c.base64}")))
                                 is MultimodalContent.AudioUrl ->
-                                    contentArr.put(JSONObject().put("type", "input_audio").put("input_audio", JSONObject().put("data", c.url)))
+                                    contentArr.put(JSONObject().put("type", "audio_url").put("audio_url", JSONObject().put("url", c.url)))
                                 is MultimodalContent.AudioBase64 ->
-                                    contentArr.put(JSONObject().put("type", "input_audio").put("input_audio", JSONObject().put("data", "data:${c.mimeType};base64,${c.base64}")))
+                                    contentArr.put(JSONObject().put("type", "audio_url").put("audio_url", JSONObject().put("url", "data:${c.mimeType};base64,${c.base64}")))
                                 is MultimodalContent.VideoUrl ->
-                                    contentArr.put(JSONObject().put("type", "video_url").put("video_url", JSONObject().put("url", c.url)).put("fps", c.fps).put("media_resolution", c.mediaResolution))
+                                    contentArr.put(JSONObject().put("type", "video_url").put("video_url", JSONObject().apply {
+                                        put("url", c.url)
+                                        put("detail", "high")
+                                        put("max_frames", 16)
+                                        put("fps", c.fps)
+                                    }))
                                 is MultimodalContent.VideoBase64 ->
-                                    contentArr.put(JSONObject().put("type", "video_url").put("video_url", JSONObject().put("url", "data:${c.mimeType};base64,${c.base64}")).put("fps", c.fps).put("media_resolution", c.mediaResolution))
+                                    contentArr.put(JSONObject().put("type", "video_url").put("video_url", JSONObject().apply {
+                                        put("url", "data:${c.mimeType};base64,${c.base64}")
+                                        put("detail", "high")
+                                        put("max_frames", 16)
+                                        put("fps", c.fps)
+                                    }))
                             }
                         }
                         put(JSONObject().put("role", apiRole).put("content", contentArr))
@@ -1146,7 +1237,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 }
 
                 onDone(StreamResult(
-                    content = if (finalContent.isNotBlank()) finalContent else finalReasoning,
+                    content = finalContent,
                     reasoning = finalReasoning,
                     toolCalls = toolCalls,
                     finishReason = lastStopReason,

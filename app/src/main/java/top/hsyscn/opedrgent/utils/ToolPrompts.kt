@@ -8,6 +8,23 @@ object ToolPrompts {
         toolPromptCache[toolName]?.let { return it }
 
         val prompt = when (toolName) {
+            "open_browser" -> """
+## open_browser - 打开网页
+
+在浏览器中打开指定的URL。
+
+**使用场景：**
+- 用户要求打开某个网页时
+- 需要浏览网页内容时
+- 验证URL是否可访问时
+
+**参数：**
+- `url` (必填): 要打开的网页URL
+
+**调用示例：**
+{"url": "https://example.com"}
+""".trimIndent()
+
             "web_search" -> """
 ## web_search - 快速搜索
 
@@ -296,6 +313,31 @@ object ToolPrompts {
 - 输出内容较长，注意不要塞满上下文窗口
 """.trimIndent()
 
+            "health_read" -> """
+## health_read - 运动健康
+
+读取用户的运动健康数据，包括步数、心率、睡眠、卡路里等。
+
+**三种查询类型：**
+1. **summary** - 今日运动摘要（步数、心率、距离、卡路里）
+2. **steps** - 最近N天步数统计（可指定天数，默认7天）
+3. **sleep** - 最近睡眠数据
+
+**使用场景：**
+- 用户询问运动、健康、步数相关问题
+- 需要基于健康数据给出建议
+- 用户要求查看今日运动量
+
+**参数：**
+- `query_type` (必填): summary / steps / sleep
+- `days` (可选): 查询天数，仅 steps 模式有效
+
+**调用示例：**
+{"query_type": "summary"}
+{"query_type": "steps", "days": 7}
+{"query_type": "sleep"}
+""".trimIndent()
+
             else -> ""
         }
 
@@ -305,6 +347,7 @@ object ToolPrompts {
 
     fun getAllToolPrompts(): Map<String, String> {
         return mapOf(
+            "open_browser" to getToolPrompt("open_browser"),
             "web_search" to getToolPrompt("web_search"),
             "deep_research" to getToolPrompt("deep_research"),
             "read_url" to getToolPrompt("read_url"),
@@ -315,6 +358,7 @@ object ToolPrompts {
             "load_skill" to getToolPrompt("load_skill"),
             "todowrite" to getToolPrompt("todowrite"),
             "recall" to getToolPrompt("recall"),
+            "health_read" to getToolPrompt("health_read"),
         ).filter { it.value.isNotBlank() }
     }
 
