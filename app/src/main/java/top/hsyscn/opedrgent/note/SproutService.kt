@@ -333,27 +333,50 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         }
         if (tryParse.isSuccess) return tryParse
 
-        // 第二次尝试：用正则逐字段提取
+        // 第二次尝试：用正则逐字段提取（支持多篇文章）
         DebugLog.w("SproutService: standard JSON parse failed, trying regex extraction")
         return try {
             val summary = Regex("\"summary\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
-            val title = Regex("\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
-            val seed = Regex("\"seed\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
-            val ahaMoment = Regex("\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
 
-            // body 可能很长且含换行，用贪心匹配到最后一个 } 之前
-            val body = Regex("\"body\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"", RegexOption.DOT_MATCHES_ALL).find(fixed)?.groupValues?.get(1) ?: ""
+            // 提取所有文章块：匹配 { "title": "...", "seed": "...", "body": "..." }
+            val articleSections = mutableListOf<ArticleSection>()
+            val articlePattern = Regex(
+                "\\{\\s*\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"\\s*,\\s*\"seed\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"\\s*,\\s*\"body\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"(?:\\s*,\\s*\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\")?(?:\\s*,\\s*\"importance\"\\s*:\\s*(\\d+))?\\s*\\}",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            for (match in articlePattern.findAll(fixed)) {
+                val title = match.groupValues[1].replace("\\\"", "\"")
+                val seed = match.groupValues[2].replace("\\n", "\n").replace("\\\"", "\"")
+                val body = match.groupValues[3].replace("\\n", "\n").replace("\\\"", "\"")
+                val ahaMoment = match.groupValues[4].replace("\\\"", "\"")
+                val importance = match.groupValues[5].toIntOrNull()?.coerceIn(1, 5) ?: 3
+                if (title.isNotBlank() || body.isNotBlank()) {
+                    articleSections.add(ArticleSection(
+                        title = title, seed = seed, body = body,
+                        ahaMoment = ahaMoment, importance = importance,
+                    ))
+                }
+            }
 
+            if (articleSections.isEmpty()) {
+                // 最后兜底：只提取 title 和 body
+                val title = Regex("\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
+                val body = Regex("\"body\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"", RegexOption.DOT_MATCHES_ALL).find(fixed)?.groupValues?.get(1) ?: ""
+                if (title.isNotBlank() || body.isNotBlank()) {
+                    articleSections.add(ArticleSection(
+                        title = title.replace("\\\"", "\""),
+                        seed = "", body = body.replace("\\n", "\n").replace("\\\"", "\""),
+                        ahaMoment = "",
+                    ))
+                }
+            }
+
+            DebugLog.i("SproutService: regex extracted ${articleSections.size} articles")
             val article = SproutArticle(
                 generatedAt = System.currentTimeMillis(),
                 modelUsed = "",
                 summary = summary.replace("\\n", "\n").replace("\\\"", "\""),
-                articles = listOf(ArticleSection(
-                    title = title.replace("\\\"", "\""),
-                    seed = seed.replace("\\n", "\n").replace("\\\"", "\""),
-                    body = body.replace("\\n", "\n").replace("\\\"", "\""),
-                    ahaMoment = ahaMoment.replace("\\\"", "\""),
-                ))
+                articles = articleSections
             )
             Result.success(article)
         } catch (e: Exception) {
