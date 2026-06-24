@@ -358,7 +358,9 @@ object ToolCallParser {
 
     fun parseToolCallFromComplete(text: String): List<ToolPart> {
         val parts = mutableListOf<ToolPart>()
-        TOOL_CALL_REGEX.findAll(text).forEach { match ->
+        // Decode HTML entities first — some LLMs encode < > & in tool calls
+        val decoded = decodeHtmlEntities(text)
+        TOOL_CALL_REGEX.findAll(decoded).forEach { match ->
             val block = parseToolCallBlock(match.value, match.groupValues[1].trim())
             if (block != null) {
                 parts.add(block)

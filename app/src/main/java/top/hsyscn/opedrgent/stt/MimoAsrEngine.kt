@@ -15,12 +15,14 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /**
@@ -80,8 +82,10 @@ class MimoAsrEngine(
 
     // ==================== 流式状态 ====================
 
-    /** 音频采样点缓冲区（16kHz mono float） */
-    private val audioBuffer = mutableListOf<Float>()
+    /** 音频采样点缓冲区（16kHz mono float），使用原始 FloatArray 避免自动装箱 */
+    private val audioBuffer = FloatArray(32000)  // 2秒容量，足够定时发送
+    /** 缓冲区中有效采样点数量（写指针） */
+    private val audioBufferCount = AtomicInteger(0)
     /** 流式会话是否活跃 */
     private val streamingActive = AtomicBoolean(false)
     /** 上次发送 chunk 的时间戳（用于定时发送） */
@@ -92,11 +96,12 @@ class MimoAsrEngine(
     private val confirmedText = StringBuilder()
     /** OkHttp 客户端（流式复用，超时更短） */
     private val streamingClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .build()
+        HttpClients.getClientWithTimeout(
+            connectSeconds = 10,
+            readSeconds = 60,
+            writeSeconds = 10,
+            callSeconds = 120
+        )
     }
 
     // ==================== 初始化 ====================
@@ -219,7 +224,7 @@ class MimoAsrEngine(
 
             sessionStartTimeMs = System.currentTimeMillis()
             lastChunkTimeMs = sessionStartTimeMs
-            audioBuffer.clear()
+            synchronized(audioBuffer) { audioBufferCount.set(0) }
             confirmedText.clear()
 
             DebugLog.i(TAG, "流式识别会话已启动")
@@ -230,8 +235,11 @@ class MimoAsrEngine(
                 while (isActive && streamingActive.get()) {
                     delay(100L)  // 100ms 轮询间隔
 
-                    val bufferSizeMs = if (audioBuffer.isEmpty()) 0L
-                    else (audioBuffer.size.toLong() * 1000L / TARGET_SAMPLE_RATE)
+                    val bufferSizeMs = run {
+                        val count = synchronized(audioBuffer) { audioBufferCount.get() }
+                        if (count == 0) 0L
+                        else (count.toLong() * 1000L / TARGET_SAMPLE_RATE)
+                    }
 
                     // 条件 A：缓冲区达到时间窗口 → 定时发送
                     val timeSinceLastChunk = System.currentTimeMillis() - lastChunkTimeMs
@@ -252,7 +260,7 @@ class MimoAsrEngine(
                 }
 
                 // 会话结束：发送剩余缓冲区
-                if (audioBuffer.isNotEmpty()) {
+                if (audioBufferCount.get() > 0) {
                     val finalChunk = sendBufferChunk()
                     if (finalChunk != null) {
                         confirmedText.append(vocabularyStore.applyVocabulary(finalChunk))
@@ -279,7 +287,7 @@ class MimoAsrEngine(
                 trySend(StreamingRecognitionState.Error("流式识别错误: ${e.message}"))
             } finally {
                 streamingActive.set(false)
-                audioBuffer.clear()
+                audioBufferCount.set(0)
             }
 
             close()
@@ -294,7 +302,18 @@ class MimoAsrEngine(
     fun feedAudioData(samples: FloatArray) {
         if (!streamingActive.get()) return
         synchronized(audioBuffer) {
-            for (s in samples) audioBuffer.add(s)
+            val available = audioBuffer.size - audioBufferCount.get()
+            if (samples.size > available) {
+                // 缓冲区将满：丢弃最旧的数据
+                val discard = samples.size - available
+                val remaining = audioBufferCount.get() - discard
+                if (remaining > 0) {
+                    System.arraycopy(audioBuffer, discard, audioBuffer, 0, remaining)
+                }
+                audioBufferCount.set(remaining)
+            }
+            System.arraycopy(samples, 0, audioBuffer, audioBufferCount.get(), samples.size)
+            audioBufferCount.addAndGet(samples.size)
         }
     }
 
@@ -323,8 +342,8 @@ class MimoAsrEngine(
         // 步骤1：从缓冲区取出数据（此时不清空）
         val chunkData: FloatArray
         synchronized(audioBuffer) {
-            if (audioBuffer.isEmpty()) return@withContext null
-            chunkData = audioBuffer.toFloatArray()
+            if (audioBufferCount.get() == 0) return@withContext null
+            chunkData = audioBuffer.copyOf(audioBufferCount.get())
             // 注意：这里暂不 clear()，等成功后再清空
         }
 
@@ -387,13 +406,13 @@ class MimoAsrEngine(
             // 步骤3：成功 - 清空缓冲区并更新时间戳
             synchronized(audioBuffer) {
                 // 移除已发送的数据（从头部移除 chunkData.size 个元素）
-                if (audioBuffer.size >= chunkData.size) {
-                    val remaining = audioBuffer.drop(chunkData.size)
-                    audioBuffer.clear()
-                    audioBuffer.addAll(remaining)
+                if (audioBufferCount.get() >= chunkData.size) {
+                    val remaining = audioBufferCount.get() - chunkData.size
+                    System.arraycopy(audioBuffer, chunkData.size, audioBuffer, 0, remaining)
+                    audioBufferCount.set(remaining)
                 } else {
                     // 异常情况：缓冲区被外部修改过，直接清空
-                    audioBuffer.clear()
+                    audioBufferCount.set(0)
                 }
                 lastChunkTimeMs = System.currentTimeMillis()
             }
@@ -419,37 +438,54 @@ class MimoAsrEngine(
     private fun restoreChunkToBuffer(chunkData: FloatArray) {
         synchronized(audioBuffer) {
             // 将 chunk 数据插回缓冲区头部（保持时间顺序）
-            val tempList = chunkData.toMutableList()
-            tempList.addAll(audioBuffer)
-            audioBuffer.clear()
-            audioBuffer.addAll(tempList)
-            
-            DebugLog.d(TAG, "已回填 ${chunkData.size} 个采样点到缓冲区（当前缓冲区大小=${audioBuffer.size}）")
+            val totalNeeded = chunkData.size + audioBufferCount.get()
+            if (totalNeeded <= audioBuffer.size) {
+                // 先把现有数据后移，再把 chunkData 放到头部
+                System.arraycopy(audioBuffer, 0, audioBuffer, chunkData.size, audioBufferCount.get())
+                System.arraycopy(chunkData, 0, audioBuffer, 0, chunkData.size)
+                audioBufferCount.set(totalNeeded)
+            } else {
+                // 缓冲区不够：只保留能放下的部分
+                val keepFromChunk = audioBuffer.size - audioBufferCount.get()
+                if (keepFromChunk > 0) {
+                    System.arraycopy(audioBuffer, 0, audioBuffer, keepFromChunk, audioBufferCount.get())
+                    System.arraycopy(chunkData, 0, audioBuffer, 0, keepFromChunk)
+                    audioBufferCount.set(audioBuffer.size)
+                }
+                DebugLog.w(TAG, "回填缓冲区空间不足，丢弃 ${chunkData.size - keepFromChunk} 个采样点")
+            }
+            DebugLog.d(TAG, "已回填 ${chunkData.size} 个采样点到缓冲区（当前缓冲区大小=${audioBufferCount.get()}）")
         }
     }
 
     /**
      * 检测缓冲区尾部是否存在足够长的静音段。
      * 用于在用户说话停顿时提前发送 chunk，减少感知延迟。
+     * 只检测尾部窗口，避免全量拷贝缓冲区。
      */
     private fun detectTrailingSilence(silenceDurationMs: Long): Boolean {
-        val data: FloatArray
-        synchronized(audioBuffer) { data = audioBuffer.toFloatArray() }
-        if (data.size < TARGET_SAMPLE_RATE / 2) return false  // 至少半秒数据才检测
+        val currentCount = audioBufferCount.get()
+        if (currentCount < TARGET_SAMPLE_RATE / 2) return false  // 至少半秒数据才检测
 
         val windowSize = (TARGET_SAMPLE_RATE * VAD_WINDOW_MS / 1000).coerceAtLeast(32).toInt()
         val hopSize = windowSize / 2
         val requiredFrames = ((silenceDurationMs / VAD_WINDOW_MS).toInt()).coerceAtLeast(3)
 
-        var consecutiveSilentFrames = 0
-        val startFrame = (data.size - windowSize) / hopSize - requiredFrames
+        // 只检测尾部窗口，不需要全量拷贝
+        val tailSamples = (requiredFrames + 1) * hopSize + windowSize
+        val startSample = maxOf(0, currentCount - tailSamples)
+        val endSample = currentCount
 
-        for (i in maxOf(0, startFrame) until (data.size - windowSize) / hopSize) {
-            val offset = i * hopSize
+        var consecutiveSilentFrames = 0
+        val startFrame = maxOf(0, (endSample - startSample - windowSize) / hopSize - requiredFrames)
+
+        for (i in startFrame until (endSample - startSample - windowSize) / hopSize) {
+            val offset = startSample + i * hopSize
             var sumSq = 0.0
-            val end = minOf(offset + windowSize, data.size)
+            val end = minOf(offset + windowSize, currentCount)
             for (j in offset until end) {
-                sumSq += data[j] * data[j]
+                val sample = audioBuffer[j]
+                sumSq += sample * sample
             }
             val rms = if (end > offset) kotlin.math.sqrt(sumSq / (end - offset)) else 0.0
             val db = if (rms > 1e-8) 20.0 * kotlin.math.log10(rms) else -96.0
@@ -483,37 +519,40 @@ class MimoAsrEngine(
         DebugLog.i(TAG, "API 端点: https://api.xiaomimimo.com/v1/chat/completions")
         DebugLog.i(TAG, "API Key 前缀: ${apiSettings.getApiKey()?.take(6)}..., sttEngine=${apiSettings.getSttEngine()}")
 
-        // VAD 预处理：解码 WAV → 检测静音 → 裁剪前后静音 → 重新编码
-        val processedFile = preprocessAudio(file)
-        DebugLog.d(TAG, "VAD 后文件: ${processedFile.name}, 大小=${processedFile.length() / 1024}KB")
+        // VAD 预处理：解码 WAV → 检测静音 → 裁剪前后静音（直接返回浮点数据，省一次解码+磁盘往返）
+        var rawFloats = preprocessAudio(file)
+        DebugLog.d(TAG, "VAD 后: ${rawFloats.size} samples, ${rawFloats.size / TARGET_SAMPLE_RATE}s")
+
+        // VAD 返回空时（解码失败），尝试直接解码原文件
+        if (rawFloats.isEmpty()) {
+            rawFloats = AudioProcessor.decodeWavToFloat(file)
+            DebugLog.d(TAG, "VAD 返回空，直接解码原文件: ${rawFloats.size} samples")
+        }
+        if (rawFloats.isEmpty()) {
+            DebugLog.e(TAG, "音频解码失败（VAD和直接解码都返回空）")
+            return SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID)
+        }
 
         // 噪声抑制预处理
-        val rawFloats = AudioProcessor.decodeWavToFloat(processedFile)
-        DebugLog.d(TAG, "解码 WAV: ${rawFloats.size} samples, ${rawFloats.size / TARGET_SAMPLE_RATE}s")
-
-        val suppressed = if (rawFloats.isNotEmpty()) {
-            AudioProcessor.applyNoiseSuppression(rawFloats)
-        } else rawFloats
-
-        val finalFile = if (suppressed !== rawFloats && suppressed.isNotEmpty()) {
-            val outFile = File(context.cacheDir, "mimo_ns_${System.currentTimeMillis()}.wav")
-            AudioProcessor.saveAsWav(
-                suppressed,
-                AudioMetadata(sampleRate = 16000, channels = 1, bitDepth = 16),
-                outFile.absolutePath,
-            )
-            if (processedFile != file) processedFile.delete()  // 清理 VAD 中间文件
-            DebugLog.d(TAG, "降噪后文件: ${outFile.name}, 大小=${outFile.length() / 1024}KB")
-            outFile
-        } else {
-            if (processedFile != file) processedFile.delete()
-            processedFile
+        val suppressed = AudioProcessor.applyNoiseSuppression(rawFloats)
+        val finalFloats = if (suppressed.isNotEmpty()) suppressed else rawFloats
+        if (suppressed !== rawFloats) {
+            DebugLog.d(TAG, "噪声抑制: ${rawFloats.size} → ${finalFloats.size} samples")
         }
+
+        // 保存为 WAV 文件用于 Base64 编码（统一一个最终文件，省去 VAD 中间文件）
+        val finalFile = File(context.cacheDir, "mimo_final_${System.currentTimeMillis()}.wav")
+        AudioProcessor.saveAsWav(
+            finalFloats,
+            AudioMetadata(sampleRate = 16000, channels = 1, bitDepth = 16),
+            finalFile.absolutePath,
+        )
+        DebugLog.d(TAG, "最终音频文件: ${finalFile.name}, 大小=${finalFile.length() / 1024}KB")
 
         // 编码为 Base64
         val base64Audio = encodeToBase64(finalFile)
         DebugLog.d(TAG, "Base64 编码后: ${base64Audio.length} 字符")
-        if (finalFile != file) finalFile.delete()
+        finalFile.delete()
 
         if (base64Audio.isEmpty()) {
             DebugLog.e(TAG, "Base64 编码结果为空，音频数据可能已被全部清除")
@@ -547,11 +586,7 @@ class MimoAsrEngine(
         val requestBodyStr = jsonBody.toString()
         DebugLog.d(TAG, "API 请求体大小: ${requestBodyStr.length} 字符, 前200字符: ${requestBodyStr.take(200)}")
 
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
+        val client = HttpClients.longRunning
 
         val request = buildAuthHeader(
             Request.Builder()
@@ -625,33 +660,37 @@ class MimoAsrEngine(
     }
 
     /**
-     * VAD 预处理：解码 WAV → 能量检测 → 裁剪首尾静音 → 返回处理后的文件。
+     * VAD 预处理：解码 WAV → 能量检测 → 裁剪首尾静音 → 返回处理后的浮点数据。
      *
-     * 阈值设置：-50dB 比之前的 -40dB 更宽松，避免在安静环境下把有效语音误判为静音。
-     * 保护逻辑：保留至少 50% 音频（之前 30% 太激进），短音频 (<3s) 跳过 VAD 直接返回原文件。
+     * 直接返回 FloatArray 而非文件，避免调用方二次解码（省一次完整解码+磁盘往返）。
+     * 阈值 -50dB，保留至少 50% 音频，短音频 (<3s) 跳过 VAD。
+     *
+     * @return VAD 处理后的浮点数据；解码失败返回空数组
      */
-    private fun preprocessAudio(file: File): File {
+    private fun preprocessAudio(file: File): FloatArray {
         return try {
             val audioData = AudioProcessor.decodeWavToFloat(file)
             DebugLog.d(TAG, "VAD 输入: ${audioData.size} samples, ${file.length() / 1024}KB, ${audioData.size / TARGET_SAMPLE_RATE}s")
             if (audioData.isEmpty()) {
                 DebugLog.w(TAG, "VAD: 解码后音频为空")
-                return file
+                return audioData
             }
 
             // 短音频 (<3秒) 跳过 VAD，避免过度裁剪
             val durationSec = audioData.size.toFloat() / TARGET_SAMPLE_RATE
             if (durationSec < 3.0f) {
                 DebugLog.d(TAG, "VAD: 音频仅 ${durationSec}s (<3s)，跳过 VAD 预处理")
-                return file
+                return audioData
             }
 
             val windowSize = (TARGET_SAMPLE_RATE * 0.02).toInt()  // 20ms 窗口
             val hopSize = windowSize / 2
-            val thresholdDb = -50.0  // 更宽松的阈值（原-40dB太严格）
-            val silenceFrames = mutableListOf<Int>()
+            val thresholdDb = -50.0
             val totalFrames = (audioData.size - windowSize) / hopSize
 
+            // 用 BooleanArray 标记静音帧，避免大 Set 分配（省~2MB临时对象）
+            val isSilent = BooleanArray(totalFrames) { false }
+            var silentCount = 0
             for (i in 0 until totalFrames) {
                 val start = i * hopSize
                 var sumSq = 0.0
@@ -660,47 +699,49 @@ class MimoAsrEngine(
                 }
                 val rms = if (windowSize > 0) kotlin.math.sqrt(sumSq / windowSize) else 0.0
                 val db = if (rms > 1e-10) 20.0 * kotlin.math.log10(rms) else -96.0
-                if (db < thresholdDb) silenceFrames.add(i)
+                if (db < thresholdDb) {
+                    isSilent[i] = true
+                    silentCount++
+                }
             }
 
-            DebugLog.d(TAG, "VAD: 总帧数=$totalFrames, 静音帧=${silenceFrames.size}, 阈值=${thresholdDb}dB")
+            DebugLog.d(TAG, "VAD: 总帧数=$totalFrames, 静音帧=$silentCount, 阈值=${thresholdDb}dB")
 
-            if (silenceFrames.size < 5) {
-                DebugLog.d(TAG, "VAD: 静音帧太少(${silenceFrames.size}<5)，跳过裁剪")
-                return file
+            if (silentCount < 5) {
+                DebugLog.d(TAG, "VAD: 静音帧太少($silentCount<5)，跳过裁剪")
+                return audioData
             }
 
-            val allFrames = (0 until totalFrames).toSet()
-            val voiceFrames = allFrames - silenceFrames.toSet()
-            if (voiceFrames.isEmpty()) {
-                DebugLog.w(TAG, "VAD: 整段音频都是静音，返回原文件")
-                return file
+            // 找首尾语音帧（无需创建 Set，O(n) 单次遍历）
+            var firstVoice = -1
+            var lastVoice = -1
+            for (i in 0 until totalFrames) {
+                if (!isSilent[i]) {
+                    if (firstVoice < 0) firstVoice = i
+                    lastVoice = i
+                }
+            }
+            if (firstVoice < 0) {
+                DebugLog.w(TAG, "VAD: 整段音频都是静音，返回原音频")
+                return audioData
             }
 
-            val firstVoice = voiceFrames.minOf { it } * hopSize
-            val lastVoice = voiceFrames.maxOf { it } * hopSize + windowSize
-            val startSample = firstVoice.coerceAtLeast(0).coerceAtMost(audioData.size)
-            val endSample = lastVoice.coerceAtMost(audioData.size).coerceAtLeast(0)
+            val startSample = (firstVoice * hopSize).coerceAtLeast(0).coerceAtMost(audioData.size)
+            val endSample = (lastVoice * hopSize + windowSize).coerceAtMost(audioData.size).coerceAtLeast(0)
 
-            // 保护：保留至少 50% 音频（原 30% 太激进）
+            // 保护：保留至少 50% 音频
             val keepRatio = (endSample - startSample).toFloat() / audioData.size
             if (endSample <= startSample || keepRatio < 0.5f) {
                 DebugLog.w(TAG, "VAD: 裁剪后仅剩 ${(keepRatio * 100).toInt()}%(<50%)，跳过裁剪")
-                return file
+                return audioData
             }
 
             val trimmed = audioData.copyOfRange(startSample, endSample)
-            val outFile = File(context.cacheDir, "mimo_vad_${System.currentTimeMillis()}.wav")
-            AudioProcessor.saveAsWav(
-                trimmed,
-                AudioMetadata(sampleRate = 16000, channels = 1, bitDepth = 16),
-                outFile.absolutePath,
-            )
-            DebugLog.i(TAG, "VAD 裁剪: ${audioData.size} → ${trimmed.size} samples (${file.length() / 1024}KB → ${outFile.length() / 1024}KB), 保留 ${(keepRatio * 100).toInt()}%")
-            outFile
+            DebugLog.i(TAG, "VAD 裁剪: ${audioData.size} → ${trimmed.size} samples, 保留 ${(keepRatio * 100).toInt()}%")
+            trimmed
         } catch (e: Exception) {
-            DebugLog.w(TAG, "VAD 预处理失败，使用原始音频: ${e.message}")
-            file
+            DebugLog.w(TAG, "VAD 预处理失败: ${e.message}")
+            FloatArray(0)
         }
     }
 

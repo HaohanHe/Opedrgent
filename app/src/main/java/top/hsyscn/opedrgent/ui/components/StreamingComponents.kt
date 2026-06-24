@@ -99,28 +99,45 @@ fun StreamingCard(
     toolParts: List<ToolPart>,
     phase: String = "",
 ) {
-    var displayText by remember { mutableStateOf("") }
-    var isComplete by remember { mutableStateOf(false) }
+    var displayText by remember(text.isNotEmpty()) { mutableStateOf("") }
+    var isComplete by remember(text.isNotEmpty()) { mutableStateOf(false) }
+    // Track previous text length to detect genuinely new messages (text reset) vs character increments
+    var lastTextLen by remember { mutableStateOf(0) }
 
-    LaunchedEffect(text) {
-        if (text.length > displayText.length) {
-            val newPart = text.substring(displayText.length)
-            val totalLen = text.length
-            var idx = 0
-            while (idx < newPart.length) {
-                val baseStep = adaptiveStep(totalLen)
-                val end = (idx + baseStep).coerceAtMost(newPart.length)
-                val snapped = snapToWord(newPart, idx, end)
-                val chunk = newPart.substring(idx, snapped)
-                displayText += chunk
-                idx = snapped
-                delay(STREAMING_PACE_MS)
+    // Use Unit key to avoid restarting coroutine on every character update.
+    // Manually check for new message (text length decreased) inside.
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (text.length < lastTextLen) {
+                // Text went backwards => new message, reset immediately
+                displayText = text
+                isComplete = false
+                lastTextLen = text.length
+            } else if (text.length > lastTextLen) {
+                // New characters arrived — animate them in
+                isComplete = false // Not complete while actively receiving
+                val newPart = text.substring(lastTextLen.coerceAtMost(displayText.length))
+                val totalLen = text.length
+                var idx = 0
+                while (idx < newPart.length) {
+                    val baseStep = adaptiveStep(totalLen)
+                    val end = (idx + baseStep).coerceAtMost(newPart.length)
+                    val snapped = snapToWord(newPart, idx, end)
+                    val chunk = newPart.substring(idx, snapped)
+                    displayText += chunk
+                    idx = snapped
+                    delay(STREAMING_PACE_MS)
+                }
+                lastTextLen = text.length
+            } else if (text.length == lastTextLen && text.isNotEmpty() && !isComplete) {
+                // No new chars for 2+ polls AND displayText is caught up => truly complete
+                // Wait one extra poll cycle to confirm no more chars arriving
+                delay(50)
+                if (text.length == lastTextLen) {
+                    isComplete = true
+                }
             }
-            isComplete = true
-        } else if (text.length < displayText.length) {
-            displayText = text
-        } else if (text.length == displayText.length && text.isNotEmpty()) {
-            isComplete = true
+            delay(50) // Poll interval — lightweight, avoids busy-loop
         }
     }
 
@@ -167,7 +184,8 @@ fun StreamingCard(
 
             if (hasText) {
                 if (isComplete) {
-                    StreamingMarkdownText(text = displayText, maxChars = 900)
+                    // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
+                    StreamingMarkdownText(text = displayText, maxChars = Int.MAX_VALUE)
                 } else {
                     Text(
                         text = displayText,
@@ -375,6 +393,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
     }
 
     Column {
+        // Row 1: icon + tool name + count | expand icon + progress (always single line)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -396,17 +415,8 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
                 fontWeight = FontWeight.SemiBold,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
+                maxLines = 1,
             )
-            // 显示所有查询的摘要
-            val queries = parts.mapNotNull { extractCleanQuery(it.state.input).ifBlank { null } }
-            if (queries.isNotEmpty() && !expanded) {
-                Text(
-                    text = queries.joinToString(", ").take(50) + if (queries.joinToString(", ").length > 50) "..." else "",
-                    fontSize = 11.sp,
-                    color = themeTextGrey(),
-                    maxLines = 1,
-                )
-            }
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = null,
@@ -420,6 +430,17 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
                     color = AccentBlue,
                 )
             }
+        }
+        // Row 2: query summary (collapsible, single line with ellipsis)
+        val queries = parts.mapNotNull { extractCleanQuery(it.state.input).ifBlank { null } }
+        if (queries.isNotEmpty() && !expanded) {
+            Text(
+                text = queries.joinToString(", ").take(60) + if (queries.joinToString(", ").length > 60) "..." else "",
+                fontSize = 11.sp,
+                color = themeTextGrey(),
+                maxLines = 1,
+                modifier = Modifier.padding(start = 22.dp),
+            )
         }
         if (expanded) {
             Column(

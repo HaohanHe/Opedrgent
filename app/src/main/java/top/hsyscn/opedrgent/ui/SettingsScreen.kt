@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -94,9 +95,11 @@ import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.llm.LocalLlmState
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
 import top.hsyscn.opedrgent.stt.ModelManager
+import top.hsyscn.opedrgent.stt.ModelManager.DownloadProgress
 import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.service.SttDownloadService
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
+import top.hsyscn.opedrgent.network.ModelFetcher
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import top.hsyscn.opedrgent.ui.components.SttModelDownloadDialog
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
@@ -128,12 +131,15 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
+    var segmentEnabled by rememberSaveable { mutableStateOf(vm.isSegmentEnabled()) }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
+    var calendarEnabled by rememberSaveable { mutableStateOf(vm.isCalendarEnabled()) }
+    var healthEnabled by rememberSaveable { mutableStateOf(vm.isHealthEnabled()) }
     var themeMode by rememberSaveable { mutableStateOf(vm.getThemeMode()) }
     var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
@@ -151,6 +157,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var localModelId by rememberSaveable { mutableStateOf(vm.getLocalModelId()) }
     var providerMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var modelMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var fetchedModels by remember { mutableStateOf<List<String>?>(null) }
+    var isFetchingModels by remember { mutableStateOf(false) }
     val memoryCount by remember { derivedStateOf { vm.state.value.memories.size } }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -173,6 +181,28 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         } else {
             locationEnabled = false
             scope.launch { snackbar.showSnackbar("未授予位置权限") }
+        }
+    }
+    val calendarPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        val allGranted = results.values.all { it }
+        if (allGranted) {
+            calendarEnabled = true
+            vm.saveCalendarEnabled(true)
+        } else {
+            calendarEnabled = false
+            scope.launch { snackbar.showSnackbar("未授予日历权限") }
+        }
+    }
+    // Health Connect 权限请求（使用专用 PermissionController 合约）
+    val healthPermLauncher = rememberLauncherForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        if (granted.containsAll(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)) {
+            healthEnabled = true
+            vm.saveHealthEnabled(true)
+        } else {
+            healthEnabled = false
+            scope.launch { snackbar.showSnackbar("未授予全部健康数据权限") }
         }
     }
 
@@ -217,7 +247,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         "ja" to stringResource(R.string.language_japanese),
                     )
                     
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
                         languageOptions.forEach { (tag, label) ->
                             FilterChip(
                                 selected = appLanguage == tag,
@@ -261,7 +294,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         "dark" to Icons.Default.DarkMode,
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
                         themeOptions.forEach { (value, label) ->
                             FilterChip(
                                 selected = themeMode == value,
@@ -350,8 +386,31 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     trailingIcon = {
-                        val currentPreset = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }
-                        if (currentPreset != null && currentPreset.models.isNotEmpty()) {
+                        Row {
+                            // 从 API 实时获取模型列表
+                            IconButton(
+                                onClick = {
+                                    if (!isFetchingModels) {
+                                        isFetchingModels = true
+                                        scope.launch {
+                                            val result = ModelFetcher.fetchModels(baseUrl, apiKey)
+                                            fetchedModels = result
+                                            isFetchingModels = false
+                                            modelMenuExpanded = result != null
+                                            if (result == null) {
+                                                snackbar.showSnackbar("获取模型列表失败 — 请检查 API Key 是否正确，或查看日志详情")
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !isFetchingModels,
+                            ) {
+                                if (isFetchingModels) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Refresh, contentDescription = "从 API 获取模型列表")
+                                }
+                            }
                             IconButton(onClick = { modelMenuExpanded = true }) {
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = "展开模型")
                             }
@@ -359,16 +418,53 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     },
                 )
                 val currentPreset = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }
-                if (currentPreset != null && currentPreset.models.isNotEmpty()) {
+                // 合并：预置模型 + API 获取的模型（去重）
+                val presetModels = currentPreset?.models ?: emptyList()
+                val allModels = if (fetchedModels != null) {
+                    val merged = (presetModels + fetchedModels!!).distinct()
+                    merged
+                } else {
+                    presetModels
+                }
+                if (allModels.isNotEmpty()) {
                     DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
-                        currentPreset.models.forEach { m ->
+                        // 预置模型标题
+                        if (presetModels.isNotEmpty()) {
                             DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
-                                    model = m
-                                    modelMenuExpanded = false
-                                },
+                                text = { Text("预置模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
+                                onClick = {},
+                                enabled = false,
                             )
+                            presetModels.forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text(m) },
+                                    onClick = {
+                                        model = m
+                                        modelMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                        // API 获取的模型（排除已预置的）
+                        val apiOnlyModels = fetchedModels?.filter { it !in presetModels } ?: emptyList()
+                        if (apiOnlyModels.isNotEmpty()) {
+                            if (presetModels.isNotEmpty()) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            DropdownMenuItem(
+                                text = { Text("API 可用模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
+                                onClick = {},
+                                enabled = false,
+                            )
+                            apiOnlyModels.forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text(m) },
+                                    onClick = {
+                                        model = m
+                                        modelMenuExpanded = false
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -701,6 +797,70 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     )
                                 }
                                 Switch(checked = hrEnabled, onCheckedChange = { hrEnabled = it; vm.saveHrEnabled(it) })
+                            }
+                            // 分段识别开关（长音频优化）
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "分段识别", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        text = "长音频自动分段处理，提升识别速度（推荐开启）",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = themeTextGrey(),
+                                    )
+                                }
+                                Switch(checked = segmentEnabled, onCheckedChange = { segmentEnabled = it; vm.saveSegmentEnabled(it) })
+                            }
+                            // HR 资源下载按钮（未下载时显示）
+                            val hrDownloaded = remember { mutableStateOf(ModelManager.isHrDownloaded(context)) }
+                            if (!hrDownloaded.value) {
+                                var hrDownloading by remember { mutableStateOf(false) }
+                                var hrProgress by remember { mutableStateOf(0f) }
+                                var hrError by remember { mutableStateOf<String?>(null) }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "同音字资源未下载",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                        Text(
+                                            text = "需从 GitHub 下载 (~5MB)，连不上可跳过",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = themeTextGrey(),
+                                        )
+                                    }
+                                    if (hrDownloading) {
+                                        CircularProgressIndicator(progress = { hrProgress }, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        TextButton(onClick = {
+                                            hrDownloading = true
+                                            hrError = null
+                                            scope.launch {
+                                                ModelManager.downloadHrResources(context).collect { progress ->
+                                                    when (progress) {
+                                                        is DownloadProgress.Downloading -> hrProgress = progress.progress
+                                                        is DownloadProgress.Complete -> {
+                                                            hrDownloading = false
+                                                            hrDownloaded.value = true
+                                                        }
+                                                        is DownloadProgress.Error -> {
+                                                            hrDownloading = false
+                                                            hrError = progress.message
+                                                        }
+                                                        else -> {}
+                                                    }
+                                                }
+                                            }
+                                        }) {
+                                            Text("下载", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                                hrError?.let {
+                                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                }
                             }
                         } else {
                             Row(
@@ -1416,6 +1576,59 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             vm.saveDebugMode(it)
                         })
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = stringResource(R.string.settings_calendar), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = stringResource(R.string.settings_calendar_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(checked = calendarEnabled, onCheckedChange = {
+                            if (it) {
+                                calendarPermLauncher.launch(
+                                    arrayOf(
+                                        android.Manifest.permission.READ_CALENDAR,
+                                        android.Manifest.permission.WRITE_CALENDAR,
+                                    )
+                                )
+                            } else {
+                                calendarEnabled = false
+                                vm.saveCalendarEnabled(false)
+                            }
+                        })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = stringResource(R.string.settings_health), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = stringResource(R.string.settings_health_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(checked = healthEnabled, onCheckedChange = {
+                            if (it) {
+                                // 先检查 Health Connect 是否可用
+                                val availability = top.hsyscn.opedrgent.health.HealthConnectHelper.getAvailability(context)
+                                when (availability) {
+                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.Available -> {
+                                        // 请求权限
+                                        healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
+                                    }
+                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.NeedsUpdate -> {
+                                        scope.launch { snackbar.showSnackbar("请先更新 Health Connect 应用") }
+                                        top.hsyscn.opedrgent.health.HealthConnectHelper.openHealthConnectSettings(context)
+                                    }
+                                    else -> {
+                                        scope.launch { snackbar.showSnackbar("设备不支持 Health Connect") }
+                                    }
+                                }
+                            } else {
+                                healthEnabled = false
+                                vm.saveHealthEnabled(false)
+                            }
+                        })
+                    }
                 }
             }
         }
@@ -1816,6 +2029,8 @@ Spacer(Modifier.height(12.dp))
                     vm.saveLocationEnabled(locationEnabled)
                     vm.saveDebugMode(debugMode)
                     vm.saveDeepThinking(deepThinkingEnabled)
+                    vm.saveCalendarEnabled(calendarEnabled)
+                    vm.saveHealthEnabled(healthEnabled)
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
                     vm.saveTavilyApiKey(tavilyApiKey.takeIf { it.isNotBlank() })
                     vm.saveBraveApiKey(braveApiKey.takeIf { it.isNotBlank() })

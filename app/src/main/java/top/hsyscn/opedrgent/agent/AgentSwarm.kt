@@ -273,6 +273,7 @@ $toolDesc
         val toolDefs = toolExecutor.getResearchToolDefinitions()
         val collectedOutput = StringBuilder()
         var rounds = 0
+        val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
 
         while (rounds < 5) {
             rounds++
@@ -292,14 +293,29 @@ $toolDesc
             // 有工具调用：执行工具，然后继续
             collectedOutput.append(result.content)
 
-            // 把 assistant 消息加入对话
+            // 把 assistant 消息加入对话（含 tool_calls 协议，P0-5 修复）
+            val apiCallsJson = JSONArray().apply {
+                result.toolCalls.forEach { tc ->
+                    put(JSONObject().apply {
+                        put("id", tc.id)
+                        put("type", "function")
+                        put("function", JSONObject().apply {
+                            put("name", tc.name)
+                            put("arguments", tc.arguments)
+                        })
+                    })
+                }
+            }.toString()
+
             messages.add(ChatMessage(
                 role = Role.ASSISTANT,
                 content = result.content,
                 createdAt = System.currentTimeMillis(),
+                apiToolCallsJson = apiCallsJson,
             ))
 
             // 执行每个工具调用
+            var guardrailBlocked = false
             for (tc in result.toolCalls) {
                 DebugLog.d(TAG, "Agent [${agent.name}] 调用工具: ${tc.name}")
                 val toolResult = try {
@@ -312,7 +328,31 @@ $toolDesc
                     role = Role.USER,
                     content = "工具 ${tc.name} 的结果:\n$toolResult",
                     createdAt = System.currentTimeMillis(),
+                    toolCallId = tc.id,
                 ))
+
+                // Guardrail: 检测doom loop和重复失败
+                val action = guardrail.record(
+                    toolName = tc.name,
+                    args = tc.arguments,
+                    result = toolResult,
+                    success = !toolResult.startsWith("工具执行失败"),
+                )
+                when (action) {
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT,
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
+                        DebugLog.w("AgentSwarm: guardrail ${action.name} for Agent [${agent.name}], tool=${tc.name}")
+                        guardrailBlocked = true
+                    }
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
+                        DebugLog.w("AgentSwarm: guardrail WARN for Agent [${agent.name}], tool=${tc.name}")
+                    }
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.ALLOW -> {}
+                }
+            }
+            if (guardrailBlocked) {
+                DebugLog.w("AgentSwarm: Agent [${agent.name}] 工具调用被guardrail终止")
+                break
             }
         }
 

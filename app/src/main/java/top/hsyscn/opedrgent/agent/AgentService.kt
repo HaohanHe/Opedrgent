@@ -33,7 +33,7 @@ class AgentService(
     companion object {
         private const val TAG = "AgentService"
         private const val MAX_ROUNDS = 10
-        private const val MAX_RETRIES = 3
+        private const val MAX_RETRIES = 5
     }
 
     // ==================== 状态定义 ====================
@@ -201,6 +201,7 @@ class AgentService(
         loopState = LoopState.RUNNING
         var retryCount = 0
         var currentRound = 0
+        val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
 
         try {
             while (currentRound < MAX_ROUNDS) {
@@ -212,7 +213,7 @@ class AgentService(
                 _state.value = _state.value.copy(currentRound = currentRound)
 
                 val outcome = try {
-                    executeOneRound(ctx, currentRound)
+                    executeOneRound(ctx, currentRound, guardrail)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -256,7 +257,7 @@ class AgentService(
         )
     }
 
-    private suspend fun executeOneRound(ctx: LoopContext, round: Int): LoopOutcome {
+    private suspend fun executeOneRound(ctx: LoopContext, round: Int, guardrail: top.hsyscn.opedrgent.utils.ToolCallGuardrail): LoopOutcome {
         val session = store.getSession(ctx.sessionId)
             ?: throw IllegalStateException("会话不存在: ${ctx.sessionId}")
 
@@ -379,6 +380,28 @@ class AgentService(
                 toolCallId = tc.id,
             )
             ctx.toolMessages.add(toolResultMsg)
+
+            // Guardrail: 检测doom loop和重复失败
+            val action = guardrail.record(
+                toolName = tc.name,
+                args = tc.arguments,
+                result = result,
+                success = !result.startsWith("工具执行失败"),
+            )
+            when (action) {
+                top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT,
+                top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
+                    DebugLog.w("AgentService: guardrail ${action.name}, tool=${tc.name}")
+                    _state.value = _state.value.copy(
+                        streamingPhase = "[工具调用保护] 检测到重复模式，已自动停止",
+                    )
+                    return LoopOutcome.Break
+                }
+                top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
+                    DebugLog.w("AgentService: guardrail WARN, tool=${tc.name}")
+                }
+                top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.ALLOW -> {}
+            }
         }
 
         return LoopOutcome.Continue

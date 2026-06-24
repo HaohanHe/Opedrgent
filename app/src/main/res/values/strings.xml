@@ -302,6 +302,10 @@
     <string name="settings_deep_thinking_desc">启用后模型会展示推理思考过程（支持 thinking 的模型）</string>
     <string name="settings_debug_mode">Debug 模式</string>
     <string name="settings_debug_mode_desc">开启后在 logcat 中输出详细日志（标签: Opedrgent）</string>
+    <string name="settings_calendar">日历访问</string>
+    <string name="settings_calendar_desc">AI 可查看/修改你的日程，用于日程管理和智能提醒</string>
+    <string name="settings_health">运动健康</string>
+    <string name="settings_health_desc">AI 可读取步数、心率等运动健康数据，用于健康分析和建议</string>
     <string name="settings_local_model_title">本地模型 (Gemma 4 离线)</string>
     <string name="settings_local_model_offline_desc">下载 Gemma 4 模型到设备，完全离线运行，无需网络连接</string>
     <string name="settings_select_model">选择模型 / 下载</string>

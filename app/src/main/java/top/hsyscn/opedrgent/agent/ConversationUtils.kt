@@ -77,9 +77,10 @@ $context
      * 条件：最近一条用户消息不是 auto-continue（防止死循环）+ 最近有工具调用。
      */
     fun shouldAutoContinue(messages: List<ChatMessage>): Boolean {
-        // 防止死循环：检查最近是否已经是 auto-continue
-        val lastUser = messages.lastOrNull { it.role == Role.USER }
-        if (lastUser != null && isAutoContinueMessage(lastUser.content)) {
+        // 防止死循环：检查最近几条用户消息是否有 auto-continue
+        // （不能只看最后一条，因为工具结果也是 USER 角色，会把 auto-continue 消息挤下去）
+        val recentUserMessages = messages.filter { it.role == Role.USER }.takeLast(3)
+        if (recentUserMessages.any { isAutoContinueMessage(it.content) }) {
             return false
         }
         // 检查最近是否有工具调用（说明 agent 正在工作中）

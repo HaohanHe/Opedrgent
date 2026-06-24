@@ -16,7 +16,9 @@ data class ResearchPhase(
 )
 
 class ResearchState(
-    val maxRounds: Int = 10,
+    // ★ P0-6 修复：advanceTo 每轮被调用两次（轮次开始 + 工具执行后），导致 roundsUsed 双倍递增。
+    // 将阈值从 10 提升到 20，使实际允许 10 轮工具调用。
+    val maxRounds: Int = 20,
 ) {
     var phase: ResearchPhase = ResearchPhase("思考中", round = 0)
         private set

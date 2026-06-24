@@ -88,6 +88,8 @@ val SproutChipBg = Color(0xFFF0EAD6)         // 标签暖色背景
 val SproutDivider = Color(0xFFE8E2D8)        // 暖色分割线（加深以确保可见）
 val SproutSeedText = Color(0xFF6B6B6B)       // 种子引文（比 #777 深，确保可读）
 val SproutMetaText = Color(0xFF9A9590)       // 元信息（日期/图标，比 #888 深）
+val SproutSummaryStart = Color(0xFF34D399)   // 摘要渐变起始色
+val SproutSummaryEnd = Color(0xFF059669)     // 摘要渐变结束色
 
 // Recording mode card
 val CoralRed = Color(0xFFFF5A5A)
@@ -112,6 +114,15 @@ val ChipWarningBg_Dark = Color(0xFF3D2E1A)
 val ChipSuccessBg_Dark = Color(0xFF1A3D1F)
 val ErrorBackground_Dark = Color(0xFF3D1A1A)
 val WarningBg_Dark = Color(0xFF3D3520)
+// Sprout dark variants
+val SproutBackground_Dark = Color(0xFF1A1C1A)
+val SproutQuoteBg_Dark = Color(0xFF2A2820)
+val SproutChipBg_Dark = Color(0xFF2A2518)
+val SproutDivider_Dark = Color(0xFF3A3830)
+val SproutSeedText_Dark = Color(0xFFB0B0B0)
+val SproutMetaText_Dark = Color(0xFF807A75)
+val SproutSummaryStart_Dark = Color(0xFF1B6B4A)
+val SproutSummaryEnd_Dark = Color(0xFF0D4030)
 
 // ========== Theme-aware composable helpers ==========
 @Composable fun themeBgGray() = if (isSystemInDarkTheme()) BgGray_Dark else BgGray
@@ -131,3 +142,11 @@ val WarningBg_Dark = Color(0xFF3D3520)
 @Composable fun themeChipSuccessBg() = if (isSystemInDarkTheme()) ChipSuccessBg_Dark else ChipSuccessBg
 @Composable fun themeErrorBackground() = if (isSystemInDarkTheme()) ErrorBackground_Dark else ErrorBackground
 @Composable fun themeWarningBg() = if (isSystemInDarkTheme()) WarningBg_Dark else WarningBg
+@Composable fun themeSproutBackground() = if (isSystemInDarkTheme()) SproutBackground_Dark else SproutBackground
+@Composable fun themeSproutQuoteBg() = if (isSystemInDarkTheme()) SproutQuoteBg_Dark else SproutQuoteBg
+@Composable fun themeSproutChipBg() = if (isSystemInDarkTheme()) SproutChipBg_Dark else SproutChipBg
+@Composable fun themeSproutDivider() = if (isSystemInDarkTheme()) SproutDivider_Dark else SproutDivider
+@Composable fun themeSproutSeedText() = if (isSystemInDarkTheme()) SproutSeedText_Dark else SproutSeedText
+@Composable fun themeSproutMetaText() = if (isSystemInDarkTheme()) SproutMetaText_Dark else SproutMetaText
+@Composable fun themeSproutSummaryStart() = if (isSystemInDarkTheme()) SproutSummaryStart_Dark else SproutSummaryStart
+@Composable fun themeSproutSummaryEnd() = if (isSystemInDarkTheme()) SproutSummaryEnd_Dark else SproutSummaryEnd

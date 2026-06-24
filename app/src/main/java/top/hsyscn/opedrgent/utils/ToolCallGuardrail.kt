@@ -67,6 +67,17 @@ class ToolCallGuardrail(
                 }
             }
 
+            // 3b. Doom loop 检测：连续相同 (tool + args) 调用 >= 3 次（不论成功/失败）
+            //     学自 Kilo Code —— LLM 反复调同一个工具期望不同结果 = 死循环
+            val doomLoopThreshold = 3
+            if (history.size >= doomLoopThreshold) {
+                val recent = history.takeLast(doomLoopThreshold)
+                if (recent.all { it.toolName == record.toolName && it.argsHash == record.argsHash }) {
+                    DebugLog.w("ToolCallGuardrail: doom loop detected — '${record.toolName}' called ${doomLoopThreshold}x with identical args")
+                    return Action.BLOCK
+                }
+            }
+
             // 4. 连续失败警告
             if (!success && history.size >= 2) {
                 val recent = history.takeLast(2)

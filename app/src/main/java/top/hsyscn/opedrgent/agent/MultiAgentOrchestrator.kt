@@ -10,6 +10,7 @@ import top.hsyscn.opedrgent.network.ToolDefinition
 import top.hsyscn.opedrgent.network.ToolExecutor
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.utils.ToolCallGuardrail
 
 /**
  * 多智能体编排器（Multi-Agent Orchestrator）
@@ -195,6 +196,7 @@ class MultiAgentOrchestrator(
         // 工具调用循环：LLM -> 工具 -> 反馈 -> 重复
         var toolRound = 0
         var finalContent = ""
+        val guardrail = ToolCallGuardrail()
 
         while (toolRound < maxToolRoundsPerAgent) {
             toolRound++
@@ -234,6 +236,7 @@ class MultiAgentOrchestrator(
             ))
 
             // 执行每个工具调用
+            var guardrailBlocked = false
             for (tc in result.toolCalls) {
                 DebugLog.d(TAG, "${agent.role} 调用工具: ${tc.name}")
                 val args = try {
@@ -249,6 +252,19 @@ class MultiAgentOrchestrator(
                     "工具执行失败: ${e.message}"
                 }
 
+                // Record result with guardrail and check for halt/block
+                val action = guardrail.record(tc.name, tc.arguments, toolResult, !toolResult.startsWith("工具执行失败"))
+                when (action) {
+                    ToolCallGuardrail.Action.HALT, ToolCallGuardrail.Action.BLOCK -> {
+                        DebugLog.w(TAG, "Guardrail $action for ${tc.name}: tool loop halted")
+                        guardrailBlocked = true
+                    }
+                    ToolCallGuardrail.Action.WARN -> {
+                        DebugLog.w(TAG, "Guardrail WARN for ${tc.name}")
+                    }
+                    ToolCallGuardrail.Action.ALLOW -> { /* continue */ }
+                }
+
                 // 将工具结果加入消息历史
                 messages.add(ChatMessage(
                     role = Role.USER,
@@ -256,6 +272,12 @@ class MultiAgentOrchestrator(
                     createdAt = System.currentTimeMillis(),
                     toolCallId = tc.id,
                 ))
+                if (guardrailBlocked) break
+            }
+            if (guardrailBlocked) {
+                DebugLog.w(TAG, "${agent.role} tool loop halted by guardrail")
+                finalContent = messages.lastOrNull { it.role == Role.ASSISTANT }?.content ?: ""
+                break
             }
         }
 

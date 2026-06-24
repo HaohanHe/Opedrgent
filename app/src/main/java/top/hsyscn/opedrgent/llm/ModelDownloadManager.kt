@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
 import okio.sink
+import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.service.ModelDownloadService
 import java.io.File
@@ -43,10 +44,7 @@ data class DownloadProgress(
 
 class ModelDownloadManager(private val context: Context) {
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+    private val httpClient = HttpClients.download.newBuilder()
         .followRedirects(true)
         .build()
 

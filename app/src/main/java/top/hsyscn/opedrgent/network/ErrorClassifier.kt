@@ -66,8 +66,10 @@ object ErrorClassifier {
         return if (retryAfter != null) error.copy(retryAfterMs = retryAfter) else error
     }
 
-    fun classify(exception: Exception, httpCode: Int?, responseBody: String? = null): ClassifiedError {
-        return classifyInternal(exception = exception, httpCode = httpCode, responseBody = responseBody)
+    fun classify(exception: Exception, httpCode: Int?, responseBody: String? = null, headers: Map<String, String> = emptyMap()): ClassifiedError {
+        val error = classifyInternal(exception = exception, httpCode = httpCode, responseBody = responseBody)
+        val retryAfter = parseRetryAfterMs(headers)
+        return if (retryAfter != null) error.copy(retryAfterMs = retryAfter) else error
     }
 
     fun isTransient(error: ClassifiedError): Boolean = error.isTransient
@@ -239,6 +241,46 @@ object ErrorClassifier {
                         shouldTriggerCircuitBreaker = true,
                         description = "CAPTCHA/challenge detected in exception message"
                     )
+                } else if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("超时")) {
+                    ClassifiedError(
+                        type = ClassifiedErrorType.TIMEOUT,
+                        action = RecommendedAction.RETRY,
+                        originalException = exception,
+                        httpStatusCode = null,
+                        isTransient = true,
+                        shouldTriggerCircuitBreaker = false,
+                        description = "Timeout: ${exception.message}"
+                    )
+                } else if (msg.contains("ssl") || msg.contains("certificate") || msg.contains("handshake")) {
+                    ClassifiedError(
+                        type = ClassifiedErrorType.SSL_ERROR,
+                        action = RecommendedAction.OPEN_CIRCUIT,
+                        originalException = exception,
+                        httpStatusCode = null,
+                        isTransient = false,
+                        shouldTriggerCircuitBreaker = true,
+                        description = "SSL/TLS error: ${exception.message}"
+                    )
+                } else if (msg.contains("dns") || msg.contains("resolve") || msg.contains("unknown host")) {
+                    ClassifiedError(
+                        type = ClassifiedErrorType.DNS_ERROR,
+                        action = RecommendedAction.OPEN_CIRCUIT,
+                        originalException = exception,
+                        httpStatusCode = null,
+                        isTransient = false,
+                        shouldTriggerCircuitBreaker = true,
+                        description = "DNS error: ${exception.message}"
+                    )
+                } else if (msg.contains("network") || msg.contains("connection") || msg.contains("refused")) {
+                    ClassifiedError(
+                        type = ClassifiedErrorType.NETWORK_ERROR,
+                        action = RecommendedAction.RETRY,
+                        originalException = exception,
+                        httpStatusCode = null,
+                        isTransient = true,
+                        shouldTriggerCircuitBreaker = false,
+                        description = "Network error: ${exception.message}"
+                    )
                 } else {
                     null
                 }
@@ -254,20 +296,20 @@ object ErrorClassifier {
         return when (httpCode) {
             401 -> ClassifiedError(
                 type = ClassifiedErrorType.AUTH_ERROR,
-                action = RecommendedAction.OPEN_CIRCUIT,
+                action = RecommendedAction.SKIP,
                 originalException = exception,
                 httpStatusCode = httpCode,
                 isTransient = false,
-                shouldTriggerCircuitBreaker = true,
+                shouldTriggerCircuitBreaker = false,
                 description = "API Key 无效或已过期，请检查设置"
             )
             402 -> ClassifiedError(
                 type = ClassifiedErrorType.BALANCE,
-                action = RecommendedAction.OPEN_CIRCUIT,
+                action = RecommendedAction.SKIP,
                 originalException = exception,
                 httpStatusCode = httpCode,
                 isTransient = false,
-                shouldTriggerCircuitBreaker = true,
+                shouldTriggerCircuitBreaker = false,
                 description = "账户余额不足，请及时充值"
             )
             421 -> ClassifiedError(
@@ -318,7 +360,7 @@ object ErrorClassifier {
                 originalException = exception,
                 httpStatusCode = httpCode,
                 isTransient = true,
-                shouldTriggerCircuitBreaker = false,
+                shouldTriggerCircuitBreaker = true,
                 description = "Server error (HTTP $httpCode)"
             )
             in 400..499 -> ClassifiedError(

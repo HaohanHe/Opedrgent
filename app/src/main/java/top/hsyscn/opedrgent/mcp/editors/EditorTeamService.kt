@@ -82,15 +82,18 @@ class EditorTeamService(
 
     // ==================== FeaturePipeline（拦截器链）====================
 
-    /** 编辑团执行流水线，预装成本追踪 Feature */
-    private val pipeline = FeaturePipeline.standard().also { pl ->
+    /** 编辑团执行流水线，预装成本追踪 Feature（延迟初始化，避免构造函数中调用 suspend 函数） */
+    private val _pipeline: FeaturePipeline by lazy {
+        val pl = FeaturePipeline.standard()
+        // install 是 suspend 函数，在 lazy 中通过 runBlocking 调用
         kotlinx.coroutines.runBlocking {
             pl.install(CostTrackerFeature())
         }
+        pl
     }
 
     /** 获取 Pipeline（供外部查询状态或安装额外 Feature） */
-    fun getPipeline(): FeaturePipeline = pipeline
+    fun getPipeline(): FeaturePipeline = _pipeline
 
     fun cancel() {
         isCancelled = true
@@ -762,7 +765,7 @@ $styleHint
 
         // 通过 Pipeline 执行
         return try {
-            pipeline.execute(context) { ctx ->
+            _pipeline.execute(context) { ctx ->
                 // === 实际 LLM 调用（Agent Block）===
                 withContext(Dispatchers.IO) {
                     val config = apiSettings.getApiConfig()
@@ -843,19 +846,36 @@ $userInput"""
 
     // ==================== 辅助方法 ====================
 
+    /** 编辑距离（Levenshtein Distance）— 局部定义，避免跨文件访问权限问题 */
+    private fun editDistance(a: String, b: String): Int {
+        val dp = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in dp.indices) dp[i][0] = i
+        for (j in dp[0].indices) dp[0][j] = j
+        for (i in a.indices) {
+            for (j in b.indices) {
+                dp[i + 1][j + 1] = minOf(
+                    dp[i][j + 1] + 1,
+                    dp[i + 1][j] + 1,
+                    dp[i][j] + if (a[i] == b[j]) 0 else 1
+                )
+            }
+        }
+        return dp[a.length][b.length]
+    }
+
     /** 根据角色名找最匹配的预设角色 */
     private fun findBestMatch(name: String, alias: String): EditorRole? {
         for (preset in EditorRole.allRoles) {
             if (name.contains(preset.displayName) || preset.displayName.contains(name)) return preset
             if (alias == preset.alias || name.contains(preset.alias)) return preset
         }
-        // 编辑斯距离模糊匹配
+        // 编辑距离模糊匹配
         return EditorRole.allRoles.minByOrNull {
-            levenshteinDistance(name.lowercase(), it.displayName.lowercase()) +
-            levenshteinDistance(alias.lowercase(), it.alias.lowercase())
+            editDistance(name.lowercase(), it.displayName.lowercase()) +
+            editDistance(alias.lowercase(), it.alias.lowercase())
         }?.takeIf { role ->
-            levenshteinDistance(name.lowercase(), role.displayName.lowercase()) < 5 ||
-            levenshteinDistance(alias.lowercase(), role.alias.lowercase()) < 3
+            editDistance(name.lowercase(), role.displayName.lowercase()) < 5 ||
+            editDistance(alias.lowercase(), role.alias.lowercase()) < 3
         }
     }
 

@@ -9,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayInputStream
@@ -16,11 +17,7 @@ import java.io.DataInputStream
 import java.util.concurrent.TimeUnit
 
 object MimoTtsClient {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpClients.longRunning
 
     private const val MIMO_TTS_URL = "https://api.xiaomimimo.com/v1/chat/completions"
     private const val MAX_TEXT_LENGTH = 2500

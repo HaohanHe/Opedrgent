@@ -105,6 +105,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
@@ -136,6 +137,7 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
+import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.BarBg
@@ -273,38 +275,46 @@ fun AppRoot(
         }
     }
 
+    // ★ P4-2 修复：消费 openBrowserUrl，真正打开系统浏览器
+    val browserContext = LocalContext.current
+    LaunchedEffect(state.openBrowserUrl) {
+        val url = state.openBrowserUrl
+        if (!url.isNullOrBlank()) {
+            try {
+                browserContext.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            } catch (e: Exception) {
+                DebugLog.e("openBrowserUrl: failed to open $url: ${e.message}")
+            }
+            vm.consumeOpenBrowserUrl()
+        }
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val activity = LocalContext.current as? android.app.Activity
     @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
     val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }
     val isLandscape = windowSizeClass?.widthSizeClass != WindowWidthSizeClass.Compact
 
-    Row(modifier = Modifier.fillMaxSize().background(BgGray)) {
+    Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (isLandscape) {
-            NavigationRail(containerColor = BgGray) {
+            NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                val navSelectedLabelColor = MaterialTheme.colorScheme.primary
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_home)) },
+                    label = { Text(stringResource(R.string.tab_home), color = if (selectedTab == MainTab.HOME) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.HOME,
                     onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = {
-                        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Note, contentDescription = null)
-                            BadgeDot(
-                                visible = state.pendingSproutCount > 0,
-                                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
-                            )
-                        }
-                    },
-                    label = { Text(stringResource(R.string.tab_notes)) },
+                    icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                    label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.NOTES,
                     onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                 )
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_recording)) },
+                    label = { Text(stringResource(R.string.tab_recording), color = if (selectedTab == MainTab.RECORDING) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.RECORDING,
                     onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                 )
@@ -318,13 +328,13 @@ fun AppRoot(
                             )
                         }
                     },
-                    label = { Text(stringResource(R.string.tab_ai)) },
+                    label = { Text(stringResource(R.string.tab_ai), color = if (selectedTab == MainTab.AI) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.AI,
                     onClick = { selectedTab = MainTab.AI; subScreen = null },
                 )
                 NavigationRailItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_settings)) },
+                    label = { Text(stringResource(R.string.tab_settings), color = if (selectedTab == MainTab.SETTINGS) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.SETTINGS,
                     onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
                 )
@@ -332,39 +342,33 @@ fun AppRoot(
         }
         Scaffold(
             modifier = Modifier.weight(1f),
-            containerColor = BgGray,
+            containerColor = MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 if (!isLandscape) {
                     NavigationBar(
-                        containerColor = BgGray,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp,
                         windowInsets = WindowInsets(0, 0, 0, 0)
                     ) {
+                        val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        val navSelectedLabelColor = MaterialTheme.colorScheme.primary
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                            label = { Text(stringResource(R.string.tab_home)) },
+                            label = { Text(stringResource(R.string.tab_home), color = if (selectedTab == MainTab.HOME) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.HOME,
                             onClick = { selectedTab = MainTab.HOME; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = {
-                                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Note, contentDescription = null)
-                                    BadgeDot(
-                                        visible = state.pendingSproutCount > 0,
-                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
-                                    )
-                                }
-                            },
-                            label = { Text(stringResource(R.string.tab_notes)) },
+                            icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                            label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.NOTES,
                             onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                         )
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                            label = { Text(stringResource(R.string.tab_recording)) },
+                            label = { Text(stringResource(R.string.tab_recording), color = if (selectedTab == MainTab.RECORDING) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.RECORDING,
                             onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                         )
@@ -378,13 +382,13 @@ fun AppRoot(
                                     )
                                 }
                             },
-                            label = { Text(stringResource(R.string.tab_ai)) },
+                            label = { Text(stringResource(R.string.tab_ai), color = if (selectedTab == MainTab.AI) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.AI,
                             onClick = { selectedTab = MainTab.AI; subScreen = null },
                         )
                         NavigationBarItem(
                             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            label = { Text(stringResource(R.string.tab_settings)) },
+                            label = { Text(stringResource(R.string.tab_settings), color = if (selectedTab == MainTab.SETTINGS) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.SETTINGS,
                             onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
                         )
@@ -512,6 +516,7 @@ fun AppRoot(
                             selectedTab = MainTab.AI
                             subScreen = null
                         },
+                        onSproutNote = { noteId -> subScreen = "noteSprout_$noteId" },
                         onOpenEditorTeam = { input ->
                             editorTeamInitialInput = input
                             subScreen = "editorTeam"
@@ -652,6 +657,7 @@ fun AppRoot(
                                         vm.sendNoteWithSkill(id, skill)
                                         subScreen = "noteSprout_$id"
                                     },
+                                    onSproutNote = { id -> subScreen = "noteSprout_$id" },
                                     onOpenEditorTeam = { content ->
                                         editorTeamInitialInput = content
                                         subScreen = "editorTeam"
@@ -685,6 +691,7 @@ fun AppRoot(
                                     selectedTab = MainTab.AI
                                     subScreen = null
                                 },
+                                onSproutNote = { nid -> subScreen = "noteSprout_$nid" },
                                 onOpenEditorTeam = { input ->
                                     editorTeamInitialInput = input
                                     subScreen = "editorTeam"
@@ -763,19 +770,20 @@ fun SessionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Opedrgent", fontWeight = FontWeight.Bold) },
+                title = { Text("Opedrgent", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { createOpen = true },
-                containerColor = AccentBlue,
-                contentColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "new")
             }
         },
-        containerColor = BgGray,
+        containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             OutlinedTextField(
@@ -786,8 +794,8 @@ fun SessionsScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(11.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = BorderLight,
-                    focusedBorderColor = AccentBlue,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
                 ),
             )
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -797,7 +805,7 @@ fun SessionsScreen(
                         Text(
                             text = "在 ${state.sessions.size} 个会话中找到 ${state.messageSearchResults.size} 条消息",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGrey,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
@@ -807,7 +815,7 @@ fun SessionsScreen(
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
                                 .fillMaxWidth(),
                             shape = RoundedCornerShape(11.dp),
-                            colors = CardDefaults.cardColors(containerColor = CardWhite),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                             onClick = { onSelectSession(result.sessionId) },
                         ) {
@@ -816,14 +824,14 @@ fun SessionsScreen(
                                     Text(
                                         text = result.sessionTitle,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = AccentBlue,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.weight(1f),
                                     )
                                     Text(
                                         text = if (result.role == Role.USER) "你" else "AI",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (result.role == Role.USER) AccentOrange else TextGrey,
+                                        color = if (result.role == Role.USER) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
                                     )
                                 }
@@ -831,7 +839,7 @@ fun SessionsScreen(
                                 Text(
                                     text = result.matchSnippet,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextDark,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -839,7 +847,7 @@ fun SessionsScreen(
                                 Text(
                                     text = formatTime(result.timestamp),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextGrey,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -852,14 +860,14 @@ fun SessionsScreen(
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                                 .fillMaxWidth(),
                             shape = RoundedCornerShape(11.dp),
-                            colors = CardDefaults.cardColors(containerColor = CardWhite),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                             onClick = { onSelectSession(s.id) },
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                Text(text = s.title, fontWeight = FontWeight.SemiBold, color = TextDark)
+                                Text(text = s.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                                Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -928,7 +936,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 },
             )
         },
-        containerColor = BgGray,
+        containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
@@ -1105,7 +1113,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 },
             )
         },
-        containerColor = BgGray,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             // Gallery 标准的多功能 FAB：展开为三个导入入口
             Column(horizontalAlignment = Alignment.End) {

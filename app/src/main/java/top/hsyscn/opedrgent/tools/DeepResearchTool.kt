@@ -122,6 +122,15 @@ class DeepResearchTool(
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary, endTime = System.currentTimeMillis())))
     }
 
+    /**
+     * 释放 WebViewAgent 资源，不使用时必须调用以避免内存泄漏。
+     * WebView 单个实例占用 50-100MB 内存。
+     */
+    fun destroy() {
+        webViewAgent?.destroy()
+        webViewAgent = null
+    }
+
     override fun getTools(): Map<String, ToolBinding> {
         return mapOf(
             "deep_research" to ToolBinding(
