@@ -48,7 +48,7 @@ fun MessageBodyThinking(
     isComplete: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(true) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -75,7 +75,7 @@ fun MessageBodyThinking(
                             tint = themeTextGrey(),
                         )
                         Text(
-                            text = if (isComplete) "思考完成" else "思考中...",
+                            text = if (isComplete) "思考完成" else "深度思考中",
                             style = MaterialTheme.typography.bodySmall,
                             color = themeTextGrey(),
                         )
@@ -87,7 +87,7 @@ fun MessageBodyThinking(
                     ) {
                         ThinkingDotsIndicator(isComplete = isComplete)
                         Text(
-                            text = if (isComplete) "思考完成" else "思考中...",
+                            text = if (isComplete) "思考完成" else "深度思考中",
                             style = MaterialTheme.typography.bodySmall,
                             color = themeTextGrey(),
                         )
