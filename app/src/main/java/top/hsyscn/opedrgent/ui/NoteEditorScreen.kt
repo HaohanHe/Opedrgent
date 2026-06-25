@@ -50,6 +50,7 @@ import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
+import top.hsyscn.opedrgent.note.ParsedSummary
 import top.hsyscn.opedrgent.note.parseAiSummary
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
@@ -208,7 +209,9 @@ fun NoteEditorScreen(
 
     val wordCount = content.text.length
     val focusManager = LocalFocusManager.current
-    val displayTitle = title.ifBlank { content.text.take(30).replace("\n", " ").ifBlank { "无标题" } }
+    val displayTitle = remember(title, content.text) {
+        title.ifBlank { content.text.take(30).replace("\n", " ").ifBlank { "无标题" } }
+    }
 
     if (forceReadOnly) {
         // ════════════════════════════════════════
@@ -416,7 +419,11 @@ fun NoteEditorScreen(
                             // 笔记内容（含智能总结子标签）
                             var selectedSubTab by remember { mutableIntStateOf(0) }
                             val subTabTitles = listOf("智能总结", "章节概要", "金句精选", "待办事项")
-                            val parsedSummary = remember(content.text) { parseAiSummary(content.text) }
+                            var parsedSummary by remember { mutableStateOf(ParsedSummary()) }
+                            LaunchedEffect(content.text) {
+                                delay(400)
+                                parsedSummary = parseAiSummary(content.text)
+                            }
 
                             Column(
                                 modifier = Modifier

@@ -860,7 +860,7 @@ private fun TranscriptTextContent(
         verticalArrangement = Arrangement.spacedBy(0.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        itemsIndexed(segments) { index, segment ->
+        itemsIndexed(segments, key = { index, _ -> index }) { index, segment ->
             SentenceItem(
                 segment = segment,
                 isPlaying = (index == currentPlayingIndex),
@@ -1037,7 +1037,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             Spacer(Modifier.height(8.dp))
             Text(text = "录音总结", fontSize = 15.sp, fontWeight = FontWeight.Medium)
         }
-        items(summary.summarySections) { section ->
+        items(summary.summarySections, key = { it.title + "_" + it.content.hashCode() }) { section ->
             Spacer(Modifier.height(8.dp))
             Text(text = section.title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             section.content.forEach { para ->
@@ -1086,7 +1086,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 Spacer(Modifier.height(12.dp))
                 Text(text = "\u2728 金句精选", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-            items(summary.quotes) { quote ->
+            items(summary.quotes, key = { it.text + "_" + it.category }) { quote ->
                 Spacer(Modifier.height(6.dp))
                 Row {
                     Text(text = "\u201C ", color = Color.Gray)

@@ -302,5 +302,5 @@ class CuratorService(
     /**
      * 获取当前系统 Prompt 片段（委托给 SkillLoader）
      */
-    fun buildSkillsSystemPrompt(): String = skillLoader.buildSkillsSystemPrompt()
+    suspend fun buildSkillsSystemPrompt(): String = skillLoader.buildSkillsSystemPrompt()
 }

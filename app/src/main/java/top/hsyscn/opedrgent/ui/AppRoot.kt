@@ -189,6 +189,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val appTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+
 @Composable
 fun BadgeDot(
     visible: Boolean,
@@ -1203,8 +1205,10 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         },
                         onDelete = {
                             if (!skill.isBuiltIn) {
-                                vm.deleteGallerySkill(skill.skillName)
-                                gallerySkills = gallerySkills.filter { it.skillName != skill.skillName }
+                                scope.launch {
+                                    vm.deleteGallerySkill(skill.skillName)
+                                    gallerySkills = gallerySkills.filter { it.skillName != skill.skillName }
+                                }
                             }
                         },
                     )
@@ -1619,7 +1623,7 @@ private fun GallerySkillCard(
 
 
 fun formatTime(ms: Long): String {
-    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
+    return appTimeFormat.format(Date(ms))
 }
 
 fun shareFile(context: android.content.Context, packageName: String, file: File, mime: String = "text/markdown") {

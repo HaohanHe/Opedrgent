@@ -264,27 +264,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveThemeMode(mode: String) = apiSettings.saveThemeMode(mode)
     fun getSelectedLocalModel(): String = apiSettings.getSelectedLocalModel()
     fun saveSelectedLocalModel(model: String) = apiSettings.saveSelectedLocalModel(model)
-    private val localEngine = LocalLlmEngine.getInstance(app)
+    private val localEngine by lazy { LocalLlmEngine.getInstance(app) }
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
     private val sourceFetcher = SourceFetcher(http)
     private val llm = LlmClient(http)
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
-    val asrManager = top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings)
+    val asrManager by lazy { top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings) }
     val asrPostProcessor = top.hsyscn.opedrgent.stt.AsrPostProcessor()
     val smartSummaryGenerator = top.hsyscn.opedrgent.stt.SmartSummaryGenerator(llm)
-    val voiceprintManager = top.hsyscn.opedrgent.stt.VoiceprintManager(app)
-    val speakerEmbeddingExtractor = top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor(app)
-    private val tts = TtsPlayer(app, apiSettings)
+    val voiceprintManager by lazy { top.hsyscn.opedrgent.stt.VoiceprintManager(app) }
+    val speakerEmbeddingExtractor by lazy { top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor(app) }
+    private val tts by lazy { TtsPlayer(app, apiSettings) }
     private val automationStore = AutomationStore(app)
     val noteRepository = NoteRepository(app, memoryStore)
     val folderRepository = FolderRepository(app)
     private val noteDao = NoteDao(NoteDatabase.getInstance(app))
     private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings)
-    private val knowledgeBase = top.hsyscn.opedrgent.storage.KnowledgeBase(app)
+    private val knowledgeBase by lazy { top.hsyscn.opedrgent.storage.KnowledgeBase(app) }
     /** 知识库增量同步管理器 — 监控源文件变更 + 云端向量存储同步 */
-    val kbSyncManager = top.hsyscn.opedrgent.storage.KbSyncManager(knowledgeBase)
+    val kbSyncManager by lazy { top.hsyscn.opedrgent.storage.KbSyncManager(knowledgeBase) }
 
     /** Global hippocampus index — set by AppRoot after creation */
     var hippocampus: HippocampusIndex? = null
@@ -300,7 +300,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val warmFeedbackService by lazy { WarmFeedbackService({ apiSettings }, hippocampus) }
 
     // Curator: 空闲触发的 Skill 自动维护（归档/恢复，不删除）
-    private val skillLoader = top.hsyscn.opedrgent.mcp.skills.SkillLoader(app)
+    private val skillLoader by lazy { top.hsyscn.opedrgent.mcp.skills.SkillLoader(app) }
 
     /** 缓存的技能名称列表，用于注入系统 Prompt（避免 suspend 调用） */
     @Volatile
@@ -316,17 +316,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         },
     )
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
-    private val agentSwarm = top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor)
-    private val noteSyncService = NoteSyncService(app, noteRepository)
-    private val curatorService = CuratorService(skillLoader, app)
+    private val agentSwarm by lazy { top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor) }
+    private val noteSyncService by lazy { NoteSyncService(app, noteRepository) }
+    private val curatorService by lazy { CuratorService(skillLoader, app) }
 
     // ★ AgentService：独立的 Agent 后台服务（渐进式迁移）
-    private val agentService = top.hsyscn.opedrgent.agent.AgentService(
-        llmClient = llm,
-        toolExecutor = toolExecutor,
-        store = store,
-        scope = viewModelScope,
-    )
+    private val agentService by lazy {
+        top.hsyscn.opedrgent.agent.AgentService(
+            llmClient = llm,
+            toolExecutor = toolExecutor,
+            store = store,
+            scope = viewModelScope,
+        )
+    }
 
     /** 是否使用 AgentService 路径（渐进式迁移开关，测试通过后移除） */
     private val useAgentService = false
@@ -584,14 +586,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             deepResearchEnabled = apiSettings.isDeepResearch(),
             debugModeEnabled = apiSettings.isDebugMode(),
         )
-        refreshSessions()
-        refreshSkills()
-        refreshMemories()
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshSessions()
+            refreshSkills()
+            refreshMemories()
+            automationStore.scheduleAllEnabled()
+        }
         // 启动时将 MemoryStore 已有数据同步到海马体索引（一次性迁移）
         viewModelScope.launch(Dispatchers.IO) {
             syncMemoryStoreToHippocampus()
         }
-        automationStore.scheduleAllEnabled()
 
         // 观察 AgentService 状态，同步到 UI
         viewModelScope.launch {
@@ -1582,9 +1586,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** 获取笔记的上下文（用于 AI 对话时引用） */
-    fun getNoteContext(noteId: Long): String? {
+    suspend fun getNoteContext(noteId: Long): String? {
         val note = runCatching {
-            kotlinx.coroutines.runBlocking { noteRepository.getNoteById(noteId) }
+            noteRepository.getNoteById(noteId)
         }.getOrNull() ?: return null
         return "笔记「${note.title}」：${note.content.take(500)}"
     }
@@ -1755,7 +1759,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /**
      * 删除用户导入的 Gallery 技能（内置技能不可删除）
      */
-    fun deleteGallerySkill(skillName: String) {
+    suspend fun deleteGallerySkill(skillName: String) {
         val success = skillLoader.deleteSkill(skillName)
         if (!success) {
             _state.value = _state.value.copy(error = "无法删除技能 '$skillName'（可能为内置技能）")
@@ -3775,10 +3779,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refreshContextTokenCount() {
         val session = _state.value.current ?: return
-        val system = buildSystemPrompt(session)
-        val allMessages = session.messages
-        val compressed = ContextCompressor.compress(allMessages, system, 16000)
-        _state.value = _state.value.copy(contextTokenCount = compressed.tokenCount)
+        viewModelScope.launch(Dispatchers.IO) {
+            val system = buildSystemPrompt(session)
+            val allMessages = session.messages
+            val compressed = ContextCompressor.compress(allMessages, system, 16000)
+            _state.value = _state.value.copy(contextTokenCount = compressed.tokenCount)
+        }
     }
 
     fun getDebugDump(): String {
@@ -4163,7 +4169,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 val config = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
                 val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
-                val system = buildSystemPrompt(session)
+                val system = withContext(Dispatchers.IO) { buildSystemPrompt(session) }
                 val instruction = """
 请基于当前对话进行自我反思，输出 Markdown 格式。写出1-3条值得存入长期记忆的信息和可复用技能建议。
 """.trimIndent()
@@ -4191,7 +4197,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 val config = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
                 val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
-                val system = buildSystemPrompt(session)
+                val system = withContext(Dispatchers.IO) { buildSystemPrompt(session) }
                 val prompt = """
 输出一份面向人类的阅读笔记，请基于当前对话生成：研究主题、关键发现（标注[S1]/[S2]）、待解决问题、下一步建议、来源索引。
 """.trimIndent()
@@ -4641,7 +4647,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun buildSystemPrompt(session: ResearchSession): String {
+    private suspend fun buildSystemPrompt(session: ResearchSession): String {
         val app = getApplication<Application>()
         val includeLoc = apiSettings.isLocationEnabled()
         val cachedLoc = apiSettings.getLastLocation()
@@ -4666,11 +4672,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         // 如果开启了运动健康，注入今日健康摘要到系统提示
         if (apiSettings.isHealthEnabled()) {
-            val healthSummary = runBlocking {
-                try {
+            val healthSummary = try {
+                withContext(Dispatchers.IO) {
                     top.hsyscn.opedrgent.health.HealthConnectHelper.getHealthSummaryForPrompt(app)
-                } catch (_: Exception) { null }
-            }
+                }
+            } catch (_: Exception) { null }
             if (!healthSummary.isNullOrBlank()) {
                 return "$system\n\n# 用户运动健康数据\n$healthSummary\n\n当用户询问运动、健康相关问题时，可基于以上数据回答，或调用 health_read 工具获取更详细数据。"
             }
