@@ -109,8 +109,13 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     /**
      * 为笔记生成叙事式发芽报告。
      *
+     * 发芽是一次性调用，但单次调用内使用三层渐进式上下文注入：
+     * 1. 标签层：海马体关键词聚合，让 AI 快速感知知识背景（几乎不占上下文）
+     * 2. 索引层：海马体相关条目 + 其他笔记，只给标题和一句话概要（轻量）
+     * 3. 联网搜索提示：要求 AI 验证关键事实
+     *
      * @param noteContent 笔记内容
-     * @param otherNotesContext 其他笔记的摘要，用于交叉引用
+     * @param otherNotesContext 其他笔记的轻量索引（标题 + 一句话概要）
      * @param modelId 使用的模型 ID
      * @return [SproutArticle] 叙事式发芽报告
      */
@@ -122,25 +127,37 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         try {
             var prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
 
-            // 从内容提取关键词用于全局搜索
             val searchKeywords = noteContent.take(200)
                 .split(Regex("[\\s,，。、；：！？\\n]+"))
                 .filter { it.length >= 2 }
                 .take(3)
-            val globalContext = if (hippocampus != null && searchKeywords.isNotEmpty()) {
+            val relatedItems = if (hippocampus != null && searchKeywords.isNotEmpty()) {
                 searchKeywords.flatMap { hippocampus.query(it, 3) }
                     .distinctBy { it.id }
                     .take(5)
-                    .joinToString("\n---\n") { "[${it.sourceType.label}] ${it.title}: ${it.summary.take(300)}" }
-            } else ""
+            } else emptyList()
 
-            if (globalContext.isNotBlank()) {
-                prompt += "\n\n## 全局知识库参考\n$globalContext"
+            // 第一层：标签 — 从海马体索引中聚合关键词，让 AI 快速感知知识背景
+            val allKeywords = relatedItems
+                .flatMap { it.keywords.split(",").map(String::trim) }
+                .filter { it.length >= 2 }
+                .distinct()
+                .take(10)
+            if (allKeywords.isNotEmpty()) {
+                prompt += "\n\n## 知识库标签\n${allKeywords.joinToString("、")}"
             }
 
+            // 第二层：索引 — 海马体相关条目 + 其他笔记，只给标题和一句话概要
+            if (relatedItems.isNotEmpty()) {
+                val indexLines = relatedItems.joinToString("\n") {
+                    "- [${it.sourceType.label}] ${it.title}：${it.summary.take(80)}"
+                }
+                prompt += "\n\n## 相关知识索引\n$indexLines"
+            }
             if (otherNotesContext.isNotBlank()) {
-                prompt += "\n\n## 你的其他笔记（用于交叉引用和串联）\n$otherNotesContext"
+                prompt += "\n\n## 其他笔记索引\n$otherNotesContext"
             }
+
             prompt += "\n\n## 重要：联网搜索验证\n在分析过程中，请主动使用联网搜索工具验证关键事实、查找相关案例和数据。搜索至少2个关键词，但不超过3次搜索。"
 
             val apiKey = apiSettings.getApiKey()
@@ -150,8 +167,11 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
             val jsonBody = JSONObject().apply {
                 put("model", modelId)
-                put("max_tokens", 4096)
+                put("max_tokens", 32768)
                 put("temperature", 1.0)
+                put("top_p", 0.95)
+                put("top_k", 20)
+                put("presence_penalty", 1.5)
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
@@ -205,7 +225,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     ): Flow<SproutProgress> = flow {
         emit(SproutProgress.Loading)
         try {
-            val result = sprout(noteContent, modelId)
+            val result = sprout(noteContent, modelId = modelId)
             result.fold(
                 onSuccess = { emit(SproutProgress.ArticleSuccess(it)) },
                 onFailure = { emit(SproutProgress.Error(it.message ?: "未知错误")) },
@@ -260,17 +280,24 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
             if (choices.length() == 0) return Result.failure(RuntimeException("响应为空"))
 
-            val content = choices.getJSONObject(0)
+            var content = choices.getJSONObject(0)
                 .getJSONObject("message")
                 .optString("content", "")
 
+            content = stripThinkingTags(content)
+
+            DebugLog.d(TAG, "LLM 原始响应 (${content.length} 字符): ${content.take(300)}")
+
             val jsonStr = extractJsonFromMarkdown(content) ?: content.trim()
+            DebugLog.d(TAG, "提取的 JSON (${jsonStr.length} 字符): ${jsonStr.take(300)}")
+
             val articleResult = extractSproutArticle(jsonStr)
             if (articleResult.isSuccess) {
                 val article = articleResult.getOrThrow().copy(modelUsed = modelUsed)
                 DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
                 Result.success(article)
             } else {
+                DebugLog.e(TAG, "发芽解析失败: ${articleResult.exceptionOrNull()?.message}")
                 articleResult
             }
         } catch (e: Exception) {
@@ -282,6 +309,10 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     private fun extractJsonFromMarkdown(content: String): String? {
         val regex = Regex("```(?:json)?\\s*([\\s\\S]*?)```")
         return regex.find(content)?.groupValues?.get(1)?.trim()
+    }
+
+    private fun stripThinkingTags(content: String): String {
+        return content.replace(Regex("<think>[\\s\\S]*?</think>\\s*"), "").trim()
     }
 
     /**
@@ -334,14 +365,18 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         if (tryParse.isSuccess) return tryParse
 
         // 第二次尝试：用正则逐字段提取（支持多篇文章）
-        DebugLog.w("SproutService: standard JSON parse failed, trying regex extraction")
+        DebugLog.w("SproutService: standard JSON parse failed: ${tryParse.exceptionOrNull()?.message}")
+        DebugLog.d("SproutService: raw JSON (${fixed.length} 字符): ${fixed.take(500)}")
         return try {
             val summary = Regex("\"summary\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
 
-            // 提取所有文章块：匹配 { "title": "...", "seed": "...", "body": "..." }
+            // 提取所有文章块：匹配 { "title": "...", "seed": "...", "body": "...", "ahaMoment": "..." }
+            // title/seed/body 用 [\s\S]*? 非贪婪匹配，允许字段值内出现未转义双引号
+            // （LLM 偶尔会在 body 中输出 "未来次数" 这样的未转义引号，导致标准 JSON 解析失败）。
+            // 各字段以"下一字段名"作为终止锚点，避免在未转义引号处提前截断。
             val articleSections = mutableListOf<ArticleSection>()
             val articlePattern = Regex(
-                "\\{\\s*\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"\\s*,\\s*\"seed\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"\\s*,\\s*\"body\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"(?:\\s*,\\s*\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\")?(?:\\s*,\\s*\"importance\"\\s*:\\s*(\\d+))?\\s*\\}",
+                "\\{\\s*\"title\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"seed\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"body\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"(?:\\s*,\\s*\"importance\"\\s*:\\s*(\\d+))?\\s*\\}",
                 RegexOption.DOT_MATCHES_ALL
             )
             for (match in articlePattern.findAll(fixed)) {
@@ -372,6 +407,10 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
             }
 
             DebugLog.i("SproutService: regex extracted ${articleSections.size} articles")
+            if (articleSections.isEmpty()) {
+                DebugLog.w("SproutService: regex extraction produced 0 articles, raw content: ${fixed.take(500)}")
+                return Result.failure(RuntimeException("无法从 LLM 响应中提取文章内容"))
+            }
             val article = SproutArticle(
                 generatedAt = System.currentTimeMillis(),
                 modelUsed = "",
@@ -399,6 +438,9 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                 } catch (_: Exception) { null }
             }
         } ?: emptyList()
+        if (articles.isEmpty()) {
+            throw RuntimeException("articles 数组为空或解析失败")
+        }
         return SproutArticle(
             generatedAt = System.currentTimeMillis(),
             modelUsed = "",

@@ -27,6 +27,7 @@ import java.util.TimeZone
  * - **query_today**: 查询今天的事件
  * - **query_tomorrow**: 查询明天的事件
  * - **query_week**: 查询本周事件
+ * - **update**: 修改指定事件（支持部分更新，未提供的字段保持不变）
  * - **delete**: 删除指定事件
  *
  * @param context Android Context
@@ -38,7 +39,7 @@ class RunCalendarTool(
     override fun getTools(): Map<String, ToolBinding> = mapOf(
         "run_calendar" to ToolBinding(
             name = "run_calendar",
-            description = "管理用户日历：创建/查询/删除日历事件。当用户提到'安排''预约''提醒''日程''会议''计划''明天下午三点'等与时间相关的内容时调用此工具。",
+            description = "管理用户日历：创建/查询/修改/删除日历事件。当用户提到'安排''预约''提醒''日程''会议''计划''改时间''取消''推迟'等与时间相关的内容时调用此工具。",
             invoker = { toolPart, _, _, _ -> execute(toolPart) },
         ),
     )
@@ -100,8 +101,9 @@ class RunCalendarTool(
             "query_today" -> handleQueryToday()
             "query_tomorrow" -> handleQueryTomorrow()
             "query_week" -> handleQueryWeek()
+            "update" -> handleUpdate(params)
             "delete" -> handleDelete(params)
-            else -> "[失败] 不支持的日历操作: $action。支持的操作: create, query_today, query_tomorrow, query_week, delete"
+            else -> "[失败] 不支持的日历操作: $action。支持的操作: create, query_today, query_tomorrow, query_week, update, delete"
         }
     }
 
@@ -173,6 +175,49 @@ class RunCalendarTool(
 
         val events = CalendarHelper.queryEvents(context, weekStart, weekEnd)
         return formatEventList(events, "本周")
+    }
+
+    /** 修改指定事件（部分更新，未提供的字段保持不变） */
+    private fun handleUpdate(params: JSONObject): String {
+        val eventIdStr = params.optString("event_id", "").trim()
+        val eventId = eventIdStr.toLongOrNull()
+        if (eventId == null || eventId <= 0) {
+            return "[失败] 修改事件失败：缺少或无效的事件 ID (event_id)"
+        }
+
+        // 先查询现有事件，用于部分更新
+        val existing = CalendarHelper.queryEventById(context, eventId)
+            ?: return "[失败] 事件不存在 (ID: $eventId)"
+
+        val title = params.optString("title", "").trim().ifBlank { existing.title }
+        val startTimeStr = params.optString("start_time", "").trim()
+        val endTimeStr = params.optString("end_time", "").trim()
+        val description = params.optString("description", "").trim().ifBlank { existing.description }
+        val location = params.optString("location", "").trim().ifBlank { existing.location }
+
+        val startMs = if (startTimeStr.isNotBlank()) parseTimeToEpoch(startTimeStr) else existing.startMs
+        val endMs = if (endTimeStr.isNotBlank()) {
+            parseTimeToEpoch(endTimeStr, startMs)
+        } else {
+            existing.endMs
+        }
+        val finalEndMs = maxOf(endMs, startMs + 60_000L)
+
+        val draft = CalendarEventDraft(
+            title = title,
+            startEpochMs = startMs,
+            endEpochMs = finalEndMs,
+            description = description?.takeIf { it.isNotBlank() },
+            location = location?.takeIf { it.isNotBlank() },
+        )
+
+        val success = CalendarHelper.updateEvent(context, eventId, draft)
+        return if (success) {
+            val timeLabel = formatTimeRange(startMs, finalEndMs)
+            "[成功] 已修改事件「$title」(ID: $eventId)\n时间: $timeLabel${if (!location.isNullOrBlank()) "\n地点: $location" else ""}${if (!description.isNullOrBlank()) "\n备注: $description" else ""}"
+        } else {
+            "[失败] 修改事件失败"
+        }
     }
 
     /** 删除指定事件 */

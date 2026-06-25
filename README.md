@@ -31,12 +31,10 @@ An open-source Android AI assistant built with Jetpack Compose and Kotlin.
 
 ### Knowledge & Memory / 知识与记忆
 
-- **Insight Sprout (Knowledge Sprout)** — 4-stage AI insight engine: Seed Extraction -> Cross-Domain Association -> AHA Insight -> Golden Quote Echo
-  **知识发芽（Insight Sprout）** — 四阶段 AI 洞察生成引擎：种子提取 -> 跨领域关联 -> AHA 洞察 -> 金句回响
-- **Hippocampus Memory System** — Goal anchoring + drift detection + attention injection; solves AI attention drift in long conversations
-  **海马记忆系统（Hippocampus Memory）** — 目标锚定 + 漂移检测 + 注意力注入，解决长对话 AI 注意力分散问题
-- **3-Layer Memory Architecture** — MemoryDir (in-memory, TTL) <-> MemoryBridge (dual-write sync) <-> VectorMemory (SQLite persistent, cosine similarity search)
-  **三层记忆架构** — MemoryDir（内存，TTL 过期） <-> MemoryBridge（双写同步） <-> VectorMemory（SQLite 持久化，余弦相似度检索）
+- **Insight Sprout (Knowledge Sprout)** — 4-stage AI insight engine: Seed Extraction -> Cross-Domain Association -> AHA Insight -> Golden Quote Echo, with 3-layer progressive context injection (tags -> index -> detail)
+  **知识发芽（Insight Sprout）** — 四阶段 AI 洞察生成引擎：种子提取 -> 跨领域关联 -> AHA 洞察 -> 金句回响，三层渐进式上下文注入（标签 -> 索引 -> 详情）
+- **Hippocampus Memory System** — SQLite-based global index with keyword extraction + LIKE fuzzy matching, auto-indexes notes/conversations/recordings/sprouts; goal anchoring + drift detection for interview mode
+  **海马记忆系统（Hippocampus Memory）** — SQLite 全局索引，关键词提取 + LIKE 模糊匹配，自动索引笔记/对话/录音/发芽；面试模式下目标锚定 + 漂移检测
 - **Note System** — Full CRUD note management + folder classification + KnowledgeGraph + sprout/share/graph visualization
   **笔记系统** — 完整的 CRUD 笔记管理 + 文件夹分类 + 知识图谱（KnowledgeGraph）+ 笔记发芽/分享/图谱可视化
 - **Knowledge Base** — KnowledgeBase document management and retrieval
@@ -77,10 +75,12 @@ An open-source Android AI assistant built with Jetpack Compose and Kotlin.
 - **Skill Deep Integration** — EditorTeamSkillAdapter + SkillModelUnifier
   **Skill 深度集成** — EditorTeamSkillAdapter + SkillModelUnifier
 
-### Calendar & Documents / 日历与文档
+### Calendar, Health & Documents / 日历、健康与文档
 
-- **Calendar Integration** — CalendarHelper + IcsWriter (ICS calendar file read/write)
-  **日历集成** — CalendarHelper + IcsWriter（ICS 日历文件读写）
+- **Calendar CRUD** — CalendarHelper + RunCalendarTool: create/query/update/delete system calendar events directly via ContentProvider (no user confirmation needed), supports natural language time parsing
+  **日历 CRUD** — CalendarHelper + RunCalendarTool：通过 ContentProvider 直接创建/查询/修改/删除系统日历事件（无需用户确认），支持自然语言时间解析
+- **Health Connect Integration** — HealthConnectHelper + HealthTool: read steps/heart rate/calories/distance/sleep from Health Connect, auto-inject today's summary into system prompt
+  **Health Connect 健康数据集成** — HealthConnectHelper + HealthTool：从 Health Connect 读取步数/心率/卡路里/距离/睡眠，今日摘要自动注入 system prompt
 - **PDF Processing** — PdfProcessor + OcrEngine (ML Kit Chinese+English OCR)
   **PDF 处理** — PdfProcessor + OcrEngine（ML Kit 中英文 OCR）
 - **DOCX Processing** — DocxProcessor (Word document processing)
@@ -177,7 +177,8 @@ app/src/main/java/top/hsyscn/opedrgent/
 │   ├── ToolAnnotations.kt       # Tool annotation definitions
 │   ├── RunJsTool.kt             # run_js - JS Skill sandbox execution
 │   ├── RunIntentTool.kt         # run_intent - Android Intent dispatch
-│   ├── RunCalendarTool.kt       # run_calendar - Calendar operations
+│   ├── RunCalendarTool.kt       # run_calendar - Calendar CRUD operations
+│   ├── HealthTool.kt            # health_read - Health Connect data reading
 │   ├── ReadUrlTool.kt           # read_url - URL content fetching
 │   ├── WebSearchTool.kt         # web_search - Web search
 │   ├── InsightSproutTool.kt     # insight_sprout - Knowledge sprout
@@ -294,6 +295,9 @@ app/src/main/java/top/hsyscn/opedrgent/
 │   ├── CalendarModels.kt        # Calendar data models
 │   └── IcsWriter.kt            # ICS file writer
 │
+├── health/                      # Health Connect module
+│   └── HealthConnectHelper.kt   # Health Connect helper (steps/heart rate/sleep)
+│
 ├── pdf/                         # PDF processing
 │   ├── PdfProcessor.kt          # PDF parsing/processing
 │   └── OcrEngine.kt            # OCR engine (ML Kit)
@@ -392,13 +396,27 @@ InterviewScreen (UI)
               DuplexState state machine (5 states)
 ```
 
-### Memory System (3-Layer) / 三层记忆架构
+### Memory System / 记忆系统
 
 ```
-MemoryDir (in-memory index, TTL-based expiry)
-  <-> MemoryBridge (dual-write sync + hybrid recall)
-    <- -> VectorMemory (SQLite persistent storage, cosine similarity search)
-      <- -> SqlitePersistence (raw SQLite operations)
+HippocampusIndex (SQLite global index)
+  - Auto-indexes: notes, conversations, recordings, sprouts, interviews
+  - Keyword extraction + LIKE fuzzy matching
+  - Three scopes: GLOBAL / PROJECT / SESSION
+MemoryStore (SharedPreferences)
+  - User manual memories + note summary sync
+  - Injected into LLM system prompt as user profile
+```
+
+### Health Data Flow / 健康数据流
+
+```
+SettingsScreen (toggle) -> ACTIVITY_RECOGNITION permission
+  -> Health Connect permissions (steps/heart rate/sleep/calories)
+    -> MainViewModel.buildSystemPrompt()
+      -> HealthConnectHelper.getHealthSummaryForPrompt()
+        -> Auto-inject today's summary into system prompt
+    -> LLM can also call health_read tool for detailed data
 ```
 
 ### Skill Data Flow / Skill 数据流

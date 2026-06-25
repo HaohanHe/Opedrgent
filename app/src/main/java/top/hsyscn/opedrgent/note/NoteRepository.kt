@@ -175,6 +175,16 @@ class NoteRepository(
         }
     }
 
+    /** 获取最近笔记的轻量索引（标题 + 类型 + 一句话概要，用于发芽上下文的第二层） */
+    suspend fun getRecentNotesIndex(limit: Int = 5): String {
+        val notes = getRecentNotes(limit)
+        if (notes.isEmpty()) return ""
+        return notes.joinToString("\n") { note ->
+            val snippet = note.content.replace("\n", " ").take(60)
+            "- 【${note.title}】(${note.type.displayName()}) $snippet"
+        }
+    }
+
     // ==================== 知识图谱代理方法 ====================
 
     /** 获取笔记的所有关联笔记ID（按相关性排序） */

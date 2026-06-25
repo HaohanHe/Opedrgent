@@ -214,6 +214,42 @@ object CalendarHelper {
     }
 
     /**
+     * 按 ID 查询单个事件。
+     * @param eventId 事件 ID
+     * @return 事件信息，不存在返回 null
+     */
+    fun queryEventById(context: Context, eventId: Long): CalendarEventInfo? {
+        if (!hasPermission(context)) return null
+
+        val projection = arrayOf(
+            Events._ID,
+            Events.TITLE,
+            Events.DTSTART,
+            Events.DTEND,
+            Events.DESCRIPTION,
+            "eventLocation",
+            Events.CALENDAR_ID,
+        )
+        val uri = ContentUris.withAppendedId(Events.CONTENT_URI, eventId)
+        return try {
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val calId = cursor.getLong(cursor.getColumnIndexOrThrow(Events.CALENDAR_ID))
+                    CalendarEventInfo(
+                        id = cursor.getLong(cursor.getColumnIndexOrThrow(Events._ID)),
+                        title = cursor.getString(cursor.getColumnIndexOrThrow(Events.TITLE)) ?: "",
+                        startMs = cursor.getLong(cursor.getColumnIndexOrThrow(Events.DTSTART)),
+                        endMs = cursor.getLong(cursor.getColumnIndexOrThrow(Events.DTEND)),
+                        description = cursor.getString(cursor.getColumnIndexOrThrow(Events.DESCRIPTION)),
+                        location = cursor.getString(cursor.getColumnIndexOrThrow("eventLocation")),
+                        calendarName = getCalendarName(context, calId),
+                    )
+                } else null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
      * 查询今天的事件。
      */
     fun queryTodayEvents(context: Context): List<CalendarEventInfo> {
