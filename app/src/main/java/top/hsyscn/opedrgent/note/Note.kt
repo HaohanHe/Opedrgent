@@ -323,8 +323,9 @@ data class SproutArticle(
                     modelUsed = json.optString("modelUsed", ""),
                     summary = json.optString("summary", ""),
                     articles = json.optJSONArray("articles")?.let { arr ->
-                        (0 until arr.length()).mapNotNull {
-                            ArticleSection.fromJson(arr.getJSONObject(it).toString())
+                        (0 until arr.length()).mapNotNull { i ->
+                            // toJson() 存储为字符串数组，用 getString 读取
+                            ArticleSection.fromJson(arr.getString(i))
                         }
                     } ?: emptyList(),
                     actionItems = json.optJSONArray("actionItems")?.let { arr ->

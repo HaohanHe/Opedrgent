@@ -39,11 +39,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.max
+import android.widget.Toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.NoteType
@@ -102,6 +105,8 @@ fun NoteEditorScreen(
     onRequestCompletion: (suspend (String) -> String)? = null,
     /** 编辑器模式："richtext" 或 "markdown" */
     editorMode: String = "richtext",
+    /** 发芽服务（用于重新发芽旧格式报告） */
+    sproutService: top.hsyscn.opedrgent.note.SproutService? = null,
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -127,6 +132,7 @@ fun NoteEditorScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(1) }
     var currentNote by remember { mutableStateOf<Note?>(null) }
+    var isGenerating by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current  // 保留此警告，需要后续迁移
 
@@ -149,6 +155,13 @@ fun NoteEditorScreen(
                 sourceUrl = currentNote?.sourceUrl ?: "",
                 sourceType = currentNote?.sourceType ?: top.hsyscn.opedrgent.note.SourceType.MANUAL,
                 spans = spansJson,
+                // 保留不可编辑的字段，避免全列 UPDATE 覆盖成默认值
+                summary = currentNote?.summary ?: "",
+                folderId = currentNote?.folderId,
+                isPinned = currentNote?.isPinned ?: false,
+                isDeleted = currentNote?.isDeleted ?: false,
+                createdAt = currentNote?.createdAt ?: System.currentTimeMillis(),
+                sproutReportJson = currentNote?.sproutReportJson,
             )
             note.setTags(tags)
             val id = repository.saveNote(note)
@@ -248,7 +261,7 @@ fun NoteEditorScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .padding(top = padding.calculateTopPadding())
                     .background(MaterialTheme.colorScheme.background)
             ) {
                 // 标签只读展示
@@ -312,12 +325,14 @@ fun NoteEditorScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
-                // 内容区域（Tab 切换）
+                // 内容区域（Tab 切换）— Box 布局，meta info 浮动在底部
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.BottomCenter,
                 ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                     when (selectedTab) {
                         0 -> {
                             // 原文
@@ -333,7 +348,7 @@ fun NoteEditorScreen(
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState())
                                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        .padding(bottom = 80.dp),
+                                        .padding(bottom = 36.dp),
                                 ) {
                                     // 来源链接卡片
                                     val url = currentNote?.sourceUrl
@@ -410,7 +425,7 @@ fun NoteEditorScreen(
                                             .fillMaxSize()
                                             .verticalScroll(rememberScrollState())
                                             .padding(horizontal = 16.dp, vertical = 12.dp)
-                                            .padding(bottom = 80.dp),
+                                            .padding(bottom = 36.dp),
                                     )
                                 }
                             }
@@ -428,7 +443,7 @@ fun NoteEditorScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(bottom = 80.dp),
+                                    .padding(bottom = 36.dp),
                             ) {
                                 // 子标签行
                                 Row(
@@ -593,6 +608,15 @@ fun NoteEditorScreen(
                         }
                         2 -> {
                             // 发芽 — 展示完整发芽报告
+                            // 切换到发芽 tab 时刷新 currentNote（确保从 NoteSproutScreen 返回后数据最新）
+                            LaunchedEffect(selectedTab) {
+                                if (noteId != null && selectedTab == 2) {
+                                    val refreshed = repository.getNoteById(noteId)
+                                    if (refreshed != null) {
+                                        currentNote = refreshed
+                                    }
+                                }
+                            }
                             if (currentNote?.hasSproutReport() == true) {
                                 val article = currentNote?.getSproutArticle()
                                 val report = currentNote?.getSproutReport()
@@ -602,7 +626,7 @@ fun NoteEditorScreen(
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState())
                                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        .padding(bottom = 80.dp),
+                                        .padding(bottom = 36.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
                                     // === 整体摘要（始终置顶）===
@@ -641,109 +665,163 @@ fun NoteEditorScreen(
                                     }
 
                                     // === 完整文章章节 ===
-                                    if (article != null && article.articles.isNotEmpty()) {
-                                        article.articles.forEachIndexed { idx, section ->
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier.fillMaxWidth(),
-                                            ) {
-                                                Column(modifier = Modifier.padding(14.dp)) {
-                                                    // 章节标题 + 重要性标记
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            "${String.format("%02d", idx + 1)}. ${section.title}",
-                                                            style = MaterialTheme.typography.titleMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                            modifier = Modifier.weight(1f),
-                                                        )
-                                                        // 重要性圆点
-                                                        repeat(section.importance.coerceIn(1, 5)) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(6.dp)
-                                                                    .background(AccentOrange, CircleShape)
+                                    if (article != null) {
+                                        // 新版格式：显示完整文章（即使 articles 为空也显示 summary）
+                                        if (article.articles.isNotEmpty()) {
+                                            article.articles.forEachIndexed { idx, section ->
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                ) {
+                                                    Column(modifier = Modifier.padding(14.dp)) {
+                                                        // 章节标题 + 重要性标记
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Text(
+                                                                "${String.format("%02d", idx + 1)}. ${section.title}",
+                                                                style = MaterialTheme.typography.titleMedium,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.onSurface,
+                                                                modifier = Modifier.weight(1f),
                                                             )
-                                                            if (section.importance.coerceIn(1, 5) > it) {
-                                                                Spacer(Modifier.width(3.dp))
+                                                            // 重要性圆点
+                                                            repeat(section.importance.coerceIn(1, 5)) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(6.dp)
+                                                                        .background(AccentOrange, CircleShape)
+                                                                )
+                                                                if (section.importance.coerceIn(1, 5) > it) {
+                                                                    Spacer(Modifier.width(3.dp))
+                                                                }
                                                             }
                                                         }
-                                                    }
 
-                                                    Spacer(Modifier.height(8.dp))
+                                                        Spacer(Modifier.height(8.dp))
 
-                                                    // 种子引用
-                                                    Surface(
-                                                        color = SproutQuoteBg,
-                                                        shape = RoundedCornerShape(6.dp),
-                                                    ) {
-                                                        Text(
-                                                            "种子：${section.seed}",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = SproutSeedText,
-                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                                        )
-                                                    }
-
-                                                    Spacer(Modifier.height(10.dp))
-
-                                                    // 正文
-                                                    MarkdownPreview(
-                                                        content = section.body,
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .verticalScroll(rememberScrollState()),
-                                                    )
-
-                                                    // Aha 金句
-                                                    if (section.ahaMoment.isNotBlank()) {
-                                                        Spacer(Modifier.height(10.dp))
-                                                        Row(modifier = Modifier.fillMaxWidth()) {
-                                                            Icon(
-                                                                Icons.Default.AutoAwesome,
-                                                                contentDescription = null,
-                                                                tint = AccentOrange,
-                                                                modifier = Modifier.size(16.dp),
-                                                            )
-                                                            Spacer(Modifier.width(6.dp))
+                                                        // 种子引用
+                                                        Surface(
+                                                            color = SproutQuoteBg,
+                                                            shape = RoundedCornerShape(6.dp),
+                                                        ) {
                                                             Text(
-                                                                section.ahaMoment,
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                color = AccentOrange,
-                                                                fontWeight = FontWeight.Medium,
+                                                                "种子：${section.seed}",
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = SproutSeedText,
+                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                                                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                                                             )
+                                                        }
+
+                                                        Spacer(Modifier.height(10.dp))
+
+                                                        // 正文（外层 Column 已提供 verticalScroll，此处不再嵌套）
+                                                        MarkdownPreview(
+                                                            content = section.body,
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        )
+
+                                                        // Aha 金句
+                                                        if (section.ahaMoment.isNotBlank()) {
+                                                            Spacer(Modifier.height(10.dp))
+                                                            Row(modifier = Modifier.fillMaxWidth()) {
+                                                                Icon(
+                                                                    Icons.Default.AutoAwesome,
+                                                                    contentDescription = null,
+                                                                    tint = AccentOrange,
+                                                                    modifier = Modifier.size(16.dp),
+                                                                )
+                                                                Spacer(Modifier.width(6.dp))
+                                                                Text(
+                                                                    section.ahaMoment,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    color = AccentOrange,
+                                                                    fontWeight = FontWeight.Medium,
+                                                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
                                     } else if (report != null) {
-                                        // 兼容旧格式报告：关键要点
-                                        if (report.keyPoints.isNotEmpty()) {
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier.fillMaxWidth(),
+                                        // 旧格式报告：提示用户重新发芽以获取完整内容
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                Column(modifier = Modifier.padding(14.dp)) {
-                                                    Text(
-                                                        "关键要点",
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                    )
-                                                    Spacer(Modifier.height(8.dp))
-                                                    report.keyPoints.forEach { point ->
-                                                        Row(modifier = Modifier.padding(vertical = 3.dp)) {
-                                                            Text(
-                                                                "\u2022",
-                                                                modifier = Modifier.padding(end = 6.dp),
-                                                            )
-                                                            Text(point, style = MaterialTheme.typography.bodyMedium)
+                                                Icon(
+                                                    Icons.Default.Lightbulb,
+                                                    contentDescription = null,
+                                                    tint = AccentOrange,
+                                                    modifier = Modifier.size(32.dp),
+                                                )
+                                                Spacer(Modifier.height(12.dp))
+                                                Text(
+                                                    "检测到旧版发芽报告",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                Text(
+                                                    "当前显示的是旧版摘要格式，重新发芽可获取完整的叙事式分析报告。",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    textAlign = TextAlign.Center,
+                                                )
+                                                Spacer(Modifier.height(16.dp))
+                                                Button(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            isGenerating = true
+                                                            try {
+                                                                val service = sproutService
+                                                                if (service != null) {
+                                                                    val otherNotesCtx = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                                        try { repository.getRecentNotesIndex(5) } catch (_: Exception) { "" }
+                                                                    }
+                                                                    service.sprout(currentNote!!.content, otherNotesCtx).fold(
+                                                                        onSuccess = { newArticle ->
+                                                                            currentNote!!.setSproutArticle(newArticle)
+                                                                            repository.saveNote(currentNote!!)
+                                                                            // 从数据库重新加载，触发 Compose 重组
+                                                                            val refreshed = repository.getNoteById(currentNote!!.id)
+                                                                            if (refreshed != null) {
+                                                                                currentNote = refreshed
+                                                                            }
+                                                                        },
+                                                                        onFailure = { e ->
+                                                                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                                                Toast.makeText(context, "发芽失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                                            }
+                                                                        },
+                                                                    )
+                                                                }
+                                                            } finally {
+                                                                isGenerating = false
+                                                            }
                                                         }
+                                                    },
+                                                    enabled = !isGenerating,
+                                                ) {
+                                                    if (isGenerating) {
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier.size(16.dp),
+                                                            strokeWidth = 2.dp,
+                                                            color = MaterialTheme.colorScheme.onPrimary,
+                                                        )
+                                                        Spacer(Modifier.width(8.dp))
                                                     }
+                                                    Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("重新发芽")
                                                 }
                                             }
                                         }
@@ -866,115 +944,13 @@ fun NoteEditorScreen(
                             EditorAdditionalNotesTab()
                         }
                     }
-
-                    // 浮动底部操作栏 - 三个核心AI能力
-                    Surface(
-                        shape = RoundedCornerShape(28.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 2.dp,
-                        shadowElevation = 6.dp,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .fillMaxWidth()
-                            .height(64.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 24.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                        ) {
-                            // 润色
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    onSendWithSkill(noteId ?: return@clickable, "text_refine")
-                                },
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFFFF9800).copy(alpha = 0.12f),
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AutoFixHigh,
-                                            contentDescription = "润色",
-                                            tint = Color(0xFFFF9800),
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(3.dp))
-                                Text("润色", fontSize = 11.sp, color = Color(0xFFFF9800))
-                            }
-
-                            // 拷问
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    onSendWithSkill(noteId ?: return@clickable, "critical_inquiry")
-                                },
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFFF57C00).copy(alpha = 0.12f),
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Psychology,
-                                            contentDescription = "拷问",
-                                            tint = Color(0xFFF57C00),
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(3.dp))
-                                Text("拷问", fontSize = 11.sp, color = Color(0xFFF57C00))
-                            }
-
-                            // 发芽
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    onSendWithSkill(noteId ?: return@clickable, "insight_sprout")
-                                },
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = SuccessGreen.copy(alpha = 0.12f),
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AutoAwesome,
-                                            contentDescription = "发芽",
-                                            tint = SuccessGreen,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(3.dp))
-                                Text("发芽", fontSize = 11.sp, color = SuccessGreen)
-                            }
-                        }
-                    }
                 }
 
-                // 元信息行
+                } // end Box (content)
+
+                // 元信息行 — 浮动在内容区域底部
                 Surface(
+                    modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
                     tonalElevation = 2.dp,
                 ) {

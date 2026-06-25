@@ -106,7 +106,7 @@ fun NoteSproutScreen(
             errorMessage = null
             try {
                 val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try { repository.getRecentNotesContext(5) } catch (e: Exception) { "" }
+                    try { repository.getRecentNotesIndex(5) } catch (e: Exception) { "" }
                 }
                 sproutService.sprout(note.content, otherNotesContext).fold(
                     onSuccess = { newArticle ->
