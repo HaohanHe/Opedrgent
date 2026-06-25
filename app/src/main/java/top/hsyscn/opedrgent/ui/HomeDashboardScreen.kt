@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -72,6 +73,9 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+
+private val greetingDateFormat = SimpleDateFormat("M月d日 E", Locale.CHINA)
+private val noteTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 
 /**
  * 首页仪表盘。
@@ -276,7 +280,7 @@ fun HomeDashboardScreen(
 @Composable
 private fun GreetingHeader() {
     val greeting = rememberGreeting()
-    val dateStr = SimpleDateFormat("M月d日 E", Locale.CHINA).format(Date())
+    val dateStr = remember { greetingDateFormat.format(Date()) }
 
     Column {
         Text(
@@ -789,7 +793,7 @@ fun RecommendationSection(recommendations: List<RecommendationItem>) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(recommendations.size) { index -> val recommendation = recommendations[index]
+        itemsIndexed(recommendations, key = { _, item -> item.title }) { _, recommendation ->
             RecommendationCard(item = recommendation)
         }
     }
@@ -876,6 +880,5 @@ fun RecommendationCard(item: RecommendationItem) {
 
 /** 格式化笔记时间显示 */
 internal fun formatNoteTime(timestamp: Long): String {
-    val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA)
-    return sdf.format(java.util.Date(timestamp))
+    return noteTimeFormat.format(Date(timestamp))
 }

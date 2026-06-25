@@ -119,14 +119,15 @@ object MapTileFetcher {
                     .header("User-Agent", "Opedrgent/1.0")
                     .build()
 
-                val response = tileClient.newCall(request).execute()
-                if (!response.isSuccessful || response.body == null) continue
+                tileClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful || response.body == null) return@use
 
-                val bytes = response.body!!.bytes()
-                if (bytes.isEmpty()) continue
+                    val bytes = response.body!!.bytes()
+                    if (bytes.isEmpty()) return@use
 
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (bitmap != null) return bitmap
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    if (bitmap != null) return bitmap
+                }
             } catch (e: Exception) {
                 lastError = e
                 continue

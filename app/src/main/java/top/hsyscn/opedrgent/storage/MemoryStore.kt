@@ -6,56 +6,134 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.model.MemoryEntry
 import top.hsyscn.opedrgent.model.MemoryType
-import java.util.UUID
 
 class MemoryStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("opedrgent_memory", Context.MODE_PRIVATE)
+    private val lock = Any()
 
-    fun list(): List<MemoryEntry> {
-        val raw = prefs.getString("entries", null) ?: return emptyList()
-        val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
-        val out = ArrayList<MemoryEntry>()
+    companion object {
+        private const val KEY_IDS = "memory_ids"
+        private const val KEY_LEGACY = "entries"
+        private const val PREFIX = "memory_"
+    }
+
+    /** 迁移旧版全量 JSON 到分键存储（一次性）。 */
+    private fun migrateIfNeeded() {
+        val legacy = prefs.getString(KEY_LEGACY, null) ?: return
+        if (legacy.isBlank()) {
+            prefs.edit().remove(KEY_LEGACY).apply()
+            return
+        }
+        val arr = runCatching { JSONArray(legacy) }.getOrNull() ?: run {
+            prefs.edit().remove(KEY_LEGACY).apply()
+            return
+        }
+        val ids = mutableListOf<String>()
+        val editor = prefs.edit()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(
-                MemoryEntry(
-                    id = o.optString("id", UUID.randomUUID().toString()),
-                    title = o.optString("title", ""),
-                    content = o.optString("content", ""),
-                    type = runCatching { MemoryType.valueOf(o.optString("type", "USER")) }.getOrDefault(MemoryType.USER),
-                    createdAt = o.optLong("createdAt", 0L),
-                    updatedAt = o.optLong("updatedAt", 0L),
-                ),
-            )
+            val entry = parseEntry(o) ?: continue
+            editor.putString(entryKey(entry.id), serializeEntry(entry).toString())
+            ids.add(entry.id)
         }
-        return out.sortedByDescending { it.updatedAt }
+        editor.putString(KEY_IDS, JSONArray(ids).toString())
+        editor.remove(KEY_LEGACY)
+        editor.apply()
+    }
+
+    private fun entryKey(id: String) = PREFIX + id
+
+    private fun loadIds(): MutableList<String> {
+        val raw = prefs.getString(KEY_IDS, null) ?: return mutableListOf()
+        val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return mutableListOf()
+        val ids = mutableListOf<String>()
+        for (i in 0 until arr.length()) {
+            arr.optString(i).takeIf { it.isNotBlank() }?.let { ids.add(it) }
+        }
+        return ids
+    }
+
+    private fun saveIds(ids: List<String>, editor: SharedPreferences.Editor) {
+        editor.putString(KEY_IDS, JSONArray(ids).toString())
+    }
+
+    private fun loadEntry(id: String): MemoryEntry? {
+        val raw = prefs.getString(entryKey(id), null) ?: return null
+        val o = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+        return parseEntry(o)
+    }
+
+    private fun parseEntry(o: JSONObject): MemoryEntry? {
+        val id = o.optString("id").takeIf { it.isNotBlank() } ?: return null
+        return MemoryEntry(
+            id = id,
+            title = o.optString("title", ""),
+            content = o.optString("content", ""),
+            type = runCatching { MemoryType.valueOf(o.optString("type", "USER")) }.getOrDefault(MemoryType.USER),
+            createdAt = o.optLong("createdAt", 0L),
+            updatedAt = o.optLong("updatedAt", 0L),
+        )
+    }
+
+    private fun serializeEntry(e: MemoryEntry): JSONObject {
+        return JSONObject().apply {
+            put("id", e.id)
+            put("title", e.title)
+            put("content", e.content)
+            put("type", e.type.name)
+            put("createdAt", e.createdAt)
+            put("updatedAt", e.updatedAt)
+        }
+    }
+
+    fun list(): List<MemoryEntry> {
+        return synchronized(lock) {
+            migrateIfNeeded()
+            loadIds().mapNotNull { loadEntry(it) }.sortedByDescending { it.updatedAt }
+        }
     }
 
     fun add(title: String, content: String, type: MemoryType = MemoryType.USER): MemoryEntry {
         val entry = MemoryEntry(title = title.trim(), content = content.trim(), type = type)
-        val list = list().toMutableList()
-        list.add(entry)
-        saveAll(list)
+        synchronized(lock) {
+            migrateIfNeeded()
+            val ids = loadIds()
+            ids.add(entry.id)
+            prefs.edit()
+                .putString(entryKey(entry.id), serializeEntry(entry).toString())
+                .putString(KEY_IDS, JSONArray(ids).toString())
+                .apply()
+        }
         return entry
     }
 
     fun update(id: String, title: String, content: String, type: MemoryType = MemoryType.USER) {
-        val list = list().toMutableList()
-        val idx = list.indexOfFirst { it.id == id }
-        if (idx < 0) return
-        list[idx] = list[idx].copy(
-            title = title.trim(),
-            content = content.trim(),
-            type = type,
-            updatedAt = System.currentTimeMillis(),
-        )
-        saveAll(list)
+        synchronized(lock) {
+            migrateIfNeeded()
+            val existing = loadEntry(id) ?: return
+            val updated = existing.copy(
+                title = title.trim(),
+                content = content.trim(),
+                type = type,
+                updatedAt = System.currentTimeMillis(),
+            )
+            prefs.edit()
+                .putString(entryKey(updated.id), serializeEntry(updated).toString())
+                .apply()
+        }
     }
 
     fun delete(id: String) {
-        val list = list().toMutableList()
-        list.removeAll { it.id == id }
-        saveAll(list)
+        synchronized(lock) {
+            migrateIfNeeded()
+            val ids = loadIds()
+            val removed = ids.removeAll { it == id }
+            if (!removed) return
+            prefs.edit()
+                .remove(entryKey(id))
+                .putString(KEY_IDS, JSONArray(ids).toString())
+                .apply()
+        }
     }
 
     fun getMemoryBlock(): String {
@@ -86,41 +164,26 @@ class MemoryStore(context: Context) {
             content = summary.trim(),
             type = MemoryType.NOTE_SUMMARY,
         )
-        val entries = list().toMutableList()
-        // 如果已存在同一条笔记记忆则替换
-        entries.removeAll { it.id == noteIdStr }
-        entries.add(entry)
-        saveAll(entries)
+        synchronized(lock) {
+            migrateIfNeeded()
+            val ids = loadIds()
+            ids.removeAll { it == noteIdStr }
+            ids.add(entry.id)
+            prefs.edit()
+                .putString(entryKey(entry.id), serializeEntry(entry).toString())
+                .putString(KEY_IDS, JSONArray(ids).toString())
+                .apply()
+        }
         return entry
     }
 
     /** 删除指定笔记的记忆 */
     fun removeNoteMemory(noteId: Long) {
-        val noteIdStr = "note_$noteId"
-        val entries = list().toMutableList()
-        entries.removeAll { it.id == noteIdStr }
-        saveAll(entries)
+        delete("note_$noteId")
     }
 
     /** 获取所有笔记记忆 */
     fun getNoteMemories(): List<MemoryEntry> {
         return list().filter { it.type == MemoryType.NOTE_SUMMARY }
-    }
-
-    private fun saveAll(list: List<MemoryEntry>) {
-        val arr = JSONArray()
-        list.forEach { e ->
-            arr.put(
-                JSONObject().apply {
-                    put("id", e.id)
-                    put("title", e.title)
-                    put("content", e.content)
-                    put("type", e.type.name)
-                    put("createdAt", e.createdAt)
-                    put("updatedAt", e.updatedAt)
-                },
-            )
-        }
-        prefs.edit().putString("entries", arr.toString()).apply()
     }
 }

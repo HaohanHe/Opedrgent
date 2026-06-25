@@ -1,8 +1,11 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.MemoryStore
@@ -34,7 +37,10 @@ class NoteRepository(
     private val _changeTrigger = MutableStateFlow(0L)
 
     /** 所有笔记（按置顶+更新时间排序） */
-    fun getAllNotes(): Flow<List<Note>> = _changeTrigger.map { dao.getAllNotes() }
+    fun getAllNotes(): Flow<List<Note>> = _changeTrigger
+        .map { dao.getAllNotes() }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 获取所有笔记（一次性，用于同步） */
     suspend fun getAllNotesOnce(): List<Note> = dao.getAllNotes()
@@ -46,22 +52,40 @@ class NoteRepository(
     }
 
     /** 按类型筛选 */
-    fun getByType(type: NoteType): Flow<List<Note>> = _changeTrigger.map { dao.getByType(type) }
+    fun getByType(type: NoteType): Flow<List<Note>> = _changeTrigger
+        .map { dao.getByType(type) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 按文件夹筛选 */
-    fun getByFolder(folderId: Long? = null): Flow<List<Note>> = _changeTrigger.map { dao.getByFolder(folderId) }
+    fun getByFolder(folderId: Long? = null): Flow<List<Note>> = _changeTrigger
+        .map { dao.getByFolder(folderId) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 搜索笔记（标题/内容/摘要模糊匹配） */
-    fun searchNotes(query: String): Flow<List<Note>> = _changeTrigger.map { dao.searchNotes(query) }
+    fun searchNotes(query: String): Flow<List<Note>> = _changeTrigger
+        .map { dao.searchNotes(query) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 按标签筛选 */
-    fun getByTag(tag: String): Flow<List<Note>> = _changeTrigger.map { dao.getByTag(tag) }
+    fun getByTag(tag: String): Flow<List<Note>> = _changeTrigger
+        .map { dao.getByTag(tag) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 获取所有唯一标签 */
-    fun getAllTags(): Flow<List<String>> = _changeTrigger.map { dao.getAllTags() }
+    fun getAllTags(): Flow<List<String>> = _changeTrigger
+        .map { dao.getAllTags() }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 笔记总数 */
-    fun countAll(): Flow<Long> = _changeTrigger.map { dao.countAll() }
+    fun countAll(): Flow<Long> = _changeTrigger
+        .map { dao.countAll() }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 获取单条笔记 */
     suspend fun getNoteById(id: Long): Note? = dao.getById(id)
@@ -161,7 +185,8 @@ class NoteRepository(
     /** 获取笔记的关联笔记列表（带标题）。 */
     suspend fun getLinkedNotesWithTitles(noteId: Long): List<Note> {
         val linkedIds = knowledgeGraph.getLinkedNotes(noteId.toString())
-        return linkedIds.mapNotNull { id -> getNoteById(id.toLongOrNull() ?: 0) }
+        val noteIds = linkedIds.mapNotNull { it.toLongOrNull() }
+        return dao.getByIds(noteIds)
     }
 
     /** 获取笔记的关联数 */

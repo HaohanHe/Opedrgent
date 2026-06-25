@@ -105,8 +105,10 @@ fun AutomationsScreen(onBack: () -> Unit) {
                             )
                             // 执行状态
                             if (a.executionCount > 0) {
-                                val timeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-                                val lastRun = if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else "未知"
+                                val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+                                val lastRun = remember(a.lastExecutedAt, timeFmt) {
+                                    if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else "未知"
+                                }
                                 Text(
                                     text = "已执行 ${a.executionCount} 次 · 最近: $lastRun",
                                     fontSize = 11.sp,

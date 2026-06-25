@@ -293,19 +293,19 @@ class SkillLoader(private val context: Context) {
      *
      * @return 是否删除成功
      */
-    fun deleteSkill(skillName: String): Boolean {
+    suspend fun deleteSkill(skillName: String): Boolean = withContext(Dispatchers.IO) {
         val allSkills = runCatching {
-            kotlinx.coroutines.runBlocking { loadAllSkills() }
-        }.getOrNull() ?: return false
+            loadAllSkills()
+        }.getOrNull() ?: return@withContext false
 
-        val target = allSkills.find { it.skillName == skillName } ?: return false
+        val target = allSkills.find { it.skillName == skillName } ?: return@withContext false
 
         if (target.isBuiltIn) {
             DebugLog.w("$TAG: 不能删除内置技能 '$skillName'")
-            return false
+            return@withContext false
         }
 
-        return try {
+        return@withContext try {
             // 删除文件
             val file = File(importedSkillsDir, "$skillName.md")
             if (file.exists()) file.delete()
@@ -363,12 +363,12 @@ class SkillLoader(private val context: Context) {
      *   使用 `load_skill` 工具加载此技能获取详细指令...
      * ```
      */
-    fun buildSkillsSystemPrompt(): String {
+    suspend fun buildSkillsSystemPrompt(): String = withContext(Dispatchers.IO) {
         val skills = runCatching {
-            kotlinx.coroutines.runBlocking { getEnabledSkills() }
-        }.getOrNull() ?: return ""
+            getEnabledSkills()
+        }.getOrNull() ?: return@withContext ""
 
-        if (skills.isEmpty()) return ""
+        if (skills.isEmpty()) return@withContext ""
 
         val lines = mutableListOf<String>()
         lines.add("## Available Skills")
@@ -392,7 +392,7 @@ class SkillLoader(private val context: Context) {
             lines.add("")
         }
 
-        return lines.joinToString("\n").trim()
+        return@withContext lines.joinToString("\n").trim()
     }
 
     // ── 内部存储辅助 ──

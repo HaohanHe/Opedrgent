@@ -251,7 +251,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         if (query.length >= 500) return emptyList()
 
         // 引擎状态检查
-        if (!EngineStatusManager.isAvailable("ddg")) {
+        if (!CircuitBreakerManager.getOrCreate("ddg").allowRequest()) {
             DebugLog.w("WebSearcher DDG: engine not available")
             return emptyList()
         }
@@ -295,8 +295,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     val errorBody = resp.body?.string().orEmpty().take(200)
                     DebugLog.w("WebSearcher DDG: HTTP ${resp.code} - $errorBody")
                     when (resp.code) {
-                        429 -> EngineStatusManager.handleError("ddg", Exception("Rate limited (429)"))
-                        403 -> EngineStatusManager.handleError("ddg", Exception("Forbidden (403)"))
+                        429 -> CircuitBreakerManager.getOrCreate("ddg").recordFailure(Exception("Rate limited (429)"))
+                        403 -> CircuitBreakerManager.getOrCreate("ddg").recordFailure(Exception("Forbidden (403)"))
                         else -> {}
                     }
                     return@use emptyList()
@@ -313,7 +313,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 val captchaForm = doc.selectFirst("#challenge-form")
                 if (captchaForm != null) {
                     DebugLog.w("WebSearcher DDG: CAPTCHA detected!")
-                    EngineStatusManager.handleError("ddg", Exception("CAPTCHA detected"))
+                    CircuitBreakerManager.getOrCreate("ddg").recordFailure(Exception("CAPTCHA detected"))
                     return@use emptyList()
                 }
 
@@ -388,7 +388,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher DDG timeout: ${e.message}")
-            EngineStatusManager.handleError("ddg", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("ddg").recordFailure(e)
@@ -397,7 +396,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher DDG SSL error: ${e.message}")
-            EngineStatusManager.handleError("ddg", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("ddg").recordFailure(e)
@@ -406,7 +404,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher DDG DNS error: ${e.message}")
-            EngineStatusManager.handleError("ddg", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("ddg").recordFailure(e)
@@ -415,7 +412,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher DDG error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("ddg", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("ddg").recordFailure(e)
@@ -427,7 +423,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     fun searchBingCn(query: String, limit: Int = 5): List<SearchResult> {
         // 引擎状态检查
-        if (!EngineStatusManager.isAvailable("bing")) {
+        if (!CircuitBreakerManager.getOrCreate("bing").allowRequest()) {
             DebugLog.w("WebSearcher Bing: engine not available")
             return emptyList()
         }
@@ -458,8 +454,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     val errorBody = resp.body?.string().orEmpty().take(200)
                     DebugLog.w("WebSearcher Bing: HTTP ${resp.code} - $errorBody")
                     when (resp.code) {
-                        429 -> EngineStatusManager.handleError("bing", Exception("Rate limited (429)"))
-                        403 -> EngineStatusManager.handleError("bing", Exception("Forbidden (403)"))
+                        429 -> CircuitBreakerManager.getOrCreate("bing").recordFailure(Exception("Rate limited (429)"))
+                        403 -> CircuitBreakerManager.getOrCreate("bing").recordFailure(Exception("Forbidden (403)"))
                         else -> {}
                     }
                     return emptyList()
@@ -512,7 +508,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher Bing timeout: ${e.message}")
-            EngineStatusManager.handleError("bing", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("bing").recordFailure(e)
@@ -521,7 +516,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher Bing SSL error: ${e.message}")
-            EngineStatusManager.handleError("bing", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("bing").recordFailure(e)
@@ -530,7 +524,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher Bing DNS error: ${e.message}")
-            EngineStatusManager.handleError("bing", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("bing").recordFailure(e)
@@ -539,7 +532,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Bing error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("bing", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("bing").recordFailure(e)
@@ -586,7 +578,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     fun searchBaidu(query: String, limit: Int = 5): List<SearchResult> {
         // 引擎状态检查
-        if (!EngineStatusManager.isAvailable("baidu")) {
+        if (!CircuitBreakerManager.getOrCreate("baidu").allowRequest()) {
             DebugLog.w("WebSearcher Baidu: engine not available")
             return emptyList()
         }
@@ -630,8 +622,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     val errorBody = resp.body?.string().orEmpty().take(200)
                     DebugLog.w("WebSearcher Baidu JSON: HTTP ${resp.code} - $errorBody")
                     when (resp.code) {
-                        429 -> EngineStatusManager.handleError("baidu", Exception("Rate limited (429)"))
-                        403 -> EngineStatusManager.handleError("baidu", Exception("Forbidden (403)"))
+                        429 -> CircuitBreakerManager.getOrCreate("baidu").recordFailure(Exception("Rate limited (429)"))
+                        403 -> CircuitBreakerManager.getOrCreate("baidu").recordFailure(Exception("Forbidden (403)"))
                         else -> {}
                     }
                     return@use emptyList()
@@ -649,7 +641,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     body.contains("passport.baidu.com") || body.contains("verify/wappass.baidu.com")) {
                     DebugLog.e("WebSearcher Baidu JSON: security verification detected, " +
                         "body preview=${body.take(200)}")
-                    EngineStatusManager.handleError("baidu", Exception("CAPTCHA: security verification"))
+                    CircuitBreakerManager.getOrCreate("baidu").recordFailure(Exception("CAPTCHA: security verification"))
                     return@use emptyList()
                 }
 
@@ -719,7 +711,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher Baidu JSON timeout: ${e.message}")
-            EngineStatusManager.handleError("baidu", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("baidu").recordFailure(e)
@@ -728,7 +719,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher Baidu JSON SSL error: ${e.message}")
-            EngineStatusManager.handleError("baidu", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("baidu").recordFailure(e)
@@ -737,7 +727,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher Baidu JSON DNS error: ${e.message}")
-            EngineStatusManager.handleError("baidu", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("baidu").recordFailure(e)
@@ -746,7 +735,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Baidu JSON error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("baidu", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("baidu").recordFailure(e)
@@ -781,7 +769,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 if (body.contains("百度安全验证") || body.contains("passport.baidu.com") ||
                     body.contains("verify/wappass.baidu.com")) {
                     DebugLog.e("WebSearcher Baidu HTML: security verification detected")
-                    EngineStatusManager.handleError("baidu", Exception("CAPTCHA: security verification"))
+                    CircuitBreakerManager.getOrCreate("baidu").recordFailure(Exception("CAPTCHA: security verification"))
                     return@use emptyList()
                 }
                 val doc = Jsoup.parse(body)
@@ -822,7 +810,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Baidu HTML error: ${e.message}")
-            EngineStatusManager.handleError("baidu", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("baidu").recordFailure(e)
@@ -847,7 +834,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         if (SEARXNG_BASE_URL.isBlank()) return emptyList()
 
         // 引擎状态检查
-        if (!EngineStatusManager.isAvailable("searxng")) {
+        if (!CircuitBreakerManager.getOrCreate("searxng").allowRequest()) {
             DebugLog.w("WebSearcher SearXNG: engine not available")
             return emptyList()
         }
@@ -898,9 +885,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     )
                     
                     when (resp.code) {
-                        429 -> EngineStatusManager.handleError("searxng", Exception("Rate limited (429)"))
-                        403 -> EngineStatusManager.handleError("searxng", Exception("Forbidden (403)"))
-                        500, 502, 503 -> EngineStatusManager.handleError("searxng", Exception("Server error (${resp.code})"))
+                        429 -> CircuitBreakerManager.getOrCreate("searxng").recordFailure(Exception("Rate limited (429)"))
+                        403 -> CircuitBreakerManager.getOrCreate("searxng").recordFailure(Exception("Forbidden (403)"))
+                        500, 502, 503 -> CircuitBreakerManager.getOrCreate("searxng").recordFailure(Exception("Server error (${resp.code})"))
                         else -> {}
                     }
                     
@@ -921,7 +908,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                         val errorObj = json.getJSONObject("error")
                         val errorMessage = errorObj.optString("message", "Unknown SearXNG error")
                         DebugLog.e("WebSearcher SearXNG API error: $errorMessage")
-                        EngineStatusManager.handleError("searxng", Exception(errorMessage))
+                        CircuitBreakerManager.getOrCreate("searxng").recordFailure(Exception(errorMessage))
                         return@use emptyList()
                     }
                     
@@ -1028,7 +1015,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher SearXNG timeout: ${e.message}")
-            EngineStatusManager.handleError("searxng", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("searxng").recordFailure(e)
@@ -1037,7 +1023,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher SearXNG SSL error: ${e.message}")
-            EngineStatusManager.handleError("searxng", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("searxng").recordFailure(e)
@@ -1046,7 +1031,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher SearXNG DNS error: ${e.message}")
-            EngineStatusManager.handleError("searxng", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("searxng").recordFailure(e)
@@ -1055,7 +1039,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher SearXNG error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("searxng", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("searxng").recordFailure(e)
@@ -1482,7 +1465,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     fun searchYandex(query: String, limit: Int = 5): List<SearchResult> {
         if (query.length >= 500) return emptyList()
 
-        if (!EngineStatusManager.isAvailable("yandex")) {
+        if (!CircuitBreakerManager.getOrCreate("yandex").allowRequest()) {
             DebugLog.w("WebSearcher Yandex: engine not available")
             return emptyList()
         }
@@ -1517,8 +1500,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 if (!resp.isSuccessful) {
                     DebugLog.w("WebSearcher Yandex: HTTP ${resp.code}")
                     when (resp.code) {
-                        429 -> EngineStatusManager.handleError("yandex", Exception("Rate limited (429)"))
-                        403 -> EngineStatusManager.handleError("yandex", Exception("Forbidden (403)"))
+                        429 -> CircuitBreakerManager.getOrCreate("yandex").recordFailure(Exception("Rate limited (429)"))
+                        403 -> CircuitBreakerManager.getOrCreate("yandex").recordFailure(Exception("Forbidden (403)"))
                         else -> {}
                     }
                     return@use emptyList()
@@ -1598,7 +1581,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher Yandex timeout: ${e.message}")
-            EngineStatusManager.handleError("yandex", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("yandex").recordFailure(e)
@@ -1607,7 +1589,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher Yandex SSL error: ${e.message}")
-            EngineStatusManager.handleError("yandex", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("yandex").recordFailure(e)
@@ -1616,7 +1597,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: java.net.UnknownHostException) {
             DebugLog.e("WebSearcher Yandex DNS error: ${e.message}")
-            EngineStatusManager.handleError("yandex", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("yandex").recordFailure(e)
@@ -1625,7 +1605,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Yandex error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("yandex", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("yandex").recordFailure(e)
@@ -1653,7 +1632,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     fun searchSogou(query: String, limit: Int = 5): List<SearchResult> {
         if (query.length >= 500) return emptyList()
 
-        if (!EngineStatusManager.isAvailable("sogou")) {
+        if (!CircuitBreakerManager.getOrCreate("sogou").allowRequest()) {
             DebugLog.w("WebSearcher Sogou: engine not available")
             return emptyList()
         }
@@ -1733,7 +1712,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher Sogou timeout: ${e.message}")
-            EngineStatusManager.handleError("sogou", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("sogou").recordFailure(e)
@@ -1742,7 +1720,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher Sogou SSL error: ${e.message}")
-            EngineStatusManager.handleError("sogou", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("sogou").recordFailure(e)
@@ -1751,7 +1728,6 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Sogou error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("sogou", e)
             val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("sogou").recordFailure(e)
@@ -1764,7 +1740,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     fun search360(query: String, limit: Int = 5): List<SearchResult> {
         if (query.length >= 500) return emptyList()
 
-        if (!EngineStatusManager.isAvailable("360")) {
+        if (!CircuitBreakerManager.getOrCreate("360").allowRequest()) {
             DebugLog.w("WebSearcher 360: engine not available")
             return emptyList()
         }
@@ -1842,8 +1818,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         } catch (e: java.net.SocketTimeoutException) {
             DebugLog.e("WebSearcher 360 timeout: ${e.message}")
-            EngineStatusManager.handleError("360", e)
-            val classifiedError = errorClassifier.classify(e)
+                        val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("360").recordFailure(e)
             }
@@ -1851,8 +1826,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: javax.net.ssl.SSLException) {
             DebugLog.e("WebSearcher 360 SSL error: ${e.message}")
-            EngineStatusManager.handleError("360", e)
-            val classifiedError = errorClassifier.classify(e)
+                        val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("360").recordFailure(e)
             }
@@ -1860,8 +1834,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             emptyList()
         } catch (e: Exception) {
             DebugLog.e("WebSearcher 360 error: ${e.javaClass.simpleName} - ${e.message}")
-            EngineStatusManager.handleError("360", e)
-            val classifiedError = errorClassifier.classify(e)
+                        val classifiedError = errorClassifier.classify(e)
             if (classifiedError.shouldTriggerCircuitBreaker) {
                 CircuitBreakerManager.getOrCreate("360").recordFailure(e)
             }

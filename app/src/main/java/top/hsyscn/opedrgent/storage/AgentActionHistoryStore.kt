@@ -1,6 +1,10 @@
 package top.hsyscn.opedrgent.storage
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -19,12 +23,13 @@ import java.io.File
  * 3. **失败分析**: 记录失败步骤，帮助优化 prompt 或识别不可达目标
  *
  * ## 线程安全
- * 所有公开方法通过 [synchronized] 加锁，可在多协程环境下安全调用。
+ * 所有公开方法均为 suspend，内部通过 [Mutex] 加锁并在 [Dispatchers.IO] 上执行，
+ * 可在多协程环境下安全调用。
  */
 class AgentActionHistoryStore(context: Context) {
 
     private val file = File(context.filesDir, "agent_action_history.json")
-    private val lock = Any()
+    private val mutex = Mutex()
 
     /**
      * 单次任务执行记录。
@@ -60,8 +65,8 @@ class AgentActionHistoryStore(context: Context) {
     /**
      * 保存一条任务记录。
      */
-    fun save(record: TaskRecord) {
-        synchronized(lock) {
+    suspend fun save(record: TaskRecord) = withContext(Dispatchers.IO) {
+        mutex.withLock {
             val all = loadAllInternal().toMutableList()
             all.add(record)
             // 限制历史最多 200 条，超出时删除最旧的
@@ -77,18 +82,18 @@ class AgentActionHistoryStore(context: Context) {
     /**
      * 列出所有历史记录（按时间倒序）。
      */
-    fun listAll(): List<TaskRecord> {
-        synchronized(lock) {
-            return loadAllInternal().sortedByDescending { it.createdAt }
+    suspend fun listAll(): List<TaskRecord> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            loadAllInternal().sortedByDescending { it.createdAt }
         }
     }
 
     /**
      * 列出所有已保存为模板的任务（按名称排序）。
      */
-    fun listTemplates(): List<TaskRecord> {
-        synchronized(lock) {
-            return loadAllInternal()
+    suspend fun listTemplates(): List<TaskRecord> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            loadAllInternal()
                 .filter { it.templateName != null }
                 .distinctBy { it.templateName }
                 .sortedBy { it.templateName }
@@ -98,9 +103,9 @@ class AgentActionHistoryStore(context: Context) {
     /**
      * 按模板名查找记录。
      */
-    fun findTemplate(name: String): TaskRecord? {
-        synchronized(lock) {
-            return loadAllInternal()
+    suspend fun findTemplate(name: String): TaskRecord? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            loadAllInternal()
                 .filter { it.templateName == name }
                 .maxByOrNull { it.createdAt }
         }
@@ -109,35 +114,35 @@ class AgentActionHistoryStore(context: Context) {
     /**
      * 将已有任务记录保存为模板（更新 templateName 字段）。
      */
-    fun saveAsTemplate(recordId: String, templateName: String): Boolean {
-        synchronized(lock) {
+    suspend fun saveAsTemplate(recordId: String, templateName: String): Boolean = withContext(Dispatchers.IO) {
+        mutex.withLock {
             val all = loadAllInternal().toMutableList()
             val idx = all.indexOfFirst { it.id == recordId }
-            if (idx < 0) return false
+            if (idx < 0) return@withLock false
             all[idx] = all[idx].copy(templateName = templateName)
             saveAllInternal(all)
-            return true
+            true
         }
     }
 
     /**
      * 删除指定记录。
      */
-    fun delete(recordId: String): Boolean {
-        synchronized(lock) {
+    suspend fun delete(recordId: String): Boolean = withContext(Dispatchers.IO) {
+        mutex.withLock {
             val all = loadAllInternal().toMutableList()
             val filtered = all.filter { it.id != recordId }
-            if (filtered.size == all.size) return false
+            if (filtered.size == all.size) return@withLock false
             saveAllInternal(filtered)
-            return true
+            true
         }
     }
 
     /**
      * 删除模板（仅清除 templateName 字段，不删除记录本身）。
      */
-    fun deleteTemplate(name: String): Boolean {
-        synchronized(lock) {
+    suspend fun deleteTemplate(name: String): Boolean = withContext(Dispatchers.IO) {
+        mutex.withLock {
             val all = loadAllInternal().toMutableList()
             var changed = false
             for (i in all.indices) {
@@ -147,15 +152,15 @@ class AgentActionHistoryStore(context: Context) {
                 }
             }
             if (changed) saveAllInternal(all)
-            return changed
+            changed
         }
     }
 
     /**
      * 清空所有历史。
      */
-    fun clear() {
-        synchronized(lock) {
+    suspend fun clear() = withContext(Dispatchers.IO) {
+        mutex.withLock {
             file.delete()
         }
     }

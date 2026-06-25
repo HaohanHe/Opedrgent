@@ -168,13 +168,14 @@ class KnowledgeBase(private val context: Context) {
     }
 
     fun getAllKnowledgeBases(): List<KnowledgeBaseInfo> {
+        val stats = loadKbStatsMap()
         val list = mutableListOf<KnowledgeBaseInfo>()
         val c = db.query(
             TABLE_KB, null, null, null, null, null, "$KB_UPDATED_AT DESC"
         )
         c.use { cursor ->
             while (cursor.moveToNext()) {
-                list.add(cursorToKbInfo(cursor))
+                list.add(cursorToKbInfo(cursor, stats))
             }
         }
         return list
@@ -184,6 +185,24 @@ class KnowledgeBase(private val context: Context) {
         db.query(TABLE_KB, null, "$KB_ID=?", arrayOf(id), null, null, null).use { cursor ->
             return if (cursor.moveToFirst()) cursorToKbInfo(cursor) else null
         }
+    }
+
+    private data class KbDocStats(val count: Int, val totalSize: Long)
+
+    private fun loadKbStatsMap(): Map<String, KbDocStats> {
+        val map = mutableMapOf<String, KbDocStats>()
+        db.rawQuery(
+            "SELECT $DOC_KB_ID, COUNT(*), COALESCE(SUM($DOC_FILE_SIZE),0) FROM $TABLE_DOCS GROUP BY $DOC_KB_ID",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                map[c.getString(0)] = KbDocStats(
+                    count = c.getInt(1),
+                    totalSize = c.getLong(2),
+                )
+            }
+        }
+        return map
     }
 
     suspend fun updateKnowledgeBase(
@@ -424,12 +443,30 @@ class KnowledgeBase(private val context: Context) {
     }
 
     fun getStats(): KbStats {
-        val docs = getAllDocuments()
+        var documentCount = 0
+        var totalFileSizeBytes = 0L
+        var totalContentChars = 0L
+        val fileTypes = mutableMapOf<String, Int>()
+        db.rawQuery(
+            "SELECT $DOC_FILE_TYPE, COUNT(*), COALESCE(SUM($DOC_FILE_SIZE), 0), COALESCE(SUM($DOC_CONTENT_LENGTH), 0) FROM $TABLE_DOCS GROUP BY $DOC_FILE_TYPE",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                val fileType = c.getString(0)
+                val count = c.getInt(1)
+                val size = c.getLong(2)
+                val chars = c.getLong(3)
+                documentCount += count
+                totalFileSizeBytes += size
+                totalContentChars += chars
+                fileTypes[fileType] = count
+            }
+        }
         return KbStats(
-            documentCount = docs.size,
-            totalFileSizeBytes = docs.sumOf { it.fileSizeBytes },
-            totalContentChars = docs.sumOf { it.contentLength.toLong() },
-            fileTypes = docs.groupBy { it.fileType }.mapValues { it.value.size },
+            documentCount = documentCount,
+            totalFileSizeBytes = totalFileSizeBytes,
+            totalContentChars = totalContentChars,
+            fileTypes = fileTypes,
         )
     }
 
@@ -686,17 +723,23 @@ class KnowledgeBase(private val context: Context) {
 
     // ---- Cursor 映射 ----
 
-    private fun cursorToKbInfo(c: Cursor): KnowledgeBaseInfo {
+    private fun cursorToKbInfo(c: Cursor, stats: Map<String, KbDocStats>? = null): KnowledgeBaseInfo {
         val id = c.getString(c.getColumnIndexOrThrow(KB_ID))
 
-        // 计算文档数和总大小
-        var docCount = 0
-        var totalSize = 0L
-        db.rawQuery("SELECT COUNT(*), COALESCE(SUM($DOC_FILE_SIZE),0) FROM $TABLE_DOCS WHERE $DOC_KB_ID=?", arrayOf(id)).use { dc ->
-            if (dc.moveToFirst()) {
-                docCount = dc.getInt(0)
-                totalSize = dc.getLong(1)
+        // 批量统计：优先使用外部传入的 GROUP BY 结果，否则单次回退查询
+        val (docCount, totalSize) = if (stats != null) {
+            val s = stats[id]
+            (s?.count ?: 0) to (s?.totalSize ?: 0L)
+        } else {
+            var count = 0
+            var size = 0L
+            db.rawQuery("SELECT COUNT(*), COALESCE(SUM($DOC_FILE_SIZE),0) FROM $TABLE_DOCS WHERE $DOC_KB_ID=?", arrayOf(id)).use { dc ->
+                if (dc.moveToFirst()) {
+                    count = dc.getInt(0)
+                    size = dc.getLong(1)
+                }
             }
+            count to size
         }
 
         return KnowledgeBaseInfo(

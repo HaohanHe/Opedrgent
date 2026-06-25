@@ -3,8 +3,10 @@ package top.hsyscn.opedrgent.note
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 
 /**
  * 笔记数据访问层（原生 SQLite 实现）。
@@ -19,7 +21,7 @@ class NoteDao(private val db: NoteDatabase) {
     private fun notifyChange() { _changeNotifier.value = System.currentTimeMillis() }
 
     /** 查询所有未删除笔记（置顶优先 + 更新时间倒序） */
-    fun getAllNotes(): List<Note> {
+    suspend fun getAllNotes(): List<Note> = withContext(Dispatchers.IO) {
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES,
             null,
@@ -27,11 +29,11 @@ class NoteDao(private val db: NoteDatabase) {
             null, null, null,
             "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 按类型筛选 */
-    fun getByType(type: NoteType): List<Note> {
+    suspend fun getByType(type: NoteType): List<Note> = withContext(Dispatchers.IO) {
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES,
             null,
@@ -39,11 +41,11 @@ class NoteDao(private val db: NoteDatabase) {
             arrayOf(type.name), null, null,
             "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 按文件夹筛选（null=根目录） */
-    fun getByFolder(folderId: Long?): List<Note> {
+    suspend fun getByFolder(folderId: Long?): List<Note> = withContext(Dispatchers.IO) {
         val where = if (folderId == null)
             "${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_FOLDER_ID} IS NULL"
         else
@@ -55,11 +57,11 @@ class NoteDao(private val db: NoteDatabase) {
             null, null,
             "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 搜索笔记（标题/内容/摘要模糊匹配） */
-    fun searchNotes(query: String): List<Note> {
+    suspend fun searchNotes(query: String): List<Note> = withContext(Dispatchers.IO) {
         val likePattern = "%$query%"
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
@@ -71,11 +73,11 @@ class NoteDao(private val db: NoteDatabase) {
             arrayOf(likePattern, likePattern, likePattern),
             null, null, "${NoteDatabase.COL_UPDATED_AT} DESC",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 按标签筛选 */
-    fun getByTag(tag: String): List<Note> {
+    suspend fun getByTag(tag: String): List<Note> = withContext(Dispatchers.IO) {
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
             "${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_TAGS_JSON} LIKE ?",
@@ -83,11 +85,11 @@ class NoteDao(private val db: NoteDatabase) {
             null, null,
             "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 获取所有唯一标签 */
-    fun getAllTags(): List<String> {
+    suspend fun getAllTags(): List<String> = withContext(Dispatchers.IO) {
         val tags = mutableSetOf<String>()
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES,
@@ -106,32 +108,45 @@ class NoteDao(private val db: NoteDatabase) {
                 } catch (_: Exception) {}
             }
         }
-        return tags.sorted()
+        tags.sorted()
     }
 
     /** 获取单条笔记 */
-    fun getById(id: Long): Note? {
+    suspend fun getById(id: Long): Note? = withContext(Dispatchers.IO) {
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
             "${NoteDatabase.COL_ID} = ? AND ${NoteDatabase.COL_IS_DELETED} = 0",
             arrayOf(id.toString()), null, null, null,
         )
-        return cursor.use { c -> if (c.moveToFirst()) db.cursorToNote(c) else null }
+        cursor.use { c -> if (c.moveToFirst()) db.cursorToNote(c) else null }
+    }
+
+    /** 批量获取笔记（过滤已删除） */
+    suspend fun getByIds(ids: List<Long>): List<Note> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+        val placeholders = ids.joinToString(",") { "?" }
+        val args = ids.map { it.toString() }.toTypedArray()
+        val cursor = db.readableDatabase.query(
+            NoteDatabase.TABLE_NOTES, null,
+            "${NoteDatabase.COL_ID} IN ($placeholders) AND ${NoteDatabase.COL_IS_DELETED} = 0",
+            args, null, null, null,
+        )
+        cursor.use { c -> c.mapToList(db) }
     }
 
     /** 笔记总数 */
-    fun countAll(): Long {
+    suspend fun countAll(): Long = withContext(Dispatchers.IO) {
         var count = 0L
         db.readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM ${NoteDatabase.TABLE_NOTES} WHERE ${NoteDatabase.COL_IS_DELETED} = 0", null
         ).use { if (it.moveToFirst()) count = it.getLong(0) }
-        return count
+        count
     }
 
     /** 插入或更新 */
-    fun insertOrUpdate(note: Note): Long {
+    suspend fun insertOrUpdate(note: Note): Long = withContext(Dispatchers.IO) {
         val values = noteToContentValues(note)
-        return if (note.id == 0L) {
+        if (note.id == 0L) {
             val id = db.writableDatabase.insert(NoteDatabase.TABLE_NOTES, null, values)
             notifyChange()
             id
@@ -146,7 +161,7 @@ class NoteDao(private val db: NoteDatabase) {
     }
 
     /** 软删除 */
-    fun softDelete(id: Long) {
+    suspend fun softDelete(id: Long) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
             put(NoteDatabase.COL_IS_DELETED, 1)
             put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
@@ -157,7 +172,7 @@ class NoteDao(private val db: NoteDatabase) {
     }
 
     /** 置顶切换 */
-    fun setPinned(id: Long, pinned: Boolean) {
+    suspend fun setPinned(id: Long, pinned: Boolean) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
             put(NoteDatabase.COL_IS_PINNED, if (pinned) 1 else 0)
             put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
@@ -168,14 +183,14 @@ class NoteDao(private val db: NoteDatabase) {
     }
 
     /** 获取最近 N 条 */
-    fun getRecentNotes(limit: Int = 10): List<Note> {
+    suspend fun getRecentNotes(limit: Int = 10): List<Note> = withContext(Dispatchers.IO) {
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
             "${NoteDatabase.COL_IS_DELETED} = 0",
             null, null, null,
             "${NoteDatabase.COL_UPDATED_AT} DESC LIMIT $limit",
         )
-        return cursor.use { c -> c.mapToList(db) }
+        cursor.use { c -> c.mapToList(db) }
     }
 
     // ==================== 内部工具 ====================
