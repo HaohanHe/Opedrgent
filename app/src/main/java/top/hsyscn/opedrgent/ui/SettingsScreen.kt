@@ -205,6 +205,17 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             scope.launch { snackbar.showSnackbar("未授予全部健康数据权限") }
         }
     }
+    // ACTIVITY_RECOGNITION 权限（部分设备读取步数需要），授权后自动发起 Health Connect 权限请求
+    val activityRecognitionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
+        } else {
+            // 即使拒绝也尝试 Health Connect 权限（部分设备不需要此权限）
+            healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1625,8 +1636,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 val availability = top.hsyscn.opedrgent.health.HealthConnectHelper.getAvailability(context)
                                 when (availability) {
                                     top.hsyscn.opedrgent.health.HealthConnectAvailability.Available -> {
-                                        // 请求权限
-                                        healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
+                                        // 先请求 ACTIVITY_RECOGNITION，再请求 Health Connect 权限
+                                        activityRecognitionLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
                                     }
                                     top.hsyscn.opedrgent.health.HealthConnectAvailability.NeedsUpdate -> {
                                         scope.launch { snackbar.showSnackbar("请先更新 Health Connect 应用") }

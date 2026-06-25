@@ -308,6 +308,7 @@
     <string name="settings_calendar_desc">AI 可查看/修改你的日程，用于日程管理和智能提醒</string>
     <string name="settings_health">运动健康</string>
     <string name="settings_health_desc">AI 可读取步数、心率等运动健康数据，用于健康分析和建议</string>
+    <string name="health_privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
     <string name="settings_local_model_title">本地模型 (Gemma 4 离线)</string>
     <string name="settings_local_model_offline_desc">下载 Gemma 4 模型到设备，完全离线运行，无需网络连接</string>
     <string name="settings_select_model">选择模型 / 下载</string>

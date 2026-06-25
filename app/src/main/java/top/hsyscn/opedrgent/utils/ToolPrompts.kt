@@ -338,6 +338,40 @@ object ToolPrompts {
 {"query_type": "sleep"}
 """.trimIndent()
 
+            "run_calendar" -> """
+## run_calendar - 日历日程管理
+
+读取、创建、修改、删除用户的系统日历事件。直接通过 ContentProvider 操作，无需用户二次确认。
+
+**五种操作：**
+1. **create** - 创建日程（直接写入系统日历）
+2. **query_today** - 查询今天的日程
+3. **query_tomorrow** - 查询明天的日程
+4. **query_week** - 查询本周日程
+5. **update** - 修改指定日程（部分更新，未提供的字段保持不变）
+6. **delete** - 删除指定日程
+
+**使用场景：**
+- 用户提到"安排""预约""提醒""日程""会议""计划"
+- 用户说"改时间""推迟""取消""换个地点"
+- 需要查看今天/明天/本周有什么安排
+
+**参数：**
+- `action` (必填): create / query_today / query_tomorrow / query_week / update / delete
+- `title` (create 必填, update 可选): 事件标题
+- `start_time` (create 必填, update 可选): 开始时间，支持"明天下午3点""一小时后""2026-06-25 15:00"
+- `end_time` (可选): 结束时间，未提供则默认开始后1小时
+- `description` (可选): 备注
+- `location` (可选): 地点
+- `event_id` (update/delete 必填): 事件 ID（从查询结果中获取）
+
+**调用示例：**
+{"action": "create", "title": "团队周会", "start_time": "明天下午3点", "location": "3号会议室"}
+{"action": "query_today"}
+{"action": "update", "event_id": 42, "start_time": "后天下午2点"}
+{"action": "delete", "event_id": 42}
+""".trimIndent()
+
             else -> ""
         }
 
@@ -359,6 +393,7 @@ object ToolPrompts {
             "todowrite" to getToolPrompt("todowrite"),
             "recall" to getToolPrompt("recall"),
             "health_read" to getToolPrompt("health_read"),
+            "run_calendar" to getToolPrompt("run_calendar"),
         ).filter { it.value.isNotBlank() }
     }
 

@@ -1,8 +1,8 @@
 # Opedrgent 项目路线图 (Roadmap)
 
-> **项目定位**: Android 端 AI 知识工作站 — 集对话、语音、搜索、笔记、知识图谱、面试、自动化于一体的个人 AI 助手
+> **项目定位**: Android 端 AI 知识工作站 — 集对话、语音、搜索、笔记、知识图谱、面试、自动化、健康数据、日历管理于一体的个人 AI 助手
 >
-> **当前版本**: v2.x — 阶跃星辰(StepFun)全平台集成版
+> **当前版本**: v2.5 — 阶跃星辰(StepFun)全平台集成版 + 设备数据集成
 >
 > **构建状态**: `./gradlew assembleDebug` 通过 (Java 21 / Android Studio JBR)
 
@@ -29,6 +29,7 @@
 │   │  read_url    │  └─ Step Plan 推理参数                     │
 │   │  run_intent  │  StepSearchTool → POST /v1/search         │
 │   │  run_calendar│  WebViewAgent (浏览器自动化)               │
+│   │  health_read │                                          │
 │   │  speech_to_text                                            │
 │   │  mimo_tts    │                                          │
 │   ├─ 阶跃工具集  │  HttpClients (OkHttp池)                   │
@@ -53,9 +54,8 @@
 │                Storage & Memory Layer                        │
 │  ┌─ 本地持久化 ──────────────────────────────────────────┐   │
 │  │ KnowledgeBase (SQLite全文检索)                          │   │
-│  │ VectorMemory (SQLite + 余弦相似度)                      │   │
-│  │ MemoryDir (内存索引, TTL过期)                           │   │
-│  │ MemoryBridge (双写同步)                                 │   │
+│  │ HippocampusIndex (SQLite全局索引, 关键词+LIKE匹配)      │   │
+│  │ MemoryStore (SharedPreferences, 用户记忆+笔记同步)      │   │
 │  │ Note/Folder (Room DAO)                                  │   │
 │  │ KnowledgeGraph (笔记关系图)                              │   │
 │  └────────────────────────────────────────────────────────┘   │
@@ -101,7 +101,7 @@
 - [x] Compose UI 全套界面 (Session/Chat/Interview/Note/KnowledgeBase/Settings)
 - [x] LlmClient 多模型支持 (OpenAI 兼容协议, 流式SSE)
 - [x] Tool Registry 动态工具注册系统
-- [x] 三层记忆系统 (MemoryDir + MemoryBridge + VectorMemory)
+- [x] 记忆系统 (HippocampusIndex + MemoryStore)
 - [x] 笔记系统 CRUD + 知识图谱
 - [x] Insight Sprout 4阶段知识发芽引擎
 - [x] 编辑团队 (EditorTeam) 多角色协作
@@ -127,6 +127,13 @@
 - [x] 手机操作 Agent (step-3.7-flash-mobile-agent)
 - [x] MCP 协议支持层
 - [x] 搜索查询净化 (停用词去重截断)
+
+### Phase 2.5 — 设备数据集成 (最新完成)
+- [x] **Health Connect 健康数据**: 步数/心率/卡路里/距离/睡眠读取，今日摘要自动注入 system prompt
+- [x] **日历 CRUD**: 通过 ContentProvider 直接创建/查询/修改/删除系统日历事件，支持自然语言时间解析
+- [x] **发芽三层渐进上下文**: 标签层(海马体关键词) -> 索引层(标题+一句话概要) -> 联网搜索验证
+- [x] **发芽 JSON 解析加固**: 正则兜底支持未转义双引号，max_tokens 提升到 32768
+- [x] **笔记发芽数据持久化**: 修复自动保存覆盖 sproutReportJson 的 bug，重启后发芽数据不丢失
 
 ---
 
@@ -282,7 +289,8 @@
 | 异步 | Kotlin Coroutines + Flow | 并发与响应式 |
 | 网络 | OkHttp 4.x | HTTP客户端池 |
 | 本地DB | Room (SQLite) | 笔记/知识库/配置持久化 |
-| 向量检索 | SQLite + 余弦相似度 (自实现) | 本地语义搜索 |
+| 全局索引 | HippocampusIndex (SQLite + LIKE) | 跨会话记忆索引 |
+| 用户记忆 | MemoryStore (SharedPreferences) | 用户手动记忆+笔记同步 |
 | PDF处理 | ML Kit (中文+英文OCR) | 文档识别 |
 | 语音STT | Sherpa-ONNX (本地) + StepAudio (云端) + MiMo | 多引擎ASR |
 | 语音TTS | Android System + StepAudio (云端) + MiMo | 多引擎TTS |
