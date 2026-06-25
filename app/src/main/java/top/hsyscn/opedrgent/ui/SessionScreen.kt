@@ -399,28 +399,24 @@ fun SessionScreen(
                 }
             }
 
-            // Stop responding / Skeleton loading
+            // Stop responding
             AnimatedVisibility(visible = state.isStreaming) {
-                if (state.streamingText.length < 10) {
-                    SkeletonLoadingBar(onStop = { vm.stopGeneration() })
-                } else {
-                    OutlinedButton(
-                        onClick = { vm.stopGeneration() },
+                OutlinedButton(
+                    onClick = { vm.stopGeneration() },
+                    modifier = Modifier
+                        .padding(horizontal = 66.dp, vertical = 4.dp)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(7.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+                ) {
+                    Box(
                         modifier = Modifier
-                            .padding(horizontal = 66.dp, vertical = 4.dp)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(7.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
-                        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(17.dp)
-                                .background(AccentBlue, RoundedCornerShape(2.dp)),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
-                    }
+                            .size(17.dp)
+                            .background(AccentBlue, RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -1016,73 +1012,4 @@ private fun isValidUrl(text: String): Boolean {
             trimmed.startsWith("www.") || trimmed.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*"))
 }
 
-/**
- * 骨架屏加载动画，在 AI 开始生成但文本尚为空/极短时显示。
- */
-@Composable
-private fun SkeletonLoadingBar(onStop: () -> Unit) {
-    val shimmerColors = listOf(
-        Color.LightGray.copy(alpha = 0.6f),
-        Color.LightGray.copy(alpha = 0.2f),
-        Color.LightGray.copy(alpha = 0.6f),
-    )
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "shimmer",
-    )
-    val brush = Brush.linearGradient(
-        colors = shimmerColors,
-        start = Offset(translateAnim - 200f, 0f),
-        end = Offset(translateAnim, 0f),
-    )
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 66.dp, vertical = 4.dp),
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            repeat(3) { index ->
-                val widthFraction = when (index) {
-                    0 -> 0.95f
-                    1 -> 0.75f
-                    2 -> 0.5f
-                    else -> 0.95f
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(widthFraction)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(brush),
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = onStop,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(7.dp),
-            colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
-            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(17.dp)
-                    .background(AccentBlue, RoundedCornerShape(2.dp)),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
-        }
-    }
-}
