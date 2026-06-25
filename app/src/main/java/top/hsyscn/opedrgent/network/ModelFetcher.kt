@@ -42,35 +42,36 @@ object ModelFetcher {
             .build()
 
         try {
-            val response = HttpClients.default.newCall(request).execute()
-            if (!response.isSuccessful) {
-                val errBody = response.body?.string()?.take(500).orEmpty()
-                DebugLog.w("ModelFetcher: HTTP ${response.code} from $url — $errBody")
-                return@withContext null
-            }
-
-            val body = response.body?.string() ?: run {
-                DebugLog.w("ModelFetcher: empty response body from $url")
-                return@withContext null
-            }
-
-            val json = JSONObject(body)
-            val data = json.optJSONArray("data") ?: run {
-                DebugLog.w("ModelFetcher: no 'data' array in response: ${body.take(200)}")
-                return@withContext null
-            }
-
-            val models = mutableListOf<String>()
-            for (i in 0 until data.length()) {
-                val item = data.optJSONObject(i) ?: continue
-                val id = item.optString("id", "")
-                if (id.isNotBlank()) {
-                    models.add(id)
+            HttpClients.default.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string()?.take(500).orEmpty()
+                    DebugLog.w("ModelFetcher: HTTP ${response.code} from $url — $errBody")
+                    return@use null
                 }
-            }
 
-            models.sorted().also {
-                DebugLog.i("ModelFetcher: fetched ${it.size} models from $url")
+                val body = response.body?.string() ?: run {
+                    DebugLog.w("ModelFetcher: empty response body from $url")
+                    return@use null
+                }
+
+                val json = JSONObject(body)
+                val data = json.optJSONArray("data") ?: run {
+                    DebugLog.w("ModelFetcher: no 'data' array in response: ${body.take(200)}")
+                    return@use null
+                }
+
+                val models = mutableListOf<String>()
+                for (i in 0 until data.length()) {
+                    val item = data.optJSONObject(i) ?: continue
+                    val id = item.optString("id", "")
+                    if (id.isNotBlank()) {
+                        models.add(id)
+                    }
+                }
+
+                models.sorted().also {
+                    DebugLog.i("ModelFetcher: fetched ${it.size} models from $url")
+                }
             }
         } catch (e: Exception) {
             DebugLog.e("ModelFetcher: failed to fetch from $url: ${e.javaClass.simpleName}: ${e.message}")

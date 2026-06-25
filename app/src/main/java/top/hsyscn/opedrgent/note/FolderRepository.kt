@@ -1,8 +1,11 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /**
@@ -20,19 +23,31 @@ class FolderRepository(context: Context) {
     private val _changeTrigger = MutableStateFlow(0L)
 
     /** 所有文件夹（按名称排序） */
-    fun getAllFolders(): Flow<List<Folder>> = _changeTrigger.map { dao.getAllFolders() }
+    fun getAllFolders(): Flow<List<Folder>> = _changeTrigger
+        .map { dao.getAllFolders() }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 按父文件夹筛选 */
-    fun getByParent(parentId: Long? = null): Flow<List<Folder>> = _changeTrigger.map { dao.getByParent(parentId) }
+    fun getByParent(parentId: Long? = null): Flow<List<Folder>> = _changeTrigger
+        .map { dao.getByParent(parentId) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 搜索文件夹（名称模糊匹配） */
-    fun searchFolders(query: String): Flow<List<Folder>> = _changeTrigger.map { dao.searchFolders(query) }
+    fun searchFolders(query: String): Flow<List<Folder>> = _changeTrigger
+        .map { dao.searchFolders(query) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 获取单个文件夹 */
     suspend fun getFolderById(id: Long): Folder? = dao.getById(id)
 
     /** 文件夹总数 */
-    fun countAll(): Flow<Long> = _changeTrigger.map { dao.countAll() }
+    fun countAll(): Flow<Long> = _changeTrigger
+        .map { dao.countAll() }
+        .flowOn(Dispatchers.IO)
+        .conflate()
 
     /** 创建或更新文件夹 */
     suspend fun saveFolder(folder: Folder): Long {

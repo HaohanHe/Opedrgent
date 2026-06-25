@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteOpenHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 /**
  * 发芽报告数据库 — 独立持久化每份发芽报告（参照得到大脑设计）
@@ -82,7 +84,7 @@ class SproutReportStore(context: Context) {
     private val db = SproutReportDatabase.getInstance(context).writableDatabase
 
     /** 保存一份新发芽报告 */
-    fun insert(report: SproutReportRecord): Long {
+    fun insert(report: SproutReportRecord): Long = runBlocking(Dispatchers.IO) {
         val cv = ContentValues().apply {
             put(SproutReportDatabase.COL_SOURCE_NOTE_ID, report.sourceNoteId)
             put(SproutReportDatabase.COL_SOURCE_TITLE, report.sourceTitle.take(200))
@@ -92,34 +94,34 @@ class SproutReportStore(context: Context) {
             put(SproutReportDatabase.COL_CREATED_AT, report.createdAt)
             put(SproutReportDatabase.COL_WORD_COUNT, report.wordCount)
         }
-        return db.insert(SproutReportDatabase.TABLE, null, cv)
+        db.insert(SproutReportDatabase.TABLE, null, cv)
     }
 
     /** 按 ID 删除 */
-    fun delete(id: Long) {
+    fun delete(id: Long) = runBlocking(Dispatchers.IO) {
         db.delete(SproutReportDatabase.TABLE,
             "${SproutReportDatabase.COL_ID}=?", arrayOf(id.toString()))
     }
 
     /** 删除某笔记的所有发芽报告 */
-    fun deleteByNoteId(noteId: Long) {
+    fun deleteByNoteId(noteId: Long) = runBlocking(Dispatchers.IO) {
         db.delete(SproutReportDatabase.TABLE,
             "${SproutReportDatabase.COL_SOURCE_NOTE_ID}=?",
             arrayOf(noteId.toString()))
     }
 
     /** 获取全部报告（按时间倒序） */
-    fun getAll(limit: Int = 50): List<SproutReportRecord> {
+    fun getAll(limit: Int = 50): List<SproutReportRecord> = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             SproutReportDatabase.TABLE, null, null, null, null, null,
             "${SproutReportDatabase.COL_CREATED_AT} DESC",
             limit.toString()
         )
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /** 获取某笔记的所有发芽报告 */
-    fun getByNoteId(noteId: Long, limit: Int = 10): List<SproutReportRecord> {
+    fun getByNoteId(noteId: Long, limit: Int = 10): List<SproutReportRecord> = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             SproutReportDatabase.TABLE, null,
             "${SproutReportDatabase.COL_SOURCE_NOTE_ID}=?",
@@ -127,21 +129,21 @@ class SproutReportStore(context: Context) {
             "${SproutReportDatabase.COL_CREATED_AT} DESC",
             limit.toString()
         )
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /** 获取单条报告详情 */
-    fun getById(id: Long): SproutReportRecord? {
+    fun getById(id: Long): SproutReportRecord? = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             SproutReportDatabase.TABLE, null,
             "${SproutReportDatabase.COL_ID}=?",
             arrayOf(id.toString()), null, null, null, "1"
         )
-        return cursorToList(cursor).firstOrNull()
+        cursorToList(cursor).firstOrNull()
     }
 
     /** 搜索报告（标题/摘要/内容） */
-    fun query(keyword: String, limit: Int = 20): List<SproutReportRecord> {
+    fun query(keyword: String, limit: Int = 20): List<SproutReportRecord> = runBlocking(Dispatchers.IO) {
         val pattern = "%$keyword%"
         val cursor = db.rawQuery("""
             SELECT * FROM ${SproutReportDatabase.TABLE}
@@ -150,13 +152,13 @@ class SproutReportStore(context: Context) {
                OR ${SproutReportDatabase.COL_MARKDOWN_REPORT} LIKE ?
             ORDER BY ${SproutReportDatabase.COL_CREATED_AT} DESC LIMIT ?
         """, arrayOf(pattern, pattern, pattern, limit.toString()))
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /** 总数 */
-    fun count(): Int {
+    fun count(): Int = runBlocking(Dispatchers.IO) {
         db.rawQuery("SELECT COUNT(*) FROM ${SproutReportDatabase.TABLE}", null).use {
-            return if (it.moveToFirst()) it.getInt(0) else 0
+            if (it.moveToFirst()) it.getInt(0) else 0
         }
     }
 

@@ -23,6 +23,15 @@ import java.io.File
 class ResearchStore(context: Context) {
     private val file = File(context.filesDir, "research_store.json")
     private val lock = Any()
+    private var sessions: List<ResearchSession>? = null
+
+    private fun ensureLoaded(): List<ResearchSession> {
+        val cached = sessions
+        if (cached != null) return cached
+        val loaded = loadAllInternal()
+        sessions = loaded
+        return loaded
+    }
 
     fun listSessions(): List<SessionSummary> {
         val sessions = loadAll().map { s ->
@@ -46,32 +55,39 @@ class ResearchStore(context: Context) {
             artifacts = emptyList(),
             notes = "",
         )
-        updateSession(session)
+        synchronized(lock) {
+            val all = ensureLoaded().toMutableList()
+            all.add(session)
+            saveAllInternal(all)
+            sessions = all
+        }
         return session
     }
 
     fun deleteSession(sessionId: String): Boolean {
         synchronized(lock) {
-            val sessions = loadAllInternal()
-            val filtered = sessions.filter { it.id != sessionId }
-            if (filtered.size == sessions.size) return false
-            saveAllInternal(filtered)
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return false
+            all.removeAt(idx)
+            saveAllInternal(all)
+            sessions = all
             return true
         }
     }
 
     fun renameSession(sessionId: String, newTitle: String): Boolean {
         synchronized(lock) {
-            val sessions = loadAllInternal()
-            val idx = sessions.indexOfFirst { it.id == sessionId }
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
             if (idx < 0) return false
-            val updated = sessions[idx].copy(
-                title = newTitle.trim().ifEmpty { sessions[idx].title },
+            val updated = all[idx].copy(
+                title = newTitle.trim().ifEmpty { all[idx].title },
                 updatedAt = System.currentTimeMillis(),
             )
-            val newList = sessions.toMutableList()
-            newList[idx] = updated
-            saveAllInternal(newList)
+            all[idx] = updated
+            saveAllInternal(all)
+            sessions = all
             return true
         }
     }
@@ -84,20 +100,26 @@ class ResearchStore(context: Context) {
         content: String,
     ): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
             val now = System.currentTimeMillis()
+            val source = Source(
+                type = type,
+                title = title?.takeIf { it.isNotBlank() },
+                url = url?.takeIf { it.isNotBlank() },
+                content = content,
+                includeInContext = true,
+                createdAt = now,
+            )
             val next = session.copy(
                 updatedAt = now,
-                sources = session.sources + Source(
-                    type = type,
-                    title = title?.takeIf { it.isNotBlank() },
-                    url = url?.takeIf { it.isNotBlank() },
-                    content = content,
-                    includeInContext = true,
-                    createdAt = now,
-                ),
+                sources = session.sources + source,
             )
-            updateSessionInternal(next)
+            appendToSession(sessionId, "sources", serializeSource(source), now)
+            all[idx] = next
+            sessions = all
             return next
         }
     }
@@ -113,76 +135,102 @@ class ResearchStore(context: Context) {
         isUserAction: Boolean = false,
     ): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
             val now = System.currentTimeMillis()
+            val message = ChatMessage(
+                role = role,
+                content = content,
+                createdAt = now,
+                toolParts = toolParts,
+                reasoningParts = reasoningParts,
+                questionPart = questionPart,
+                parts = parts,
+                isUserAction = isUserAction,
+            )
             val next = session.copy(
                 updatedAt = now,
-                messages = session.messages + ChatMessage(
-                    role = role,
-                    content = content,
-                    createdAt = now,
-                    toolParts = toolParts,
-                    reasoningParts = reasoningParts,
-                    questionPart = questionPart,
-                    parts = parts,
-                    isUserAction = isUserAction,
-                ),
+                messages = session.messages + message,
             )
-            updateSessionInternal(next)
+            appendToSession(sessionId, "messages", serializeMessage(message), now)
+            all[idx] = next
+            sessions = all
             return next
         }
     }
 
     fun addArtifact(sessionId: String, kind: ArtifactKind, content: String): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
             val now = System.currentTimeMillis()
+            val artifact = Artifact(kind = kind, content = content, createdAt = now)
             val next = session.copy(
                 updatedAt = now,
-                artifacts = session.artifacts + Artifact(kind = kind, content = content, createdAt = now),
+                artifacts = session.artifacts + artifact,
             )
-            updateSessionInternal(next)
+            appendToSession(sessionId, "artifacts", serializeArtifact(artifact), now)
+            all[idx] = next
+            sessions = all
             return next
         }
     }
 
     fun setNotes(sessionId: String, notes: String): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
-            val now = System.currentTimeMillis()
-            val next = session.copy(updatedAt = now, notes = notes)
-            updateSessionInternal(next)
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
+            val next = session.copy(updatedAt = System.currentTimeMillis(), notes = notes)
+            all[idx] = next
+            saveAllInternal(all)
+            sessions = all
             return next
         }
     }
 
     fun setSourceIncluded(sessionId: String, sourceId: String, included: Boolean): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
-            val idx = session.sources.indexOfFirst { it.id == sourceId }
-            if (idx < 0) return session
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
+            val sourceIdx = session.sources.indexOfFirst { it.id == sourceId }
+            if (sourceIdx < 0) return session
             val now = System.currentTimeMillis()
             val nextSources = session.sources.toMutableList()
-            nextSources[idx] = nextSources[idx].copy(includeInContext = included)
+            nextSources[sourceIdx] = nextSources[sourceIdx].copy(includeInContext = included)
             val next = session.copy(updatedAt = now, sources = nextSources)
-            updateSessionInternal(next)
+            all[idx] = next
+            saveAllInternal(all)
+            sessions = all
             return next
         }
     }
 
     fun removeSource(sessionId: String, sourceId: String): ResearchSession? {
         synchronized(lock) {
-            val session = loadAllInternal().firstOrNull { it.id == sessionId } ?: return null
+            val all = ensureLoaded().toMutableList()
+            val idx = all.indexOfFirst { it.id == sessionId }
+            if (idx < 0) return null
+            val session = all[idx]
             val now = System.currentTimeMillis()
             val nextSources = session.sources.filter { it.id != sourceId }
             val next = session.copy(updatedAt = now, sources = nextSources)
-            updateSessionInternal(next)
+            all[idx] = next
+            saveAllInternal(all)
+            sessions = all
             return next
         }
     }
 
     private fun updateSessionInternal(session: ResearchSession) {
-        val all = loadAllInternal().toMutableList()
+        val all = ensureLoaded().toMutableList()
         val idx = all.indexOfFirst { it.id == session.id }
         if (idx >= 0) {
             all[idx] = session
@@ -190,6 +238,7 @@ class ResearchStore(context: Context) {
             all.add(session)
         }
         saveAllInternal(all)
+        sessions = all
     }
 
     fun updateSession(session: ResearchSession) {
@@ -200,7 +249,7 @@ class ResearchStore(context: Context) {
 
     private fun loadAll(): List<ResearchSession> {
         synchronized(lock) {
-            return loadAllInternal()
+            return ensureLoaded()
         }
     }
 
@@ -220,6 +269,48 @@ class ResearchStore(context: Context) {
         sessions.forEach { arr.put(serializeSession(it)) }
         root.put("sessions", arr)
         file.writeText(root.toString(), Charsets.UTF_8)
+    }
+
+    // ==================== 增量追加写入辅助方法 ====================
+
+    private fun loadRootJson(): JSONObject {
+        if (!file.exists()) {
+            return JSONObject().apply { put("sessions", JSONArray()) }
+        }
+        val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: ""
+        if (text.isBlank()) {
+            return JSONObject().apply { put("sessions", JSONArray()) }
+        }
+        return runCatching { JSONObject(text) }.getOrNull()
+            ?: JSONObject().apply { put("sessions", JSONArray()) }
+    }
+
+    private fun saveRootJson(root: JSONObject) {
+        file.writeText(root.toString(), Charsets.UTF_8)
+    }
+
+    private fun findSessionIndexInRoot(root: JSONObject, sessionId: String): Int {
+        val arr = root.optJSONArray("sessions") ?: return -1
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            if (obj.optString("id") == sessionId) return i
+        }
+        return -1
+    }
+
+    private fun appendToSession(sessionId: String, arrayKey: String, item: JSONObject, now: Long) {
+        val root = loadRootJson()
+        val sessionIdx = findSessionIndexInRoot(root, sessionId)
+        if (sessionIdx < 0) {
+            saveAllInternal(ensureLoaded())
+            return
+        }
+        val sessionObj = root.getJSONArray("sessions").getJSONObject(sessionIdx)
+        val arr = sessionObj.optJSONArray(arrayKey) ?: JSONArray()
+        arr.put(item)
+        sessionObj.put(arrayKey, arr)
+        sessionObj.put("updatedAt", now)
+        saveRootJson(root)
     }
 
     private fun parseSession(obj: JSONObject): ResearchSession? {

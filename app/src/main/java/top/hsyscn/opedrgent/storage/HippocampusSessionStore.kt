@@ -3,6 +3,8 @@ package top.hsyscn.opedrgent.storage
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.interview.HippocampusMemory
 import top.hsyscn.opedrgent.interview.InterviewConfig
@@ -57,7 +59,7 @@ class HippocampusSessionStore(context: Context) {
         goalAnchor: HippocampusMemory.GoalAnchor,
         report: HippocampusMemory.DriftReport,
         startedAt: Long,
-    ) {
+    ) = runBlocking(Dispatchers.IO) {
         try {
             val cv = ContentValues().apply {
                 put(HippocampusDatabase.COL_SESSION_ID, sessionId)
@@ -95,30 +97,30 @@ class HippocampusSessionStore(context: Context) {
     /**
      * 查询所有历史会话（按结束时间倒序）。
      */
-    fun getAll(limit: Int = 100): List<SessionSummary> {
+    fun getAll(limit: Int = 100): List<SessionSummary> = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             HippocampusDatabase.TABLE_SESSIONS, null, null, null, null, null,
             "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
         )
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /**
      * 按面试类型筛选历史会话。
      */
-    fun getByType(type: InterviewType, limit: Int = 50): List<SessionSummary> {
+    fun getByType(type: InterviewType, limit: Int = 50): List<SessionSummary> = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             HippocampusDatabase.TABLE_SESSIONS, null,
             "${HippocampusDatabase.COL_INTERVIEW_TYPE}=?", arrayOf(type.name),
             null, null, "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
         )
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /**
      * 关键词搜索历史会话（在目标/岗位/公司/摘要中匹配）。
      */
-    fun search(keyword: String, limit: Int = 30): List<SessionSummary> {
+    fun search(keyword: String, limit: Int = 30): List<SessionSummary> = runBlocking(Dispatchers.IO) {
         val pattern = "%$keyword%"
         val sql = """SELECT * FROM ${HippocampusDatabase.TABLE_SESSIONS}
             WHERE ${HippocampusDatabase.COL_PRIMARY_GOAL} LIKE ?
@@ -128,27 +130,27 @@ class HippocampusSessionStore(context: Context) {
             OR ${HippocampusDatabase.COL_KEY_TOPICS} LIKE ?
             ORDER BY ${HippocampusDatabase.COL_ENDED_AT} DESC LIMIT ?"""
         val cursor = db.rawQuery(sql, arrayOf(pattern, pattern, pattern, pattern, pattern, limit.toString()))
-        return cursorToList(cursor)
+        cursorToList(cursor)
     }
 
     /**
      * 获取单条会话详情（含完整轮次记录）。
      */
-    fun getById(sessionId: String): SessionDetail? {
+    fun getById(sessionId: String): SessionDetail? = runBlocking(Dispatchers.IO) {
         val cursor = db.query(
             HippocampusDatabase.TABLE_SESSIONS, null,
             "${HippocampusDatabase.COL_SESSION_ID}=?", arrayOf(sessionId),
             null, null, null, "1",
         )
-        val summary = cursorToList(cursor).firstOrNull() ?: return null
+        val summary = cursorToList(cursor).firstOrNull() ?: return@runBlocking null
         // 二次查询拿完整 turn_records（summary 已包含，直接复用）
-        return toDetail(summary)
+        toDetail(summary)
     }
 
     /**
      * 删除指定会话。
      */
-    fun delete(sessionId: String) {
+    fun delete(sessionId: String) = runBlocking(Dispatchers.IO) {
         db.delete(
             HippocampusDatabase.TABLE_SESSIONS,
             "${HippocampusDatabase.COL_SESSION_ID}=?",
@@ -159,9 +161,9 @@ class HippocampusSessionStore(context: Context) {
     /**
      * 统计会话总数。
      */
-    fun count(): Int {
+    fun count(): Int = runBlocking(Dispatchers.IO) {
         val cursor = db.rawQuery("SELECT COUNT(*) FROM ${HippocampusDatabase.TABLE_SESSIONS}", null)
-        return cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
     }
 
     // ==================== 序列化 ====================

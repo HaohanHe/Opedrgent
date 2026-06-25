@@ -236,71 +236,7 @@ object EngineStatusManager {
         replaceWith = ReplaceWith("CircuitBreakerManager.getOrCreate(engineName).recordFailure(error)")
     )
     fun handleError(engineName: String, error: Exception) {
-        try {
-            CircuitBreakerManager.getOrCreate(engineName).recordFailure(error)
-        } catch (e: Exception) { /* ignore */ }
-        
-        val current = statusMap[engineName] ?: EngineStatus()
-        val errorMessage = error.message ?: error.javaClass.simpleName
-        
-        // 分类错误
-        val errorType = classifyError(errorMessage)
-        
-        // 更新统计
-        failureCounters.getOrPut(engineName) { AtomicInteger(0) }.incrementAndGet()
-        
-        // 根据错误类型决定处理策略
-        val suspendDurationMs = when (errorType) {
-            ErrorType.CAPTCHA -> 300_000L           // 5分钟
-            ErrorType.RATE_LIMIT -> 60_000L          // 1分钟
-            ErrorType.FORBIDDEN -> 120_000L          // 2分钟
-            ErrorType.PERMANENT -> 180_000L          // 3分钟
-            ErrorType.TRANSIENT -> 30_000L           // 30秒
-            ErrorType.UNKNOWN -> null                // 不暂停
-        }
-        
-        val newConsecutiveErrors = current.consecutiveErrors + 1
-        
-        if (suspendDurationMs != null) {
-            val suspendUntil = System.currentTimeMillis() + suspendDurationMs
-            
-            statusMap[engineName] = current.copy(
-                suspended = true,
-                suspendUntil = suspendUntil,
-                consecutiveErrors = newConsecutiveErrors,
-                lastError = errorMessage,
-                inRecoveryMode = false,
-                recoveryAttempts = 0,
-                totalFailures = current.totalFailures + 1
-            )
-            
-            DebugLog.w(
-                "EngineStatusManager: $engineName suspended for ${suspendDurationMs / 1000}s " +
-                "(error=$errorType, consecutive=$newConsecutiveErrors)"
-            )
-        } else {
-            // 未知错误：仅累加计数，达到阈值时触发暂停
-            if (newConsecutiveErrors >= 3) {
-                val suspendUntil = System.currentTimeMillis() + 60_000L
-                statusMap[engineName] = current.copy(
-                    suspended = true,
-                    suspendUntil = suspendUntil,
-                    consecutiveErrors = newConsecutiveErrors,
-                    lastError = errorMessage,
-                    totalFailures = current.totalFailures + 1
-                )
-                
-                DebugLog.w(
-                    "EngineStatusManager: $engineName suspended after $newConsecutiveErrors unknown errors"
-                )
-            } else {
-                statusMap[engineName] = current.copy(
-                    consecutiveErrors = newConsecutiveErrors,
-                    lastError = errorMessage,
-                    totalFailures = current.totalFailures + 1
-                )
-            }
-        }
+        // 已废弃：调用方请直接使用 CircuitBreakerManager.getOrCreate(engineName).recordFailure(error)
     }
 
     @Deprecated(

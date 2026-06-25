@@ -37,6 +37,8 @@ import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val hippocampusTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HippocampusScreen(
@@ -388,6 +390,5 @@ private fun EmptyHippocampusState() {
 }
 
 private fun formatHippocampusTime(timestamp: Long): String {
-    val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
-    return sdf.format(Date(timestamp))
+    return hippocampusTimeFormat.format(Date(timestamp))
 }

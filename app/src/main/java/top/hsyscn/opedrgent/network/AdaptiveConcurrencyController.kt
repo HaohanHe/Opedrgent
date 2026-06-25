@@ -1,14 +1,14 @@
 package top.hsyscn.opedrgent.network
 
 import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.suspendCancellableCoroutine
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
@@ -45,7 +45,8 @@ class AdaptiveConcurrencyController(
     private val globalSemaphore = Semaphore(config.globalMaxConcurrent)
     private val globalPermits = AtomicLong(config.globalMaxConcurrent.toLong())
     private val engineSemaphores = ConcurrentHashMap<String, Semaphore>()
-    private val enginePermits = ConcurrentHashMap<String, AtomicLong>()
+    private val engineMaxPermits = ConcurrentHashMap<String, AtomicInteger>()
+    private val engineUsedPermits = ConcurrentHashMap<String, AtomicInteger>()
     private val priorityQueues = EnumMap<Priority, LinkedList<SuspendedRequest>>(Priority::class.java).apply {
         Priority.entries.forEach { put(it, LinkedList()) }
     }
@@ -113,6 +114,8 @@ class AdaptiveConcurrencyController(
         block: suspend () -> T
     ): T? {
         val engineSemaphore = getEngineSemaphore(engineName)
+        val engineMax = engineMaxPermits[engineName]!!
+        val engineUsed = engineUsedPermits[engineName]!!
 
         val globalResult = withGlobalAccess(priority) {
             val engineTimeoutMs = when (priority) {
@@ -129,6 +132,14 @@ class AdaptiveConcurrencyController(
                 return@withGlobalAccess null as T?
             }
 
+            if (engineUsed.incrementAndGet() > engineMax.get()) {
+                engineUsed.decrementAndGet()
+                engineSemaphore.release()
+                stats["rejected"]?.incrementAndGet()
+                DebugLog.w(TAG, "Engine[$engineName] access rejected due to dynamic limit=${engineMax.get()}")
+                return@withGlobalAccess null as T?
+            }
+
             try {
                 val result = block()
                 recordRequest(true)
@@ -138,6 +149,7 @@ class AdaptiveConcurrencyController(
                 DebugLog.e(TAG, "Engine[$engineName] execution error: ${e.message}", e)
                 throw e
             } finally {
+                engineUsed.decrementAndGet()
                 engineSemaphore.release()
             }
         }
@@ -153,15 +165,18 @@ class AdaptiveConcurrencyController(
     fun getEngineSemaphore(engineName: String): Semaphore {
         return engineSemaphores.getOrPut(engineName) {
             DebugLog.d(TAG, "Creating new semaphore for engine: $engineName")
-            enginePermits[engineName] = AtomicLong(config.perEngineMaxConcurrent.toLong())
-            Semaphore(config.perEngineMaxConcurrent)
+            engineMaxPermits[engineName] = AtomicInteger(config.perEngineMaxConcurrent)
+            engineUsedPermits[engineName] = AtomicInteger(0)
+            // 创建一次后不再替换；实际并发上限通过 engineMaxPermits/engineUsedPermits 动态控制
+            Semaphore(config.maxPerEngineLimit)
         }
     }
 
     fun adjustEngineLimits() {
         val successRate = calculateSuccessRate()
         val currentActive = activeRequests
-        val currentPerEngine = config.perEngineMaxConcurrent
+        val currentPerEngine = engineMaxPermits.values.firstOrNull()?.get()
+            ?: config.perEngineMaxConcurrent
 
         DebugLog.i(TAG, "adjustEngineLimits - successRate=$successRate, activeRequests=$currentActive, perEngineLimit=$currentPerEngine")
 
@@ -191,7 +206,8 @@ class AdaptiveConcurrencyController(
             "totalProcessed" to (stats["processed"]?.get() ?: 0L) as Any,
             "totalRejected" to (stats["rejected"]?.get() ?: 0L) as Any,
             "successRate" to calculateSuccessRate(),
-            "engineSemaphores" to enginePermits.mapValues { it.value.get() },
+            "engineSemaphores" to engineMaxPermits.mapValues { it.value.get() },
+            "engineUsed" to engineUsedPermits.mapValues { it.value.get() },
             "queueSizes" to priorityQueues.mapValues { it.value.size },
             "consecutiveFailures" to (stats["consecutiveFailures"]?.get() ?: 0L),
             "requestCountSinceAdjustment" to requestCountSinceAdjustment
@@ -205,6 +221,8 @@ class AdaptiveConcurrencyController(
         priorityQueues.values.forEach { it.clear() }
         stats.values.forEach { it.set(0) }
         engineSemaphores.clear()
+        engineMaxPermits.clear()
+        engineUsedPermits.clear()
         DebugLog.w(TAG, "AdaptiveConcurrencyController reset")
     }
 
@@ -266,40 +284,34 @@ class AdaptiveConcurrencyController(
         val requestId = UUID.randomUUID().toString()
         val submittedAt = System.currentTimeMillis()
 
-        val acquired = suspendCancellableCoroutine<Boolean> { continuation ->
-            val request = SuspendedRequest(
-                id = requestId,
-                priority = priority,
-                requester = requester,
-                submittedAt = submittedAt,
-                continuation = continuation
-            )
+        return withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine<Boolean> { continuation ->
+                val request = SuspendedRequest(
+                    id = requestId,
+                    priority = priority,
+                    requester = requester,
+                    submittedAt = submittedAt,
+                    continuation = continuation
+                )
 
-            priorityQueues[priority]?.add(request)
+                priorityQueues[priority]?.add(request)
 
-            continuation.invokeOnCancellation {
-                priorityQueues[priority]?.removeIf { it.id == requestId }
-            }
-
-            GlobalScope.launch {
-                kotlinx.coroutines.delay(timeoutMs)
-                if (continuation.isActive) {
+                continuation.invokeOnCancellation {
                     priorityQueues[priority]?.removeIf { it.id == requestId }
-                    continuation.resume(false)
                 }
             }
-        }
-
-        if (acquired) {
-            try {
-                semaphore.acquire()
-                return true
-            } catch (e: Exception) {
-                return false
+        }?.let { resumed ->
+            if (resumed) {
+                try {
+                    semaphore.acquire()
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            } else {
+                false
             }
-        }
-
-        return false
+        } ?: false
     }
 
     private fun hasHigherPriorityInQueue(currentPriority: Priority): Boolean {
@@ -330,13 +342,13 @@ class AdaptiveConcurrencyController(
     }
 
     private fun shouldIncreaseLimits(): Boolean {
-        val currentLimit = enginePermits.values.firstOrNull()?.get()?.toInt()
+        val currentLimit = engineMaxPermits.values.firstOrNull()?.get()
             ?: config.perEngineMaxConcurrent
         return currentLimit < config.maxPerEngineLimit
     }
 
     private fun shouldDecreaseLimits(): Boolean {
-        val currentLimit = enginePermits.values.firstOrNull()?.get()?.toInt()
+        val currentLimit = engineMaxPermits.values.firstOrNull()?.get()
             ?: config.perEngineMaxConcurrent
         return currentLimit > config.minPerEngineLimit
     }
@@ -346,26 +358,14 @@ class AdaptiveConcurrencyController(
     }
 
     private fun updateAllEngineSemaphores(newLimit: Int) {
-        engineSemaphores.forEach { (name, oldSemaphore) ->
-            val used = config.perEngineMaxConcurrent - (enginePermits[name]?.get()?.toInt() ?: config.perEngineMaxConcurrent)
-            val newAvailable = maxOf(newLimit - used, 0)
-            engineSemaphores[name] = Semaphore(newAvailable)
-            enginePermits[name] = AtomicLong(newAvailable.toLong())
-            DebugLog.d(TAG, "Updated engine[$name] semaphore permits to available=$newAvailable (limit=$newLimit)")
+        engineMaxPermits.forEach { (name, max) ->
+            max.set(newLimit)
+            DebugLog.d(TAG, "Updated engine[$name] dynamic limit to $newLimit")
         }
     }
 
     companion object {
         private const val TAG = "AdaptiveConcurrencyController"
         private const val MAX_TRACKER_SIZE = 50
-    }
-}
-
-private suspend fun Semaphore.tryAcquire(timeoutMs: Long): Boolean {
-    return try {
-        this.acquire()
-        true
-    } catch (e: Exception) {
-        false
     }
 }

@@ -14,6 +14,7 @@ import top.hsyscn.opedrgent.intelligence.FeaturePipeline
 import top.hsyscn.opedrgent.intelligence.AgentContext
 import top.hsyscn.opedrgent.intelligence.CostTrackerFeature
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** 单步执行结果 */
 data class EditorResult(
@@ -82,14 +83,15 @@ class EditorTeamService(
 
     // ==================== FeaturePipeline（拦截器链）====================
 
-    /** 编辑团执行流水线，预装成本追踪 Feature（延迟初始化，避免构造函数中调用 suspend 函数） */
-    private val _pipeline: FeaturePipeline by lazy {
-        val pl = FeaturePipeline.standard()
-        // install 是 suspend 函数，在 lazy 中通过 runBlocking 调用
-        kotlinx.coroutines.runBlocking {
-            pl.install(CostTrackerFeature())
+    /** 编辑团执行流水线，预装成本追踪 Feature（在 IO 线程延迟初始化） */
+    private val _pipeline: FeaturePipeline = FeaturePipeline.standard()
+    private val pipelineInitialized = AtomicBoolean(false)
+
+    private suspend fun initializePipeline() {
+        if (!pipelineInitialized.compareAndSet(false, true)) return
+        withContext(Dispatchers.IO) {
+            _pipeline.install(CostTrackerFeature())
         }
-        pl
     }
 
     /** 获取 Pipeline（供外部查询状态或安装额外 Feature） */
@@ -132,6 +134,7 @@ class EditorTeamService(
     ): PipelineResult = withContext(Dispatchers.IO) {
         resetCancel()
         resetStorage()
+        initializePipeline()
         val startTime = System.currentTimeMillis()
 
         // Step 1: LLM 规划（总编分析任务）

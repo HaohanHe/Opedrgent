@@ -316,7 +316,7 @@ fun NoteShareScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(shareFormats) { format ->
+                items(shareFormats, key = { it.name }) { format ->
                     ShareFormatItem(
                         format = format,
                         onClick = {
