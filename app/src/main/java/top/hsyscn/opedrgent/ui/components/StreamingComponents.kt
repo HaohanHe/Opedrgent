@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -145,8 +147,9 @@ fun StreamingCard(
     val hasReasoning = reasoning.isNotEmpty()
     val hasTools = toolParts.isNotEmpty()
     val isToolRunning = toolParts.any { it.state.status == ToolStateType.RUNNING }
+    val hasCompletedSources = toolParts.any { it.tool == "web_search" && it.state.status == ToolStateType.COMPLETED }
 
-    val showThinkingIndicator = !hasText && !hasReasoning && !hasTools
+    val showLoading = !hasText && !hasReasoning && !hasTools
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -169,6 +172,10 @@ fun StreamingCard(
                 }
             }
 
+            if (showLoading) {
+                DoubaoThinkingIndicator(phase = phase)
+            }
+
             if (hasReasoning) {
                 MessageBodyThinking(
                     thinkingText = reasoning,
@@ -178,6 +185,10 @@ fun StreamingCard(
 
             if (hasTools) {
                 ToolStatusGroup(toolParts = toolParts)
+            }
+
+            if (hasCompletedSources) {
+                SourceLinksSection(toolParts = toolParts)
             }
 
             if (hasText) {
@@ -211,33 +222,51 @@ fun StreamingCard(state: MessagePart.StreamingState, toolParts: List<ToolPart> =
     )
 }
 
+/** 豆包风格加载指示器：两个呼吸圆点 + 状态文案 */
 @Composable
-fun ThinkingIndicator(phase: String) {
-    val infiniteTransition = rememberInfiniteTransition(label = "thinking")
-    val shimmerProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
+fun DoubaoThinkingIndicator(phase: String) {
+    val infiniteTransition = rememberInfiniteTransition(label = "db_thinking")
+    val dot1Alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
+            animation = tween(durationMillis = 700, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
         ),
-        label = "shimmer",
+        label = "db_dot1",
+    )
+    val dot2Alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700, easing = LinearEasing, delayMillis = 200),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "db_dot2",
     )
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            strokeWidth = 2.dp,
-            color = AccentBlue,
-        )
-        val alpha = 0.4f + 0.6f * shimmerProgress
+        Canvas(modifier = Modifier.size(18.dp, 8.dp)) {
+            val radius = 2.5f.dp.toPx()
+            val spacing = 7f.dp.toPx()
+            drawCircle(
+                color = AccentBlue.copy(alpha = dot1Alpha),
+                radius = radius,
+                center = Offset(radius, size.height / 2),
+            )
+            drawCircle(
+                color = AccentBlue.copy(alpha = dot2Alpha),
+                radius = radius,
+                center = Offset(spacing + radius, size.height / 2),
+            )
+        }
         Text(
-            text = phase,
+            text = phase.ifBlank { "正在思考" },
             style = MaterialTheme.typography.bodySmall,
-            color = AccentBlue.copy(alpha = alpha),
+            color = themeTextGrey(),
         )
     }
 }
@@ -449,6 +478,128 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
                     ToolStatusRow(toolPart = tp)
                 }
             }
+        }
+    }
+}
+
+data class SourceLink(val title: String, val url: String, val snippet: String?)
+
+/** 从已完成的 web_search 工具输出中提取参考来源 */
+private fun extractSourcesFromToolParts(toolParts: List<ToolPart>): List<SourceLink> {
+    val results = mutableListOf<SourceLink>()
+    val seen = mutableSetOf<String>()
+    val linkRegex = Regex("""\[(.*?)\]\((https?://[^\\s)]+)\)""")
+    for (tp in toolParts.filter { it.tool == "web_search" && it.state.status == ToolStateType.COMPLETED }) {
+        val output = tp.state.output ?: continue
+        for (match in linkRegex.findAll(output)) {
+            val title = match.groupValues[1].trim()
+            val url = match.groupValues[2].trim()
+            if (title.isBlank() || url.isBlank() || url in seen) continue
+            seen.add(url)
+            val snippet = extractSnippetAfter(output, match.range.last)
+            results.add(SourceLink(title, url, snippet))
+        }
+    }
+    return results
+}
+
+private fun extractSnippetAfter(text: String, linkEnd: Int): String? {
+    val after = text.substring(linkEnd, minOf(linkEnd + 300, text.length))
+    return after.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotBlank() && !it.startsWith("[") && !it.startsWith("(") }
+        .firstOrNull()
+        ?.take(120)
+}
+
+@Composable
+fun SourceLinksSection(toolParts: List<ToolPart>) {
+    val sources = remember(toolParts) { extractSourcesFromToolParts(toolParts) }
+    if (sources.isEmpty()) return
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable { expanded = !expanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = themeTextGrey(),
+            )
+            Text(
+                text = "参考 ${sources.size} 个来源",
+                style = MaterialTheme.typography.bodySmall,
+                color = themeTextDark(),
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = themeTextGrey(),
+            )
+        }
+        if (expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                sources.take(5).forEachIndexed { idx, source ->
+                    SourceLinkCard(
+                        index = idx + 1,
+                        source = source,
+                        onClick = { uriHandler.openUri(source.url) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceLinkCard(index: Int, source: SourceLink, onClick: () -> Unit) {
+    val host = remember(source.url) {
+        runCatching { java.net.URL(source.url).host }.getOrDefault(source.url)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        onClick = onClick,
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(
+                text = "${index}. ${source.title}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = AccentBlue,
+                maxLines = 1,
+            )
+            if (source.snippet != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = source.snippet,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeTextGrey(),
+                    maxLines = 2,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = host,
+                style = MaterialTheme.typography.labelSmall,
+                color = themeTextGrey(),
+                maxLines = 1,
+            )
         }
     }
 }

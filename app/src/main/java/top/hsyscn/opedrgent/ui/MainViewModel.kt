@@ -2424,8 +2424,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             loopState = LoopState.IDLE
         }
 
+        // 连接中断等错误退出时，accumulatedText 里可能已有部分答案，兜底作为最终内容展示
+        val effectiveFinalContent = ctx.finalContent.ifBlank { ctx.accumulatedText }
         return LoopResult(
-            finalContent = ctx.finalContent,
+            finalContent = effectiveFinalContent,
             finalReasoning = ctx.finalReasoning,
             accumulatedText = ctx.accumulatedText,
             accumulatedReasoning = ctx.accumulatedReasoning,
