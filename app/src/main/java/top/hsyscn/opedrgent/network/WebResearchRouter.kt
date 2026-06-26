@@ -32,7 +32,7 @@ class WebResearchRouter(
     private val searcher: WebSearcher,
     private val fetcher: SourceFetcher,
 ) {
-    fun run(req: WebResearchRequest): WebResearchOutcome {
+    suspend fun run(req: WebResearchRequest): WebResearchOutcome {
         val query = req.query.trim()
         if (query.length < 2) {
             return WebResearchOutcome(
@@ -84,7 +84,7 @@ class WebResearchRouter(
         }
     }
 
-    private fun runProvider(req: WebResearchRequest): WebResearchOutcome {
+    private suspend fun runProvider(req: WebResearchRequest): WebResearchOutcome {
         val maxResults = req.maxResults.coerceIn(1, 10)
         val maxFetch = req.maxFetch.coerceIn(1, 5)
         val results = searcher.search(req.query, limit = maxResults)
@@ -101,7 +101,7 @@ class WebResearchRouter(
         val warnings = ArrayList<String>()
         val toFetch = filtered.take(maxFetch)
         toFetch.forEach { hit ->
-            val got = runCatching { fetcher.fetchUrl(hit.url) }.getOrNull()
+            val got = try { fetcher.fetchUrl(hit.url) } catch (e: Exception) { null }
             if (got != null) fetched.add(got) else warnings.add("抓取失败：${hit.url}")
         }
 

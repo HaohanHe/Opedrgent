@@ -8,6 +8,8 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -28,8 +30,9 @@ class TtsPlayer(
     private var tts: TextToSpeech? = null
     private var ready: Boolean = false
     private var pendingLocale: Locale = Locale.CHINA
-    private var isSpeaking: Boolean = false
-    private var isPaused: Boolean = false
+    private val isSpeaking = AtomicBoolean(false)
+    private val isPaused = AtomicBoolean(false)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var lastText: String = ""
     private var lastLocaleTag: String = "zh-CN"
     private var lastRate: Float = 1.0f
@@ -57,6 +60,7 @@ class TtsPlayer(
         mimoVoice: String = "冰糖",
         downloadOnly: Boolean = false,
         forceLocal: Boolean = false,
+        style: MimoTtsClient.StyleControl? = null,
     ) {
         val t = text.trim()
         if (t.isEmpty() || t == "null") return
@@ -74,11 +78,11 @@ class TtsPlayer(
 
         when {
             useStepAudio -> speakWithStepAudio(t, mimoVoice, downloadOnly)
-            useMimo -> speakWithMimo(t, mimoVoice, downloadOnly)
+            useMimo -> speakWithMimo(t, mimoVoice, downloadOnly, style)
             else -> {
                 if (downloadOnly) {
                     DebugLog.w("TtsPlayer: downloadOnly 模式仅支持云端 TTS，已忽略")
-                    isSpeaking = false
+                    isSpeaking.set(false)
                     return
                 }
                 speakWithAndroid(t, localeTag, rate, pitch)
@@ -101,28 +105,28 @@ class TtsPlayer(
             override fun onStart(uttId: String?) {}
             override fun onDone(uttId: String?) {
                 if (uttId == utteranceId) {
-                    isSpeaking = false
-                    isPaused = false
+                    isSpeaking.set(false)
+                    isPaused.set(false)
                 }
             }
             @Deprecated("Deprecated in Java")
             override fun onError(uttId: String?) {
                 if (uttId == utteranceId) {
-                    isSpeaking = false
-                    isPaused = false
+                    isSpeaking.set(false)
+                    isPaused.set(false)
                 }
             }
         })
         engine.speak(t, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        isSpeaking = true
-        isPaused = false
+        isSpeaking.set(true)
+        isPaused.set(false)
     }
 
-    private fun speakWithMimo(text: String, voiceId: String, downloadOnly: Boolean = false) {
-        currentPlayerJob = CoroutineScope(Dispatchers.Main).launch {
+    private fun speakWithMimo(text: String, voiceId: String, downloadOnly: Boolean = false, style: MimoTtsClient.StyleControl? = null) {
+        currentPlayerJob = scope.launch {
             playerCancelled.set(false)
-            isSpeaking = true
-            isPaused = false
+            isSpeaking.set(true)
+            isPaused.set(false)
 
             try {
                 val apiKey = apiSettings.getApiKey()
@@ -134,7 +138,14 @@ class TtsPlayer(
                     return@launch
                 }
 
-                val pcmBytes = MimoTtsClient.synthesize(apiKey, text, voiceId)
+                val pcmBytes = if (style != null) {
+                    MimoTtsClient.synthesizeAdvanced(
+                        apiKey,
+                        MimoTtsClient.SynthesizeRequest(text = text, voiceId = voiceId, style = style),
+                    ).audioData
+                } else {
+                    MimoTtsClient.synthesize(apiKey, text, voiceId)
+                }
                 if (playerCancelled.get()) return@launch
 
                 if (pcmBytes == null || pcmBytes.isEmpty()) {
@@ -146,8 +157,8 @@ class TtsPlayer(
                 if (downloadOnly) {
                     // 下载到本地不播放
                     saveAudioToLocal(pcmBytes, text)
-                    isSpeaking = false
-                    isPaused = false
+                    isSpeaking.set(false)
+                    isPaused.set(false)
                 } else {
                     withContext(Dispatchers.IO) {
                         playPcmAudio(pcmBytes)
@@ -171,10 +182,10 @@ class TtsPlayer(
      * - Zero-shot 音色复刻：3秒参考音频克隆任意音色
      */
     private fun speakWithStepAudio(text: String, voiceId: String, downloadOnly: Boolean = false) {
-        currentPlayerJob = CoroutineScope(Dispatchers.Main).launch {
+        currentPlayerJob = scope.launch {
             playerCancelled.set(false)
-            isSpeaking = true
-            isPaused = false
+            isSpeaking.set(true)
+            isPaused.set(false)
 
             try {
                 val apiKey = apiSettings.getApiKey()
@@ -197,8 +208,8 @@ class TtsPlayer(
 
                 if (downloadOnly) {
                     saveAudioToLocal(pcmBytes, text)
-                    isSpeaking = false
-                    isPaused = false
+                    isSpeaking.set(false)
+                    isPaused.set(false)
                 } else {
                     withContext(Dispatchers.IO) {
                         playPcmAudio(pcmBytes)
@@ -267,8 +278,8 @@ class TtsPlayer(
             audioTrack.stop()
         } finally {
             audioTrack.release()
-            isSpeaking = false
-            isPaused = false
+            isSpeaking.set(false)
+            isPaused.set(false)
         }
     }
 
@@ -369,15 +380,16 @@ class TtsPlayer(
         currentPlayerJob?.cancel()
         playerCancelled.set(true)
         tts?.stop()
-        isSpeaking = false
-        isPaused = false
+        isSpeaking.set(false)
+        isPaused.set(false)
     }
 
-    fun isCurrentlySpeaking(): Boolean = isSpeaking
-    fun isCurrentlyPaused(): Boolean = isPaused
+    fun isCurrentlySpeaking(): Boolean = isSpeaking.get()
+    fun isCurrentlyPaused(): Boolean = isPaused.get()
 
     fun shutdown() {
         stop()
+        scope.cancel()
         tts?.shutdown()
         tts = null
     }

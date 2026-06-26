@@ -1,12 +1,17 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
@@ -32,6 +37,9 @@ class NoteRepository(
 
     /** 知识图谱引擎（懒加载，首次访问时初始化） */
     val knowledgeGraph: KnowledgeGraph by lazy { KnowledgeGraph(context) }
+
+    private val graphScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var linkNoteJob: Job? = null
 
     // 响应式变更通知
     private val _changeTrigger = MutableStateFlow(0L)
@@ -94,14 +102,16 @@ class NoteRepository(
     suspend fun saveNote(note: Note): Long {
         val id = dao.insertOrUpdate(note)
         _changeTrigger.value = System.currentTimeMillis()
-        // 保存后自动触发知识图谱更新
         val content = buildString {
             if (note.title.isNotBlank()) append(note.title).append(" ")
             append(note.content)
         }
         val noteIdStr = id.toString()
-        knowledgeGraph.linkNote(noteIdStr, content)
-        // 自动同步笔记记忆
+        linkNoteJob?.cancel()
+        linkNoteJob = graphScope.launch {
+            delay(5000)
+            knowledgeGraph.linkNote(noteIdStr, content)
+        }
         syncNoteMemory(id, note)
         return id
     }

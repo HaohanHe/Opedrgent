@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.settings.MIMO_API_URL
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.Base64
@@ -371,7 +372,7 @@ class MimoAsrEngine(
 
             val request = buildAuthHeader(
                 Request.Builder()
-                    .url("https://api.xiaomimimo.com/v1/chat/completions")
+                    .url(MIMO_API_URL)
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toString().toRequestBody("application/json".toMediaType())),
                 apiKey,
@@ -464,14 +465,13 @@ class MimoAsrEngine(
      * 只检测尾部窗口，避免全量拷贝缓冲区。
      */
     private fun detectTrailingSilence(silenceDurationMs: Long): Boolean {
-        val currentCount = audioBufferCount.get()
-        if (currentCount < TARGET_SAMPLE_RATE / 2) return false  // 至少半秒数据才检测
+        val currentCount = synchronized(audioBuffer) { audioBufferCount.get() }
+        if (currentCount < TARGET_SAMPLE_RATE / 2) return false
 
         val windowSize = (TARGET_SAMPLE_RATE * VAD_WINDOW_MS / 1000).coerceAtLeast(32).toInt()
         val hopSize = windowSize / 2
         val requiredFrames = ((silenceDurationMs / VAD_WINDOW_MS).toInt()).coerceAtLeast(3)
 
-        // 只检测尾部窗口，不需要全量拷贝
         val tailSamples = (requiredFrames + 1) * hopSize + windowSize
         val startSample = maxOf(0, currentCount - tailSamples)
         val endSample = currentCount
@@ -479,22 +479,24 @@ class MimoAsrEngine(
         var consecutiveSilentFrames = 0
         val startFrame = maxOf(0, (endSample - startSample - windowSize) / hopSize - requiredFrames)
 
-        for (i in startFrame until (endSample - startSample - windowSize) / hopSize) {
-            val offset = startSample + i * hopSize
-            var sumSq = 0.0
-            val end = minOf(offset + windowSize, currentCount)
-            for (j in offset until end) {
-                val sample = audioBuffer[j]
-                sumSq += sample * sample
-            }
-            val rms = if (end > offset) kotlin.math.sqrt(sumSq / (end - offset)) else 0.0
-            val db = if (rms > 1e-8) 20.0 * kotlin.math.log10(rms) else -96.0
+        synchronized(audioBuffer) {
+            for (i in startFrame until (endSample - startSample - windowSize) / hopSize) {
+                val offset = startSample + i * hopSize
+                var sumSq = 0.0
+                val end = minOf(offset + windowSize, audioBufferCount.get())
+                for (j in offset until end) {
+                    val sample = audioBuffer[j]
+                    sumSq += sample * sample
+                }
+                val rms = if (end > offset) kotlin.math.sqrt(sumSq / (end - offset)) else 0.0
+                val db = if (rms > 1e-8) 20.0 * kotlin.math.log10(rms) else -96.0
 
-            if (db < VAD_THRESHOLD_DB) {
-                consecutiveSilentFrames++
-                if (consecutiveSilentFrames >= requiredFrames) return true
-            } else {
-                consecutiveSilentFrames = 0
+                if (db < VAD_THRESHOLD_DB) {
+                    consecutiveSilentFrames++
+                    if (consecutiveSilentFrames >= requiredFrames) return true
+                } else {
+                    consecutiveSilentFrames = 0
+                }
             }
         }
         return false
@@ -516,7 +518,7 @@ class MimoAsrEngine(
             DebugLog.w(TAG, "文件过大(${fileSize / (1024*1024)}MB > 100MB)，可能失败")
         }
 
-        DebugLog.i(TAG, "API 端点: https://api.xiaomimimo.com/v1/chat/completions")
+        DebugLog.i(TAG, "API 端点: $MIMO_API_URL")
         DebugLog.i(TAG, "API Key 前缀: ${apiSettings.getApiKey()?.take(6)}..., sttEngine=${apiSettings.getSttEngine()}")
 
         // VAD 预处理：解码 WAV → 检测静音 → 裁剪前后静音（直接返回浮点数据，省一次解码+磁盘往返）
@@ -590,7 +592,7 @@ class MimoAsrEngine(
 
         val request = buildAuthHeader(
             Request.Builder()
-                .url("https://api.xiaomimimo.com/v1/chat/completions")
+                .url(MIMO_API_URL)
                 .header("Content-Type", "application/json")
                 .post(requestBodyStr.toRequestBody("application/json".toMediaType())),
             apiKey,

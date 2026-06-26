@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -44,15 +43,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * 全功能音频播放器组件。
@@ -119,7 +115,7 @@ fun AudioPlayer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // 进度条 + 时间
@@ -129,12 +125,12 @@ fun AudioPlayer(
         ) {
             Text(
                 text = formatTime(displayPosition),
-                fontSize = 12.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.width(40.dp),
             )
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(SpacingTokens.sm))
 
             // 自定义进度条
             CustomProgressBar(
@@ -154,22 +150,22 @@ fun AudioPlayer(
                 modifier = Modifier.weight(1f),
             )
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(SpacingTokens.sm))
 
             Text(
                 text = formatTime(duration),
-                fontSize = 12.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.width(40.dp),
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
 
         // 控制按钮行
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
         ) {
             // 后退 15 秒
             SkipButton(
@@ -188,7 +184,7 @@ fun AudioPlayer(
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, Color.LightGray, CircleShape)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                     .clickable {
                         if (isPlaying) {
                             exoPlayer.pause()
@@ -201,7 +197,7 @@ fun AudioPlayer(
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
-                    tint = themeTextDark(),
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(28.dp),
                 )
             }
@@ -222,15 +218,14 @@ fun AudioPlayer(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .border(1.dp, themeTextGrey().copy(alpha = 0.4f), CircleShape)
+                    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
                     .clickable { showSpeedSheet = true },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "${playbackSpeed.formatSpeed()}x",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = themeTextDark(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -265,6 +260,8 @@ private fun CustomProgressBar(
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var barWidth by remember { mutableFloatStateOf(0f) }
     val clampedProgress = progress.coerceIn(0f, 1f)
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val progressColor = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = modifier
@@ -299,7 +296,7 @@ private fun CustomProgressBar(
 
             // 背景轨道
             drawLine(
-                color = Color.LightGray.copy(alpha = 0.5f),
+                color = trackColor,
                 start = Offset(0f, centerY),
                 end = Offset(size.width, centerY),
                 strokeWidth = size.height,
@@ -308,7 +305,7 @@ private fun CustomProgressBar(
 
             // 已播放部分
             drawLine(
-                color = TextDark,
+                color = progressColor,
                 start = Offset(0f, centerY),
                 end = Offset(progressWidth, centerY),
                 strokeWidth = size.height,
@@ -331,8 +328,8 @@ private fun CustomProgressBar(
                     )
                     .size(thumbRadius * 2)
                     .clip(CircleShape)
-                    .background(Color.Black)
-                    .border(2.dp, Color.White, CircleShape),
+                    .background(MaterialTheme.colorScheme.onSurface)
+                    .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
             )
         }
     }
@@ -344,11 +341,12 @@ private fun SkipButton(
     isForward: Boolean,
     onClick: () -> Unit,
 ) {
+    val iconColor = MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .border(1.dp, themeTextGrey().copy(alpha = 0.4f), CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -361,7 +359,7 @@ private fun SkipButton(
             val arcStartAngle = if (isForward) 210f else 120f
             val arcSweepAngle = 240f
             drawArc(
-                color = TextDark,
+                color = iconColor,
                 startAngle = arcStartAngle,
                 sweepAngle = arcSweepAngle,
                 useCenter = false,
@@ -379,7 +377,7 @@ private fun SkipButton(
             val arrowAngle2 = arrowAngle - Math.toRadians(30.0 * if (isForward) 1 else -1)
 
             drawLine(
-                color = TextDark,
+                color = iconColor,
                 start = Offset(arrowTipX, arrowTipY),
                 end = Offset(
                     arrowTipX - arrowLen * kotlin.math.cos(arrowAngle1).toFloat(),
@@ -389,7 +387,7 @@ private fun SkipButton(
                 cap = StrokeCap.Round,
             )
             drawLine(
-                color = TextDark,
+                color = iconColor,
                 start = Offset(arrowTipX, arrowTipY),
                 end = Offset(
                     arrowTipX - arrowLen * kotlin.math.cos(arrowAngle2).toFloat(),
@@ -403,9 +401,8 @@ private fun SkipButton(
         // 数字标签
         Text(
             text = label,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = themeTextDark(),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

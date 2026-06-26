@@ -1,5 +1,13 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -201,7 +209,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                 .padding(padding)
                 .fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             item {
                 Text(
@@ -209,20 +217,20 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = themeTextGrey(),
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
             }
 
             items(projects, key = { it.name }) { project ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     ),
                 ) {
                     Row(
                         modifier = Modifier
-                            .padding(14.dp)
+                            .padding(SpacingTokens.md)
                             .fillMaxWidth(),
                         verticalAlignment = Alignment.Top,
                     ) {
@@ -230,25 +238,25 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                             Text(
                                 text = project.name,
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = themeTextDark(),
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = project.description,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = themeTextGrey(),
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.xs))
                             Text(
                                 text = project.license,
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = themeTextGrey(),
                             )
                         }
                         Icon(
                             Icons.Default.OpenInNew,
-                            contentDescription = null,
+                            contentDescription = "图标",
                             modifier = Modifier
                                 .size(18.dp)
                                 .clickable {
@@ -261,12 +269,12 @@ fun OpenSourceScreen(onBack: () -> Unit) {
             }
 
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
                 HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
                 Text(
                     text = "共 ${projects.size} 个开源项目",
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                     modifier = Modifier.fillMaxWidth(),
                 )

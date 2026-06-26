@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.stt.AudioMetadata
 import top.hsyscn.opedrgent.stt.AudioProcessor
@@ -73,10 +74,6 @@ class SpeechToTextTool(
 
     private fun resetProgress() {
         _progressFlow.value = ProcessingProgress(ProcessingPhase.IDLE, 0, "就绪")
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 
     private fun successResult(tp: ToolPart, output: String): ToolResult {

@@ -1,5 +1,13 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -104,6 +112,7 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeBorderLight
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 
 // ============================================================
 // 排序方式
@@ -252,8 +261,8 @@ fun KnowledgeBaseScreen(
                         Text(
                             text = "$totalDocs 篇 · ${formatFileSize(totalSize)}",
                             color = themeTextGrey(),
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(end = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(end = SpacingTokens.sm),
                         )
                         // 增量同步按钮: 扫描源文件变更 + 云端向量存储同步
                         IconButton(
@@ -315,7 +324,7 @@ fun KnowledgeBaseScreen(
                     },
                     containerColor = AccentBlue,
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "添加文件", tint = Color.White)
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "添加文件", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
         },
@@ -390,7 +399,7 @@ fun KnowledgeBaseScreen(
             },
             title = { Text(stringResource(R.string.kb_new)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it },
@@ -410,20 +419,20 @@ fun KnowledgeBaseScreen(
                             FilterChip(
                                 selected = newVisibility == v,
                                 onClick = { newVisibility = v },
-                                label = { Text(v.label, fontSize = 12.sp) },
+                                label = { Text(v.label, style = MaterialTheme.typography.bodySmall) },
                             )
                         }
                     }
                     Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         colors.forEach { color ->
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = ShapeTokens.smallShape,
                                 color = Color(android.graphics.Color.parseColor(color)),
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .then(if (selectedColor == color) Modifier.padding(2.dp) else Modifier)
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .then(if (selectedColor == color) Modifier.padding(SpacingTokens.xxs) else Modifier)
+                                    .clip(ShapeTokens.smallShape)
                                     .clickable { selectedColor = color },
                             ) {}
                         }
@@ -460,12 +469,12 @@ fun KnowledgeBaseScreen(
             },
             title = { Text(stringResource(R.string.kb_edit_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("描述") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Visibility.entries.forEach { v ->
-                            FilterChip(selected = editVis == v, onClick = { editVis = v }, label = { Text(v.label, fontSize = 12.sp) })
+                            FilterChip(selected = editVis == v, onClick = { editVis = v }, label = { Text(v.label, style = MaterialTheme.typography.bodySmall) })
                         }
                     }
                 }
@@ -506,7 +515,7 @@ fun KnowledgeBaseScreen(
         val kb = contextKb ?: return@DropdownMenu
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_edit)) },
-            leadingIcon = { Icon(Icons.Default.Create, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Create, contentDescription = "图标") },
             onClick = {
                 editingKb = kb
                 showEditKbDialog = true
@@ -515,7 +524,7 @@ fun KnowledgeBaseScreen(
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_share)) },
-            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Share, contentDescription = "图标") },
             onClick = {
                 scope.launch { snackbar.showSnackbar(context.getString(R.string.kb_share_developing)) }
                 showContextMenu = false
@@ -523,7 +532,7 @@ fun KnowledgeBaseScreen(
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_delete)) },
-            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = "图标") },
             onClick = {
                 kbToDelete = kb
                 showDeleteKbConfirm = true
@@ -548,13 +557,13 @@ private fun KbGridView(
     onCreateKb: () -> Unit,
     onKbLongClick: (KnowledgeBaseInfo) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(SpacingTokens.lg)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text("搜索知识库...", color = themeTextGrey()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
@@ -562,12 +571,12 @@ private fun KbGridView(
                     }
                 }
             },
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
 
         val filteredKbs = if (searchQuery.isBlank()) {
             knowledgeBases
@@ -579,24 +588,39 @@ private fun KbGridView(
         }
 
         if (filteredKbs.isEmpty() && !searchQuery.isNotBlank()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = themeTextGrey().copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text(stringResource(R.string.kb_empty), color = themeTextGrey(), fontSize = 14.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.kb_empty_hint), color = themeTextGrey().copy(alpha = 0.6f), fontSize = 12.sp)
-                }
-            }
+            EmptyStateView(
+                icon = {
+                    Icon(
+                        Icons.Default.FolderSpecial,
+                        contentDescription = null,
+                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        modifier = Modifier.size(64.dp),
+                    )
+                },
+                title = stringResource(R.string.kb_empty),
+                subtitle = stringResource(R.string.kb_empty_hint),
+                actionLabel = stringResource(R.string.kb_new),
+                onAction = onCreateKb,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else if (filteredKbs.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("未找到匹配的知识库", color = themeTextGrey(), fontSize = 14.sp)
-            }
+            EmptyStateView(
+                icon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        modifier = Modifier.size(64.dp),
+                    )
+                },
+                title = "未找到匹配的知识库",
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(filteredKbs, key = { it.id }) { kb ->
@@ -609,7 +633,7 @@ private fun KbGridView(
                 // 新建按钮卡片
                 item {
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
                         border = androidx.compose.foundation.BorderStroke(1.5.dp, themeBorderLight().copy(alpha = 0.5f)),
                         modifier = Modifier
@@ -620,11 +644,11 @@ private fun KbGridView(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Surface(shape = CircleShape, color = themeBgGray(), modifier = Modifier.size(44.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Add, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(24.dp))
+                                        Icon(Icons.Default.Add, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(24.dp))
                                     }
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Text(stringResource(R.string.kb_new), color = themeTextGrey(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(SpacingTokens.sm))
+                                Text(stringResource(R.string.kb_new), color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -654,7 +678,7 @@ private fun KbCard(
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
@@ -664,25 +688,25 @@ private fun KbCard(
                 onLongClick = onLongClick,
             ),
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp)) {
+        Column(Modifier.fillMaxSize().padding(SpacingTokens.md)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 // 彩色竖条 + 圆角色块
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = ShapeTokens.smallShape,
                     color = coverColor.copy(alpha = 0.15f),
                     modifier = Modifier.size(36.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Article, contentDescription = "图标", tint = coverColor, modifier = Modifier.size(20.dp))
                     }
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(SpacingTokens.md))
                 Column(Modifier.weight(1f)) {
-                    Text(info.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = themeTextDark(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(info.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge, color = themeTextDark(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(visibilityIcon, contentDescription = info.visibility.label, tint = themeTextGrey().copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text(info.visibility.label, color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
+                        Spacer(Modifier.width(SpacingTokens.xxs))
+                        Text(info.visibility.label, color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -691,14 +715,14 @@ private fun KbCard(
 
             Column {
                 if (info.description.isNotBlank()) {
-                    Text(info.description, color = themeTextGrey(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
+                    Text(info.description, color = themeTextGrey(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(SpacingTokens.xs))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${info.documentCount} 篇", color = themeTextGrey(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text("${info.documentCount} 篇", color = themeTextGrey(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
                     if (info.totalSizeBytes > 0) {
-                        Text(" · ", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 11.sp)
-                        Text(formatFileSize(info.totalSizeBytes), color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text(" · ", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
+                        Text(formatFileSize(info.totalSizeBytes), color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -710,6 +734,7 @@ private fun KbCard(
 // 视图2: 文档列表视图
 // ============================================================
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DocumentListView(
     modifier: Modifier = Modifier,
@@ -723,13 +748,13 @@ private fun DocumentListView(
     onDelete: (String) -> Unit,
     onDocClick: (KbDocument) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(SpacingTokens.lg)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeTextGrey()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
@@ -737,16 +762,16 @@ private fun DocumentListView(
                     }
                 }
             },
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
 
         // 类型筛选 Chip 行
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -755,41 +780,45 @@ private fun DocumentListView(
                 FilterChip(
                     selected = filterType == type,
                     onClick = { onFilterChange(type) },
-                    label = { Text(label, fontSize = 12.sp) },
+                    label = { Text(label, style = MaterialTheme.typography.bodySmall) },
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("${documents.size}/${allCount}", color = themeTextGrey().copy(alpha = 0.6f), fontSize = 11.sp)
+            Text("${documents.size}/${allCount}", color = themeTextGrey().copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
 
         // Loading
         AnimatedVisibility(visible = isLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.sm)) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-                Text("正在导入...", color = themeTextGrey(), fontSize = 13.sp)
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text("正在导入...", color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
         // 文档列表
         if (documents.isEmpty() && !isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Article, contentDescription = null, tint = themeTextGrey().copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text(stringResource(R.string.kb_no_documents), color = themeTextGrey(), fontSize = 14.sp)
-                    if (allCount == 0) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(stringResource(R.string.kb_add_file_hint), color = themeTextGrey().copy(alpha = 0.6f), fontSize = 12.sp)
-                    }
-                }
-            }
+            EmptyStateView(
+                icon = {
+                    Icon(
+                        Icons.Default.Article,
+                        contentDescription = null,
+                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        modifier = Modifier.size(64.dp),
+                    )
+                },
+                title = stringResource(R.string.kb_no_documents),
+                subtitle = if (allCount == 0) stringResource(R.string.kb_add_file_hint) else "",
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 items(documents, key = { it.id }) { doc ->
-                    DocumentCard(document = doc, onClick = { onDocClick(doc) }, onDelete = { onDelete(doc.id) })
+                    Column(modifier = Modifier.animateItem()) {
+                        DocumentCard(document = doc, onClick = { onDocClick(doc) }, onDelete = { onDelete(doc.id) })
+                    }
                 }
             }
         }
@@ -815,8 +844,8 @@ private fun DocumentCard(
 
     val iconTint = when (document.fileType) {
         "pdf" -> DangerRed
-        "jpg", "jpeg", "png", "bmp", "webp" -> Color(0xFF43A047)
-        "docx", "doc" -> Color(0xFF1E88E5)
+        "jpg", "jpeg", "png", "bmp", "webp" -> SuccessGreen
+        "docx", "doc" -> AccentBlue
         else -> AccentBlue
     }
 
@@ -825,33 +854,33 @@ private fun DocumentCard(
     }
 
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+            modifier = Modifier.padding(SpacingTokens.md).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
                 color = iconTint.copy(alpha = 0.1f),
                 modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+                    Icon(icon, contentDescription = "图标", tint = iconTint, modifier = Modifier.size(22.dp))
                 }
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(SpacingTokens.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     document.title,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -860,28 +889,28 @@ private fun DocumentCard(
                 Text(
                     "${document.fileType.uppercase()} · ${formatFileSize(document.fileSizeBytes)} · $dateStr",
                     color = themeTextGrey(),
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${document.contentLength} 字", color = themeTextGrey().copy(alpha = 0.7f), fontSize = 11.sp)
+                    Text("${document.contentLength} 字", color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
 
                     // 标签显示
                     if (document.tags.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         document.tags.take(3).forEach { tag ->
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
+                                shape = ShapeTokens.extraSmallShape,
                                 color = AccentBlue.copy(alpha = 0.08f),
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                             ) {
-                                Text(tag, color = AccentBlue, fontSize = 9.sp)
+                                Text(tag, color = AccentBlue, style = MaterialTheme.typography.labelSmall)
                             }
-                            Spacer(Modifier.width(3.dp))
+                            Spacer(Modifier.width(SpacingTokens.xxs))
                         }
                         if (document.tags.size > 3) {
-                            Text("+${document.tags.size - 3}", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 9.sp)
+                            Text("+${document.tags.size - 3}", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }

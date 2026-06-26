@@ -13,9 +13,11 @@ import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.network.WebViewAgent
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
+import top.hsyscn.opedrgent.utils.smartTruncate
 
 class DeepResearchTool(
     private val context: Context,
@@ -28,25 +30,6 @@ class DeepResearchTool(
 
     private suspend fun getWebViewAgent(): WebViewAgent {
         return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
-    }
-
-    /**
-     * 智能截取：按段落/句子边界截取，保留完整信息
-     */
-    private fun smartTruncate(text: String, maxLen: Int): String {
-        if (text.length <= maxLen) return text
-        val truncated = text.take(maxLen)
-        val lastParagraph = truncated.lastIndexOf("\n\n")
-        if (lastParagraph > maxLen * 0.6) return truncated.substring(0, lastParagraph)
-        val lastSentence = maxOf(truncated.lastIndexOf("。"), truncated.lastIndexOf(". "), truncated.lastIndexOf("！"), truncated.lastIndexOf("？"))
-        if (lastSentence > maxLen * 0.5) return truncated.substring(0, lastSentence + 1)
-        val lastSpace = truncated.lastIndexOf(' ')
-        if (lastSpace > maxLen * 0.7) return truncated.substring(0, lastSpace)
-        return truncated
     }
 
     @Tool("deep_research")

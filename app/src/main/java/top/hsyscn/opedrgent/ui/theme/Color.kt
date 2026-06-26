@@ -77,6 +77,11 @@ val ChipSuccessText = Color(0xFF2E7D32)
 // Interview mode (intentional dark theme)
 val InterviewDarkBg = Color(0xFF1A1A2E)
 val InterviewPurple = Color(0xFF6C63FF)
+val InterviewSurface = Color(0xFF2A2A4A)
+val InterviewTextMuted = Color(0xFFB0B0CC)
+val InterviewInputBg = Color(0xFF222233)
+val InterviewBorder = Color(0xFF333355)
+val InterviewDisabledText = Color(0xFF555566)
 
 // Badge
 val BadgeError = Color(0xFFFF4444)
@@ -94,6 +99,16 @@ val SproutSummaryEnd = Color(0xFF059669)     // 摘要渐变结束色
 // Recording mode card
 val CoralRed = Color(0xFFFF5A5A)
 val CoralLight = Color(0xFFFFEAEA)
+
+// Dashboard card gradients (brand palette)
+val GradientPurpleStart = Color(0xFF6a11cb)
+val GradientPurpleEnd = Color(0xFF2575fc)
+val GradientIndigoStart = Color(0xFF667eea)
+val GradientIndigoEnd = Color(0xFF764ba2)
+val GradientPinkStart = Color(0xFFf093fb)
+val GradientPinkEnd = Color(0xFFf5576c)
+val GradientCyanStart = Color(0xFF4facfe)
+val GradientCyanEnd = Color(0xFF00f2fe)
 
 // ========== Dark mode variants ==========
 val BgGray_Dark = Color(0xFF121212)
@@ -123,6 +138,11 @@ val SproutSeedText_Dark = Color(0xFFB0B0B0)
 val SproutMetaText_Dark = Color(0xFF807A75)
 val SproutSummaryStart_Dark = Color(0xFF1B6B4A)
 val SproutSummaryEnd_Dark = Color(0xFF0D4030)
+
+// Chat bubble dark variants
+val UserBubbleStart_Dark = Color(0xFF5B8DEF)
+val UserBubbleEnd_Dark = Color(0xFF3B6BD6)
+val CitationBg_Dark = Color(0xFF3D4660)
 
 // ========== Theme-aware composable helpers ==========
 @Composable fun themeBgGray() = if (isSystemInDarkTheme()) BgGray_Dark else BgGray

@@ -2,6 +2,9 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -84,24 +88,24 @@ fun AutomationsScreen(onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             items(automations, key = { it.id }) { a ->
                 Card(
-                    modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
                     onClick = { editing = a; editOpen = true },
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(SpacingTokens.md),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = a.name, fontWeight = FontWeight.SemiBold)
                             Text(
                                 text = "${a.kind.name} · ${a.intervalMinutes} 分钟",
-                                modifier = Modifier.padding(top = 4.dp),
-                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = SpacingTokens.xs),
+                                style = MaterialTheme.typography.bodySmall,
                             )
                             // 执行状态
                             if (a.executionCount > 0) {
@@ -111,19 +115,19 @@ fun AutomationsScreen(onBack: () -> Unit) {
                                 }
                                 Text(
                                     text = "已执行 ${a.executionCount} 次 · 最近: $lastRun",
-                                    fontSize = 11.sp,
-                                    color = androidx.compose.ui.graphics.Color(0xFF888888),
-                                    modifier = Modifier.padding(top = 2.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = themeTextGrey(),
+                                    modifier = Modifier.padding(top = SpacingTokens.xxs),
                                 )
                             }
                             if (a.lastError != null) {
                                 Text(
                                     text = "最近错误: ${a.lastError}",
-                                    fontSize = 11.sp,
-                                    color = androidx.compose.ui.graphics.Color(0xFFE57373),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 2.dp),
+                                    modifier = Modifier.padding(top = SpacingTokens.xxs),
                                 )
                             }
                         }
@@ -206,10 +210,10 @@ private fun CreateAutomationDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
         title = { Text("新建自动化") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text("周期分钟数（>=15）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Button(onClick = { kind = AutomationKind.HEARTBEAT_NOTES.name }, modifier = Modifier.weight(1f)) { Text("心跳整理") }
                     Button(onClick = { kind = AutomationKind.RUN_PROMPT.name }, modifier = Modifier.weight(1f)) { Text("定时 Prompt") }
                 }
@@ -256,14 +260,14 @@ private fun EditAutomationDialog(
             }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         },
         title = { Text("编辑自动化") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text("周期分钟数（>=15）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 if (automation.kind == AutomationKind.RUN_PROMPT) {

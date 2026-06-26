@@ -9,7 +9,7 @@ object KeywordTrigger {
         "帮我深化", "来个发芽", "生发一下",
         // 英文触发词
         "insight", "sprout", "germinate", "deepen",
-        "cross-domain", "aha moment",
+        "cross-domain", "震惊瞬间",
     )
     
     val FUZZY_PATTERNS = listOf(

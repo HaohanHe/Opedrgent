@@ -5,6 +5,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -32,7 +34,7 @@ import java.util.concurrent.TimeUnit
  * 因为你提到了洪堡兄弟...
  *
  * 1807年，普鲁士在耶拿战役中...     ← AI 展开叙述（加粗关键词、引用）
- * 💡 Aha 瞬间                     ← 高光金句
+ * 💡 震惊瞬间                     ← 高光金句
  * "最勇敢的投资，不是在顺顺..."
  * ```
  *
@@ -68,7 +70,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
       "title": "01. 吸引眼球的编号标题（概括这个洞察的核心）",
       "seed": "种子：从用户笔记中摘取触发这段分析的原文片段（50-100字）",
       "body": "正文：用**加粗**强调关键概念，用> 引用重要数据。写一篇300-500字的深度分析，像专栏文章一样流畅。要有论点、论据、案例。不要用列表形式，要写成连贯的叙述。",
-      "ahaMoment": "Aha 瞬间：这段分析中最有力的一句金句（20-40字），让人读了会'啊！原来如此'的感觉",
+      "ahaMoment": "震惊瞬间：这段分析中最有力的一句金句（20-40字），让人读了会产生'原来如此'的顿悟感",
       "importance": 5
     }
   ],
@@ -88,7 +90,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
    - 适当使用反问引发思考
    - 加粗关键术语（**关键概念**）
    - 重要数据用引用块（> 数据说明）
-4. **Aha 要震撼**：每篇只有一个 Aha，必须是全文最精华的那句话
+4. **震惊瞬间要震撼**：每篇只有一个震惊瞬间，必须是全文最精华的那句话
 5. **生成 2-4 篇文章**，覆盖笔记的不同维度
 6. **总字数控制在 1500-2500 字**
 
@@ -257,11 +259,14 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         otherNotesContext: String = "",
     ): List<Result<SproutArticle>> {
         if (notes.isEmpty()) return emptyList()
+        val semaphore = Semaphore(2)
         return coroutineScope {
             notes.map<Note, Deferred<Result<SproutArticle>>> { note ->
                 async<Result<SproutArticle>> {
                     try {
-                        sprout(note.content, otherNotesContext)
+                        semaphore.withPermit {
+                            sprout(note.content, otherNotesContext)
+                        }
                     } catch (e: Exception) {
                         Result.failure(e)
                     }
@@ -383,12 +388,12 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                 val title = match.groupValues[1].replace("\\\"", "\"")
                 val seed = match.groupValues[2].replace("\\n", "\n").replace("\\\"", "\"")
                 val body = match.groupValues[3].replace("\\n", "\n").replace("\\\"", "\"")
-                val ahaMoment = match.groupValues[4].replace("\\\"", "\"")
+                val shockingMoment = match.groupValues[4].replace("\\\"", "\"")
                 val importance = match.groupValues[5].toIntOrNull()?.coerceIn(1, 5) ?: 3
                 if (title.isNotBlank() || body.isNotBlank()) {
                     articleSections.add(ArticleSection(
                         title = title, seed = seed, body = body,
-                        ahaMoment = ahaMoment, importance = importance,
+                        shockingMoment = shockingMoment, importance = importance,
                     ))
                 }
             }
@@ -401,7 +406,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                     articleSections.add(ArticleSection(
                         title = title.replace("\\\"", "\""),
                         seed = "", body = body.replace("\\n", "\n").replace("\\\"", "\""),
-                        ahaMoment = "",
+                        shockingMoment = "",
                     ))
                 }
             }
@@ -432,7 +437,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                         title = secObj.optString("title", ""),
                         seed = secObj.optString("seed", ""),
                         body = secObj.optString("body", ""),
-                        ahaMoment = secObj.optString("ahaMoment", ""),
+                        shockingMoment = secObj.optString("ahaMoment", ""),
                         importance = secObj.optInt("importance", 3).coerceIn(1, 5),
                     )
                 } catch (_: Exception) { null }

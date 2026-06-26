@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -40,14 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun ConfirmationDialog(
@@ -72,14 +68,14 @@ fun ConfirmationDialog(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(SpacingTokens.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
@@ -89,22 +85,21 @@ fun ConfirmationDialog(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = BubbleBlue,
+                    contentDescription = "确认",
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp),
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(SpacingTokens.md))
                 Text(
                     text = request.message,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = themeTextDark(),
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
             }
 
             if (request.detail.isNotBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
                 Text(
                     text = request.detail,
                     style = MaterialTheme.typography.bodyMedium,
@@ -113,35 +108,35 @@ fun ConfirmationDialog(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
             if (request.options.isNotEmpty()) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     request.options.forEach { option ->
                         OutlinedButton(
                             onClick = { onConfirm(option.label) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = ShapeTokens.mediumShape,
                         ) {
                             Text(
                                 text = option.label,
-                                modifier = Modifier.padding(vertical = 4.dp),
+                                modifier = Modifier.padding(vertical = SpacingTokens.xs),
                             )
                             if (option.description.isNotBlank()) {
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.sm))
                                 Text(
                                     text = option.description,
-                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
             }
 
             Row(
@@ -151,14 +146,14 @@ fun ConfirmationDialog(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = null,
+                        contentDescription = "取消",
                         modifier = Modifier.size(18.dp),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text("取消")
                 }
 
@@ -170,7 +165,7 @@ fun ConfirmationDialog(
                         Text(
                             text = "超时",
                             color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge,
                         )
                     } else {
                         CountdownTimer(remainingSeconds = remainingSeconds)
@@ -179,15 +174,15 @@ fun ConfirmationDialog(
 
                 Button(
                     onClick = { onConfirm("__confirmed__") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BubbleBlue),
+                    shape = ShapeTokens.mediumShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = null,
+                        contentDescription = "确认",
                         modifier = Modifier.size(18.dp),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text("确认")
                 }
             }
@@ -212,22 +207,21 @@ private fun CountdownTimer(remainingSeconds: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .clip(ShapeTokens.extraLargeShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
     ) {
         Box(
             modifier = Modifier
-                .size(8.dp)
+                .size(SpacingTokens.sm)
                 .clip(CircleShape)
-                .background(if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else BubbleBlue.copy(alpha = alpha)),
+                .background(if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary.copy(alpha = alpha)),
         )
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(SpacingTokens.sm))
         Text(
             text = "${remainingSeconds}s",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
         )
     }
 }

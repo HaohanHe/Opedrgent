@@ -40,28 +40,30 @@ class SmartCircuitBreaker(
     private val recentResults = ConcurrentLinkedDeque<Boolean>()
 
     fun allowRequest(): Boolean {
-        return when (state) {
-            CircuitState.CLOSED -> true
-            CircuitState.OPEN -> {
-                val elapsed = System.currentTimeMillis() - openSince
-                if (elapsed >= currentBackoffMs) {
-                    state = CircuitState.HALF_OPEN
-                    halfOpenProbeCount = 0
-                    DebugLog.i("CircuitBreaker[$engineName] OPEN → HALF_OPEN (backoff ${currentBackoffMs}ms elapsed)")
-                    true
-                } else {
-                    false
+        return synchronized(this) {
+            when (state) {
+                CircuitState.CLOSED -> true
+                CircuitState.OPEN -> {
+                    val elapsed = System.currentTimeMillis() - openSince
+                    if (elapsed >= currentBackoffMs) {
+                        state = CircuitState.HALF_OPEN
+                        halfOpenProbeCount = 0
+                        DebugLog.i("CircuitBreaker[$engineName] OPEN → HALF_OPEN (backoff ${currentBackoffMs}ms elapsed)")
+                        true
+                    } else {
+                        false
+                    }
                 }
-            }
-            CircuitState.HALF_OPEN -> {
-                if (halfOpenProbeCount < config.halfOpenMaxProbes) {
-                    true
-                } else {
-                    DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN 拒绝请求，probeCount 已达上限 $halfOpenProbeCount")
-                    false
+                CircuitState.HALF_OPEN -> {
+                    if (halfOpenProbeCount < config.halfOpenMaxProbes) {
+                        true
+                    } else {
+                        DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN 拒绝请求，probeCount 已达上限 $halfOpenProbeCount")
+                        false
+                    }
                 }
+                CircuitState.RECOVERING -> true
             }
-            CircuitState.RECOVERING -> true
         }
     }
 
@@ -185,12 +187,14 @@ class SmartCircuitBreaker(
     }
 
     private fun trimWindow() {
-        while (recentResults.size > 100) {
+        while (recentResults.size > MAX_WINDOW_SIZE) {
             recentResults.pollFirst()
         }
     }
 
     companion object {
+        private const val MAX_WINDOW_SIZE = 100
+
         private fun getHealthCheckUrl(engine: String): String? = when (engine.lowercase()) {
             "ddg", "duckduckgo" -> "https://html.duckduckgo.com/"
             "bing" -> "https://www.bing.com/"

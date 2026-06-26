@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.ui.components
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AudioFile
@@ -42,9 +42,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import android.net.Uri
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun AudioPickerDialog(
@@ -69,15 +69,15 @@ fun AudioPickerDialog(
         ) + fadeIn(),
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             modifier = modifier
                 .semantics { contentDescription = "选择音频输入方式对话框" }
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = SpacingTokens.xl),
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(SpacingTokens.xl),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -87,29 +87,28 @@ fun AudioPickerDialog(
                         text = "\uD83C\uDFA4",
                         style = MaterialTheme.typography.headlineSmall,
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(SpacingTokens.md))
                     Text(
                         text = "选择输入方式",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(SpacingTokens.xl))
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(ShapeTokens.largeShape)
                             .clickable(
-                                indication = ripple(bounded = true, radius = 24.dp),
+                                indication = ripple(bounded = true, radius = SpacingTokens.xl),
                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                 onClick = { launcher.launch("*/*") },
                             )
@@ -122,23 +121,22 @@ fun AudioPickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(SpacingTokens.lg),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AudioFile,
-                                contentDescription = null,
+                                contentDescription = "上传文件",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(SpacingTokens.xxl),
                             )
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(SpacingTokens.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     text = "上传音视频文件",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Spacer(Modifier.height(2.dp))
+                                Spacer(Modifier.height(SpacingTokens.xxs))
                                 Text(
                                     text = "MP3, WAV, M4A, MP4 等格式",
                                     style = MaterialTheme.typography.bodySmall,
@@ -147,7 +145,7 @@ fun AudioPickerDialog(
                             }
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                contentDescription = null,
+                                contentDescription = "进入",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -155,16 +153,16 @@ fun AudioPickerDialog(
                     }
 
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(ShapeTokens.largeShape)
                             .clickable(
-                                indication = ripple(bounded = true, radius = 24.dp),
+                                indication = ripple(bounded = true, radius = SpacingTokens.xl),
                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                 onClick = {
                                     onRealtimeRecording()
@@ -180,23 +178,22 @@ fun AudioPickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(SpacingTokens.lg),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = null,
+                                contentDescription = "录音",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(SpacingTokens.xxl),
                             )
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(SpacingTokens.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     text = "实时录音转文字",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Spacer(Modifier.height(2.dp))
+                                Spacer(Modifier.height(SpacingTokens.xxs))
                                 Text(
                                     text = "使用麦克风实时识别",
                                     style = MaterialTheme.typography.bodySmall,
@@ -205,7 +202,7 @@ fun AudioPickerDialog(
                             }
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = null,
+                                contentDescription = "录音",
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                 modifier = Modifier.size(22.dp),
                             )
@@ -213,7 +210,7 @@ fun AudioPickerDialog(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(SpacingTokens.lg))
 
                 Text(
                     text = "提示：上传的文件将在本地处理，不会上传至服务器",
@@ -222,7 +219,7 @@ fun AudioPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -241,7 +238,7 @@ fun AudioPickerDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = null,
+                            contentDescription = "关闭",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

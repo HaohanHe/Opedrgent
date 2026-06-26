@@ -4,7 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -16,107 +15,41 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.URLEncoder
 import java.net.URLDecoder
-import java.security.MessageDigest
 import java.util.Base64
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import okhttp3.Dns
 
-data class SearchResult(
-    val title: String,
-    val url: String,
-    val snippet: String?,
-    val sourceEngines: Set<String> = emptySet(),
-    var score: Double = 0.0,
-    val rawContent: String? = null,  // Tavily Extract 返回的完整内容
-)
-
-/** Tavily Search API 响应 */
-data class TavilySearchResponse(
-    val results: List<SearchResult>,
-    val answer: String?,  // Tavily 生成的 LLM 摘要答案
-)
-
-/** Tavily Extract API 响应 */
-data class TavilyExtractResult(
-    val url: String,
-    val rawContent: String,
-)
-
-data class SearchConfig(
-    // ★ Bugfix: 默认引擎顺序改为 Bing 优先（国内唯一稳定可用的免费引擎）
-    // 百度放第二（易触发 CAPTCHA 但中文结果质量高），DDG 第三，Jina 最后（需 API Key）
-    val providerOrder: String = "bing,baidu,ddg,jina",
-    val searxngUrl: String? = null,
-    val jinaApiKey: String? = null,
-    val braveApiKey: String? = null,
-    val tavilyApiKey: String? = null,
-)
-
-data class EngineConfig(
-    val id: String,
-    val enabled: Boolean = true,
-    val weight: Double = 1.0,
-    val timeoutSec: Long = 8L,
-    val maxResults: Int = 10
-)
-
-val DEFAULT_ENGINE_CONFIGS: Map<String, EngineConfig> = mapOf(
-    "baidu" to EngineConfig("baidu", weight = 1.2, timeoutSec = 6),
-    "bing" to EngineConfig("bing", weight = 1.3, timeoutSec = 8),
-    "ddg" to EngineConfig("ddg", weight = 1.0, timeoutSec = 5),
-    "sogou" to EngineConfig("sogou", weight = 0.9, timeoutSec = 6),
-    "360" to EngineConfig("360", weight = 0.8, timeoutSec = 5),
-    "yandex" to EngineConfig("yandex", weight = 0.7, timeoutSec = 8),
-    "jina" to EngineConfig("jina", weight = 1.1, timeoutSec = 8),
-    "brave" to EngineConfig("brave", weight = 1.1, timeoutSec = 10),
-    "tavily" to EngineConfig("tavily", weight = 1.0, timeoutSec = 10),
-    "searxng" to EngineConfig("searxng", weight = 1.4, timeoutSec = 12),
-)
-
-var SEARXNG_BASE_URL: String = ""
-    set(value) {
-        field = value.trimEnd('/')
-    }
-
-data class JinaResult(
-    val title: String,
-    val url: String,
-    val text: String,
-)
-
+/**
+ * WebSearcher — facade over the multi-engine search subsystem.
+ *
+ * Public API and per-engine entry points are preserved here. Internal
+ * responsibilities are delegated to focused components:
+ *  - [SearchCacheManager]      — LRU caches (results + DDG vqd) and stats
+ *  - [SearchResultRanker]      — relevance filter + hybrid ranking fusion
+ *  - [SearchDeduplicator]      — URL/content dedup with diagnostics
+ *  - [SearchConstants]         — timeouts, cache sizes, scoring thresholds
+ *  - [MultiLevelCacheManager]  — L1 memory + L2 disk cache for resilient path
+ *
+ * Data models ([SearchResult], [SearchConfig], [EngineConfig], etc.) and the
+ * [SEARXNG_BASE_URL] global live in SearchConfig.kt within the same package.
+ */
 class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     companion object {
-        private val CN_PATTERN = Regex("[\\u4e00-\\u9fa5]")
-        private const val SEARCH_TIMEOUT_SEC = 8
-        private const val SEARCH_CACHE_TTL_MS = 30_000L
-        private const val VQD_CACHE_TTL_MS = 300_000L
-        
-        private const val MAX_CACHE_SIZE = 100
-        private const val MAX_VQD_CACHE_SIZE = 50
-        private const val CACHE_CLEAN_INTERVAL_MS = 60_000L
-
-        fun containsChinese(s: String): Boolean = CN_PATTERN.containsMatchIn(s)
+        /** Backwards-compatible alias for [SearchConstants.containsChinese]. */
+        fun containsChinese(s: String): Boolean = SearchConstants.containsChinese(s)
     }
-    
+
+    // ---- Delegated components ----
     private val cacheManager: MultiLevelCacheManager by lazy { MultiLevelCacheManager() }
+    private val legacyCache: SearchCacheManager by lazy { SearchCacheManager() }
+    private val ranker: SearchResultRanker by lazy { SearchResultRanker() }
+    private val deduplicator: SearchDeduplicator by lazy { SearchDeduplicator() }
+
     private val circuitBreakerManager: CircuitBreakerManager get() = CircuitBreakerManager
     private val concurrencyController: AdaptiveConcurrencyController by lazy { AdaptiveConcurrencyController() }
     private val errorClassifier: ErrorClassifier get() = ErrorClassifier
     private val cacheKeyGenerator: CacheKeyGenerator get() = CacheKeyGenerator
-    private val hybridRankingEngine: HybridRankingEngine by lazy { HybridRankingEngine() }
-    
-    // 智能缓存数据结构
-    private data class CacheEntry<T>(
-        val data: T,
-        val timestamp: Long,
-        var accessCount: Int = 0,
-        var lastAccessTime: Long = timestamp
-    )
-    
-    private val searchCache = LinkedHashMap<String, CacheEntry<List<SearchResult>>>(MAX_CACHE_SIZE, 0.75f, true)  // access-order
-    private val vqdCache = LinkedHashMap<String, CacheEntry<String>>(MAX_VQD_CACHE_SIZE, 0.75f, true)
 
     // IPv4优先的DNS策略（解决Jina等CDN在Android设备上IPv6超时问题）
     private val ipv4PreferredDns = object : Dns {
@@ -131,120 +64,29 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     private val jinaClient by lazy {
         http.newBuilder()
             .dns(ipv4PreferredDns)
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .writeTimeout(8, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(SearchConstants.JINA_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .readTimeout(SearchConstants.JINA_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .writeTimeout(SearchConstants.JINA_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .callTimeout(SearchConstants.JINA_CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
             .build()
     }
 
     private val geocodingClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(SearchConstants.GEOCODE_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .readTimeout(SearchConstants.GEOCODE_READ_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .writeTimeout(SearchConstants.GEOCODE_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
             .build()
     }
 
     private val geocodeCache = mutableMapOf<String, Pair<String?, Long>>()
-    private val GEOCACHE_TTL_MS = 10 * 60 * 1000L
-    
-    // 缓存统计
-    private var cacheHits = 0
-    private var cacheMisses = 0
-    private var lastCleanTime = 0L
-    
-    @Synchronized
-    private fun getFromCache(key: String): List<SearchResult>? {
-        val entry = searchCache[key] ?: run {
-            cacheMisses++
-            return null
-        }
-        
-        val now = System.currentTimeMillis()
-        
-        // 检查是否过期
-        if (now - entry.timestamp > SEARCH_CACHE_TTL_MS) {
-            searchCache.remove(key)
-            cacheMisses++
-            return null
-        }
-        
-        // 更新访问信息
-        entry.accessCount++
-        entry.lastAccessTime = now
-        cacheHits++
-        
-        return entry.data
-    }
-    
-    @Synchronized
-    private fun putToCache(key: String, results: List<SearchResult>) {
-        if (results.isEmpty()) return
-        
-        // 如果超过最大容量，移除最老的条目（LRU）
-        while (searchCache.size >= MAX_CACHE_SIZE) {
-            val oldestKey = searchCache.keys.iterator().next()
-            searchCache.remove(oldestKey)
-        }
-        
-        searchCache[key] = CacheEntry(
-            data = results,
-            timestamp = System.currentTimeMillis(),
-            accessCount = 1,
-            lastAccessTime = System.currentTimeMillis()
-        )
-        
-        // 定期清理过期条目
-        periodicCleanUp()
-    }
-    
-    @Synchronized
-    private fun periodicCleanUp() {
-        val now = System.currentTimeMillis()
-        
-        // 每隔指定时间执行一次全面清理
-        if (now - lastCleanTime < CACHE_CLEAN_INTERVAL_MS) return
-        lastCleanTime = now
-        
-        // 清理过期的搜索结果缓存
-        val expiredKeys = searchCache.filter { 
-            now - it.value.timestamp > SEARCH_CACHE_TTL_MS 
-        }.keys
-        
-        expiredKeys.forEach { searchCache.remove(it) }
-        
-        // 清理过期的vqd缓存
-        val expiredVqdKeys = vqdCache.filter { 
-            now - it.value.timestamp > VQD_CACHE_TTL_MS 
-        }.keys
-        
-        expiredVqdKeys.forEach { vqdCache.remove(it) }
-        
-        if (expiredKeys.isNotEmpty() || expiredVqdKeys.isNotEmpty()) {
-            DebugLog.d(
-                "WebSearcher cache cleanup: removed ${expiredKeys.size} search entries, " +
-                "${expiredVqdKeys.size} vqd entries. Current size: ${searchCache.size}/${MAX_CACHE_SIZE}"
-            )
-        }
-    }
 
-    private fun buildClient(timeoutSec: Int = SEARCH_TIMEOUT_SEC): OkHttpClient {
+    private fun buildClient(timeoutSec: Int = SearchConstants.SEARCH_TIMEOUT_SEC): OkHttpClient {
         return http.newBuilder()
             .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
             .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
             .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
             .build()
-    }
-
-    /**
-     * 清理过期的vqd缓存条目
-     */
-    private fun cleanExpiredVqdCache() {
-        val now = System.currentTimeMillis()
-        vqdCache.entries.removeAll { (_, entry) ->
-            now - entry.timestamp > VQD_CACHE_TTL_MS
-        }
     }
 
     fun searchDdg(query: String, limit: Int = 5): List<SearchResult> {
@@ -266,7 +108,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         val client = buildClient(6)  // DDG在中国易超时，6秒快速失败
 
         // 清理过期vqd缓存
-        cleanExpiredVqdCache()
+        legacyCache.cleanExpiredVqdCache()
 
         val formData = buildString {
             append("q=").append(URLEncoder.encode(query, Charsets.UTF_8.name()))
@@ -321,12 +163,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                 if (vqdInput != null) {
                     val vqdValue = vqdInput.attr("value").trim()
                     if (vqdValue.isNotEmpty()) {
-                        val cacheKey = sha256("$query//${UserAgentPool.getFixedUa()}")
-                        vqdCache[cacheKey] = CacheEntry(
-                            data = vqdValue,
-                            timestamp = System.currentTimeMillis()
-                        )
-                        DebugLog.d("WebSearcher DDG: cached vqd=$vqdValue")
+                        legacyCache.putVqd(query, UserAgentPool.getFixedUa(), vqdValue)
                     }
                 }
 
@@ -1883,7 +1720,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         val cacheKey = "${lat.toFloat()},${lon.toFloat()}"
 
         geocodeCache[cacheKey]?.let { (result, timestamp) ->
-            if (System.currentTimeMillis() - timestamp < GEOCACHE_TTL_MS) {
+            if (System.currentTimeMillis() - timestamp < SearchConstants.GEOCACHE_TTL_MS) {
                 return result
             }
         }
@@ -1949,7 +1786,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             return cached.results
         }
 
-        hybridRankingEngine.initialize(query)
+        ranker.initialize(query)
 
         val isZh = containsChinese(query)
         val q = query
@@ -2068,23 +1905,18 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             }
         }
 
-        val filterResult = container.filterRelevantResults(
-            minKeywordMatch = 1,
-            minBm25Score = 0.1,   // 放宽BM25阈值，避免中文短查询被过度过滤
-            minResults = 2         // 至少保留2条结果，安全网
+        // 后处理管线：过滤 + 排序 -> 去重 -> 混合排名
+        var finalResults = ranker.filterAndSort(
+            container = container,
+            limit = limit.coerceAtMost(SearchConstants.MAX_LIMIT_CAP)
         )
 
-        var finalResults = container.getSortedResults(limit.coerceAtMost(30))
-
         if (finalResults.isNotEmpty()) {
-            val beforeDedup = finalResults.size
-            finalResults = ResultDeduplicator().deduplicate(finalResults)
-            DebugLog.i("WebSearcher dedup: $beforeDedup -> ${finalResults.size} (${beforeDedup - finalResults.size} removed)")
+            finalResults = deduplicator.deduplicate(finalResults)
         }
 
         if (finalResults.isNotEmpty()) {
-            val ranked = hybridRankingEngine.rank(finalResults, limit)
-            finalResults = ranked.map { it.result }
+            finalResults = ranker.rank(finalResults, limit)
         }
 
         if (finalResults.isNotEmpty()) {
@@ -2096,7 +1928,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             )
             cacheManager.put(cacheKey, resultSet)
 
-            putToCache("${query.lowercase().trim()}|$limit|${config.providerOrder}", finalResults)
+            legacyCache.putToCache("${query.lowercase().trim()}|$limit|${config.providerOrder}", finalResults)
         } else {
             DebugLog.w("WebSearcher resilience: all engines failed, returning empty")
         }
@@ -2118,51 +1950,12 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     }
 
     @Synchronized
-    fun getCacheStats(): Map<String, Any> {
-        val total = cacheHits + cacheMisses
-        return mapOf(
-            "size" to searchCache.size,
-            "maxSize" to MAX_CACHE_SIZE,
-            "hits" to cacheHits,
-            "misses" to cacheMisses,
-            "hitRate" to if (total > 0) "%.1f".format(cacheHits.toDouble() / total * 100) + "%" else "N/A",
-            "vqdCacheSize" to vqdCache.size
-        )
-    }
+    fun getCacheStats(): Map<String, Any> = legacyCache.getCacheStats()
 
     /**
      * 同步搜索方法（兼容包装，内部使用异步实现）
      */
-    fun search(query: String, limit: Int = 5): List<SearchResult> {
-        return search(query, SearchConfig(), limit)
-    }
-
-    /**
-     * 同步搜索方法（兼容包装，内部使用异步实现）
-     *
-     * ⚠️ **已弃用 - 性能警告**
-     * 此方法内部使用 `runBlocking` 会阻塞调用线程，可能导致：
-     * - 主线程卡顿（ANR 风险）
-     * - 线程死锁
-     * - 内存占用增加
-     *
-     * 请使用 [searchAsync] 替代，它返回协程安全的 suspend 函数。
-     *
-     * @deprecated 使用 [searchAsync] 以获得更好的性能和线程安全性
-     * @see searchAsync
-     */
-    @Deprecated(
-        message = "使用 runBlocking 阻塞线程，存在性能问题。请使用 searchAsync() 替代。",
-        replaceWith = ReplaceWith("searchAsync(query, config, limit)", imports = ["kotlinx.coroutines.runBlocking"])
-    )
-    fun search(query: String, config: SearchConfig, limit: Int = 5): List<SearchResult> {
-        return runBlocking {
-            searchAsync(query, config, limit)
-        }
-    }
-
-    private fun sha256(input: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
-        return bytes.joinToString("") { "%02x".format(it) }
+    suspend fun search(query: String, limit: Int = 5): List<SearchResult> {
+        return searchAsync(query, SearchConfig(), limit)
     }
 }
