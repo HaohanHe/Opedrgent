@@ -57,11 +57,9 @@ class AdaptiveConcurrencyController(
         put("consecutiveFailures", AtomicLong(0))
     }
 
-    @Volatile
-    private var activeRequests = 0
+    private val activeRequests = AtomicInteger(0)
     private val successTracker = ConcurrentLinkedDeque<Boolean>()
-    @Volatile
-    private var requestCountSinceAdjustment = 0
+    private val requestCountSinceAdjustment = AtomicInteger(0)
 
     init {
         DebugLog.d(TAG, "AdaptiveConcurrencyController initialized with config: $config")
@@ -85,7 +83,7 @@ class AdaptiveConcurrencyController(
             return null
         }
 
-        activeRequests++
+        activeRequests.incrementAndGet()
         stats["totalAttempts"]?.incrementAndGet()
 
         return try {
@@ -97,13 +95,13 @@ class AdaptiveConcurrencyController(
             DebugLog.e(TAG, "Global access execution error: ${e.message}", e)
             throw e
         } finally {
-            activeRequests--
+            activeRequests.decrementAndGet()
             globalSemaphore.release()
             globalPermits.incrementAndGet()
-            requestCountSinceAdjustment++
-            if (requestCountSinceAdjustment >= config.adjustmentInterval) {
+            val count = requestCountSinceAdjustment.incrementAndGet()
+            if (count >= config.adjustmentInterval) {
                 adjustEngineLimits()
-                requestCountSinceAdjustment = 0
+                requestCountSinceAdjustment.set(0)
             }
         }
     }
@@ -174,7 +172,7 @@ class AdaptiveConcurrencyController(
 
     fun adjustEngineLimits() {
         val successRate = calculateSuccessRate()
-        val currentActive = activeRequests
+        val currentActive = activeRequests.get()
         val currentPerEngine = engineMaxPermits.values.firstOrNull()?.get()
             ?: config.perEngineMaxConcurrent
 
@@ -188,7 +186,7 @@ class AdaptiveConcurrencyController(
                     DebugLog.i(TAG, "Increased per-engine limit to $newLimit (success rate high)")
                 }
             }
-            successRate < 0.7 || getConsecutiveFailures() > 10 -> {
+            (successRate < 0.7 || getConsecutiveFailures() > 10) && shouldDecreaseLimits() -> {
                 val newLimit = maxOf(currentPerEngine - 1, config.minPerEngineLimit)
                 if (newLimit != currentPerEngine) {
                     updateAllEngineSemaphores(newLimit)
@@ -201,7 +199,7 @@ class AdaptiveConcurrencyController(
 
     fun getStats(): Map<String, Any> {
         return mapOf(
-            "activeRequests" to activeRequests,
+            "activeRequests" to activeRequests.get(),
             "globalAvailablePermits" to globalPermits.get(),
             "totalProcessed" to (stats["processed"]?.get() ?: 0L) as Any,
             "totalRejected" to (stats["rejected"]?.get() ?: 0L) as Any,
@@ -210,13 +208,13 @@ class AdaptiveConcurrencyController(
             "engineUsed" to engineUsedPermits.mapValues { it.value.get() },
             "queueSizes" to priorityQueues.mapValues { it.value.size },
             "consecutiveFailures" to (stats["consecutiveFailures"]?.get() ?: 0L),
-            "requestCountSinceAdjustment" to requestCountSinceAdjustment
+            "requestCountSinceAdjustment" to requestCountSinceAdjustment.get()
         )
     }
 
     fun reset() {
-        activeRequests = 0
-        requestCountSinceAdjustment = 0
+        activeRequests.set(0)
+        requestCountSinceAdjustment.set(0)
         successTracker.clear()
         priorityQueues.values.forEach { it.clear() }
         stats.values.forEach { it.set(0) }
@@ -244,12 +242,12 @@ class AdaptiveConcurrencyController(
         timeoutMs: Long,
         requester: String
     ): Boolean {
-        return try {
+        return withTimeoutOrNull(timeoutMs) {
             semaphore.acquire()
             DebugLog.d(TAG, "HIGH priority acquired by $requester")
             true
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "HIGH priority acquisition failed for $requester: ${e.message}")
+        } ?: run {
+            DebugLog.w(TAG, "HIGH priority acquisition timed out for $requester after ${timeoutMs}ms")
             false
         }
     }

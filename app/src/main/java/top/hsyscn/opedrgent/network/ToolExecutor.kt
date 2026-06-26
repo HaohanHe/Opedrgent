@@ -43,6 +43,10 @@ data class ToolResult(
     val addedSources: List<String> = emptyList(),
 )
 
+fun emptyResult(tp: ToolPart, msg: String): ToolResult {
+    return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
+}
+
 class ToolExecutor(
     private val context: Context,
     private val searcher: WebSearcher,
@@ -326,64 +330,9 @@ class ToolExecutor(
             ?: "工具执行完成但无输出"
     }
 
-    private fun executeOpenBrowser(tp: ToolPart): ToolResult {
-        val url = tp.state.input["url"] ?: return emptyResult(tp, "缺少 URL")
-        DebugLog.i("open_browser: $url")
-        return ToolResult(
-            toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "已在浏览器中打开：$url", endTime = System.currentTimeMillis())),
-            openBrowserUrl = url,
-        )
-    }
-
-    private fun executeQuestion(tp: ToolPart): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "等待用户选择", endTime = System.currentTimeMillis())))
-    }
-
-    private fun executeReverseGeocode(tp: ToolPart): ToolResult {
-        val lat = tp.state.input["lat"]?.toDoubleOrNull()
-        val lon = tp.state.input["lon"]?.toDoubleOrNull()
-        if (lat == null || lon == null) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "缺少经纬度参数 lat, lon", endTime = System.currentTimeMillis())))
-        }
-
-        DebugLog.i("reverse_geocode: $lat, $lon")
-        val result = searcher.reverseGeocode(lat, lon)
-        if (result != null) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
-                status = ToolStateType.COMPLETED,
-                output = result,
-                endTime = System.currentTimeMillis(),
-            )))
-        }
-
-        val envGeo = top.hsyscn.opedrgent.env.EnvironmentProvider.reverseGeocode(lat, lon)
-        if (envGeo != null) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
-                status = ToolStateType.COMPLETED,
-                output = envGeo.displayName,
-                endTime = System.currentTimeMillis(),
-            )))
-        }
-
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(
-            status = ToolStateType.COMPLETED,
-            output = "${lat}, ${lon}（反向地理编码失败，这是 GPS 原始坐标。此坐标大致位于中国陕西省北部区域。）",
-            endTime = System.currentTimeMillis(),
-        )))
-    }
-
-    private fun executeGenerate(tp: ToolPart): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = "generate 操作由系统在工具循环完成后处理", endTime = System.currentTimeMillis())))
-    }
-
     @Deprecated("内部辅助方法，已迁移到ToolSet")
     private fun unknownTool(tp: ToolPart): ToolResult {
         DebugLog.w("Unknown tool: ${tp.tool}")
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "未知工具：${tp.tool}", endTime = System.currentTimeMillis())))
-    }
-
-    @Deprecated("内部辅助方法，已迁移到ToolSet")
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 }

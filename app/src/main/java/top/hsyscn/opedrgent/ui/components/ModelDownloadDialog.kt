@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,26 +43,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.llm.DownloadProgress
 import top.hsyscn.opedrgent.llm.DownloadStatus
 import top.hsyscn.opedrgent.llm.LocalModelInfo
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun ModelDownloadDialog(
@@ -112,46 +106,45 @@ fun ModelDownloadDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(20.dp),
+                .padding(horizontal = SpacingTokens.xl),
+            shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(SpacingTokens.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    tint = BubbleBlue,
-                    modifier = Modifier.size(48.dp),
+                    contentDescription = "下载模型",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(SpacingTokens.xxl),
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
                     text = "正在下载 ${modelInfo.displayName}",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = themeTextDark(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
                 Text(
                     text = modelInfo.description,
-                    fontSize = 14.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 when (progress?.status) {
                     DownloadStatus.DOWNLOADING -> {
@@ -171,20 +164,20 @@ fun ModelDownloadDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 QuoteCard(currentQuoteIndex = shuffledIndices[quotePointer])
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 Text(
                     text = "好东西，就要来了...",
-                    fontSize = 13.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 ActionButtons(
                     isPaused = isPaused,
@@ -194,7 +187,7 @@ fun ModelDownloadDialog(
                     onCancel = { showCancelConfirm = true },
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
             }
         }
     }
@@ -212,22 +205,21 @@ private fun ProgressSection(progress: DownloadProgress) {
                     progress = { progress.progressPercent / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = BubbleBlue,
-                    trackColor = BubbleBlue.copy(alpha = 0.15f),
+                        .height(SpacingTokens.xs)
+                        .clip(ShapeTokens.smallShape),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.md))
             Text(
                 text = "${progress.progressPercent.toInt()}%",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = BubbleBlue,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -235,13 +227,13 @@ private fun ProgressSection(progress: DownloadProgress) {
         ) {
             Text(
                 text = "${progress.downloadedMb.toInt()} MB / ${progress.totalMb.toInt()} MB",
-                fontSize = 13.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = formatSpeed(progress.speedBytesPerSec),
-                fontSize = 13.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -260,37 +252,35 @@ private fun PausedSection(progress: DownloadProgress?) {
                         progress = { progress.progressPercent / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = themeTextGrey(),
-                        trackColor = BubbleBlue.copy(alpha = 0.15f),
+                            .height(SpacingTokens.xs)
+                            .clip(ShapeTokens.smallShape),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(SpacingTokens.md))
                 Text(
                     text = "${progress.progressPercent.toInt()}%",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.md))
 
             Text(
                 text = "${progress.downloadedMb.toInt()} MB / ${progress.totalMb.toInt()} MB",
-                fontSize = 13.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
         Text(
             text = "已暂停",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = themeTextGrey(),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -304,19 +294,18 @@ private fun QueuedSection() {
         LinearProgressIndicator(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            color = themeTextGrey().copy(alpha = 0.5f),
-            trackColor = BubbleBlue.copy(alpha = 0.15f),
+                .height(SpacingTokens.xs)
+                .clip(ShapeTokens.smallShape),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Text(
             text = "排队中...",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = themeTextGrey(),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -329,26 +318,25 @@ private fun FailedSection(error: String) {
     ) {
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = null,
+            contentDescription = "下载失败",
             tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(SpacingTokens.xxl),
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
         Text(
             text = "下载失败",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.error,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.xs))
 
         Text(
             text = error,
-            fontSize = 13.sp,
-            color = themeTextGrey(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -365,18 +353,18 @@ private fun IdleSection(totalMb: Long) {
         LinearProgressIndicator(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            color = Color.Transparent,
-            trackColor = BubbleBlue.copy(alpha = 0.15f),
+                .height(SpacingTokens.xs)
+                .clip(ShapeTokens.smallShape),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Text(
             text = "准备下载 ($totalMb MB)",
-            fontSize = 14.sp,
-            color = themeTextGrey(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -387,7 +375,7 @@ private fun QuoteCard(currentQuoteIndex: Int) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Crossfade(
@@ -398,30 +386,29 @@ private fun QuoteCard(currentQuoteIndex: Int) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(SpacingTokens.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
                 Text(
                     text = currentQuote.text,
-                    fontSize = 16.sp,
-                    color = themeTextDark(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
-                    lineHeight = 26.sp,
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
 
                 Text(
                     text = "-- ${currentQuote.author}",
-                    fontSize = 13.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
             }
         }
     }
@@ -437,25 +424,25 @@ private fun ActionButtons(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
         when {
             status == DownloadStatus.DOWNLOADING || status == DownloadStatus.QUEUED -> {
                 OutlinedButton(
                     onClick = onPause,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BubbleBlue),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, BubbleBlue),
+                    shape = ShapeTokens.mediumShape,
+                    contentPadding = PaddingValues(vertical = SpacingTokens.md),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Pause,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        contentDescription = "暂停",
+                        modifier = Modifier.size(SpacingTokens.md),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "暂停", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
+                    Text(text = "暂停", style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -463,18 +450,18 @@ private fun ActionButtons(
                 OutlinedButton(
                     onClick = onResume,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BubbleBlue),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, BubbleBlue),
+                    shape = ShapeTokens.mediumShape,
+                    contentPadding = PaddingValues(vertical = SpacingTokens.md),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        contentDescription = "恢复",
+                        modifier = Modifier.size(SpacingTokens.md),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "恢复", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
+                    Text(text = "恢复", style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -483,10 +470,10 @@ private fun ActionButtons(
                     onClick = {},
                     enabled = false,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
+                    shape = ShapeTokens.mediumShape,
+                    contentPadding = PaddingValues(vertical = SpacingTokens.md),
                 ) {
-                    Text(text = "--", fontSize = 14.sp, color = themeTextGrey())
+                    Text(text = "--", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -494,13 +481,12 @@ private fun ActionButtons(
         TextButton(
             onClick = onCancel,
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(vertical = 12.dp),
+            shape = ShapeTokens.mediumShape,
+            contentPadding = PaddingValues(vertical = SpacingTokens.md),
         ) {
             Text(
                 text = "取消下载",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.error,
             )
         }

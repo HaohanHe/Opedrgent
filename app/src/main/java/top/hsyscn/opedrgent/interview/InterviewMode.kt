@@ -316,6 +316,7 @@ data class InterviewConfig(
     val company: String = "",
     val position: String = "",
     val difficulty: DifficultyLevel = DifficultyLevel.NORMAL,
+    val customDifficultyLevel: Int? = null,
     val questionCount: Int = 8,
     val durationMinutes: Int = 15,
     val enableCoach: Boolean = true,

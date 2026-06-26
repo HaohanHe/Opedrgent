@@ -50,7 +50,7 @@ object PromptBuilder {
         return sb.toString().trim()
     }
 
-    fun buildDynamicPrompt(
+    suspend fun buildDynamicPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
         memoryStore: MemoryStore? = null,
@@ -104,7 +104,7 @@ object PromptBuilder {
         return layers.filterNotNull().joinToString("\n\n").trim()
     }
 
-    fun buildSystemPrompt(
+    suspend fun buildSystemPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
         memoryStore: MemoryStore? = null,
@@ -419,7 +419,7 @@ ${buildToolDetails()}
         return entry.content
     }
 
-    private fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?, hippocampusIndex: HippocampusIndex? = null): String? {
+    private suspend fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?, hippocampusIndex: HippocampusIndex? = null): String? {
         val memory = memoryStore?.getMemoryBlock()?.trim().orEmpty().ifBlank { apiSettings.getMemory() }
 
         // 弹性截断：根据模型上下文窗口按比例计算

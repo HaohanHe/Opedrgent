@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -22,11 +23,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * 播放速度选择 Bottom Sheet。
@@ -52,15 +50,14 @@ fun PlaybackSpeedSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
+                .padding(horizontal = SpacingTokens.lg)
+                .padding(bottom = SpacingTokens.xl),
         ) {
             Text(
                 text = "播放速度",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = themeTextDark(),
-                modifier = Modifier.padding(vertical = 12.dp),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(vertical = SpacingTokens.md),
             )
 
             HorizontalDivider()
@@ -81,33 +78,33 @@ fun PlaybackSpeedSheet(
                             selected = selected,
                             onClick = { onSpeedSelected(speed) },
                         )
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = SpacingTokens.xs),
                 ) {
                     RadioButton(
                         selected = selected,
                         onClick = { onSpeedSelected(speed) },
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = label,
-                        fontSize = 16.sp,
-                        color = themeTextDark(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     if (selected) {
                         Spacer(Modifier.weight(1f))
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = AccentBlue,
+                            contentDescription = "已选择该速度",
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .size(20.dp)
-                                .padding(end = 8.dp),
+                                .padding(end = SpacingTokens.sm),
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
 
             TextButton(
                 onClick = onDismiss,
@@ -115,8 +112,8 @@ fun PlaybackSpeedSheet(
             ) {
                 Text(
                     text = "取消",
-                    fontSize = 16.sp,
-                    color = AccentBlue,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }

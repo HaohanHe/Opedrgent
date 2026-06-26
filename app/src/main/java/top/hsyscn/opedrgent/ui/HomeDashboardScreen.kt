@@ -1,5 +1,16 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.GradientPurpleStart
+import top.hsyscn.opedrgent.ui.theme.GradientPurpleEnd
+import top.hsyscn.opedrgent.ui.theme.GradientIndigoStart
+import top.hsyscn.opedrgent.ui.theme.GradientIndigoEnd
+import top.hsyscn.opedrgent.ui.theme.GradientPinkStart
+import top.hsyscn.opedrgent.ui.theme.GradientPinkEnd
+import top.hsyscn.opedrgent.ui.theme.GradientCyanStart
+import top.hsyscn.opedrgent.ui.theme.GradientCyanEnd
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -168,16 +179,16 @@ fun HomeDashboardScreen(
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 900.dp)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = SpacingTokens.lg),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         item {
             GreetingHeader()
         }
 
-        item { Spacer(modifier = Modifier.height(20.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         item {
             AiAssistantCard(
@@ -194,7 +205,7 @@ fun HomeDashboardScreen(
             )
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         item {
             StatsRow(
@@ -211,7 +222,7 @@ fun HomeDashboardScreen(
             )
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         if (recommendations.isNotEmpty()) {
             item {
@@ -219,7 +230,7 @@ fun HomeDashboardScreen(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         item {
             QuickActionsRow(
@@ -230,7 +241,7 @@ fun HomeDashboardScreen(
             )
         }
 
-        item { Spacer(modifier = Modifier.height(20.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.lg)) }
 
         item {
             Row(
@@ -240,20 +251,20 @@ fun HomeDashboardScreen(
             ) {
                 Text(
                     text = "最近笔记",
-                    fontSize = 18.sp,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = themeTextDark(),
                 )
                 Text(
                     text = "查看全部",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = AccentBlue,
                     modifier = Modifier.clickable { onNavigateToNotes() },
                 )
             }
         }
 
-        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { Spacer(modifier = Modifier.height(SpacingTokens.md)) }
 
         if (recentNotes.isEmpty()) {
             item {
@@ -285,15 +296,15 @@ private fun GreetingHeader() {
     Column {
         Text(
             text = greeting,
-            fontSize = 26.sp,
+            style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = themeTextDark(),
         )
         Text(
             text = dateStr,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier.padding(top = SpacingTokens.xxs),
         )
     }
 }
@@ -345,7 +356,7 @@ private fun AiAssistantCard(
     )
 
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
@@ -353,14 +364,14 @@ private fun AiAssistantCard(
             .clickable { onTap() },
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(SpacingTokens.xl),
         ) {
             // AI 图标 + 文字
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // AI 头像区域
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(SpacingTokens.xxl)
                         .clip(CircleShape)
                         .background(AccentBlue),
                     contentAlignment = Alignment.Center,
@@ -368,48 +379,47 @@ private fun AiAssistantCard(
                     Icon(
                         imageVector = Icons.Default.ChatBubble,
                         contentDescription = "AI 助手",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(SpacingTokens.xl),
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(SpacingTokens.md))
 
                 Column {
                     Text(
                         text = "AI 智能助手",
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = themeTextDark(),
                     )
                     Text(
                         text = "随时问我任何问题，帮你整理思路",
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = themeTextGrey(),
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.md))
 
             // 输入框
             Card(
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = themeBgGray()),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     androidx.compose.foundation.text.BasicTextField(
                         value = inputText,
                         onValueChange = onInputChange,
-                        textStyle = androidx.compose.ui.text.TextStyle(
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
                             color = themeTextDark(),
-                            fontSize = 15.sp,
                         ),
                         singleLine = true,
                         modifier = Modifier.weight(1f),
@@ -419,7 +429,7 @@ private fun AiAssistantCard(
                                     Text(
                                         text = "有什么想问的？直接打字发消息...",
                                         color = themeTextGrey(),
-                                        fontSize = 15.sp,
+                                        style = MaterialTheme.typography.titleSmall,
                                     )
                                 }
                                 innerTextField()
@@ -431,7 +441,7 @@ private fun AiAssistantCard(
                     if (inputText.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(SpacingTokens.xxl)
                                 .clip(CircleShape)
                                 .background(AccentBlue)
                                 .clickable { onSend() },
@@ -440,16 +450,16 @@ private fun AiAssistantCard(
                             Icon(
                                 Icons.Default.ArrowForward,
                                 contentDescription = "发送",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(SpacingTokens.lg),
                             )
                         }
                     } else {
                         Icon(
                             Icons.Default.ChatBubble,
-                            contentDescription = null,
+                            contentDescription = null, /* 装饰性图标 */
                             tint = themeTextGrey().copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(SpacingTokens.lg),
                         )
                     }
                 }
@@ -467,12 +477,12 @@ private fun StatsRow(
     onStatClick: (String) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val cardWidth = (maxWidth - 20.dp) / 3
+        val cardWidth = (maxWidth - SpacingTokens.lg) / 3
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
             StatCard(title = "今日新增", value = "$todayCount 条", icon = Icons.Default.NoteAdd, modifier = Modifier.width(cardWidth), onClick = { onStatClick("notes") })
             StatCard(title = "知识库文档", value = "$totalCount 篇", icon = Icons.Default.AutoAwesome, modifier = Modifier.width(cardWidth), onClick = { onStatClick("knowledge") })
@@ -490,31 +500,31 @@ private fun StatCard(
     onClick: () -> Unit = {},
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier
             .clickable(onClick = onClick),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(SpacingTokens.lg),
             horizontalAlignment = Alignment.Start,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(SpacingTokens.xxl)
                         .clip(CircleShape)
                         .background(AccentBlue.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(icon, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                    Icon(icon, contentDescription = null /* 装饰性图标 */, tint = AccentBlue, modifier = Modifier.size(SpacingTokens.lg))
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = title, fontSize = 12.sp, color = themeTextGrey())
+                Spacer(modifier = Modifier.width(SpacingTokens.sm))
+                Text(text = title, style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = themeTextDark())
+            Spacer(modifier = Modifier.height(SpacingTokens.sm))
+            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = themeTextDark())
         }
     }
 }
@@ -546,15 +556,15 @@ fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(SpacingTokens.xxl)
                 .clip(CircleShape)
                 .background(themeCardWhite()),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = label, tint = AccentBlue, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = label, tint = AccentBlue, modifier = Modifier.size(SpacingTokens.lg))
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(text = label, fontSize = 11.sp, color = themeTextGrey())
+        Spacer(modifier = Modifier.height(SpacingTokens.xs))
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
     }
 }
 
@@ -563,32 +573,32 @@ fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
 fun RecentNoteItem(note: Note, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 类型图标
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(SpacingTokens.xxl)
                     .clip(CircleShape)
                     .background(note.type.color().copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(18.dp))
+                Icon(note.type.icon(), contentDescription = null /* 装饰性图标 */, tint = note.type.color(), modifier = Modifier.size(SpacingTokens.md))
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = note.title.ifBlank { "无标题" },
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     color = themeTextDark(),
                     maxLines = 1,
@@ -596,10 +606,10 @@ fun RecentNoteItem(note: Note, onClick: () -> Unit) {
                 if (note.summary.isNotEmpty()) {
                     Text(
                         text = note.summary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = themeTextGrey(),
                         maxLines = 1,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = SpacingTokens.xxs),
                     )
                 }
             }
@@ -607,7 +617,7 @@ fun RecentNoteItem(note: Note, onClick: () -> Unit) {
             // 时间
             Text(
                 text = formatNoteTime(note.updatedAt),
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
         }
@@ -620,49 +630,49 @@ fun EmptyRecentNotes(onNewNote: () -> Unit, onNavigateToAi: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 40.dp),
+            .padding(vertical = SpacingTokens.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "还没有笔记",
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.titleMedium,
             color = themeTextGrey(),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.sm))
         Text(
             text = "点击下方快捷操作创建第一条笔记吧",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey().copy(alpha = 0.7f),
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
         // AI 对话引导卡片
         Card(
-            shape = RoundedCornerShape(14.dp),
+            shape = ShapeTokens.mediumShape,
             colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.05f)),
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .clickable { onNavigateToAi() },
         ) {
             Row(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier.padding(SpacingTokens.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(SpacingTokens.xxl)
                         .clip(CircleShape)
                         .background(AccentBlue.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Default.ChatBubble, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.ChatBubble, contentDescription = null /* 装饰性图标 */, tint = AccentBlue, modifier = Modifier.size(SpacingTokens.lg))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(SpacingTokens.md))
                 Column {
-                    Text("试试 AI 智能助手", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = themeTextDark())
-                    Text("输入想法，让 AI 帮你整理成结构化内容", fontSize = 12.sp, color = themeTextGrey())
+                    Text("试试 AI 智能助手", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge, color = themeTextDark())
+                    Text("输入想法，让 AI 帮你整理成结构化内容", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                 }
-                Icon(Icons.Default.ArrowForward, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.ArrowForward, contentDescription = null /* 装饰性图标 */, tint = AccentBlue, modifier = Modifier.size(SpacingTokens.lg))
             }
         }
     }
@@ -676,7 +686,7 @@ data class RecommendationItem(
     val title: String,
     val description: String,
     val onClick: () -> Unit,
-    val gradientColors: List<Color> = listOf(AccentBlue, Color(0xFF6C63FF)),  // 默认渐变色
+    val gradientColors: List<Color> = listOf(AccentBlue, InterviewPurple),  // 默认渐变色
 )
 
 /**
@@ -706,7 +716,7 @@ fun buildRecommendations(
             title = "AI 面试模拟",
             description = "语音通话 · 动态角色 · 多维评估",
             onClick = onNavigateToInterview,
-            gradientColors = listOf(Color(0xFF6a11cb), Color(0xFF2575fc)),
+            gradientColors = listOf(GradientPurpleStart, GradientPurpleEnd),
         )
     )
 
@@ -718,7 +728,7 @@ fun buildRecommendations(
                 title = "试试 AI 编辑团",
                 description = "输入主题，AI 自动规划角色团队协作创作",
                 onClick = onOpenEditorTeam,
-                gradientColors = listOf(Color(0xFF667eea), Color(0xFF764ba2)),
+                gradientColors = listOf(GradientIndigoStart, GradientIndigoEnd),
             )
         )
     }
@@ -731,7 +741,7 @@ fun buildRecommendations(
                 title = "录音",
                 description = "录音自动转文字，智能总结并保存为笔记",
                 onClick = onNavigateToRecording,
-                gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
+                gradientColors = listOf(GradientPinkStart, GradientPinkEnd),
             )
         )
     }
@@ -744,7 +754,7 @@ fun buildRecommendations(
                 title = "构建知识库",
                 description = "导入文档，让 AI 帮你管理和检索知识",
                 onClick = onNavigateToKnowledge,
-                gradientColors = listOf(Color(0xFF4facfe), Color(0xFF00f2fe)),
+                gradientColors = listOf(GradientCyanStart, GradientCyanEnd),
             )
         )
     }
@@ -757,28 +767,28 @@ fun buildRecommendations(
                 title = "AI 面试模拟",
                 description = "语音通话 · 动态角色 · 多维评估",
                 onClick = onNavigateToInterview,
-                gradientColors = listOf(Color(0xFF6a11cb), Color(0xFF2575fc)),
+                gradientColors = listOf(GradientPurpleStart, GradientPurpleEnd),
             ),
             RecommendationItem(
                 icon = Icons.Default.AutoAwesome,
                 title = "试试 AI 编辑团",
                 description = "输入主题，AI 自动规划角色团队协作创作",
                 onClick = onOpenEditorTeam,
-                gradientColors = listOf(Color(0xFF667eea), Color(0xFF764ba2)),
+                gradientColors = listOf(GradientIndigoStart, GradientIndigoEnd),
             ),
             RecommendationItem(
                 icon = Icons.Default.Mic,
                 title = "录音",
                 description = "录音自动转文字，智能总结并保存为笔记",
                 onClick = onNavigateToRecording,
-                gradientColors = listOf(Color(0xFFf093fb), Color(0xFFf5576c)),
+                gradientColors = listOf(GradientPinkStart, GradientPinkEnd),
             ),
             RecommendationItem(
                 icon = Icons.Default.FolderSpecial,
                 title = "构建知识库",
                 description = "导入文档，让 AI 帮你管理和检索知识",
                 onClick = onNavigateToKnowledge,
-                gradientColors = listOf(Color(0xFF4facfe), Color(0xFF00f2fe)),
+                gradientColors = listOf(GradientCyanStart, GradientCyanEnd),
             ),
         )
     }
@@ -791,7 +801,7 @@ fun buildRecommendations(
 fun RecommendationSection(recommendations: List<RecommendationItem>) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
         itemsIndexed(recommendations, key = { _, item -> item.title }) { _, recommendation ->
             RecommendationCard(item = recommendation)
@@ -803,8 +813,8 @@ fun RecommendationSection(recommendations: List<RecommendationItem>) {
 @Composable
 fun RecommendationCard(item: RecommendationItem) {
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = ShapeTokens.mediumShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
             .width(280.dp)
@@ -816,13 +826,13 @@ fun RecommendationCard(item: RecommendationItem) {
                 .background(
                     brush = Brush.horizontalGradient(colors = item.gradientColors)
                 )
-                .padding(20.dp),
+                .padding(SpacingTokens.xl),
         ) {
             Column {
                 // 图标
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(SpacingTokens.xxl)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
@@ -830,47 +840,47 @@ fun RecommendationCard(item: RecommendationItem) {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.title,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(SpacingTokens.xl),
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 // 标题
                 Text(
                     text = item.title,
-                    fontSize = 18.sp,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
                 // 描述
                 Text(
                     text = item.description,
-                    fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.9f),
-                    lineHeight = 18.sp,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                    lineHeight = 20.sp,
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
 
                 // 箭头图标
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "立即体验",
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Icon(
                         imageVector = Icons.Default.ArrowForward,
                         contentDescription = "立即体验",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(SpacingTokens.lg),
                     )
                 }
             }

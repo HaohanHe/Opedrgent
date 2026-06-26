@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.utils.DebugLog
 import org.json.JSONObject
 
@@ -234,17 +235,5 @@ class RunIntentTool(
         } catch (e: Exception) {
             "[失败] 拨号失败: ${e.message}"
         }
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(
-            toolPart = tp.copy(
-                state = tp.state.copy(
-                    status = ToolStateType.ERROR,
-                    error = msg,
-                    endTime = System.currentTimeMillis(),
-                ),
-            ),
-        )
     }
 }

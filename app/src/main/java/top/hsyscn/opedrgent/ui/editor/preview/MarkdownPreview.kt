@@ -2,7 +2,6 @@ package top.hsyscn.opedrgent.ui.editor.preview
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -10,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * Markdown 预览组件
@@ -26,47 +27,44 @@ fun MarkdownPreview(
             when {
                 line.startsWith("# ") -> Text(
                     text = line.removePrefix("# "),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp),
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(vertical = SpacingTokens.sm),
                 )
 
                 line.startsWith("## ") -> Text(
                     text = line.removePrefix("## "),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 6.dp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(vertical = SpacingTokens.sm),
                 )
 
                 line.startsWith("### ") -> Text(
                     text = line.removePrefix("### "),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(vertical = SpacingTokens.xs),
                 )
 
                 line.startsWith("- ") -> Text(
                     text = "• ${line.removePrefix("- ")}",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 2.dp),
+                    modifier = Modifier.padding(vertical = SpacingTokens.xxs),
                 )
 
                 line.startsWith("> ") -> Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.padding(vertical = 2.dp),
+                    shape = ShapeTokens.extraSmallShape,
+                    modifier = Modifier.padding(vertical = SpacingTokens.xxs),
                 ) {
                     Text(
                         text = line.removePrefix("> "),
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.padding(SpacingTokens.md),
                     )
                 }
 
                 else -> Text(
                     text = line,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 2.dp),
+                    modifier = Modifier.padding(vertical = SpacingTokens.xxs),
                 )
             }
         }

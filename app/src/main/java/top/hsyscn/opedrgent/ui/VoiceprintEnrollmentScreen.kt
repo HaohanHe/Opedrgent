@@ -2,6 +2,14 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -355,7 +363,7 @@ fun VoiceprintEnrollmentScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             when {
                 currentStep == 0 -> {
@@ -405,7 +413,7 @@ fun VoiceprintEnrollmentScreen(
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(SpacingTokens.xxl))
         }
     }
 
@@ -423,7 +431,7 @@ fun VoiceprintEnrollmentScreen(
                         tempPcmFile = null
                     },
                 ) {
-                    Text("放弃", color = Color(0xFFE53935))
+                    Text("放弃", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -449,7 +457,7 @@ fun VoiceprintEnrollmentScreen(
                         onBack()
                     },
                 ) {
-                    Text("退出", color = Color(0xFFE53935))
+                    Text("退出", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -474,25 +482,25 @@ private fun NameInputStep(
     ) {
         Icon(
             imageVector = Icons.Default.Person,
-            contentDescription = null,
+            contentDescription = "图标",
             tint = AccentBlue,
             modifier = Modifier.size(64.dp),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         Text(
             text = "请输入说话人姓名",
-            fontSize = 18.sp,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = themeTextDark(),
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             text = "注册后，系统将在会议录音中自动识别此说话人",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
@@ -502,17 +510,17 @@ private fun NameInputStep(
             isError = showError,
             supportingText = {
                 if (showError) {
-                    Text("请输入姓名", color = Color(0xFFE53935))
+                    Text("请输入姓名", color = MaterialTheme.colorScheme.error)
                 }
             },
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Button(
             onClick = onNext,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(11.dp),
+            shape = ShapeTokens.smallShape,
         ) {
-            Text("下一步", fontSize = 16.sp)
+            Text("下一步", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -534,33 +542,33 @@ private fun RecordingStep(
         // 进度指示
         Text(
             text = "第 $step / $total 段",
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
 
         // 提示语
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             colors = CardDefaults.cardColors(
                 containerColor = AccentBlue.copy(alpha = 0.08f),
             ),
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(SpacingTokens.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = "请清晰朗读以下句子",
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = themeTextGrey(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
                     text = "你好，我是$speakerName",
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = themeTextDark(),
                     textAlign = TextAlign.Center,
@@ -569,29 +577,29 @@ private fun RecordingStep(
             }
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(SpacingTokens.xxl))
 
         // 波形可视化
         if (!isRecording) {
             Text(
                 text = "点击按钮开始录音",
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = themeTextGrey(),
             )
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         WaveformBars(
             bars = waveformBars,
             color = if (isRecording) CoralRed else themeTextGrey().copy(alpha = 0.4f),
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             text = if (isRecording) "正在录音..." else "等待开始",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = if (isRecording) CoralRed else themeTextGrey(),
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(SpacingTokens.xxl))
 
         // 大圆录音按钮
         Box(
@@ -608,22 +616,22 @@ private fun RecordingStep(
                 Icon(
                     imageVector = Icons.Default.Stop,
                     contentDescription = "停止录音",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(32.dp),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = "开始录音",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(32.dp),
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             text = if (isRecording) "点击停止" else "点击录音",
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
         )
     }
@@ -645,45 +653,45 @@ private fun CompletionStep(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(if (isProcessing) AccentBlue else Color(0xFF4CAF50)),
+                .background(if (isProcessing) AccentBlue else SuccessGreen),
             contentAlignment = Alignment.Center,
         ) {
             if (isProcessing) {
                 Icon(
                     imageVector = Icons.Default.Mic,
-                    contentDescription = null,
-                    tint = Color.White,
+                    contentDescription = "图标",
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Color.White,
+                    contentDescription = "图标",
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp),
                 )
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Text(
             text = if (isProcessing) "正在提取声纹特征..." else "声纹注册完成",
-            fontSize = 20.sp,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = themeTextDark(),
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             text = "说话人: $speakerName",
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.titleSmall,
             color = themeTextDark(),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             text = "已录制 $sampleCount 个样本",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             text = if (isProcessing) {
                 "正在使用 Sherpa-ONNX 提取 192 维声纹嵌入..."
@@ -692,17 +700,17 @@ private fun CompletionStep(
             } else {
                 "特征提取: 统计特征 (16 维音频指纹)"
             },
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey().copy(alpha = 0.7f),
         )
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(SpacingTokens.xxl))
         Button(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(11.dp),
+            shape = ShapeTokens.smallShape,
             enabled = !isProcessing,
         ) {
-            Text("完成", fontSize = 16.sp)
+            Text("完成", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -725,7 +733,7 @@ private fun WaveformBars(
                 modifier = Modifier
                     .width(barWidth)
                     .height(maxHeight * heightFraction)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(ShapeTokens.extraSmallShape)
                     .background(color.copy(alpha = 0.8f)),
             )
         }

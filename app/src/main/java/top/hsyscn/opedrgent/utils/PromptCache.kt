@@ -303,7 +303,7 @@ object PromptCache {
         }
     }
 
-    fun getOrComputeSession(key: String, compute: () -> String?): String? {
+    suspend fun getOrComputeSession(key: String, compute: suspend () -> String?): String? {
         val existing = sessionCache[key]
         if (existing != null && !existing.isExpired()) {
             return existing.value

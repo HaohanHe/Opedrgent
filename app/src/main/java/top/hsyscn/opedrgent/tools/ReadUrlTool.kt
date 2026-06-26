@@ -6,6 +6,7 @@ import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebViewAgent
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
@@ -19,10 +20,6 @@ class ReadUrlTool(
 
     private suspend fun getWebViewAgent(): WebViewAgent {
         return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 
     @Tool("read_url")
@@ -45,7 +42,7 @@ class ReadUrlTool(
             top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
         )
 
-        val fetched = runCatching { fetcher.fetchUrl(url) }.getOrNull()
+        val fetched = try { fetcher.fetchUrl(url) } catch (e: Exception) { null }
         if (fetched != null) {
             val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = url)
             val title = fetched.title?.takeIf { it.isNotBlank() } ?: "无标题"

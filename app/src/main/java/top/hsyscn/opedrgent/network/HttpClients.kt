@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.network
 
 import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
@@ -11,10 +12,18 @@ object HttpClients {
      * 连接池配置
      */
     private val connectionPool = ConnectionPool(
-        maxIdleConnections = 10,           // 最大空闲连接数
-        keepAliveDuration = 5,            // Keep-Alive时间（分钟）
+        maxIdleConnections = NetworkConfig.MAX_IDLE_CONNECTIONS,
+        keepAliveDuration = 5,
         TimeUnit.MINUTES
     )
+
+    /**
+     * 调度器配置
+     */
+    private val dispatcher = Dispatcher().apply {
+        maxRequests = NetworkConfig.MAX_REQUESTS
+        maxRequestsPerHost = NetworkConfig.MAX_REQUESTS_PER_HOST
+    }
     
     /**
      * 默认HTTP客户端（优化版）
@@ -33,10 +42,13 @@ object HttpClients {
             // 连接池配置
             .connectionPool(connectionPool)
             
+            // 调度器配置
+            .dispatcher(dispatcher)
+            
             // 超时配置
-            .connectTimeout(15, TimeUnit.SECONDS)      // 连接超时：15秒
-            .readTimeout(30, TimeUnit.SECONDS)          // 读取超时：30秒
-            .writeTimeout(30, TimeUnit.SECONDS)         // 写入超时：30秒
+            .connectTimeout(NetworkConfig.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .callTimeout(60, TimeUnit.SECONDS)          // 总调用超时：60秒
             
             // 协议支持
@@ -57,7 +69,7 @@ object HttpClients {
             .build()
             .also {
                 DebugLog.i(
-                    "HttpClients: initialized with connectionPool (maxIdle=10, keepAlive=5min)"
+                    "HttpClients: initialized with connectionPool (maxIdle=${NetworkConfig.MAX_IDLE_CONNECTIONS}, keepAlive=5min), dispatcher (maxRequests=${NetworkConfig.MAX_REQUESTS}, maxRequestsPerHost=${NetworkConfig.MAX_REQUESTS_PER_HOST})"
                 )
             }
     }
@@ -133,9 +145,9 @@ object HttpClients {
      * 获取自定义超时的客户端
      */
     fun getClientWithTimeout(
-        connectSeconds: Long = 15,
-        readSeconds: Long = 30,
-        writeSeconds: Long = 30,
+        connectSeconds: Long = NetworkConfig.CONNECT_TIMEOUT_SECONDS,
+        readSeconds: Long = NetworkConfig.READ_TIMEOUT_SECONDS,
+        writeSeconds: Long = NetworkConfig.WRITE_TIMEOUT_SECONDS,
         callSeconds: Long = 60
     ): OkHttpClient {
         return default.newBuilder()
@@ -152,8 +164,12 @@ object HttpClients {
     fun getPerformanceStats(): Map<String, Any> {
         return mapOf(
             "connectionPool" to mapOf(
-                "maxIdleConnections" to 10,
+                "maxIdleConnections" to NetworkConfig.MAX_IDLE_CONNECTIONS,
                 "keepAliveDurationSec" to 5
+            ),
+            "dispatcher" to mapOf(
+                "maxRequests" to NetworkConfig.MAX_REQUESTS,
+                "maxRequestsPerHost" to NetworkConfig.MAX_REQUESTS_PER_HOST
             ),
             "tlsProfile" to TlsFingerprintManager.getCurrentProfileInfo(),
             "cacheStats" to emptyMap<String, Any>()  // WebSearcher cache stats available via WebSearcher instance

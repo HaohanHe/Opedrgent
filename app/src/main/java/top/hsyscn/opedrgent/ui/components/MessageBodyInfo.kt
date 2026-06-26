@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
@@ -18,9 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 @Composable
@@ -31,24 +30,23 @@ fun MessageBodyInfo(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(ShapeTokens.mediumShape)
             .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(12.dp),
+            .padding(SpacingTokens.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         Icon(
             imageVector = Icons.Default.Info,
-            contentDescription = null,
+            contentDescription = "信息",
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.primary,
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(SpacingTokens.xs))
         Text(
             text = message,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
         )
     }
 }

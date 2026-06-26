@@ -36,13 +36,14 @@ class MainActivity : ComponentActivity() {
         pendingAction.value = extractAction(intent)
         setContent {
             val themeMode = remember { ApiSettings(this).getThemeMode() }
+            val dynamicColor = remember { ApiSettings(this).isDynamicColorEnabled() }
             val systemDark = isSystemInDarkTheme()
             val darkTheme = when (themeMode) {
                 "light" -> false
                 "dark" -> true
                 else -> systemDark
             }
-            OpedrgentTheme(darkTheme = darkTheme) {
+            OpedrgentTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 AppRoot(
                     initialShareText = pendingShareText.value,
                     initialAction = pendingAction.value,

@@ -1,18 +1,22 @@
 package top.hsyscn.opedrgent.mcp.editors
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.network.LlmClient
+import top.hsyscn.opedrgent.network.StreamDelta
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.intelligence.FeaturePipeline
 import top.hsyscn.opedrgent.intelligence.AgentContext
 import top.hsyscn.opedrgent.intelligence.CostTrackerFeature
+import android.content.Context
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -76,15 +80,20 @@ enum class OutputPlatform(
 class EditorTeamService(
     private val apiSettings: ApiSettings,
     private val llmClient: LlmClient = LlmClient(),
+    context: Context? = null,
 ) {
 
-    var isCancelled = false
-        private set
+    private val skillAdapter: EditorTeamSkillAdapter? = context?.let { EditorTeamSkillAdapter(it) }
+
+    private val isCancelled = AtomicBoolean(false)
+
+    @Volatile
+    private var currentCall: Call? = null
 
     // ==================== FeaturePipeline（拦截器链）====================
 
     /** 编辑团执行流水线，预装成本追踪 Feature（在 IO 线程延迟初始化） */
-    private val _pipeline: FeaturePipeline = FeaturePipeline.standard()
+    private val _pipeline: FeaturePipeline = FeaturePipeline()
     private val pipelineInitialized = AtomicBoolean(false)
 
     private suspend fun initializePipeline() {
@@ -98,11 +107,12 @@ class EditorTeamService(
     fun getPipeline(): FeaturePipeline = _pipeline
 
     fun cancel() {
-        isCancelled = true
+        isCancelled.set(true)
+        runCatching { currentCall?.cancel() }
         DebugLog.i("EditorTeamService: cancelled")
     }
 
-    fun resetCancel() { isCancelled = false }
+    fun resetCancel() { isCancelled.set(false) }
 
     // ==================== Workflow Storage（对标 Koog） ====================
     
@@ -138,7 +148,7 @@ class EditorTeamService(
         val startTime = System.currentTimeMillis()
 
         // Step 1: LLM 规划（总编分析任务）
-        val plan = if (isCancelled) {
+        val plan = if (isCancelled.get()) {
             ExecutionPlan(emptyList(), "用户取消")
         } else {
             planPipeline(userInput, targetPlatform, styleReference)
@@ -146,7 +156,7 @@ class EditorTeamService(
 
         onPlanReady(plan)
 
-        if (plan.steps.isEmpty() || isCancelled) {
+        if (plan.steps.isEmpty() || isCancelled.get()) {
             return@withContext PipelineResult(
                 steps = emptyList(),
                 finalOutput = "",
@@ -162,7 +172,7 @@ class EditorTeamService(
         var accumulatedContext = userInput
 
         for ((index, step) in plan.steps.withIndex()) {
-            if (isCancelled) break
+            if (isCancelled.get()) break
 
             // 确定该步骤的输入
             val stepInput = if (step.dependsOnPrevious && steps.isNotEmpty()) {
@@ -228,7 +238,7 @@ class EditorTeamService(
         onStepComplete: (EditorRole, String) -> Unit = { _, _ -> },
     ): PipelineResult {
         // 将旧的固定流水线转为 ExecutionPlan 执行
-        val roles = EditorRole.fullCreationPipeline.map { RoleInstance.Preset(it) }
+        val roles = EditorRole.defaultPipeline.map { RoleInstance.Preset(it) }
         val lastIdx = roles.lastIndex
         val steps = roles.mapIndexed { idx, role ->
             PlanStep(
@@ -305,42 +315,45 @@ class EditorTeamService(
     suspend fun groupDiscussion(
         userInput: String,
         roles: List<EditorRole> = EditorRole.defaultPipeline,
+        includeSkillRoles: Boolean = false,
+        discussionHistory: List<DiscussionMessage> = emptyList(),
         onEachMessage: (DiscussionMessage) -> Unit = {},
     ): DiscussionResult = withContext(Dispatchers.IO) {
         resetCancel()
-        resetStorage()
+        if (discussionHistory.isEmpty()) resetStorage()
         val startTime = System.currentTimeMillis()
         var totalTokens = 0
         val messages = mutableListOf<DiscussionMessage>()
 
-        // 构建讨论上下文：所有角色的发言历史
-        val discussionHistory = mutableListOf<String>()
-
-        for ((index, role) in roles.withIndex()) {
-            if (isCancelled) break
-
-            val instance = RoleInstance.Preset(role)
-
-            // 构建输入：原始需求 + 前面角色的发言（让后续角色能引用）
-            val discussionContext = if (discussionHistory.isNotEmpty()) {
-                val prevMessages = discussionHistory.takeLast(3).joinToString("\n\n") { it }
-                """## 用户的需求
-$userInput
-
----
-
-## 前面同事的发言（你可以参考或反驳）
-$prevMessages"""
-            } else {
-                userInput
+        val participants: List<RoleInstance> = buildList {
+            addAll(roles.map { RoleInstance.Preset(it) })
+            if (includeSkillRoles) {
+                addAll(skillAdapter?.getSkillBasedRoles()?.map { RoleInstance.Dynamic(it) }.orEmpty())
             }
+        }
 
-            DebugLog.i("EditorTeamService.groupDiscussion → ${role.alias} speaking...")
+        val historyStrs = mutableListOf<String>()
+        discussionHistory.forEach { msg ->
+            historyStrs.add("【${msg.role.alias}】${msg.role.name}说：\n${msg.content}")
+        }
+        val startOrder = discussionHistory.size
+
+        for ((index, instance) in participants.withIndex()) {
+            if (isCancelled.get()) break
+
+            val isFinalSpeaker = (index == participants.lastIndex)
+            val discussionContext = buildDiscussionContext(
+                userInput = userInput,
+                history = historyStrs.toList(),
+                isFinalSpeaker = isFinalSpeaker,
+            )
+
+            DebugLog.i("EditorTeamService.groupDiscussion → ${instance.alias} speaking...")
 
             val result = executeStep(
                 role = instance,
                 input = discussionContext,
-                extraInstructions = if (index == roles.lastIndex) {
+                extraInstructions = if (isFinalSpeaker) {
                     "你是最后一位发言者。请综合前面所有同事的意见，给出最终定稿。"
                 } else "",
             )
@@ -349,24 +362,21 @@ $prevMessages"""
                 val msg = DiscussionMessage(
                     role = instance,
                     content = result.output,
-                    order = index,
-                    isFinalDraft = (index == roles.lastIndex),
+                    order = startOrder + index,
+                    isFinalDraft = isFinalSpeaker,
                 )
                 messages.add(msg)
                 totalTokens += result.tokensUsed
 
-                // 记录到讨论历史（供后续角色参考）
-                discussionHistory.add("【${role.alias}】${role.displayName}说：\n${result.output}")
+                historyStrs.add("【${instance.alias}】${instance.name}说：\n${result.output}")
 
-                // 回调UI更新
                 onEachMessage(msg)
 
-                storage.set("discussion_msg_$index", result.output)
-                storage.set("last_discussion_role", role.alias)
+                storage.set("discussion_msg_${startOrder + index}", result.output)
+                storage.set("last_discussion_role", instance.alias)
             } else {
-                DebugLog.w("EditorTeamService.groupDiscussion: ${role.alias} failed: ${result.error}")
-                // 某个角色失败不阻断整体讨论
-                discussionHistory.add("【${role.alias}】（发言失败）")
+                DebugLog.w("EditorTeamService.groupDiscussion: ${instance.alias} failed: ${result.error}")
+                historyStrs.add("【${instance.alias}】（发言失败）")
             }
         }
 
@@ -381,6 +391,145 @@ $prevMessages"""
             totalTokensUsed = totalTokens,
             totalDurationMs = duration,
         )
+    }
+
+    suspend fun groupDiscussionStreaming(
+        userInput: String,
+        roles: List<EditorRole> = EditorRole.defaultPipeline,
+        includeSkillRoles: Boolean = false,
+        discussionHistory: List<DiscussionMessage> = emptyList(),
+        onRoleStart: (roleName: String) -> Unit = {},
+        onRoleChunk: (roleName: String, chunk: String) -> Unit = { _, _ -> },
+        onRoleComplete: (roleName: String, fullText: String) -> Unit = { _, _ -> },
+        onEachMessage: (DiscussionMessage) -> Unit = {},
+    ): DiscussionResult = withContext(Dispatchers.IO) {
+        resetCancel()
+        if (discussionHistory.isEmpty()) resetStorage()
+        val startTime = System.currentTimeMillis()
+        var totalTokens = 0
+        val messages = mutableListOf<DiscussionMessage>()
+
+        val participants: List<RoleInstance> = buildList {
+            addAll(roles.map { RoleInstance.Preset(it) })
+            if (includeSkillRoles) {
+                addAll(skillAdapter?.getSkillBasedRoles()?.map { RoleInstance.Dynamic(it) }.orEmpty())
+            }
+        }
+
+        val historyStrs = mutableListOf<String>()
+        discussionHistory.forEach { msg ->
+            historyStrs.add("【${msg.role.alias}】${msg.role.name}说：\n${msg.content}")
+        }
+        val startOrder = discussionHistory.size
+
+        for ((index, instance) in participants.withIndex()) {
+            if (isCancelled.get()) break
+
+            val isFinalSpeaker = (index == participants.lastIndex)
+            val discussionContext = buildDiscussionContext(
+                userInput = userInput,
+                history = historyStrs.toList(),
+                isFinalSpeaker = isFinalSpeaker,
+            )
+
+            onRoleStart(instance.alias)
+            DebugLog.i("EditorTeamService.groupDiscussionStreaming → ${instance.alias} speaking...")
+
+            val extraInstructions = if (isFinalSpeaker) {
+                "你是最后一位发言者。请综合前面所有同事的意见，给出最终定稿。"
+            } else ""
+
+            val fullText = try {
+                streamStep(
+                    role = instance,
+                    input = discussionContext,
+                    extraInstructions = extraInstructions,
+                    onChunk = { chunk -> onRoleChunk(instance.alias, chunk) },
+                )
+            } catch (e: Exception) {
+                DebugLog.w("EditorTeamService.groupDiscussionStreaming: ${instance.alias} failed: ${e.message}")
+                historyStrs.add("【${instance.alias}】（发言失败：${e.message}）")
+                onRoleComplete(instance.alias, "")
+                continue
+            }
+
+            val msg = DiscussionMessage(
+                role = instance,
+                content = fullText,
+                order = startOrder + index,
+                isFinalDraft = isFinalSpeaker,
+            )
+            messages.add(msg)
+            totalTokens += (fullText.length / 2) + (discussionContext.length / 2)
+
+            historyStrs.add("【${instance.alias}】${instance.name}说：\n$fullText")
+
+            onRoleComplete(instance.alias, fullText)
+            onEachMessage(msg)
+
+            storage.set("discussion_msg_${startOrder + index}", fullText)
+            storage.set("last_discussion_role", instance.alias)
+        }
+
+        val finalDraft = messages.lastOrNull { it.isFinalDraft }?.content ?: ""
+        val duration = System.currentTimeMillis() - startTime
+
+        DebugLog.i("EditorTeamService.groupDiscussionStreaming done: ${messages.size} msgs, ${duration}ms")
+
+        DiscussionResult(
+            messages = messages.toList(),
+            finalDraft = finalDraft,
+            totalTokensUsed = totalTokens,
+            totalDurationMs = duration,
+        )
+    }
+
+    private fun buildDiscussionContext(
+        userInput: String,
+        history: List<String>,
+        isFinalSpeaker: Boolean,
+    ): String {
+        if (history.isEmpty()) {
+            return if (isFinalSpeaker) {
+                "$userInput\n\n## 你的任务\n你是最后一位发言者。请综合前面所有同事的意见，给出最终定稿。"
+            } else {
+                userInput
+            }
+        }
+
+        val fullHistory = history.joinToString("\n\n") { it }
+        val totalChars = userInput.length + fullHistory.length
+
+        val historySection = if (totalChars <= MAX_CONTEXT_CHARS) {
+            fullHistory
+        } else {
+            val recent = history.takeLast(RECENT_FULL_COUNT)
+            val older = history.dropLast(RECENT_FULL_COUNT)
+            buildString {
+                if (older.isNotEmpty()) {
+                    appendLine("## 早期发言（已摘要）")
+                    older.forEach { entry ->
+                        val firstLine = entry.lineSequence().firstOrNull().orEmpty()
+                        appendLine("- $firstLine")
+                    }
+                    appendLine()
+                }
+                appendLine("## 近期发言（完整）")
+                append(recent.joinToString("\n\n") { it })
+            }
+        }
+
+        val finalHint = if (isFinalSpeaker) {
+            "\n\n---\n\n## 你的任务\n你是最后一位发言者。请综合前面所有同事的意见，给出最终定稿。"
+        } else ""
+
+        return """## 用户的需求
+$userInput
+
+---
+
+## 前面同事的发言（你可以参考或反驳）
+$historySection$finalHint"""
     }
 
     /**
@@ -409,7 +558,7 @@ $prevMessages"""
         
         onPlanReady(plan)
         
-        if (plan.isEmpty || isCancelled) {
+        if (plan.isEmpty || isCancelled.get()) {
             return@withContext PipelineResult(
                 steps = emptyList(),
                 finalOutput = "",
@@ -425,7 +574,7 @@ $prevMessages"""
         
         // 执行主步骤序列
         for ((index, step) in plan.steps.withIndex()) {
-            if (isCancelled) break
+            if (isCancelled.get()) break
             
             // 检查步骤级条件
             if (step.condition != null) {
@@ -468,14 +617,14 @@ $prevMessages"""
         
         // 评估并执行条件分支
         for (branch in plan.branches) {
-            if (isCancelled) break
+            if (isCancelled.get()) break
             
             val shouldTakeBranch = evaluateCondition(branch.condition, conditionEvaluator)
             onBranchTaken(branch, shouldTakeBranch)
             
             val branchSteps = if (shouldTakeBranch) branch.thenSteps else branch.elseSteps
             for (step in branchSteps) {
-                if (isCancelled) break
+                if (isCancelled.get()) break
                 
                 val stepInput = allSteps.lastOrNull { it.isSuccess }?.output ?: accumulatedContext
                 
@@ -528,10 +677,10 @@ $prevMessages"""
                     val lastOutput = storage.getOrDefault("last_output", "")
                     val threshold = extractNumber(condition.expression) ?: 0
                     when {
-                        condition.expression.contains(">") -> lastOutput.length > threshold
-                        condition.expression.contains("<") -> lastOutput.length < threshold
                         condition.expression.contains(">=") -> lastOutput.length >= threshold
                         condition.expression.contains("<=") -> lastOutput.length <= threshold
+                        condition.expression.contains(">") -> lastOutput.length > threshold
+                        condition.expression.contains("<") -> lastOutput.length < threshold
                         else -> true // 无法解析则默认执行
                     }
                 }
@@ -614,11 +763,19 @@ ${condition.description.ifBlank { condition.expression }}
             return ExecutionPlan(emptyList(), reasoning = "未配置 API Key")
         }
 
-        // 构建可用角色列表供 LLM 参考
+        val skillRoles = skillAdapter?.getSkillBasedRoles().orEmpty()
+
         val availableRolesDescription = buildString {
             appendLine("## 可用的预设角色模板")
             for (role in EditorRole.allRoles) {
                 appendLine("- **${role.displayName}** (${role.alias})：${role.description}")
+            }
+            if (skillRoles.isNotEmpty()) {
+                appendLine()
+                appendLine("## 可用的技能角色（来自已加载的 Skill）")
+                for (role in skillRoles) {
+                    appendLine("- **${role.name}** (${role.alias})：${role.description}")
+                }
             }
             appendLine()
             appendLine("你也可以根据任务需要，创建不在上述列表中的新角色。")
@@ -779,7 +936,7 @@ $styleHint
                         )
                     }
 
-                    if (isCancelled) {
+                    if (isCancelled.get()) {
                         return@withContext EditorResult(
                             role = role, output = "", error = "用户取消操作",
                             durationMs = System.currentTimeMillis() - startTime,
@@ -827,6 +984,46 @@ $styleHint
         }
     }
 
+    private suspend fun streamStep(
+        role: RoleInstance,
+        input: String,
+        extraInstructions: String = "",
+        onChunk: (String) -> Unit,
+    ): String {
+        val config = apiSettings.getApiConfig()
+            ?: throw RuntimeException("未配置 API Key")
+        if (isCancelled.get()) throw RuntimeException("用户取消操作")
+
+        val systemPrompt = buildSystemPrompt(role, extraInstructions)
+        val accumulated = StringBuilder()
+        val done = CompletableDeferred<String>()
+
+        val call = llmClient.streamChatCompletions(
+            config = config,
+            system = systemPrompt,
+            messages = listOf(ChatMessage(role = Role.USER, content = input)),
+            onDelta = { delta ->
+                if (delta is StreamDelta.TextDelta) {
+                    accumulated.append(delta.text)
+                    onChunk(delta.text)
+                }
+            },
+            onDone = { result ->
+                val text = accumulated.toString().ifBlank { result.content }.trim()
+                done.complete(text)
+            },
+            onError = { err ->
+                done.completeExceptionally(RuntimeException(err))
+            },
+        )
+        currentCall = call
+        return try {
+            done.await()
+        } finally {
+            currentCall = null
+        }
+    }
+
     private fun buildSystemPrompt(role: RoleInstance, extraInstructions: String): String {
         return if (extraInstructions.isNotBlank()) {
             "${role.systemPrompt}\n\n## 额外指令\n$extraInstructions"
@@ -849,36 +1046,18 @@ $userInput"""
 
     // ==================== 辅助方法 ====================
 
-    /** 编辑距离（Levenshtein Distance）— 局部定义，避免跨文件访问权限问题 */
-    private fun editDistance(a: String, b: String): Int {
-        val dp = Array(a.length + 1) { IntArray(b.length + 1) }
-        for (i in dp.indices) dp[i][0] = i
-        for (j in dp[0].indices) dp[0][j] = j
-        for (i in a.indices) {
-            for (j in b.indices) {
-                dp[i + 1][j + 1] = minOf(
-                    dp[i][j + 1] + 1,
-                    dp[i + 1][j] + 1,
-                    dp[i][j] + if (a[i] == b[j]) 0 else 1
-                )
-            }
-        }
-        return dp[a.length][b.length]
-    }
-
     /** 根据角色名找最匹配的预设角色 */
     private fun findBestMatch(name: String, alias: String): EditorRole? {
         for (preset in EditorRole.allRoles) {
             if (name.contains(preset.displayName) || preset.displayName.contains(name)) return preset
             if (alias == preset.alias || name.contains(preset.alias)) return preset
         }
-        // 编辑距离模糊匹配
         return EditorRole.allRoles.minByOrNull {
-            editDistance(name.lowercase(), it.displayName.lowercase()) +
-            editDistance(alias.lowercase(), it.alias.lowercase())
+            dist(name, it.displayName) +
+            dist(alias, it.alias)
         }?.takeIf { role ->
-            editDistance(name.lowercase(), role.displayName.lowercase()) < 5 ||
-            editDistance(alias.lowercase(), role.alias.lowercase()) < 3
+            dist(name, role.displayName) < 5 ||
+            dist(alias, role.alias) < 3
         }
     }
 
@@ -902,5 +1081,10 @@ $userInput"""
             PlanStep(idx + 1, role, dependsOnPrevious = true)
         }
         return ExecutionPlan(steps, reasoning = "使用默认推荐组合（规划回退）")
+    }
+
+    companion object {
+        private const val MAX_CONTEXT_CHARS = 8000
+        private const val RECENT_FULL_COUNT = 3
     }
 }

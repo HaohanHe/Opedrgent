@@ -2,6 +2,10 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.DisabledColor
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,8 +58,8 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-private val SherpaGreen = Color(0xFF4CAF50)
-private val StatGrey = Color(0xFF9E9E9E)
+private val SherpaGreen = SuccessGreen
+private val StatGrey = DisabledColor
 
 @Composable
 fun VoiceprintSettingsScreen(
@@ -83,7 +87,7 @@ fun VoiceprintSettingsScreen(
                 onClick = onAddVoiceprint,
                 containerColor = AccentBlue,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加声纹", tint = Color.White)
+                Icon(Icons.Default.Add, contentDescription = "添加声纹", tint = MaterialTheme.colorScheme.onPrimary)
             }
         },
         containerColor = themeBgGray(),
@@ -92,7 +96,7 @@ fun VoiceprintSettingsScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(SpacingTokens.lg),
         ) {
             Text(
                 text = "已注册说话人",
@@ -100,13 +104,13 @@ fun VoiceprintSettingsScreen(
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             if (speakers.isEmpty()) {
                 EmptySpeakerList()
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(speakers, key = { it.id }) { speaker ->
@@ -140,7 +144,7 @@ fun VoiceprintSettingsScreen(
                         showDeleteDialog = null
                     },
                 ) {
-                    Text(stringResource(R.string.action_delete), color = Color(0xFFE53935))
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -164,7 +168,7 @@ private fun SpeakerCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
+        shape = ShapeTokens.smallShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = themeTextDark(),
@@ -173,37 +177,37 @@ private fun SpeakerCard(
     ) {
         Row(
             modifier = Modifier
-                .padding(14.dp)
+                .padding(SpacingTokens.md)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = null,
+                contentDescription = "图标",
                 tint = if (isSherpa) SherpaGreen else AccentBlue,
                 modifier = Modifier.size(28.dp),
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(SpacingTokens.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = name,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                 )
                 Spacer(Modifier.height(2.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 ) {
                     Text(
                         text = "$sampleCount 个样本",
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
                     Text(
                         text = if (isSherpa) "Sherpa-ONNX ${embeddingDim}d" else "统计特征 ${embeddingDim}d",
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = if (isSherpa) SherpaGreen else StatGrey,
                     )
                 }
@@ -212,7 +216,7 @@ private fun SpeakerCard(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(R.string.cd_delete),
-                    tint = Color.Gray,
+                    tint = themeTextGrey(),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -225,22 +229,22 @@ private fun EmptySpeakerList() {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
         Icon(
             imageVector = Icons.Default.Person,
-            contentDescription = null,
+            contentDescription = "图标",
             tint = themeTextGrey().copy(alpha = 0.4f),
             modifier = Modifier.size(64.dp),
         )
         Text(
             text = "暂无已注册说话人",
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.titleMedium,
             color = themeTextGrey(),
         )
         Text(
             text = "点击右下角 + 按钮添加声纹",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey().copy(alpha = 0.7f),
         )
     }

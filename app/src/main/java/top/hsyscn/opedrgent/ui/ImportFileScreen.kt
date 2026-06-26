@@ -1,5 +1,9 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.themeErrorBackground
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -176,32 +179,31 @@ fun ImportFileScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(SpacingTokens.lg)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.xxl))
 
             // 说明文字
             Text(
                 text = "选择要导入的文件",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
                 color = themeTextDark(),
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.sm))
             Text(
                 text = "支持文本文件(.txt)、PDF、图片等格式\n导入后将自动创建为笔记",
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.xxl))
 
             // 文件类型选择卡片
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
             ) {
                 // 文本文件
                 ImportFileTypeCard(
@@ -232,7 +234,7 @@ fun ImportFileScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
             // 通用文件选择按钮
             OutlinedButton(
@@ -240,30 +242,30 @@ fun ImportFileScreen(
                     filePickerLauncher.launch(arrayOf("*/*"))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
             ) {
-                Text("选择其他类型文件", fontSize = 14.sp)
+                Text("选择其他类型文件", style = MaterialTheme.typography.labelLarge)
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.xxl))
 
             // 导入状态显示
             when {
                 isImporting -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     ) {
                         Column(
-                            modifier = Modifier.padding(32.dp),
+                            modifier = Modifier.padding(SpacingTokens.xxl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             CircularProgressIndicator(color = AccentBlue)
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.lg))
                             Text("正在导入...", color = themeTextGrey())
                             importedFileName?.let { name ->
-                                Text(name, fontSize = 12.sp, color = themeTextGrey())
+                                Text(name, style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                             }
                         }
                     }
@@ -271,33 +273,33 @@ fun ImportFileScreen(
                 importError != null -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                        shape = ShapeTokens.largeShape,
+                        colors = CardDefaults.cardColors(containerColor = themeErrorBackground()),
                     ) {
                         Column(
-                            modifier = Modifier.padding(20.dp),
+                            modifier = Modifier.padding(SpacingTokens.xl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("导入失败", fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(importError!!, fontSize = 13.sp, color = themeTextGrey())
+                            Text("导入失败", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(SpacingTokens.sm))
+                            Text(importError!!, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
                         }
                     }
                 }
                 importedNoteId != null -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                     ) {
                         Column(
-                            modifier = Modifier.padding(20.dp),
+                            modifier = Modifier.padding(SpacingTokens.xl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("导入成功", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(importedFileName ?: "", fontSize = 13.sp, color = themeTextGrey())
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("导入成功", style = MaterialTheme.typography.titleMedium, color = SuccessGreen)
+                            Spacer(modifier = Modifier.height(SpacingTokens.sm))
+                            Text(importedFileName ?: "", style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
+                            Spacer(modifier = Modifier.height(SpacingTokens.md))
                             TextButton(onClick = onBack) {
                                 Text("返回")
                             }
@@ -306,7 +308,7 @@ fun ImportFileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.xxl))
         }
     }
 }
@@ -324,26 +326,26 @@ private fun ImportFileTypeCard(
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(SpacingTokens.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                    .background(AccentBlue.copy(alpha = 0.1f), ShapeTokens.mediumShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = title, tint = AccentBlue, modifier = Modifier.size(24.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.lg))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = themeTextDark())
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = description, fontSize = 12.sp, color = themeTextGrey())
+                Text(text = title, style = MaterialTheme.typography.titleSmall, color = themeTextDark())
+                Spacer(modifier = Modifier.height(SpacingTokens.xs))
+                Text(text = description, style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
         }
     }

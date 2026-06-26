@@ -4,15 +4,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
 private val SessionListWidth = 320.dp
 
@@ -50,7 +54,7 @@ fun ChatTab(
             }
             VerticalDivider(
                 thickness = 1.dp,
-                color = Color(0xFFE0E0E0),
+                color = themeDividerColor(),
             )
             Box(
                 modifier = Modifier
@@ -66,12 +70,21 @@ fun ChatTab(
                         onBack = { onSessionDeselected() },
                     )
                 } else {
-                    Box(
+                    EmptyStateView(
+                        icon = {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(80.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            )
+                        },
+                        title = "开始新对话",
+                        subtitle = "点击下方按钮，与 Opedrgent 开启一段新的对话",
+                        actionLabel = "新建会话",
+                        onAction = { vm.createSessionAndNavigate("新对话") },
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("选择一个会话开始对话", color = Color.Gray)
-                    }
+                    )
                 }
             }
         }
