@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.ui.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,12 +15,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Card
@@ -37,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +55,8 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -62,11 +67,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -109,38 +116,42 @@ fun StreamingCard(
     // Use Unit key to avoid restarting coroutine on every character update.
     // Manually check for new message (text length decreased) inside.
     LaunchedEffect(Unit) {
-        while (true) {
-            if (text.length < lastTextLen) {
-                // Text went backwards => new message, reset immediately
-                displayText = text
-                isComplete = false
-                lastTextLen = text.length
-            } else if (text.length > lastTextLen) {
-                // New characters arrived — animate them in
-                isComplete = false // Not complete while actively receiving
-                val newPart = text.substring(lastTextLen.coerceAtMost(displayText.length))
-                val totalLen = text.length
-                var idx = 0
-                while (idx < newPart.length) {
-                    val baseStep = adaptiveStep(totalLen)
-                    val end = (idx + baseStep).coerceAtMost(newPart.length)
-                    val snapped = snapToWord(newPart, idx, end)
-                    val chunk = newPart.substring(idx, snapped)
-                    displayText += chunk
-                    idx = snapped
-                    delay(STREAMING_PACE_MS)
+        snapshotFlow { text }
+            .collect { currentText ->
+                when {
+                    currentText.length < lastTextLen -> {
+                        displayText = currentText
+                        isComplete = false
+                        lastTextLen = currentText.length
+                    }
+                    currentText.length > lastTextLen -> {
+                        isComplete = false
+                        val newPart = currentText.substring(lastTextLen.coerceAtMost(displayText.length))
+                        val totalLen = currentText.length
+                        var idx = 0
+                        while (idx < newPart.length) {
+                            val baseStep = adaptiveStep(totalLen)
+                            val end = (idx + baseStep).coerceAtMost(newPart.length)
+                            val snapped = snapToWord(newPart, idx, end)
+                            val chunk = newPart.substring(idx, snapped)
+                            displayText += chunk
+                            idx = snapped
+                            delay(STREAMING_PACE_MS)
+                        }
+                        lastTextLen = currentText.length
+                    }
                 }
-                lastTextLen = text.length
-            } else if (text.length == lastTextLen && text.isNotEmpty() && !isComplete) {
-                // No new chars for 2+ polls AND displayText is caught up => truly complete
-                // Wait one extra poll cycle to confirm no more chars arriving
-                delay(50)
-                if (text.length == lastTextLen) {
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { text to lastTextLen }
+            .debounce(100)
+            .collect { (currentText, currentLastLen) ->
+                if (currentText.isNotEmpty() && !isComplete && currentLastLen >= currentText.length) {
                     isComplete = true
                 }
             }
-            delay(50) // Poll interval — lightweight, avoids busy-loop
-        }
     }
 
     val hasText = displayText.trim().isNotEmpty()
@@ -153,21 +164,21 @@ fun StreamingCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("助手", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), color = themeTextDark())
+                Text("助手", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), color = themeTextDark())
                 if (isToolRunning) {
                     CircularProgressIndicator(
                         modifier = Modifier.height(16.dp).width(16.dp),
                         strokeWidth = 2.dp,
-                        color = AccentBlue,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
@@ -222,6 +233,57 @@ fun StreamingCard(state: MessagePart.StreamingState, toolParts: List<ToolPart> =
     )
 }
 
+/** 流式文本 + 末尾脉动光标，使用 animateContentSize 让新字符平滑出现 */
+@Composable
+private fun StreamingTextWithCursor(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "stream_cursor")
+    val cursorAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "cursor_alpha",
+    )
+
+    val cursorMarker = "\uFFFC"
+    val annotated = buildAnnotatedString {
+        append(text)
+        append(cursorMarker)
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val inlineContent = mapOf(
+        cursorMarker to InlineTextContent(
+            placeholder = Placeholder(
+                width = 2.sp,
+                height = 16.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+            )
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(primaryColor.copy(alpha = cursorAlpha))
+            )
+        }
+    )
+
+    Text(
+        text = annotated,
+        style = MaterialTheme.typography.bodyMedium,
+        color = themeTextDark(),
+        inlineContent = inlineContent,
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+    )
+}
+
 /** 豆包风格加载指示器：两个呼吸圆点 + 状态文案 */
 @Composable
 fun DoubaoThinkingIndicator(phase: String) {
@@ -245,20 +307,22 @@ fun DoubaoThinkingIndicator(phase: String) {
         label = "db_dot2",
     )
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         Canvas(modifier = Modifier.size(18.dp, 8.dp)) {
             val radius = 2.5f.dp.toPx()
             val spacing = 7f.dp.toPx()
             drawCircle(
-                color = AccentBlue.copy(alpha = dot1Alpha),
+                color = primaryColor.copy(alpha = dot1Alpha),
                 radius = radius,
                 center = Offset(radius, size.height / 2),
             )
             drawCircle(
-                color = AccentBlue.copy(alpha = dot2Alpha),
+                color = primaryColor.copy(alpha = dot2Alpha),
                 radius = radius,
                 center = Offset(spacing + radius, size.height / 2),
             )
@@ -278,27 +342,27 @@ fun ThinkingSection(parts: List<ReasoningPart>) {
     Column {
         TextButton(onClick = { expanded = !expanded }) {
             Icon(
-                Icons.Default.AutoAwesome,
-                contentDescription = "thinking",
+              imageVector = Icons.Default.AutoAwesome,
+                contentDescription = "思考",
                 modifier = Modifier.height(16.dp),
-                tint = AccentBlue,
+                tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text(
                 if (expanded) "收起思考过程" else "查看思考过程",
                 style = MaterialTheme.typography.bodySmall,
-                color = AccentBlue,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
         if (expanded) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.largeShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             ) {
                 Text(
                     text = combined,
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(SpacingTokens.md),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextDark(),
                 )
@@ -344,16 +408,16 @@ fun ToolStatusRow(toolPart: ToolPart) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = "工具状态",
             modifier = Modifier.size(16.dp),
             tint = when (toolPart.state.status) {
                 ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
                 ToolStateType.ERROR -> MaterialTheme.colorScheme.error
-                ToolStateType.SOURCE_ADDED -> AccentBlue
+                ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.primary
                 else -> themeTextGrey()
             },
         )
@@ -369,7 +433,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
                     append(" ")
                     append(statusText)
                 },
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelMedium,
                 color = themeTextDark(),
             )
         }
@@ -378,7 +442,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
             CircularProgressIndicator(
                 modifier = Modifier.height(12.dp).width(12.dp),
                 strokeWidth = 1.5.dp,
-                color = AccentBlue,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }
@@ -390,7 +454,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
 @Composable
 fun ToolStatusGroup(toolParts: List<ToolPart>) {
     val grouped = toolParts.groupBy { it.tool }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
         grouped.forEach { (toolName, parts) ->
             if (parts.size == 1) {
                 ToolStatusRow(toolPart = parts[0])
@@ -414,7 +478,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
         else -> Icons.Default.CheckCircle
     }
     val statusColor = when {
-        hasRunning -> AccentBlue
+        hasRunning -> MaterialTheme.colorScheme.primary
         hasError -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
@@ -424,29 +488,28 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
+                .clip(ShapeTokens.smallShape)
                 .clickable { expanded = !expanded }
-                .padding(vertical = 4.dp),
+                .padding(vertical = SpacingTokens.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
         ) {
             Icon(
                 imageVector = statusIcon,
-                contentDescription = null,
+                contentDescription = "工具状态",
                 modifier = Modifier.size(16.dp),
                 tint = statusColor,
             )
             Text(
                 text = "${toolDisplayName(toolName)} ${completedCount}/${parts.size}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
+                contentDescription = if (expanded) "折叠" else "展开",
                 modifier = Modifier.size(16.dp),
                 tint = themeTextGrey(),
             )
@@ -454,7 +517,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
                 CircularProgressIndicator(
                     modifier = Modifier.height(12.dp).width(12.dp),
                     strokeWidth = 1.5.dp,
-                    color = AccentBlue,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
@@ -463,16 +526,16 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
         if (queries.isNotEmpty() && !expanded) {
             Text(
                 text = queries.joinToString(", ").take(60) + if (queries.joinToString(", ").length > 60) "..." else "",
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = themeTextGrey(),
                 maxLines = 1,
-                modifier = Modifier.padding(start = 22.dp),
+                modifier = Modifier.padding(start = SpacingTokens.xl),
             )
         }
         if (expanded) {
             Column(
-                modifier = Modifier.padding(start = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(start = SpacingTokens.xl),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.xxs),
             ) {
                 parts.forEach { tp ->
                     ToolStatusRow(toolPart = tp)
@@ -521,20 +584,20 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(ShapeTokens.mediumShape)
                 .clickable { expanded = !expanded }
-                .padding(vertical = 4.dp),
+                .padding(vertical = SpacingTokens.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
         ) {
             Icon(
                 imageVector = Icons.Default.Link,
-                contentDescription = null,
+                contentDescription = "参考来源",
                 modifier = Modifier.size(16.dp),
                 tint = themeTextGrey(),
             )
@@ -546,13 +609,13 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
+                contentDescription = if (expanded) "折叠" else "展开",
                 modifier = Modifier.size(18.dp),
                 tint = themeTextGrey(),
             )
         }
         if (expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 sources.take(5).forEachIndexed { idx, source ->
                     SourceLinkCard(
                         index = idx + 1,
@@ -572,20 +635,18 @@ private fun SourceLinkCard(index: Int, source: SourceLink, onClick: () -> Unit) 
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         onClick = onClick,
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Text(
                 text = "${index}. ${source.title}",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = AccentBlue,
+                style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary),
                 maxLines = 1,
             )
             if (source.snippet != null) {
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(SpacingTokens.xxs))
                 Text(
                     text = source.snippet,
                     style = MaterialTheme.typography.bodySmall,
@@ -593,7 +654,7 @@ private fun SourceLinkCard(index: Int, source: SourceLink, onClick: () -> Unit) 
                     maxLines = 2,
                 )
             }
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(SpacingTokens.xxs))
             Text(
                 text = host,
                 style = MaterialTheme.typography.labelSmall,
@@ -650,9 +711,7 @@ private fun ShimmerText(text: String, color: Color) {
 
     Text(
         text = text,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        style = TextStyle(brush = brush),
+        style = TextStyle(brush = brush).merge(MaterialTheme.typography.labelMedium),
     )
 }
 
@@ -668,43 +727,42 @@ fun ToolCard(toolPart: ToolPart) {
     }
     val statusColor = when (toolPart.state.status) {
         ToolStateType.PENDING -> themeTextGrey()
-        ToolStateType.RUNNING -> AccentBlue
+        ToolStateType.RUNNING -> MaterialTheme.colorScheme.primary
         ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
         ToolStateType.ERROR -> MaterialTheme.colorScheme.error
-        ToolStateType.SOURCE_ADDED -> AccentBlue
+        ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.primary
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         onClick = { expanded = !expanded },
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = statusIcon,
-                    contentDescription = null,
+                    contentDescription = "工具状态",
                     modifier = Modifier.size(16.dp),
                     tint = statusColor,
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text(
                     text = toolPart.tool,
-                    fontWeight = FontWeight.SemiBold,
-                    color = statusColor,
+                    style = MaterialTheme.typography.labelMedium.copy(color = statusColor),
                     modifier = Modifier.weight(1f),
                 )
                 if (toolPart.state.status == ToolStateType.RUNNING) {
                     CircularProgressIndicator(
                         modifier = Modifier.height(14.dp).width(14.dp),
                         strokeWidth = 2.dp,
-                        color = AccentBlue,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
             if (expanded) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 if (toolPart.state.input.isNotEmpty()) {
                     Text(
                         "参数：${toolPart.state.input.entries.joinToString(", ") { "${it.key}=${it.value}" }}",
@@ -713,7 +771,7 @@ fun ToolCard(toolPart: ToolPart) {
                     )
                 }
                 if (!toolPart.state.output.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
                         text = toolPart.state.output!!.take(500) + if (toolPart.state.output!!.length > 500) "…" else "",
                         style = MaterialTheme.typography.bodySmall,
@@ -721,7 +779,7 @@ fun ToolCard(toolPart: ToolPart) {
                     )
                 }
                 if (!toolPart.state.error.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
                         text = "错误：${toolPart.state.error}",
                         color = MaterialTheme.colorScheme.error,
@@ -744,16 +802,16 @@ fun QuestionCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.08f)),
+        shape = ShapeTokens.largeShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             Text(
                 text = question.prompt.ifEmpty { "请选择：" },
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
             if (question.multiSelect) {
@@ -774,20 +832,20 @@ fun QuestionCard(
                 )
             }
             if (!readonly) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     androidx.compose.material3.Button(
                         onClick = {
                             val answer = if (question.multiSelect) selected.joinToString(",") else selected.firstOrNull() ?: ""
                             if (answer.isNotBlank()) onAnswer(answer)
                         },
                         enabled = selected.isNotEmpty(),
-                        shape = RoundedCornerShape(11.dp),
+                        shape = ShapeTokens.mediumShape,
                     ) { Text("确认") }
                     TextButton(onClick = onDismiss) { Text("跳过") }
                 }
             }
             if (readonly && question.answer != null) {
-                Text("回答：${question.answer}", fontWeight = FontWeight.SemiBold)
+                Text("回答：${question.answer}", style = MaterialTheme.typography.titleSmall)
             }
         }
     }

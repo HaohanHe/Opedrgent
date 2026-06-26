@@ -4,7 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.UUID
 
@@ -58,7 +58,7 @@ class HippocampusIndex(context: Context) {
 
     private val db = HippocampusDatabase.getInstance(context).writableDatabase
 
-    fun upsert(item: IndexedItem) = runBlocking(Dispatchers.IO) {
+    suspend fun upsert(item: IndexedItem) = withContext(Dispatchers.IO) {
         val existing = findBySource(item.sourceType, item.sourceId)
         if (existing != null) {
             update(item.copy(id = existing.id, createdAt = existing.createdAt))
@@ -67,7 +67,7 @@ class HippocampusIndex(context: Context) {
         }
     }
 
-    private fun insert(item: IndexedItem) = runBlocking(Dispatchers.IO) {
+    private suspend fun insert(item: IndexedItem) = withContext(Dispatchers.IO) {
         val cv = ContentValues().apply {
             put(HippocampusDatabase.COL_ID, item.id)
             put(HippocampusDatabase.COL_SOURCE_TYPE, item.sourceType.name)
@@ -82,7 +82,7 @@ class HippocampusIndex(context: Context) {
         db.insert(HippocampusDatabase.TABLE, null, cv)
     }
 
-    private fun update(item: IndexedItem) = runBlocking(Dispatchers.IO) {
+    private suspend fun update(item: IndexedItem) = withContext(Dispatchers.IO) {
         val cv = ContentValues().apply {
             put(HippocampusDatabase.COL_SCOPE, item.scope.name)
             put(HippocampusDatabase.COL_TITLE, item.title)
@@ -93,17 +93,17 @@ class HippocampusIndex(context: Context) {
         db.update(HippocampusDatabase.TABLE, cv, "${HippocampusDatabase.COL_ID}=?", arrayOf(item.id))
     }
 
-    fun delete(id: String) = runBlocking(Dispatchers.IO) {
+    suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         db.delete(HippocampusDatabase.TABLE, "${HippocampusDatabase.COL_ID}=?", arrayOf(id))
     }
 
-    fun deleteBySource(sourceType: SourceType, sourceId: String) = runBlocking(Dispatchers.IO) {
+    suspend fun deleteBySource(sourceType: SourceType, sourceId: String) = withContext(Dispatchers.IO) {
         db.delete(HippocampusDatabase.TABLE,
             "${HippocampusDatabase.COL_SOURCE_TYPE}=? AND ${HippocampusDatabase.COL_SOURCE_ID}=?",
             arrayOf(sourceType.name, sourceId))
     }
 
-    fun query(keyword: String, limit: Int = 10): List<IndexedItem> = runBlocking(Dispatchers.IO) {
+    suspend fun query(keyword: String, limit: Int = 10): List<IndexedItem> = withContext(Dispatchers.IO) {
         val sql = """SELECT * FROM ${HippocampusDatabase.TABLE}
             WHERE ${HippocampusDatabase.COL_TITLE} LIKE ? OR ${HippocampusDatabase.COL_SUMMARY} LIKE ? OR ${HippocampusDatabase.COL_KEYWORDS} LIKE ?
             ORDER BY ${HippocampusDatabase.COL_CREATED_AT} DESC LIMIT ?"""
@@ -112,25 +112,25 @@ class HippocampusIndex(context: Context) {
         cursorToList(cursor)
     }
 
-    fun getAll(limit: Int = 100): List<IndexedItem> = runBlocking(Dispatchers.IO) {
+    suspend fun getAll(limit: Int = 100): List<IndexedItem> = withContext(Dispatchers.IO) {
         val cursor = db.query(HippocampusDatabase.TABLE, null, null, null, null, null,
             "${HippocampusDatabase.COL_UPDATED_AT} DESC", limit.toString())
         cursorToList(cursor)
     }
 
-    fun getAllByType(sourceType: SourceType, limit: Int = 100): List<IndexedItem> = runBlocking(Dispatchers.IO) {
+    suspend fun getAllByType(sourceType: SourceType, limit: Int = 100): List<IndexedItem> = withContext(Dispatchers.IO) {
         val cursor = db.query(HippocampusDatabase.TABLE, null,
             "${HippocampusDatabase.COL_SOURCE_TYPE}=?", arrayOf(sourceType.name), null, null,
             "${HippocampusDatabase.COL_UPDATED_AT} DESC", limit.toString())
         cursorToList(cursor)
     }
 
-    fun count(): Int = runBlocking(Dispatchers.IO) {
+    suspend fun count(): Int = withContext(Dispatchers.IO) {
         val cursor = db.rawQuery("SELECT COUNT(*) FROM ${HippocampusDatabase.TABLE}", null)
         cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
     }
 
-    private fun findBySource(sourceType: SourceType, sourceId: String): IndexedItem? = runBlocking(Dispatchers.IO) {
+    private suspend fun findBySource(sourceType: SourceType, sourceId: String): IndexedItem? = withContext(Dispatchers.IO) {
         val cursor = db.query(HippocampusDatabase.TABLE, null,
             "${HippocampusDatabase.COL_SOURCE_TYPE}=? AND ${HippocampusDatabase.COL_SOURCE_ID}=?",
             arrayOf(sourceType.name, sourceId), null, null, null, "1")
@@ -159,7 +159,7 @@ class HippocampusIndex(context: Context) {
 
     // ==================== 便捷方法（按作用域分配） ====================
 
-    fun upsertNote(noteId: Long, title: String, content: String) = runBlocking(Dispatchers.IO) {
+    suspend fun upsertNote(noteId: Long, title: String, content: String) = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.NOTE,
             sourceId = noteId.toString(),
@@ -170,7 +170,7 @@ class HippocampusIndex(context: Context) {
         ))
     }
 
-    fun upsertConversation(sessionId: String, title: String, lastMessage: String) = runBlocking(Dispatchers.IO) {
+    suspend fun upsertConversation(sessionId: String, title: String, lastMessage: String) = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.CONVERSATION,
             sourceId = sessionId,
@@ -181,7 +181,7 @@ class HippocampusIndex(context: Context) {
         ))
     }
 
-    fun upsertRecording(recordingId: String, title: String, transcript: String) = runBlocking(Dispatchers.IO) {
+    suspend fun upsertRecording(recordingId: String, title: String, transcript: String) = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.RECORDING,
             sourceId = recordingId,
@@ -192,7 +192,7 @@ class HippocampusIndex(context: Context) {
         ))
     }
 
-    fun upsertSprout(noteId: String, noteTitle: String, reportSummary: String) = runBlocking(Dispatchers.IO) {
+    suspend fun upsertSprout(noteId: String, noteTitle: String, reportSummary: String) = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.SPROUT,
             sourceId = noteId,
@@ -214,12 +214,12 @@ class HippocampusIndex(context: Context) {
      * @param goalSummary 目标摘要
      * @param driftSummary 漂移报告摘要
      */
-    fun upsertInterview(
+    suspend fun upsertInterview(
         sessionId: String,
         title: String,
         goalSummary: String,
         driftSummary: String,
-    ) = runBlocking(Dispatchers.IO) {
+    ) = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.INTERVIEW,
             sourceId = sessionId,
@@ -231,7 +231,7 @@ class HippocampusIndex(context: Context) {
     }
 
     /** 索引用户偏好（全局级记忆，跨会话持久） */
-    fun upsertPreference(preferenceKey: String, preferenceValue: String, description: String = "") = runBlocking(Dispatchers.IO) {
+    suspend fun upsertPreference(preferenceKey: String, preferenceValue: String, description: String = "") = withContext(Dispatchers.IO) {
         upsert(IndexedItem(
             sourceType = SourceType.USER_PREFERENCES,
             sourceId = preferenceKey,

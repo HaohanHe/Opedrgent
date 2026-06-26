@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.network
 
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -22,7 +23,6 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
 
     companion object {
         private const val MAX_BODY_BYTES = 5 * 1024 * 1024 // 5MB 限制
-        private const val MAX_RETRIES = 2
         private const val RETRY_DELAY_MS = 1000L
         private const val CACHE_TTL_MS = 10 * 60 * 1000L // 10 分钟缓存
         private const val MAX_CACHE_SIZE = 50
@@ -56,7 +56,7 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
     /** 内容缓存：url -> (timestamp, fetchedSource) */
     private val cache = LinkedHashMap<String, Pair<Long, FetchedSource>>(16, 0.75f, true)
 
-    fun fetchUrl(url: String): FetchedSource {
+    suspend fun fetchUrl(url: String): FetchedSource {
         // 检查缓存
         synchronized(cache) {
             cache[url]?.let { (ts, cached) ->
@@ -69,7 +69,7 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
 
         var lastException: Exception? = null
 
-        for (attempt in 0..MAX_RETRIES) {
+        for (attempt in 0..NetworkConfig.RETRY_COUNT) {
             try {
                 val result = fetchUrlInternal(url)
                 // 写入缓存
@@ -83,8 +83,8 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
                 return result
             } catch (e: Exception) {
                 lastException = e
-                if (attempt < MAX_RETRIES && isRetryable(e)) {
-                    Thread.sleep(RETRY_DELAY_MS * (attempt + 1))
+                if (attempt < NetworkConfig.RETRY_COUNT && isRetryable(e)) {
+                    delay(RETRY_DELAY_MS * (attempt + 1))
                 }
             }
         }

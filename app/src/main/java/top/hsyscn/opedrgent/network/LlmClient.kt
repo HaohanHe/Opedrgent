@@ -90,6 +90,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603", "step-router-v1",
         )
         private const val DEEPSEEK_MAX_CONTEXT = 1_000_000
+        private const val MESSAGES_API_MAX_OUTPUT_TOKENS = 16384
+        private const val NATIVE_SEARCH_TEMPERATURE = 0.3
         private val MIMO_THINKING_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2",
         )
@@ -116,10 +118,6 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
         fun isStepPlan(model: String): Boolean {
             return STEP_PLAN_MODELS.any { model.contains(it, ignoreCase = true) }
-        }
-
-        fun isDeepSeekV4(model: String): Boolean {
-            return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
         }
 
         /** Qwen3.5 系列使用 enable_thinking 而非 thinking: {"type": "enabled"} */
@@ -659,6 +657,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 } catch (e: Exception) {
                     DebugLog.e("streamMultimodal parse error: ${e.message}", e)
                     onError(e.message ?: "解析失败")
+                } finally {
+                    response.close()
                 }
             }
         })
@@ -918,7 +918,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     put("type", "web_search")
                 })
             })
-            put("temperature", 0.3)
+            put("temperature", NATIVE_SEARCH_TEMPERATURE)
         }
 
         val req = buildRequest(url, json.toString(), config.apiKey)
@@ -991,7 +991,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         // 构建 Anthropic Messages 格式请求体
         val json = JSONObject().apply {
             put("model", config.model)
-            put("max_tokens", 16384)
+            put("max_tokens", MESSAGES_API_MAX_OUTPUT_TOKENS)
             put("stream", true)
 
             // system 参数（独立于 messages，这是 Messages API 的特点）
@@ -1028,17 +1028,24 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                if (!response.isSuccessful) {
-                    val errBody = response.body?.string().orEmpty()
-                    val errMsg = runCatching {
-                        JSONObject(errBody).optJSONObject("error")?.optString("message")
-                    }.getOrNull() ?: "HTTP ${response.code}"
-                    DebugLog.e("streamMessages HTTP $response.code: $errMsg")
-                    onError(errMsg)
-                    return
-                }
+                try {
+                    if (!response.isSuccessful) {
+                        val errBody = response.body?.string().orEmpty()
+                        val errMsg = runCatching {
+                            JSONObject(errBody).optJSONObject("error")?.optString("message")
+                        }.getOrNull() ?: "HTTP ${response.code}"
+                        DebugLog.e("streamMessages HTTP ${response.code}: $errMsg")
+                        onError(errMsg)
+                        return
+                    }
 
-                parseMessagesSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                    parseMessagesSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                } catch (e: Exception) {
+                    DebugLog.e("streamMessages parse error: ${e.message}", e)
+                    onError(e.message ?: "解析失败")
+                } finally {
+                    response.close()
+                }
             }
         })
 

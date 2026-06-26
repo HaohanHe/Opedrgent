@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
@@ -40,7 +39,6 @@ import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.AiSearchResult
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,8 +46,12 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.note.SourceType
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 
 /**
@@ -63,7 +65,7 @@ import top.hsyscn.opedrgent.ui.components.MarkdownText
  * - 长按菜单（删除/置顶/分享）
  * - FAB 新建笔记
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteListScreen(
     repository: NoteRepository,
@@ -175,7 +177,7 @@ fun NoteListScreen(
         ) {
             // 顶部栏
             TopAppBar(
-                title = { Text("笔记", fontWeight = FontWeight.Bold) },
+                title = { Text("笔记", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
                 navigationIcon = {
                     if (showBackButton) {
                         IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "返回") }
@@ -187,7 +189,7 @@ fun NoteListScreen(
                         Icon(
                             Icons.Default.AccountTree,
                             "知识图谱",
-                            tint = AccentBlue,
+                            tint = MaterialTheme.customColors.accentBlue,
                             modifier = Modifier.size(22.dp),
                         )
                     }
@@ -195,7 +197,7 @@ fun NoteListScreen(
                         text = "${noteCount.toInt()} 条",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 16.dp),
+                        modifier = Modifier.padding(end = SpacingTokens.lg),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -227,7 +229,7 @@ fun NoteListScreen(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
                     onSearch = {
@@ -244,12 +246,12 @@ fun NoteListScreen(
                         }
                     },
                 ),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = SpacingTokens.lg),
             )
 
             // 搜索历史
             if (searchQuery.isEmpty() && searchHistory.isNotEmpty()) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Column(modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -284,11 +286,11 @@ fun NoteListScreen(
                                         onClearAiSearch()
                                     }
                                 },
-                                label = { Text(historyItem, fontSize = 12.sp) },
+                                label = { Text(historyItem, style = MaterialTheme.typography.labelMedium) },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.History,
-                                        contentDescription = null,
+                                        contentDescription = null, // 装饰性图标，标签已说明
                                         modifier = Modifier.size(16.dp),
                                     )
                                 },
@@ -340,11 +342,11 @@ fun NoteListScreen(
             // AI 搜索加载指示器
             if (isAiSearching) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xl),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = AccentBlue)
+                        CircularProgressIndicator(color = MaterialTheme.customColors.accentBlue)
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "AI 正在理解您的搜索意图...",
@@ -376,25 +378,27 @@ fun NoteListScreen(
 
                     items(displayNotes, key = { it.id }) { note ->
                         val relevance = aiSearchResults.find { it.note.id == note.id }?.relevance
-                        NoteCard(
-                            note = note,
-                            relevance = relevance,
-                            onClick = {
-                                if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
-                            },
-                            onTogglePin = { scope.launch { repository.togglePin(note.id) } },
-                            onDelete = { scope.launch { repository.deleteNote(note.id) } },
-                            onShare = { onShareNote(note.id) },
-                            onSprout = { onSproutNote(note.id) },
-                            onSendToChat = { onSendToChat(note.id) },
-                            onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
-                            onEdit = { onEditNote(note.id) },
-                            onAppend = { onAppendNote(note.id) },
-                            onCorrect = { onCorrectNote(note.id) },
-                            onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
-                            onAddTag = { onAddTag(note.id) },
-                            linkCount = repository.getLinkCount(note.id),
-                        )
+                        Column(modifier = Modifier.animateItem()) {
+                            NoteCard(
+                                note = note,
+                                relevance = relevance,
+                                onClick = {
+                                    if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
+                                },
+                                onTogglePin = { scope.launch { repository.togglePin(note.id) } },
+                                onDelete = { scope.launch { repository.deleteNote(note.id) } },
+                                onShare = { onShareNote(note.id) },
+                                onSprout = { onSproutNote(note.id) },
+                                onSendToChat = { onSendToChat(note.id) },
+                                onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
+                                onEdit = { onEditNote(note.id) },
+                                onAppend = { onAppendNote(note.id) },
+                                onCorrect = { onCorrectNote(note.id) },
+                                onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
+                                onAddTag = { onAddTag(note.id) },
+                                linkCount = repository.getLinkCount(note.id),
+                            )
+                        }
                     }
                 }
             }
@@ -403,15 +407,15 @@ fun NoteListScreen(
         // FAB
         FloatingActionButton(
             onClick = onNewNote,
-            containerColor = AccentBlue,
-            contentColor = Color.White,
+            containerColor = MaterialTheme.customColors.accentBlue,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp)
+                .padding(SpacingTokens.xl)
                 .size(56.dp),
             shape = CircleShape,
         ) {
-            Icon(Icons.Default.Add, "新建笔记", tint = Color.White)
+            Icon(Icons.Default.Add, "新建笔记", tint = MaterialTheme.colorScheme.onPrimary)
         }
         } // Box
     } // noteListContent lambda
@@ -422,7 +426,7 @@ fun NoteListScreen(
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 noteListContent(Modifier.fillMaxSize())
             }
-            VerticalDivider(thickness = 1.dp, color = Color(0xFFE0E0E0))
+            VerticalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Box(modifier = Modifier.width(400.dp).fillMaxHeight().background(themeBgGray())) {
                 if (previewNote != null) {
                     NotePreviewPanel(
@@ -432,7 +436,7 @@ fun NoteListScreen(
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("选择一条笔记预览", color = Color.Gray)
+                        Text("选择一条笔记预览", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -453,7 +457,7 @@ private fun NotePreviewPanel(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(SpacingTokens.xl),
     ) {
         // 标题
         Text(
@@ -468,10 +472,10 @@ private fun NotePreviewPanel(
             Text(
                 text = note.type.displayName(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
-                    .background(note.type.color(), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                    .background(note.type.color(), ShapeTokens.smallShape)
+                    .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -489,16 +493,16 @@ private fun NotePreviewPanel(
                     Text(
                         text = "#$tag",
                         style = MaterialTheme.typography.labelSmall,
-                        color = AccentBlue,
+                        color = MaterialTheme.customColors.accentBlue,
                         modifier = Modifier
-                            .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                            .background(MaterialTheme.customColors.accentBlue.copy(alpha = 0.1f), ShapeTokens.smallShape)
+                            .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                     )
                 }
             }
         }
         Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = Color(0xFFE0E0E0))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(16.dp))
         // 内容
         if (note.content.isNotBlank()) {
@@ -508,25 +512,25 @@ private fun NotePreviewPanel(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            Text("（空笔记）", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+            Text("（空笔记）", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(24.dp))
         // 操作按钮
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = onEdit,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
+                shape = ShapeTokens.smallShape,
             ) {
-                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Edit, contentDescription = "编辑", modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("编辑")
             }
             OutlinedButton(
                 onClick = onSendToChat,
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
             ) {
-                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Chat, contentDescription = "发送到对话", modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("发到对话")
             }
@@ -542,12 +546,12 @@ private fun TypeFilterChips(
 ) {
     val types = listOf(null to "全部") + NoteType.entries.map { it to it.displayName() }
     val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = AccentBlue,
-        selectedLabelColor = Color.White,
+        selectedContainerColor = MaterialTheme.customColors.accentBlue,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
     )
 
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = SpacingTokens.lg),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         types.forEach { (type, label) ->
@@ -556,10 +560,10 @@ private fun TypeFilterChips(
                 selected = isSelected,
                 onClick = { onTypeSelected(type) },
                 label = {
-                    Text(label, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal))
                 },
                 colors = chipColors,
-                shape = RoundedCornerShape(20.dp),
+                shape = ShapeTokens.largeShape,
                 border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
             )
         }
@@ -573,22 +577,22 @@ private fun TagFilterChips(
     onTagSelected: (String?) -> Unit,
 ) {
     val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = Color(0xFFE67E22),
-        selectedLabelColor = Color.White,
+        selectedContainerColor = MaterialTheme.customColors.accentOrange,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
     )
 
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // 全部标签按钮
         FilterChip(
             selected = selectedTag == null,
             onClick = { onTagSelected(null) },
-            label = { Text("全部标签", fontSize = 12.sp) },
+            label = { Text("全部标签", style = MaterialTheme.typography.labelMedium) },
             colors = chipColors,
-            shape = RoundedCornerShape(16.dp),
-            border = if (selectedTag == null) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+            shape = ShapeTokens.largeShape,
+            border = if (selectedTag == null) null else BorderStroke(1.dp, MaterialTheme.customColors.accentOrange.copy(alpha = 0.3f)),
         )
         
         // 各个标签按钮
@@ -597,10 +601,10 @@ private fun TagFilterChips(
             FilterChip(
                 selected = isSelected,
                 onClick = { onTagSelected(if (isSelected) null else tag) },
-                label = { Text(tag, fontSize = 12.sp) },
+                label = { Text(tag, style = MaterialTheme.typography.labelMedium) },
                 colors = chipColors,
-                shape = RoundedCornerShape(16.dp),
-                border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+                shape = ShapeTokens.largeShape,
+                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.customColors.accentOrange.copy(alpha = 0.3f)),
             )
         }
         
@@ -608,7 +612,7 @@ private fun TagFilterChips(
         if (tags.size > 10) {
             Text(
                 "+${tags.size - 10}",
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, top = 8.dp),
             )
@@ -629,7 +633,7 @@ private fun FolderNavigation(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs)) {
         // 文件夹导航面包屑
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -656,26 +660,26 @@ private fun FolderNavigation(
                 
                 currentPath.forEachIndexed { index, folder ->
                     if (index > 0) {
-                        Text(" > ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(" > ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(
                         folder.name,
-                        fontSize = 12.sp,
-                        color = if (index == currentPath.lastIndex) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (index == currentPath.lastIndex) MaterialTheme.customColors.accentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.clickable { onFolderClick(folder.id) },
                     )
                 }
             } else {
-                Icon(Icons.Default.Folder, "文件夹", tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Folder, "文件夹", tint = MaterialTheme.customColors.accentBlue, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("文件夹", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("文件夹", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Spacer(Modifier.weight(1f))
 
             // 新建文件夹按钮
             IconButton(onClick = onCreateFolder, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(16.dp), tint = AccentBlue)
+                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentBlue)
             }
         }
 
@@ -711,19 +715,19 @@ private fun FolderItem(
 
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
+        shape = ShapeTokens.smallShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
         modifier = Modifier.height(60.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Folder, null, tint = MaterialTheme.customColors.accentBlue, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(6.dp))
             Text(
                 folder.name,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 modifier = Modifier.weight(1f),
             )
@@ -819,12 +823,12 @@ private fun NoteCard(
 
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             // 第一行：类型图标 + 标题 + 置顶 + 时间
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 类型图标
@@ -834,7 +838,7 @@ private fun NoteCard(
                     modifier = Modifier.size(28.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(16.dp))
+                        Icon(note.type.icon(), contentDescription = "笔记类型", tint = note.type.color(), modifier = Modifier.size(16.dp))
                     }
                 }
 
@@ -843,40 +847,38 @@ private fun NoteCard(
                 // 标题
                 Text(
                     text = note.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
 
                 // 置顶标记
                 if (note.isPinned) {
-                    Icon(Icons.Default.PushPin, "置顶", tint = AccentBlue, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.PushPin, "置顶", tint = MaterialTheme.customColors.accentBlue, modifier = Modifier.size(16.dp))
                 }
 
                 // 关联数标记
                 if (linkCount > 0) {
                     Spacer(Modifier.width(4.dp))
                     Surface(
-                        color = AccentBlue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.1f),
+                        shape = ShapeTokens.smallShape,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 Icons.Default.Hub,
                                 "关联",
-                                tint = AccentBlue,
+                                tint = MaterialTheme.customColors.accentBlue,
                                 modifier = Modifier.size(12.dp),
                             )
                             Spacer(Modifier.width(2.dp))
                             Text(
                                 "$linkCount",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = AccentBlue,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.customColors.accentBlue,
                             )
                         }
                     }
@@ -891,14 +893,14 @@ private fun NoteCard(
                 if (relevance != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(4.dp),
+                        shape = ShapeTokens.extraSmallShape,
                     ) {
                         Text(
-                            "相关度 ${relevance}%",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                        )
+                                "相关度 ${relevance}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
+                            )
                     }
                     Spacer(Modifier.width(4.dp))
                 }
@@ -913,15 +915,15 @@ private fun NoteCard(
                 }
                 if (sourceLabel != null) {
                     Surface(
-                        color = AccentBlue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.1f),
+                        shape = ShapeTokens.extraSmallShape,
                     ) {
                         Text(
-                            sourceLabel,
-                            fontSize = 10.sp,
-                            color = AccentBlue,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                        )
+                                sourceLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.customColors.accentBlue,
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
+                            )
                     }
                     Spacer(Modifier.width(4.dp))
                 }
@@ -953,12 +955,12 @@ private fun NoteCard(
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     tags.take(3).forEach { tag ->
-                        Surface(color = AccentBlue.copy(alpha = 0.08f), shape = RoundedCornerShape(10.dp)) {
-                            Text(tag, fontSize = 11.sp, color = AccentBlue, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                        Surface(color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.08f), shape = ShapeTokens.smallShape) {
+                            Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.customColors.accentBlue, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs))
                         }
                     }
                     if (tags.size > 3) {
-                        Text("+${tags.size - 3}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("+${tags.size - 3}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -975,16 +977,16 @@ private fun NoteCard(
                             runCatching { ctx.startActivity(intent) }
                         },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = ShapeTokens.smallShape,
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(SpacingTokens.md),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             imageVector = Icons.Default.Link,
-                            contentDescription = null,
-                            tint = AccentBlue,
+                            contentDescription = "来源链接",
+                            tint = MaterialTheme.customColors.accentBlue,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -992,7 +994,7 @@ private fun NoteCard(
                             Text(
                                 text = note.sourceUrl,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = AccentBlue,
+                                color = MaterialTheme.customColors.accentBlue,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -1040,14 +1042,14 @@ private fun RecommendationCard(
     onNoteClick: (Long) -> Unit,
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             // 标题行
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -1070,7 +1072,7 @@ private fun RecommendationCard(
             recommendedNotes.forEachIndexed { index, note ->
                 if (index > 0) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(vertical = SpacingTokens.xs),
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
                     )
                 }
@@ -1088,7 +1090,8 @@ private fun RecommendationCard(
                         modifier = Modifier.size(24.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(14.dp))
+                            Icon(note.type.icon(), contentDescription = null, // 装饰性类型图标
+                                tint = note.type.color(), modifier = Modifier.size(14.dp))
                         }
                     }
                     Spacer(Modifier.width(10.dp))
@@ -1110,7 +1113,7 @@ private fun RecommendationCard(
                     }
                     Icon(
                         Icons.Default.ChevronRight,
-                        contentDescription = null,
+                        contentDescription = null, // 装饰性导航图标
                         tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
                         modifier = Modifier.size(18.dp),
                     )
@@ -1122,36 +1125,21 @@ private fun RecommendationCard(
 
 @Composable
 private fun EmptyNoteState(onNewNote: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            Icons.Default.Edit,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "还没有笔记",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "点击右下角 + 创建第一条笔记，\n或从 AI 对话中保存精彩内容",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        )
-        Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onNewNote, shape = RoundedCornerShape(12.dp)) {
-            Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("写一条笔记")
-        }
-    }
+    EmptyStateView(
+        icon = {
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = null, // 空状态装饰性图标
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+            )
+        },
+        title = "还没有笔记",
+        subtitle = "点击右下角 + 创建第一条笔记，\n或从 AI 对话中保存精彩内容",
+        actionLabel = "写一条笔记",
+        onAction = onNewNote,
+        modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
+    )
 }
 
 // ==================== 工具函数 ====================

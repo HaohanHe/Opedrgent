@@ -2,6 +2,10 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.customColors
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -76,6 +80,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
@@ -108,6 +113,8 @@ import top.hsyscn.opedrgent.ui.theme.InterviewPurple
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
@@ -132,6 +139,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
     var segmentEnabled by rememberSaveable { mutableStateOf(vm.isSegmentEnabled()) }
+    val hippocampusCount by produceState(0, hippocampus) {
+        value = hippocampus?.count() ?: 0
+    }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
@@ -141,6 +151,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var calendarEnabled by rememberSaveable { mutableStateOf(vm.isCalendarEnabled()) }
     var healthEnabled by rememberSaveable { mutableStateOf(vm.isHealthEnabled()) }
     var themeMode by rememberSaveable { mutableStateOf(vm.getThemeMode()) }
+    var dynamicColorEnabled by rememberSaveable { mutableStateOf(vm.isDynamicColorEnabled()) }
     var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
@@ -236,18 +247,18 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             modifier = Modifier
                 .padding(padding),
             contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
         item {
             // ── 语言设置 ──
             var appLanguage by rememberSaveable { mutableStateOf(vm.getAppLanguage()) }
 
             Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md).fillMaxWidth(),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(text = stringResource(R.string.settings_language), fontWeight = FontWeight.Bold, color = themeTextDark())
                     Spacer(modifier = Modifier.height(10.dp))
                     
@@ -259,7 +270,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     )
                     
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                     ) {
                         languageOptions.forEach { (tag, label) ->
@@ -275,7 +286,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         activity.recreate()
                                     }
                                 },
-                                label = { Text(label, fontSize = 13.sp) },
+                                label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
                             )
                         }
                     }
@@ -286,11 +297,11 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         item {
             // ── 主题设置 ──
             Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md).fillMaxWidth(),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(text = "外观主题", fontWeight = FontWeight.Bold, color = themeTextDark())
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -306,7 +317,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     )
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                     ) {
                         themeOptions.forEach { (value, label) ->
@@ -318,14 +329,39 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     vm.saveThemeMode(value)
                                     (context as? Activity)?.recreate()
                                 },
-                                label = { Text(label, fontSize = 13.sp) },
+                                label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
                                 leadingIcon = {
                                     themeIcons[value]?.let {
-                                        Icon(it, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(it, contentDescription = "图标", modifier = Modifier.size(16.dp))
                                     }
                                 },
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(SpacingTokens.md))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "动态主题", fontWeight = FontWeight.Medium, color = themeTextDark())
+                            Text(
+                                text = "使用系统壁纸颜色（Android 12+）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+                        Switch(
+                            checked = dynamicColorEnabled,
+                            onCheckedChange = {
+                                dynamicColorEnabled = it
+                                vm.saveDynamicColorEnabled(it)
+                                (context as? Activity)?.recreate()
+                            },
+                        )
                     }
                 }
             }
@@ -338,18 +374,18 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             if (isLocalMode) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = ShapeTokens.mediumShape,
                     colors = CardDefaults.cardColors(containerColor = BubbleBlue.copy(alpha = 0.06f)),
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(SpacingTokens.md),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Column {
-                            Text(stringResource(R.string.msg_local_mode_running), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BubbleBlue)
-                            Text(stringResource(R.string.msg_local_mode_desc), color = themeTextGrey(), fontSize = 11.sp)
+                            Text(stringResource(R.string.msg_local_mode_running), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, color = BubbleBlue)
+                            Text(stringResource(R.string.msg_local_mode_desc), color = themeTextGrey(), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -442,7 +478,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         // 预置模型标题
                         if (presetModels.isNotEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("预置模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
+                                text = { Text("预置模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), style = MaterialTheme.typography.bodySmall) },
                                 onClick = {},
                                 enabled = false,
                             )
@@ -460,10 +496,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         val apiOnlyModels = fetchedModels?.filter { it !in presetModels } ?: emptyList()
                         if (apiOnlyModels.isNotEmpty()) {
                             if (presetModels.isNotEmpty()) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                             }
                             DropdownMenuItem(
-                                text = { Text("API 可用模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
+                                text = { Text("API 可用模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), style = MaterialTheme.typography.bodySmall) },
                                 onClick = {},
                                 enabled = false,
                             )
@@ -506,14 +542,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = toMemory,
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(SpacingTokens.lg).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -526,7 +562,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         }
 
         item {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             // ── 云同步（WebDAV）──
             var syncServerUrl by rememberSaveable { mutableStateOf(vm.getSyncConfig().serverUrl) }
@@ -539,13 +575,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             Text("云同步（WebDAV）", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg), verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Text(
                         "通过 WebDAV 同步笔记到私有云（坚果云、NextCloud 等）",
                         style = MaterialTheme.typography.bodySmall,
@@ -559,7 +595,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         OutlinedTextField(
                             value = syncUsername,
                             onValueChange = { syncUsername = it },
@@ -585,7 +621,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     )
 
                     // 操作按钮行
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         FilledTonalButton(
                             onClick = {
                                 val config = top.hsyscn.opedrgent.sync.WebDavConfig(
@@ -601,9 +637,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 }
                             },
                             enabled = syncServerUrl.isNotBlank() && !isSyncing,
-                            shape = RoundedCornerShape(11.dp),
+                            shape = ShapeTokens.smallShape,
                         ) {
-                            Text("测试连接", fontSize = 13.sp)
+                            Text("测试连接", style = MaterialTheme.typography.bodyMedium)
                         }
                         Button(
                             onClick = {
@@ -617,14 +653,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 vm.runSync()
                             },
                             enabled = syncServerUrl.isNotBlank() && !isSyncing,
-                            shape = RoundedCornerShape(11.dp),
+                            shape = ShapeTokens.smallShape,
                         ) {
                             if (isSyncing) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(6.dp))
-                                Text("同步中...", fontSize = 13.sp)
+                                Spacer(Modifier.width(SpacingTokens.sm))
+                                Text("同步中...", style = MaterialTheme.typography.bodyMedium)
                             } else {
-                                Text("立即同步", fontSize = 13.sp)
+                                Text("立即同步", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
@@ -664,7 +700,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         }
 
         item {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             // 编辑器模式设置
             var editorMode by rememberSaveable { mutableStateOf(vm.getEditorMode()) }
@@ -672,13 +708,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             Text("编辑器模式", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(
                         "笔记编辑器的默认输入模式",
                         style = MaterialTheme.typography.bodySmall,
@@ -686,14 +722,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         FilterChip(
                             selected = editorMode == "richtext",
                             onClick = {
                                 editorMode = "richtext"
                                 vm.saveEditorMode("richtext")
                             },
-                            label = { Text("富文本（推荐）", fontSize = 13.sp) },
+                            label = { Text("富文本（推荐）", style = MaterialTheme.typography.bodyMedium) },
                         )
                         FilterChip(
                             selected = editorMode == "markdown",
@@ -701,7 +737,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 editorMode = "markdown"
                                 vm.saveEditorMode("markdown")
                             },
-                            label = { Text("Markdown", fontSize = 13.sp) },
+                            label = { Text("Markdown", style = MaterialTheme.typography.bodyMedium) },
                         )
                     }
 
@@ -716,16 +752,16 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         }
 
         item {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             Text(stringResource(R.string.settings_voice), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = stringResource(R.string.settings_stt_label), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = sttEnabled, onCheckedChange = { sttEnabled = it })
@@ -734,26 +770,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(R.string.settings_stt_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = sttEngine == "local",
                                     onClick = { sttEngine = "local" },
-                                    label = { Text(stringResource(R.string.settings_local_sherpa), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text(stringResource(R.string.settings_local_sherpa), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttEngine == "stepaudio",
                                     onClick = { sttEngine = "stepaudio" },
-                                    label = { Text("StepAudio", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("StepAudio", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttEngine == "mimo",
                                     onClick = { sttEngine = "mimo" },
-                                    label = { Text("MiMo ASR", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("MiMo ASR", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                         }
@@ -761,7 +797,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = stringResource(R.string.settings_mimo_asr_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
+                                color = AccentOrange,
                             )
                         }
                         if (sttEngine == "stepaudio") {
@@ -781,11 +817,11 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
                         // 识别模式选择
                         val isStreamingModel = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                         Text(
                             text = "识别模式",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                         if (isStreamingModel) {
                             // 流式模型：自动使用真流式，无需选择
@@ -797,7 +833,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             )
 
                             // HR 同音字替换开关（仅流式模型支持）
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "同音字矫正", style = MaterialTheme.typography.bodyMedium)
@@ -810,7 +846,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 Switch(checked = hrEnabled, onCheckedChange = { hrEnabled = it; vm.saveHrEnabled(it) })
                             }
                             // 分段识别开关（长音频优化）
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "分段识别", style = MaterialTheme.typography.bodyMedium)
@@ -865,30 +901,30 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 }
                                             }
                                         }) {
-                                            Text("下载", fontSize = 12.sp)
+                                            Text("下载", style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
                                 hrError?.let {
-                                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                    Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         } else {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = sttStreamingMode == "pseudo",
                                     onClick = { sttStreamingMode = "pseudo" },
-                                    label = { Text("伪流式（实时显示）", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("伪流式（实时显示）", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttStreamingMode == "batch",
                                     onClick = { sttStreamingMode = "batch" },
-                                    label = { Text("录制后识别（更准确）", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("录制后识别（更准确）", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                             Text(
@@ -918,7 +954,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             var sttDialogStatus by rememberSaveable { mutableStateOf("idle") }
                             var sttDialogStatusDetail by rememberSaveable { mutableStateOf("") }
 
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                             Text(
                                 text = stringResource(R.string.settings_local_models_label),
                                 style = MaterialTheme.typography.labelMedium,
@@ -946,8 +982,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             selectedLocalModel = ""
                                             vm.saveSelectedLocalModel("")
                                         },
-                                        label = { Text("自动", fontSize = 11.sp) },
-                                        shape = RoundedCornerShape(16.dp),
+                                        label = { Text("自动", style = MaterialTheme.typography.labelSmall) },
+                                        shape = ShapeTokens.largeShape,
                                     )
                                     downloadedModels.forEach { modelInfo ->
                                         val label = when (modelInfo.type) {
@@ -963,8 +999,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 selectedLocalModel = modelInfo.type.name
                                                 vm.saveSelectedLocalModel(modelInfo.type.name)
                                             },
-                                            label = { Text(label, fontSize = 11.sp) },
-                                            shape = RoundedCornerShape(16.dp),
+                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                            shape = ShapeTokens.largeShape,
                                         )
                                     }
                                 }
@@ -995,32 +1031,32 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                     else -> modelInfo.modelName
                                                 },
                                                 fontWeight = FontWeight.Medium,
-                                                fontSize = 13.sp,
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
-                                            Spacer(Modifier.width(6.dp))
+                                            Spacer(Modifier.width(SpacingTokens.sm))
                                             // 已下载标签 / 推荐标签
                                             if (isDownloaded) {
                                                 Surface(
-                                                    shape = RoundedCornerShape(4.dp),
+                                                    shape = ShapeTokens.extraSmallShape,
                                                     color = SuccessGreen.copy(alpha = 0.15f),
                                                 ) {
                                                     Text(
                                                         text = "已下载",
-                                                        fontSize = 10.sp,
+                                                        style = MaterialTheme.typography.labelSmall,
                                                         color = SuccessGreen,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                                     )
                                                 }
                                             } else if (modelInfo.type == sttModelManager.getRecommendedModel(context)) {
                                                 Surface(
-                                                    shape = RoundedCornerShape(4.dp),
+                                                    shape = ShapeTokens.extraSmallShape,
                                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                                 ) {
                                                     Text(
                                                         text = "推荐",
-                                                        fontSize = 10.sp,
+                                                        style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                                     )
@@ -1029,9 +1065,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         }
                                         Text(
                                             text = "$sizeStr | ${modelInfo.minRamMB}MB RAM",
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MaterialTheme.typography.labelSmall,
                                             color = themeTextGrey(),
-                                            fontSize = 11.sp,
                                         )
 
                                         // 下载进度条
@@ -1041,14 +1076,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(3.dp)
-                                                    .padding(top = 4.dp),
+                                                    .padding(top = SpacingTokens.xs),
                                                 color = MaterialTheme.colorScheme.primary,
                                                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                             )
                                             Text(
                                                 text = downloadStatusText,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontSize = 10.sp,
+                                                style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                             )
                                         }
@@ -1057,7 +1091,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     // 操作按钮
                                     if (isDownloading) {
                                         TextButton(onClick = { downloadingModel = null }) {
-                                            Text("取消", fontSize = 12.sp)
+                                            Text("取消", style = MaterialTheme.typography.bodySmall)
                                         }
                                     } else if (isDownloaded) {
                                         IconButton(
@@ -1138,9 +1172,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 }
                                             },
                                         ) {
-                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(stringResource(R.string.action_download), fontSize = 12.sp)
+                                            Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(14.sp.value.dp))
+                                            Spacer(Modifier.width(SpacingTokens.xs))
+                                            Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
@@ -1197,26 +1231,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(R.string.settings_tts_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = ttsEngine == "system",
                                     onClick = { ttsEngine = "system" },
-                                    label = { Text("系统 TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("系统 TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = ttsEngine == "stepaudio",
                                     onClick = { ttsEngine = "stepaudio" },
-                                    label = { Text("StepAudio TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("StepAudio TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = ttsEngine == "mimo",
                                     onClick = { ttsEngine = "mimo" },
-                                    label = { Text("MiMo TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("MiMo TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                         }
@@ -1231,7 +1265,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = stringResource(R.string.settings_mimo_tts_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
+                                color = AccentOrange,
                             )
                         }
                     }
@@ -1262,15 +1296,15 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                     }
                     Text(text = stringResource(R.string.settings_speed))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_slow)) }
-                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_normal)) }
-                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_fast)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_slow)) }
+                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_normal)) }
+                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_fast)) }
                     }
                     Text(text = stringResource(R.string.settings_language))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_chinese)) }
-                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_english)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_chinese)) }
+                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_english)) }
                     }
                 }
             }
@@ -1278,15 +1312,15 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
         item {
             // 录音时长限制
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
             Text("录音时长限制", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Text(
                         text = stringResource(R.string.settings_duration_desc),
                         style = MaterialTheme.typography.bodySmall,
@@ -1305,14 +1339,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Box {
                                 OutlinedButton(
                                     onClick = { expanded = true },
-                                    shape = RoundedCornerShape(11.dp),
+                                    shape = ShapeTokens.smallShape,
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 ) {
                                     Text(
                                         text = if (currentHours.value == 0) "无限制" else "${currentHours.value}小时",
-                                        fontSize = 13.sp,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "图标", modifier = Modifier.size(18.dp))
                                 }
                                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                                     hoursOptions.forEachIndexed { index, h ->
@@ -1337,9 +1371,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             // OCR 模型管理
             HorizontalDivider()
             Text(stringResource(R.string.settings_ocr_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "PP-OCRv6 增强识别", fontWeight = FontWeight.SemiBold)
@@ -1362,21 +1396,21 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Text(
                             text = ocrModel.displayName,
                             modifier = Modifier.weight(1f),
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                         if (ocrDownloaded.value) {
-                            Surface(shape = RoundedCornerShape(4.dp), color = SuccessGreen.copy(alpha = 0.15f)) {
-                                Text(stringResource(R.string.settings_model_downloaded), fontSize = 10.sp, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                            Surface(shape = ShapeTokens.extraSmallShape, color = SuccessGreen.copy(alpha = 0.15f)) {
+                                Text(stringResource(R.string.settings_model_downloaded), style = MaterialTheme.typography.labelSmall, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                             }
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(SpacingTokens.sm))
                             TextButton(onClick = {
                                 ocrModelManager.clearModelCache(context, ocrModel.id)
                                 ocrDownloaded.value = false
-                            }) { Text("删除", fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
+                            }) { Text("删除", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                         } else if (ocrDownloading.value) {
                             LinearProgressIndicator(progress = { ocrProgress.value }, modifier = Modifier.weight(1f).height(3.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(ocrStatusText.value, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(SpacingTokens.sm))
+                            Text(ocrStatusText.value, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         } else {
                             FilledTonalButton(
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -1406,9 +1440,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.action_download), fontSize = 12.sp)
+                                Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(14.sp.value.dp))
+                                Spacer(Modifier.width(SpacingTokens.xs))
+                                Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -1420,13 +1454,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             HorizontalDivider()
 
             Text(stringResource(R.string.settings_web_search_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = stringResource(R.string.settings_web_search_label), fontWeight = FontWeight.SemiBold)
@@ -1442,26 +1476,26 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(R.string.settings_search_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = webSearchSource == "own",
                                     onClick = { webSearchSource = "own"; vm.saveWebSearchSource("own") },
-                                    label = { Text(stringResource(R.string.settings_own_engine), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text(stringResource(R.string.settings_own_engine), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = webSearchSource == "provider",
                                     onClick = { webSearchSource = "provider"; vm.saveWebSearchSource("provider") },
-                                    label = { Text(stringResource(R.string.settings_provider_builtin), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text(stringResource(R.string.settings_provider_builtin), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = webSearchSource == "external",
                                     onClick = { webSearchSource = "external"; vm.saveWebSearchSource("external") },
-                                    label = { Text(stringResource(R.string.settings_external_api), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text(stringResource(R.string.settings_external_api), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                         }
@@ -1476,7 +1510,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = stringResource(R.string.settings_provider_builtin_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
+                                color = AccentOrange,
                             )
                         }
                         if (webSearchSource == "external") {
@@ -1501,13 +1535,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             HorizontalDivider()
 
             Text(stringResource(R.string.settings_bg_run_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = stringResource(R.string.settings_bg_run_label), fontWeight = FontWeight.SemiBold)
@@ -1547,13 +1581,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             HorizontalDivider()
 
             Text(stringResource(R.string.settings_location_env_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            Card(modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = stringResource(R.string.settings_location), fontWeight = FontWeight.SemiBold)
@@ -1663,17 +1697,17 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             Text("本地模型", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text(stringResource(R.string.settings_local_model_title), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = themeTextDark())
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(SpacingTokens.md))
+                        Text(stringResource(R.string.settings_local_model_title), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall, color = themeTextDark())
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
 
                     Text(
                         text = if (isLocalMode && localModelId != null) {
@@ -1681,10 +1715,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             "当前使用: ${info?.displayName ?: localModelId}"
                         } else stringResource(R.string.settings_local_model_offline_desc),
                         color = themeTextGrey(),
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(SpacingTokens.md))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1751,34 +1785,34 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
 
                         OutlinedButton(
                             onClick = { showModelSelector = true },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = ShapeTokens.smallShape,
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                         ) {
-                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = BubbleBlue)
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_select_model), fontSize = 12.sp, color = BubbleBlue)
+                            Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(16.dp), tint = BubbleBlue)
+                            Spacer(Modifier.width(SpacingTokens.sm))
+                            Text(stringResource(R.string.settings_select_model), style = MaterialTheme.typography.bodySmall, color = BubbleBlue)
                         }
                     }
 
                     val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
                     if (isLocalMode && currentInfo != null) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(SpacingTokens.md))
                         HorizontalDivider(color = themeDividerColor())
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(SpacingTokens.md))
 
                         var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }
                         var localTopK by rememberSaveable { mutableStateOf(vm.getLocalTopK()) }
                         var localTopP by rememberSaveable { mutableStateOf(vm.getLocalTopP()) }
                         var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
 
-                        Text(stringResource(R.string.settings_inference_params), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = themeTextDark())
-                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", fontSize = 11.sp, color = themeTextGrey())
+                        Text(stringResource(R.string.settings_inference_params), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, color = themeTextDark())
+                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(SpacingTokens.sm))
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Temperature", fontSize = 11.sp, color = themeTextGrey())
+                                Text("Temperature", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTemp,
                                     onValueChange = { localTemp = it },
@@ -1786,10 +1820,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     steps = 39,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTemp)}", fontSize = 10.sp, color = themeTextGrey())
+                                Text("${String.format("%.2f", localTemp)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                             }
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top P", fontSize = 11.sp, color = themeTextGrey())
+                                Text("Top P", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTopP,
                                     onValueChange = { localTopP = it },
@@ -1797,15 +1831,15 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     steps = 17,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTopP)}", fontSize = 10.sp, color = themeTextGrey())
+                                Text("${String.format("%.2f", localTopP)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                             }
                         }
 
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(SpacingTokens.sm))
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top K: $localTopK", fontSize = 11.sp, color = themeTextGrey())
+                                Text("Top K: $localTopK", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTopK.toFloat(),
                                     onValueChange = { localTopK = it.toInt() },
@@ -1817,25 +1851,25 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             OutlinedTextField(
                                 value = if (localMaxTok > 0) localMaxTok.toString() else "",
                                 onValueChange = { localMaxTok = it.toIntOrNull() ?: 0 },
-                                label = { Text("最大输出", fontSize = 10.sp) },
+                                label = { Text("最大输出", style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.width(100.dp),
                                 singleLine = true,
                             )
                         }
 
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(SpacingTokens.sm))
 
                         OutlinedButton(
                             onClick = {
                                 vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
                                 scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_params_saved)) }
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = ShapeTokens.smallShape,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.msg_save_params), fontSize = 11.sp, color = BubbleBlue)
+                            Icon(Icons.Default.Save, contentDescription = "图标", modifier = Modifier.size(14.dp), tint = BubbleBlue)
+                            Spacer(Modifier.width(SpacingTokens.xs))
+                            Text(stringResource(R.string.msg_save_params), style = MaterialTheme.typography.labelSmall, color = BubbleBlue)
                         }
                     }
                 }
@@ -1843,25 +1877,25 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
         }
 
         item {
-Spacer(Modifier.height(12.dp))
+Spacer(Modifier.height(SpacingTokens.md))
 
             // ── 高级选项（折叠区）──
             // 海马体等实验性功能入口降级至此，普通用户不显示，高级用户可展开访问
             var showAdvanced by rememberSaveable { mutableStateOf(false) }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 ),
                 onClick = { showAdvanced = !showAdvanced },
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(SpacingTokens.md).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.settings_advanced_options), fontWeight = FontWeight.Medium, fontSize = 13.sp, color = themeTextGrey(), modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_advanced_options), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey(), modifier = Modifier.weight(1f))
                     Icon(
                         imageVector = if (showAdvanced) Icons.Default.ArrowDropDown else Icons.Default.ArrowForward,
                         contentDescription = if (showAdvanced) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
@@ -1870,26 +1904,26 @@ Spacer(Modifier.height(12.dp))
                     )
                 }
                 androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = SpacingTokens.md).padding(bottom = SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         // 海马体记忆入口（降级后仅在此折叠区内可见）
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = toHippocampus,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = ShapeTokens.mediumShape,
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             ),
                         ) {
                             Row(
-                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                modifier = Modifier.padding(SpacingTokens.md).fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(10.dp))
+                                Icon(Icons.Default.Memory, contentDescription = "图标", modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.settings_hippocampus_index), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("共 ${hippocampus?.count() ?: 0} 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                                    Text(stringResource(R.string.settings_hippocampus_index), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                                    Text("共 $hippocampusCount 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                                 }
                                 Icon(Icons.Default.ArrowForward, contentDescription = "进入", modifier = Modifier.size(16.dp))
                             }
@@ -1897,7 +1931,7 @@ Spacer(Modifier.height(12.dp))
 
                         // 外挂 API 配置（Tavily / Brave）
                         if (webSearchEnabled && webSearchSource == "external") {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                             Text(
                                 text = "外挂搜索 API 配置",
                                 style = MaterialTheme.typography.bodySmall,
@@ -1932,28 +1966,28 @@ Spacer(Modifier.height(12.dp))
         }
 
         item {
-Spacer(Modifier.height(12.dp))
+Spacer(Modifier.height(SpacingTokens.md))
 
             // ── 关于 ──
             HorizontalDivider()
             Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md).fillMaxWidth(),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(text = stringResource(R.string.settings_about), fontWeight = FontWeight.Bold, color = themeTextDark())
                     Spacer(modifier = Modifier.height(10.dp))
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                            contentDescription = null,
+                            contentDescription = "图标",
                             modifier = Modifier.size(48.dp),
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.md))
                         Column {
-                            Text(text = "Opedrgent", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = themeTextDark())
+                            Text(text = "Opedrgent", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge, color = themeTextDark())
                             Text(
                                 text = stringResource(R.string.about_version, "1.0.0"),
                                 style = MaterialTheme.typography.bodySmall,
@@ -1962,7 +1996,7 @@ Spacer(Modifier.height(12.dp))
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.md))
                     
                     Text(
                         text = "hsyscn.top",
@@ -1971,7 +2005,7 @@ Spacer(Modifier.height(12.dp))
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://hsyscn.top")))
                         }
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.xs))
                     Text(
                         text = "BI4MIB.CN",
                         color = BubbleBlue,
@@ -1980,7 +2014,7 @@ Spacer(Modifier.height(12.dp))
                         }
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.md))
                     
                     Text(
                         text = stringResource(R.string.about_visit_project),
@@ -1990,33 +2024,33 @@ Spacer(Modifier.height(12.dp))
                         }
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.md))
                     HorizontalDivider()
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.sm))
                     
                     Text(
                         text = stringResource(R.string.about_open_source),
                         fontWeight = FontWeight.Bold,
                         color = themeTextDark()
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.xs))
                     Text(
                         text = stringResource(R.string.about_open_source_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey()
                     )
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.sm))
                     
                     // 跳转到独立开源声明页
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = toOpenSource,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = ShapeTokens.smallShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                            modifier = Modifier.padding(SpacingTokens.md).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -2025,7 +2059,7 @@ Spacer(Modifier.height(12.dp))
                                 fontWeight = FontWeight.SemiBold,
                                 color = themeTextDark(),
                             )
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = themeTextGrey())
+                            Icon(Icons.Default.ChevronRight, contentDescription = "图标", tint = themeTextGrey())
                         }
                     }
                 }
@@ -2066,24 +2100,24 @@ Spacer(Modifier.height(12.dp))
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.smallShape,
             ) {
                 Text(if (isLocalMode) "保存设置" else "保存")
             }
-            Text(text = "API Key 留空表示不修改。", modifier = Modifier.padding(top = 4.dp))
+            Text(text = "API Key 留空表示不修改。", modifier = Modifier.padding(top = SpacingTokens.xs))
             HorizontalDivider()
             Button(
                 onClick = { vm.clearApiKey() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = vm.hasApiKey(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.smallShape,
             ) {
                 Text("清除 API Key")
             }
-            Button(onClick = toSkills, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Button(onClick = toSkills, modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.smallShape) {
                 Text(stringResource(R.string.title_skills_library))
             }
-            Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth(), shape = ShapeTokens.smallShape) {
                 Text(stringResource(R.string.title_automations))
             }
             if (vm.hasApiKey()) {

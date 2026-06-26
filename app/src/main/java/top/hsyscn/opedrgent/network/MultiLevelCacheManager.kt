@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.network
 
+import android.util.LruCache
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -73,7 +74,7 @@ data class SearchResultSet(
 }
 
 data class CacheConfig(
-    val l1MaxSize: Int = 500,
+    val l1MaxSize: Int = 10 * 1024 * 1024,
     val l1TtlMs: Long = 5 * 60_000L,
     val l2MaxSize: Int = 10000,
     val l2TtlMs: Long = 24 * 3600_000L
@@ -92,8 +93,15 @@ private data class CacheEntry<T>(
 class MultiLevelCacheManager(
     private val config: CacheConfig = CacheConfig()
 ) {
-    private val l1Cache: LinkedHashMap<String, CacheEntry<SearchResultSet>> =
-        LinkedHashMap(16, 0.75f, true)
+    private val l1Cache: LruCache<String, CacheEntry<SearchResultSet>> = object : LruCache<String, CacheEntry<SearchResultSet>>(config.l1MaxSize) {
+        override fun sizeOf(key: String, value: CacheEntry<SearchResultSet>): Int {
+            var size = key.toByteArray(Charsets.UTF_8).size
+            for (r in value.data.results) {
+                size += (r.title.length + r.url.length + (r.snippet?.length ?: 0)) * 2 + 64
+            }
+            return size.coerceAtLeast(1)
+        }
+    }
 
     private val l2Cache: ConcurrentHashMap<String, CacheEntry<SearchResultSet>> =
         ConcurrentHashMap()
@@ -141,7 +149,6 @@ class MultiLevelCacheManager(
         mutex.withLock {
             val now = System.currentTimeMillis()
 
-            evictL1IfNeeded()
             evictL2IfNeeded()
 
             putToL1(key, CacheEntry(resultSet, now, config.l1TtlMs))
@@ -152,7 +159,7 @@ class MultiLevelCacheManager(
                 cleanExpiredEntries()
             }
 
-            DebugLog.d("MultiLevelCacheManager: PUT key=${key.take(16)}..., L1=${l1Cache.size}, L2=${l2Cache.size}")
+            DebugLog.d("MultiLevelCacheManager: PUT key=${key.take(16)}..., L1=${l1Cache.size()}, L2=${l2Cache.size}")
         }
     }
 
@@ -166,7 +173,7 @@ class MultiLevelCacheManager(
 
     suspend fun clear() {
         mutex.withLock {
-            l1Cache.clear()
+            l1Cache.evictAll()
             l2Cache.clear()
             l1Hits = 0L
             l1Misses = 0L
@@ -179,8 +186,8 @@ class MultiLevelCacheManager(
 
     fun getStats(): Map<String, Any> {
         return mapOf(
-            "l1_size" to l1Cache.size,
-            "l1_maxSize" to config.l1MaxSize,
+            "l1_size" to l1Cache.size(),
+            "l1_maxSize" to l1Cache.maxSize(),
             "l1_hits" to l1Hits,
             "l1_misses" to l1Misses,
             "l1_hitRate" to hitRate(l1Hits, l1Misses),
@@ -199,7 +206,7 @@ class MultiLevelCacheManager(
     }
 
     private suspend fun getFromL1(key: String): CacheEntry<SearchResultSet>? {
-        val entry = l1Cache[key] ?: return null
+        val entry = l1Cache.get(key) ?: return null
         entry.accessCount++
         entry.lastAccessTime = System.currentTimeMillis()
         return if (entry.isExpired) {
@@ -225,19 +232,11 @@ class MultiLevelCacheManager(
     }
 
     private suspend fun putToL1(key: String, entry: CacheEntry<SearchResultSet>) {
-        l1Cache[key] = entry
+        l1Cache.put(key, entry)
     }
 
     private suspend fun putToL2(key: String, entry: CacheEntry<SearchResultSet>) {
         l2Cache[key] = entry
-    }
-
-    private suspend fun evictL1IfNeeded() {
-        while (l1Cache.size >= config.l1MaxSize) {
-            val oldestKey = l1Cache.keys.iterator().next()
-            l1Cache.remove(oldestKey)
-            DebugLog.d("MultiLevelCacheManager: L1 evicted key=${oldestKey.take(16)}...")
-        }
     }
 
     private suspend fun evictL2IfNeeded() {
@@ -252,7 +251,8 @@ class MultiLevelCacheManager(
 
     private suspend fun cleanExpiredEntries() {
         var l1Cleaned = 0
-        val l1ExpiredKeys = l1Cache.keys.filter { l1Cache[it]?.isExpired == true }
+        val l1Snapshot = l1Cache.snapshot()
+        val l1ExpiredKeys = l1Snapshot.keys.filter { l1Snapshot[it]?.isExpired == true }
         for (key in l1ExpiredKeys) {
             l1Cache.remove(key)
             l1Cleaned++

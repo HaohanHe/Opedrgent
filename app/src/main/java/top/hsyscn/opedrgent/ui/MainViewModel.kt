@@ -105,6 +105,7 @@ import top.hsyscn.opedrgent.interview.AnalysisResult
 import top.hsyscn.opedrgent.interview.NextAction
 import top.hsyscn.opedrgent.interview.MaterialEntry
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
 import org.json.JSONArray
@@ -262,6 +263,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveEditorMode(mode: String) = apiSettings.saveEditorMode(mode)
     fun getThemeMode(): String = apiSettings.getThemeMode()
     fun saveThemeMode(mode: String) = apiSettings.saveThemeMode(mode)
+
+    fun isDynamicColorEnabled(): Boolean = apiSettings.isDynamicColorEnabled()
+    fun saveDynamicColorEnabled(enabled: Boolean) = apiSettings.saveDynamicColorEnabled(enabled)
     fun getSelectedLocalModel(): String = apiSettings.getSelectedLocalModel()
     fun saveSelectedLocalModel(model: String) = apiSettings.saveSelectedLocalModel(model)
     private val localEngine by lazy { LocalLlmEngine.getInstance(app) }
@@ -467,6 +471,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** 清除点评状态，供 UI 层在展示后调用 */
     fun clearWarmFeedback() { _warmFeedbackState.value = null }
+
+    // ==================== 通用反馈消息（替代 ViewModel 内 Toast） ====================
+
+    private val _feedbackMessage = MutableStateFlow<String?>(null)
+    val feedbackMessage: StateFlow<String?> = _feedbackMessage.asStateFlow()
+
+    /** 清除反馈消息，供 UI 层在展示 Snackbar 后调用 */
+    fun consumeFeedback() { _feedbackMessage.value = null }
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
@@ -763,7 +775,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         hippocampus?.let { hip ->
             val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
                 .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
-            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+            val item = top.hsyscn.opedrgent.storage.IndexedItem(
                 id = "memory_${entry.id}",
                 sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
                 sourceId = entry.id,
@@ -773,7 +785,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
                 createdAt = entry.createdAt,
                 updatedAt = entry.updatedAt,
-            ))
+            )
+            viewModelScope.launch { hip.upsert(item) }
         }
         refreshMemories()
     }
@@ -784,7 +797,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         hippocampus?.let { hip ->
             val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
                 .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
-            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+            val item = top.hsyscn.opedrgent.storage.IndexedItem(
                 id = "memory_$id",
                 sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
                 sourceId = id,
@@ -794,7 +807,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis(),
-            ))
+            )
+            viewModelScope.launch { hip.upsert(item) }
         }
         refreshMemories()
     }
@@ -802,7 +816,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun deleteMemory(id: String) {
         memoryStore.delete(id)
         // 同步删除海马体索引
-        hippocampus?.deleteBySource(top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY, id)
+        hippocampus?.let { hip ->
+            viewModelScope.launch {
+                hip.deleteBySource(top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY, id)
+            }
+        }
         refreshMemories()
     }
 
@@ -1173,9 +1191,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val dataUrl = uriToBase64DataUrl(imageUri)
             if (dataUrl == null) {
                 DebugLog.w("sendUserMessageWithImage: 图片转换失败: $imageUri")
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(app, "图片加载失败", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                _feedbackMessage.value = "图片加载失败"
                 return@launch
             }
             pendingImage = dataUrl
@@ -1476,7 +1492,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             )
             withContext(Dispatchers.Main) {
                 val message = if (result.success) "已添加到知识库" else "添加到知识库失败: ${result.error}"
-                android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_SHORT).show()
+                _feedbackMessage.value = message
             }
         }
     }
@@ -1512,7 +1528,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     if (!summary.hasChanges) append(" (无变更)")
                 }
-                android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
+                _feedbackMessage.value = msg
             }
         }
     }
@@ -3709,7 +3725,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 // Index conversation into hippocampus
                 val session = store.getSession(sessionId)
                 if (session != null && session.messages.size >= 2) {
-                    hippocampus?.upsertConversation(session.id, session.title, accumulatedText)
+                    viewModelScope.launch {
+                        hippocampus?.upsertConversation(session.id, session.title, accumulatedText)
+                    }
                 }
 
                 if (compressed.needsCompression && !preCheck.isCritical) {
@@ -3787,7 +3805,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun getDebugDump(): String {
+    suspend fun getDebugDump(): String {
         val session = _state.value.current ?: return "（无当前会话）"
         val app = getApplication<Application>()
         val includeLoc = apiSettings.isLocationEnabled()
@@ -4563,7 +4581,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return when {
             // DeepSeek V4 系列（1M，含 Pro 和 Flash）
             m.contains("deepseek-v4") || m.contains("deepseek-r1") -> 1_000_000
-            top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(m) ->
+            top.hsyscn.opedrgent.network.LlmClient.isDeepSeek(m) ->
                 top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
             m.contains("deepseek-v3") -> 128_000
 
@@ -5626,7 +5644,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val phaseOrder = listOf(
                     top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION,
                     top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN,
-                    top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT,
+                    top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT,
                     top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE,
                 )
                 var currentPhaseIndex = 0
@@ -5653,7 +5671,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
                         top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
                         top.hsyscn.opedrgent.insight.SproutPhase.WEB_ENHANCE -> _sproutingState.value = SproutingState.PHASE2
-                        top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
+                        top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
                         top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
                     }
                 }
@@ -5816,7 +5834,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var interviewStartTime: Long = 0L
 
     /** 面试对话历史 */
-    private val interviewTranscript = mutableListOf<DialogueTurn>()
+    private val interviewTranscript: MutableList<DialogueTurn> = Collections.synchronizedList(mutableListOf())
 
     /** 当前问题索引 */
     private var currentQuestionIdx = 0
@@ -6046,13 +6064,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 // 恢复正常状态
-                _interviewState.value = InterviewUiState(
+                _interviewState.value = _interviewState.value.copy(
                     phase = InterviewPhase.IN_PROGRESS,
                     config = currentState.config,
                     messages = interviewTranscript.toList(),
                     questionCount = interviewTranscript.count { it.role == "interviewer" },
                     elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
-                    coachFeedback = _interviewState.value.coachFeedback,
                 )
 
             } catch (e: Exception) {
@@ -6102,15 +6119,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
                 report = report,
             )
-
-            // 停止语音引擎
-            voiceEngine?.stopConversation()
         } catch (e: Exception) {
             DebugLog.e("Interview", "生成报告失败: ${e.message}", e)
             _interviewState.value = _interviewState.value.copy(
                 phase = InterviewPhase.COMPLETED,
                 error = "报告生成失败: ${e.message}",
             )
+        } finally {
+            voiceEngine?.stopConversation()
         }
     }
 

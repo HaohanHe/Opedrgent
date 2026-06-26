@@ -1,9 +1,6 @@
 package top.hsyscn.opedrgent.ui.components
 
-import android.media.MediaPlayer
-import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,130 +11,37 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import top.hsyscn.opedrgent.R
-import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MessagePart
-import top.hsyscn.opedrgent.model.Role
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.BubbleBlueEnd
-import top.hsyscn.opedrgent.ui.theme.CitationBg
-import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-@Composable
-fun UserBubble(
-    text: String,
-    clipboard: ClipboardManager? = null,
-    onUndo: (() -> Unit)? = null,
-    audioClips: List<MessagePart.AudioClip> = emptyList(),
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        Column(horizontalAlignment = Alignment.End) {
-            // 音频卡片（用户发送的音频消息）
-            audioClips.forEach { audioClip ->
-                AudioClipPlayerCard(
-                    audioClip = audioClip,
-                    modifier = Modifier.width(280.dp),
-                )
-                Spacer(Modifier.height(6.dp))
-            }
-
-            Box(
-                modifier = Modifier
-                    .widthIn(max = 280.dp)  // 弹性宽度：内容自适应，最大 280dp
-                    .wrapContentWidth(Alignment.End),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Brush.horizontalGradient(listOf(BubbleBlue, BubbleBlueEnd)))
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = { showMenu = true },
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                ) {
-                    Text(
-                        text = text,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-                }
-
-                }
-
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-            ) {
-                if (clipboard != null) {
-                    DropdownMenuItem(
-                        text = { Text("复制") },
-                        onClick = {
-                            clipboard.setText(AnnotatedString(text))
-                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                            showMenu = false
-                        },
-                    )
-                }
-                if (onUndo != null) {
-                    DropdownMenuItem(
-                        text = { Text("撤回") },
-                        onClick = {
-                            onUndo()
-                            showMenu = false
-                        },
-                    )
-                }
-            }
-        } // end Column
-    } // end Row
-}
+/**
+ * 聊天相关共享组件与工具函数。
+ *
+ * 主气泡组件已拆分到独立文件：
+ * - [UserBubble]：用户消息气泡（右对齐，宽度自适应上限 75%）→ `UserBubble.kt`
+ * - [AIMessageCard]：AI 消息气泡（左对齐，含头像/名称头部，宽度上限 75%）→ `AiBubble.kt`
+ * - [MessageHeader]：头像 + 名称 + 时间戳头部 → `MessageHeader.kt`
+ *
+ * 本文件仅保留被上述气泡复用的音频卡片、引用来源等共享helper。
+ */
 
 @Composable
 fun AudioClipPlayerCard(
@@ -145,38 +49,38 @@ fun AudioClipPlayerCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
         modifier = modifier,
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
                 onClick = { },
                 modifier = Modifier
                     .size(44.dp)
-                    .background(AccentBlue, CircleShape),
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "play",
-                    tint = Color.White,
+                    contentDescription = "播放",
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(SpacingTokens.md))
             Column(modifier = Modifier.weight(1f)) {
                 LinearProgressIndicator(
                     progress = { 0f },
-                    color = AccentBlue,
-                    trackColor = AccentBlue.copy(alpha = 0.2f),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(SpacingTokens.xs))
                 Text(
                     text = chatFormatDuration(audioClip.durationMs),
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = themeTextGrey(),
                 )
             }
@@ -189,159 +93,6 @@ fun chatFormatDuration(ms: Long): String {
     return "${seconds}s"
 }
 
-@Composable
-fun AIMessageCard(
-    message: ChatMessage,
-    onSpeak: (() -> Unit)?,
-    isSpeaking: Boolean,
-    clipboard: ClipboardManager,
-    onUndo: (() -> Unit)? = null,
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    var userReaction by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { showMenu = true },
-                ),
-            shape = RoundedCornerShape(11.dp),
-            colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // 音频消息卡片（如果有）
-                if (message.hasAudio) {
-                    message.audioClips.forEach { audioClip ->
-                        AudioClipPlayerCard(audioClip = audioClip)
-                    }
-                }
-
-                if (message.reasoningParts.isNotEmpty()) {
-                    val reasoningText = message.reasoningParts.joinToString("\n") { it.text }
-                    MessageBodyThinking(
-                        thinkingText = reasoningText,
-                        isComplete = true,
-                    )
-                }
-
-                if (message.toolParts.isNotEmpty()) {
-                    ToolStatusGroup(toolParts = message.toolParts)
-                }
-
-                if (message.questionPart != null) {
-                    QuestionCard(
-                        question = message.questionPart!!,
-                        onAnswer = {},
-                        onDismiss = {},
-                        readonly = true,
-                    )
-                }
-
-                if (message.textContent.isNotBlank()) {
-                    // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
-                    MarkdownText(text = message.textContent, maxChars = Int.MAX_VALUE)
-                }
-
-                val sources = extractSources(message.textContent)
-                if (sources.isNotEmpty()) {
-                    SourceCitations(sources = sources)
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Card(
-                        shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            IconButton(onClick = {
-                                userReaction = "up"
-                                Toast.makeText(context, context.getString(R.string.msg_thanks_feedback), Toast.LENGTH_SHORT).show()
-                            }, modifier = Modifier.size(28.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .then(
-                                            if (userReaction == "up")
-                                                Modifier.background(AccentBlue.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                            else Modifier
-                                        ),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("\uD83D\uDC4D", fontSize = 14.sp)
-                                }
-                            }
-                            IconButton(onClick = {
-                                userReaction = "down"
-                                Toast.makeText(context, context.getString(R.string.msg_thanks_feedback), Toast.LENGTH_SHORT).show()
-                            }, modifier = Modifier.size(28.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .then(
-                                            if (userReaction == "down")
-                                                Modifier.background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                            else Modifier
-                                        ),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("\uD83D\uDC4E", fontSize = 14.sp)
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    clipboard.setText(AnnotatedString(message.textContent))
-                                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(28.dp),
-                            ) {
-                                Text("\uD83D\uDCCB", fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 长按菜单：复制 / 撤回
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("复制") },
-                onClick = {
-                    clipboard.setText(AnnotatedString(message.textContent))
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                    showMenu = false
-                },
-            )
-            if (onUndo != null) {
-                DropdownMenuItem(
-                    text = { Text("撤回") },
-                    onClick = {
-                        onUndo()
-                        showMenu = false
-                    },
-                )
-            }
-        }
-    }
-}
-
 fun extractSources(content: String): List<Pair<String, String>> {
     val pattern = Regex("""\[(\d+)\]\s*(https?://\S+)""")
     return pattern.findAll(content).map { it.groupValues[1] to it.groupValues[2] }.toList()
@@ -349,32 +100,31 @@ fun extractSources(content: String): List<Pair<String, String>> {
 
 @Composable
 fun SourceCitations(sources: List<Pair<String, String>>) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
         sources.forEach { (index, url) ->
             Card(
-                shape = RoundedCornerShape(3.dp),
+                shape = ShapeTokens.extraSmallShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(CitationBg),
+                    brush = SolidColor(MaterialTheme.customColors.citationBg),
                     width = 1.dp,
                 ),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
                 ) {
                     Box(
                         modifier = Modifier
-                            .background(CitationBg, RoundedCornerShape(3.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                            .background(MaterialTheme.customColors.citationBg, ShapeTokens.extraSmallShape)
+                            .padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                     ) {
-                        Text(index, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                        Text(index, style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary))
                     }
                     Text(
                         text = runCatching { java.net.URL(url).host }.getOrDefault(url.take(30)),
-                        fontSize = 12.sp,
-                        color = AccentBlue,
+                        style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary),
                     )
                 }
             }

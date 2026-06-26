@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.mcp.skills.SkillLoader
 import top.hsyscn.opedrgent.mcp.skills.SkillWebViewExecutor
 import top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.utils.DebugLog
 import org.json.JSONObject
 
@@ -174,17 +175,5 @@ class RunJsTool(
                 }
             } else false
         }
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(
-            toolPart = tp.copy(
-                state = tp.state.copy(
-                    status = ToolStateType.ERROR,
-                    error = msg,
-                    endTime = System.currentTimeMillis(),
-                ),
-            ),
-        )
     }
 }

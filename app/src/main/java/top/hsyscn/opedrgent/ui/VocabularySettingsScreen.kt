@@ -2,6 +2,15 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,9 +93,9 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 containerColor = BubbleBlue,
-                shape = RoundedCornerShape(16.dp),
+                shape = ShapeTokens.largeShape,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加术语", tint = androidx.compose.ui.graphics.Color.White)
+                Icon(Icons.Default.Add, contentDescription = "添加术语", tint = MaterialTheme.colorScheme.onPrimary)
             }
         },
         containerColor = themeBgGray(),
@@ -94,10 +103,10 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = SpacingTokens.lg)
                 .fillMaxSize(),
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             OutlinedTextField(
                 value = searchQuery,
@@ -105,11 +114,11 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 label = { Text("搜索术语") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标") },
+                shape = ShapeTokens.mediumShape,
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             if (displayTerms.isEmpty()) {
                 Box(
@@ -120,32 +129,32 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                         Text(
                             text = "暂无自定义术语，点击下方按钮添加",
                             color = themeTextGrey(),
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyLarge,
                         )
                     }
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                     contentPadding = PaddingValues(bottom = 80.dp),
                 ) {
                     items(displayTerms, key = { it }) { term ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = ShapeTokens.mediumShape,
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                             ),
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                                     .fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
                                     text = term,
-                                    fontSize = 15.sp,
+                                    style = MaterialTheme.typography.titleSmall,
                                     color = themeTextDark(),
                                     modifier = Modifier.weight(1f),
                                 )

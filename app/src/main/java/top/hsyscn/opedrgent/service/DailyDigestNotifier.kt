@@ -156,7 +156,7 @@ object DailyDigestNotifier {
      * 返回 Pair(天数前, 原文摘要)? 或 null（未找到匹配记录）。
      * 容差设为 +/- 1 天，处理闰年 2 月 29 日和时区偏移问题。
      */
-    private fun findAnniversary(index: HippocampusIndex): Pair<Int, String>? {
+    private suspend fun findAnniversary(index: HippocampusIndex): Pair<Int, String>? {
         val cal = Calendar.getInstance()
         val todayMonth = cal.get(Calendar.MONTH)
         val todayDay = cal.get(Calendar.DAY_OF_MONTH)

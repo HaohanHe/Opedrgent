@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +38,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBarBg
 
 @Composable
@@ -82,8 +84,8 @@ fun TextAndVoiceInput(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(themeBarBg(), RoundedCornerShape(16.dp))
-            .padding(8.dp)
+            .background(themeBarBg(), ShapeTokens.largeShape)
+            .padding(SpacingTokens.sm)
     ) {
         Row(
             verticalAlignment = Alignment.Bottom,
@@ -96,7 +98,7 @@ fun TextAndVoiceInput(
                     .weight(1f)
                     .heightIn(min = 48.dp, max = 120.dp),
                 placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                shape = RoundedCornerShape(24.dp),
+                shape = ShapeTokens.extraLargeShape,
                 maxLines = 5,
                 enabled = enabled
             )
@@ -112,8 +114,8 @@ fun TextAndVoiceInput(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .padding(4.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .padding(SpacingTokens.xs)
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                             .clickable(enabled = enabled && text.isNotBlank()) { if (text.isNotBlank()) onSend(text) },
                         contentAlignment = Alignment.Center,
@@ -130,7 +132,7 @@ fun TextAndVoiceInput(
                             onTextChange(result)
                         },
                         enabled = enabled && hasPermission,
-                        modifier = Modifier.padding(4.dp)
+                        modifier = Modifier.padding(SpacingTokens.xs)
                     )
                 }
             }

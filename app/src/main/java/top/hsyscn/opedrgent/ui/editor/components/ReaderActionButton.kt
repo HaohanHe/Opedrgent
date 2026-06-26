@@ -16,8 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * 阅读模式底部操作按钮组件
@@ -32,25 +32,25 @@ fun ReaderActionButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = AccentBlue.copy(alpha = 0.1f),
+            shape = ShapeTokens.mediumShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
         ) {
             Icon(
                 icon,
                 contentDescription = label,
-                tint = AccentBlue,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
-                    .padding(10.dp)
+                    .padding(SpacingTokens.md)
                     .size(22.dp),
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             label,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

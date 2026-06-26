@@ -137,20 +137,21 @@ class MemoryStore(context: Context) {
     }
 
     fun getMemoryBlock(): String {
-        val entries = list().filter { it.type != MemoryType.NOTE_SUMMARY }
-        if (entries.isEmpty()) return ""
-        return entries.joinToString(separator = "\n\n") { e ->
-            val typeLabel = e.type.label
-            if (e.title.isNotBlank()) {
-                "[$typeLabel|${e.title}] ${e.content}"
-            } else {
-                "[$typeLabel] ${e.content}"
+        return synchronized(lock) {
+            val entries = list().filter { it.type != MemoryType.NOTE_SUMMARY }
+            if (entries.isEmpty()) "" else entries.joinToString(separator = "\n\n") { e ->
+                val typeLabel = e.type.label
+                if (e.title.isNotBlank()) {
+                    "[$typeLabel|${e.title}] ${e.content}"
+                } else {
+                    "[$typeLabel] ${e.content}"
+                }
             }
         }
     }
 
     fun getByType(type: MemoryType): List<MemoryEntry> {
-        return list().filter { it.type == type }
+        return synchronized(lock) { list().filter { it.type == type } }
     }
 
     // ==================== 笔记记忆方法 ====================
@@ -179,11 +180,11 @@ class MemoryStore(context: Context) {
 
     /** 删除指定笔记的记忆 */
     fun removeNoteMemory(noteId: Long) {
-        delete("note_$noteId")
+        synchronized(lock) { delete("note_$noteId") }
     }
 
     /** 获取所有笔记记忆 */
     fun getNoteMemories(): List<MemoryEntry> {
-        return list().filter { it.type == MemoryType.NOTE_SUMMARY }
+        return synchronized(lock) { list().filter { it.type == MemoryType.NOTE_SUMMARY } }
     }
 }

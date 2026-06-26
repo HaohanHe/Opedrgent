@@ -621,7 +621,7 @@ object AudioProcessor {
                     DataOutputStream(bos).use { dos ->
                         dos.writeInt(WAV_RIFF_HEADER)
                         dos.writeInt(fileSize)
-                        dos.writeInt(0x57414645)
+                        dos.writeInt(0x57415645)
                         dos.writeInt(0x20746D66)
                         dos.writeInt(16)
                         dos.writeShort(WAVE_FORMAT_PCM)

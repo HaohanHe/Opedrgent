@@ -136,16 +136,9 @@ abstract class BaseAgentFeature(
  * Feature Pipeline — 管理和执行 Feature 链。
  */
 class FeaturePipeline {
-    private val features = sortedSetOf<AgentFeature>(compareByDescending { it.priority })
+    private val features = mutableListOf<AgentFeature>()
     private val mutex = Mutex()
     private var isExecuting = false
-
-    companion object {
-        /** 创建预配置的标准 Pipeline（预装核心 Feature 链） */
-        fun standard(): FeaturePipeline {
-            return FeaturePipeline()
-        }
-    }
 
     // ==================== 注册 API ====================
 
@@ -168,15 +161,19 @@ class FeaturePipeline {
     /**
      * 启用/禁用 Feature。
      */
-    fun setEnabled(name: String, enabled: Boolean) {
+    suspend fun setEnabled(name: String, enabled: Boolean) = mutex.withLock {
         features.find { it.name == name }?.enabled = enabled
     }
 
     /** 获取已安装的 Features */
-    fun getFeatures(): List<AgentFeature> = features.toList()
+    suspend fun getFeatures(): List<AgentFeature> = mutex.withLock {
+        features.toList()
+    }
 
     /** 获取启用的 Features */
-    fun getEnabledFeatures(): List<AgentFeature> = features.filter { it.enabled }
+    suspend fun getEnabledFeatures(): List<AgentFeature> = mutex.withLock {
+        features.filter { it.enabled }
+    }
 
     // ==================== 执行 API ====================
 

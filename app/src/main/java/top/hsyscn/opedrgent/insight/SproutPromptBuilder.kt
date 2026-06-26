@@ -794,7 +794,7 @@ $previousContext
     }
 
     /**
-     * Phase 3: Aha 洞察生成（兼容旧接口）
+     * Phase 3: 震惊瞬间洞察生成（兼容旧接口）
      *
      * 新代码应使用 [buildInsightVoicePrompt]
      */
@@ -812,9 +812,9 @@ $seedsAndConnections
 $previousContext
 
 ## 任务
-基于以上所有信息，生成 **1-2 条原创的 Aha 洞察**。
+基于以上所有信息，生成 **1-2 条原创的震惊瞬间洞察**。
 
-## Aha 洞察的标准
+## 震惊瞬间洞察的标准
 - **简洁有力**：像金句一样可以独立传播（不超过 30 字）
 - **反直觉**：挑战常识，打破固有认知
 - **启发性**：引发读者重新思考
@@ -921,7 +921,7 @@ $allPreviousContext$domainHint## 任务
 
         sb.appendLine("---")
         sb.appendLine()
-        sb.appendLine("**Aha 瞬间**")
+        sb.appendLine("**震惊瞬间**")
         sb.appendLine()
         result.insights.forEachIndexed { index, insight ->
             sb.appendLine("> ${insight.content}")

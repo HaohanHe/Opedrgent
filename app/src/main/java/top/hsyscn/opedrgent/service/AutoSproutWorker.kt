@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.service
 
+import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteException
 import androidx.work.Constraints
@@ -148,6 +149,15 @@ class AutoSproutWorker(
                                 wordCount = markdownReport.length,
                             )
                         )
+                        note.setSproutArticle(article)
+                        val cv = ContentValues().apply {
+                            put(NoteDatabase.COL_SPROUT_REPORT_JSON, note.sproutReportJson)
+                            put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
+                        }
+                        NoteDatabase.getInstance(appContext).writableDatabase.update(
+                            NoteDatabase.TABLE_NOTES, cv,
+                            "${NoteDatabase.COL_ID} = ?", arrayOf(note.id.toString()),
+                        )
                         successCount++
                         DebugLog.i(TAG, "笔记 #${note.id} 发芽成功: ${article.summary.take(40)}...")
                     },
@@ -271,7 +281,7 @@ private fun SproutArticle.toMarkdown(): String = buildString {
         appendLine()
         appendLine(article.body)
         appendLine()
-        appendLine("**${article.ahaMoment}**")
+        appendLine("**${article.shockingMoment}**")
         appendLine()
     }
     if (actionItems.isNotEmpty()) {
