@@ -87,30 +87,48 @@ class ModelDownloadManager(private val context: Context) {
 
             runCatching {
                 var lastError: Throwable? = null
-                repeat(MAX_DOWNLOAD_RETRIES) { attempt ->
-                    if (attempt > 0) {
-                        DebugLog.w("ModelDownloadManager", "Retrying download ${modelInfo.id} (attempt ${attempt + 1}/$MAX_DOWNLOAD_RETRIES)")
+                val urls = listOfNotNull(modelInfo.downloadUrl, modelInfo.fallbackUrl)
+
+                for ((urlIndex, downloadUrl) in urls.withIndex()) {
+                    if (urlIndex > 0) {
+                        DebugLog.w("ModelDownloadManager", "Switching to fallback URL for ${modelInfo.id}")
                         emitProgress(flow, modelInfo.id, DownloadProgress(
                             modelId = modelInfo.id,
                             status = DownloadStatus.DOWNLOADING,
-                            error = "网络波动，正在重试 (${attempt + 1}/$MAX_DOWNLOAD_RETRIES)"
+                            error = "主源失败，正在切换备用源..."
                         ))
-                        delay((attempt * 2000L).coerceAtMost(5000L))
+                        // 切换源时清除之前的临时文件，避免断点续传范围不一致
+                        val tempFile = File(modelDir, "${modelInfo.fileName}.tmp")
+                        if (tempFile.exists()) tempFile.delete()
+                        delay(1000)
                     }
 
-                    runCatching {
-                        doDownload(modelInfo, flow)
-                        return@launch
-                    }.onFailure { e ->
-                        lastError = e
-                        if (e is CancellationException) {
-                            throw e
+                    repeat(MAX_DOWNLOAD_RETRIES) { attempt ->
+                        if (attempt > 0) {
+                            DebugLog.w("ModelDownloadManager", "Retrying download ${modelInfo.id} (attempt ${attempt + 1}/$MAX_DOWNLOAD_RETRIES)")
+                            emitProgress(flow, modelInfo.id, DownloadProgress(
+                                modelId = modelInfo.id,
+                                status = DownloadStatus.DOWNLOADING,
+                                error = "网络波动，正在重试 (${attempt + 1}/$MAX_DOWNLOAD_RETRIES)"
+                            ))
+                            delay((attempt * 2000L).coerceAtMost(5000L))
                         }
-                        if (e is IOException || e is SocketTimeoutException) {
-                            DebugLog.w("ModelDownloadManager", "Download attempt ${attempt + 1} failed for ${modelInfo.id}: ${e.message}")
-                        } else {
-                            // 非网络类错误（如 HTTP 4xx、文件校验失败）不重试
-                            throw e
+
+                        runCatching {
+                            doDownload(modelInfo, downloadUrl, flow)
+                            return@launch
+                        }.onFailure { e ->
+                            lastError = e
+                            if (e is CancellationException) {
+                                throw e
+                            }
+                            if (e is IOException || e is SocketTimeoutException) {
+                                DebugLog.w("ModelDownloadManager", "Download attempt ${attempt + 1} failed for ${modelInfo.id} from ${downloadUrl}: ${e.message}")
+                            } else {
+                                // 非网络类错误（如 HTTP 4xx、文件校验失败）不重试当前源，尝试下一个源
+                                DebugLog.w("ModelDownloadManager", "Non-network error for ${modelInfo.id} from ${downloadUrl}: ${e.message}")
+                                return@repeat
+                            }
                         }
                     }
                 }
@@ -194,7 +212,7 @@ class ModelDownloadManager(private val context: Context) {
         scope.cancel()
     }
 
-    private suspend fun doDownload(modelInfo: LocalModelInfo, flow: MutableSharedFlow<DownloadProgress>) {
+    private suspend fun doDownload(modelInfo: LocalModelInfo, downloadUrl: String, flow: MutableSharedFlow<DownloadProgress>) {
         ModelDownloadService.start(context, modelInfo.displayName)
 
         val outputFile = File(modelDir, modelInfo.fileName)
@@ -222,7 +240,7 @@ class ModelDownloadManager(private val context: Context) {
             ))
 
         val request = Request.Builder()
-            .url(modelInfo.downloadUrl)
+            .url(downloadUrl)
             .apply {
                 if (existingLength > 0) addHeader("Range", "bytes=$existingLength-")
             }
