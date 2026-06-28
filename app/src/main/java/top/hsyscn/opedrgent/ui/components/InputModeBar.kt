@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubble
@@ -21,18 +20,17 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
 enum class InputMode(val label: String, val icon: ImageVector) {
@@ -55,35 +53,34 @@ fun SearchScopeChips(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.padding(horizontal = 4.dp),
+        modifier = modifier.padding(horizontal = SpacingTokens.xs),
     ) {
         SearchScope.entries.forEach { scope ->
             val isSelected = scope == currentScope
             val bgColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue.copy(alpha = 0.12f) else Color.Transparent,
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "bg",
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue else themeTextGrey(),
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary else themeTextGrey(),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "content",
             )
 
             Surface(
                 onClick = { onScopeChange(scope) },
-                shape = RoundedCornerShape(20.dp),
+                shape = ShapeTokens.largeShape,
                 color = bgColor,
                 modifier = Modifier,
             ) {
                 Text(
                     text = scope.label,
                     color = contentColor,
-                    fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                 )
             }
         }
@@ -97,45 +94,44 @@ fun InputModeBar(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.padding(horizontal = 4.dp),
+        modifier = modifier.padding(horizontal = SpacingTokens.xs),
     ) {
         InputMode.entries.forEach { mode ->
             val isSelected = mode == currentMode
             val bgColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue.copy(alpha = 0.12f) else Color.Transparent,
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "bg",
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) AccentBlue else themeTextGrey(),
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary else themeTextGrey(),
                 animationSpec = tween(200, easing = LinearEasing),
                 label = "content",
             )
 
             Surface(
                 onClick = { onModeChange(mode) },
-                shape = RoundedCornerShape(20.dp),
+                shape = ShapeTokens.largeShape,
                 color = bgColor,
                 modifier = Modifier,
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                 ) {
                     Icon(
                         imageVector = mode.icon,
                         contentDescription = mode.label,
                         tint = contentColor,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(SpacingTokens.lg),
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(SpacingTokens.xs))
                     Text(
                         text = mode.label,
                         color = contentColor,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        style = MaterialTheme.typography.labelMedium,
                     )
                 }
             }

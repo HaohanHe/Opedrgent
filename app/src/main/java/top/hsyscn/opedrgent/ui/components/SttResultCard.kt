@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -51,12 +50,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.stt.SttSegment
+import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun SttResultCard(
@@ -79,18 +81,18 @@ fun SttResultCard(
         ) + fadeIn(),
     ) {
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             modifier = modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = "语音转录结果卡片" }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                 ResultTitleBar(isSuccess = isSuccess, onDismiss = onDismiss)
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
 
                 if (error != null) {
                     ErrorContent(error = error)
@@ -98,11 +100,11 @@ fun SttResultCard(
                     SuccessContent(result = result)
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
 
                 ActionButtons(
                     isSuccess = isSuccess,
@@ -125,13 +127,12 @@ private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
                 MaterialTheme.colorScheme.primary
             else
                 MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(SpacingTokens.xl),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(SpacingTokens.md))
         Text(
             text = if (isSuccess) "转录结果" else "转录失败",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.weight(1f))
@@ -143,7 +144,7 @@ private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = null,
+                contentDescription = "关闭",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -157,11 +158,11 @@ private fun ErrorContent(error: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Default.Error,
-                contentDescription = null,
+                contentDescription = "错误",
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text(
                 text = error,
                 style = MaterialTheme.typography.bodyMedium,
@@ -170,7 +171,7 @@ private fun ErrorContent(error: String) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             text = "可能原因：文件格式不支持、文件损坏或音频内容为空",
             style = MaterialTheme.typography.labelSmall,
@@ -198,7 +199,7 @@ private fun SuccessContent(result: SttResult) {
                 .semantics { contentDescription = "转录文本，共 ${charCount} 个字" },
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
 
         Text(
             text = "$charCount 字",
@@ -207,7 +208,7 @@ private fun SuccessContent(result: SttResult) {
             modifier = Modifier.align(Alignment.End),
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
 
         StatsBar(
             result = result,
@@ -246,17 +247,17 @@ private fun StatsBar(
     }
 
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = ShapeTokens.smallShape,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
         onClick = onToggleExpand,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(ShapeTokens.smallShape)
             .semantics { contentDescription = "统计信息：$statsText。${if (expanded) "已展开" else "点击展开详情"}" },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
         ) {
             Text(
                 text = statsText,
@@ -281,12 +282,12 @@ private fun SegmentList(segments: List<SttSegment>) {
     if (segments.isEmpty()) return
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
+        modifier = Modifier.padding(top = SpacingTokens.sm).fillMaxWidth(),
     ) {
         segments.forEachIndexed { index, segment ->
             Surface(
-                shape = RoundedCornerShape(6.dp),
+                shape = ShapeTokens.smallShape,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,13 +295,12 @@ private fun SegmentList(segments: List<SttSegment>) {
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                 ) {
                     Text(
                         text = "${segment.startTimeMs / 1000}s - ${segment.endTimeMs / 1000}s",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.width(90.dp),
                     )
                     Text(
@@ -336,7 +336,7 @@ private fun ActionButtons(
     var copyFeedbackShown by remember { mutableStateOf(false) }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedButton(
@@ -347,7 +347,7 @@ private fun ActionButtons(
                 }
             },
             enabled = isSuccess && !isLoading.value,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
@@ -356,20 +356,20 @@ private fun ActionButtons(
             if (copyFeedbackShown) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
+                    contentDescription = "复制完成",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
-                Text("已复制", fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(SpacingTokens.xs))
+                Text("已复制", style = MaterialTheme.typography.labelLarge)
             } else {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = null,
+                    contentDescription = "复制",
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
-                Text("复制", fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(SpacingTokens.xs))
+                Text("复制", style = MaterialTheme.typography.labelLarge)
             }
         }
 
@@ -381,7 +381,7 @@ private fun ActionButtons(
                 }
             },
             enabled = isSuccess && !isLoading.value,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier
                 .weight(1f)
@@ -390,11 +390,69 @@ private fun ActionButtons(
         ) {
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
+                contentDescription = "发送给 AI",
                 modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(6.dp))
-            Text("发送给 AI 分析", fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(SpacingTokens.xs))
+            Text("发送给 AI 分析", style = MaterialTheme.typography.labelLarge)
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Light")
+@Composable
+private fun SttResultCardPreview() {
+    OpedrgentTheme(darkTheme = false) {
+        val sampleResult = SttResult(
+            text = "你好，这是一段语音转录的样例文本。",
+            confidence = 0.92f,
+            segments = listOf(
+                SttSegment(
+                    text = "你好，这是一段语音转录的样例文本。",
+                    startTimeMs = 0,
+                    endTimeMs = 3500,
+                    confidence = 0.92f,
+                ),
+            ),
+            durationMs = 3500,
+            processingTimeMs = 128,
+            modelUsed = "zipformer",
+        )
+        SttResultCard(
+            result = sampleResult,
+            error = null,
+            onCopy = {},
+            onSendToLlm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, name = "Dark")
+@Composable
+private fun SttResultCardDarkPreview() {
+    OpedrgentTheme(darkTheme = true) {
+        val sampleResult = SttResult(
+            text = "你好，这是一段语音转录的样例文本。",
+            confidence = 0.92f,
+            segments = listOf(
+                SttSegment(
+                    text = "你好，这是一段语音转录的样例文本。",
+                    startTimeMs = 0,
+                    endTimeMs = 3500,
+                    confidence = 0.92f,
+                ),
+            ),
+            durationMs = 3500,
+            processingTimeMs = 128,
+            modelUsed = "zipformer",
+        )
+        SttResultCard(
+            result = sampleResult,
+            error = null,
+            onCopy = {},
+            onSendToLlm = {},
+            onDismiss = {},
+        )
     }
 }

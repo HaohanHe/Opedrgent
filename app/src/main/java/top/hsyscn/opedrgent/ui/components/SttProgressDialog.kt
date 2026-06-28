@@ -50,17 +50,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.SttProgressState
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun SttProgressDialog(
@@ -81,13 +81,13 @@ fun SttProgressDialog(
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
             shadowElevation = 8.dp,
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(32.dp).width(300.dp),
+                modifier = Modifier.padding(SpacingTokens.xxl).width(300.dp),
             ) {
                 AnimatedContent(
                     targetState = progressState,
@@ -105,7 +105,7 @@ fun SttProgressDialog(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(SpacingTokens.xl))
 
                 TextButton(
                     onClick = onCancel,
@@ -125,7 +125,7 @@ fun SttProgressDialog(
                             SttProgressState.ERROR -> "关闭"
                             else -> stringResource(R.string.action_cancel)
                         },
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge,
                     )
                 }
             }
@@ -159,12 +159,12 @@ private fun DownloadingPhase(downloadProgress: Float) {
 
     Icon(
         imageVector = Icons.Default.CloudDownload,
-        contentDescription = "下载模型图标",
+        contentDescription = "下载模型",
         tint = MaterialTheme.colorScheme.primary.copy(alpha = cloudAlpha),
         modifier = Modifier.size(56.dp),
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(SpacingTokens.lg))
 
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
         CircularProgressIndicator(
@@ -177,21 +177,19 @@ private fun DownloadingPhase(downloadProgress: Float) {
         Text(
             text = "${(animatedProgress * 100).toInt()}%",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
     }
 
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(SpacingTokens.md))
 
     Text(
         text = "正在下载语音识别模型... (${(animatedProgress * 100).toInt()}%)",
         style = MaterialTheme.typography.bodyLarge,
-        fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.onSurface,
     )
 
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(SpacingTokens.xs))
 
     Text(
         text = "模型大小约 200MB，首次使用需下载",
@@ -212,12 +210,12 @@ private fun ExtractingPhase() {
 
     Icon(
         imageVector = Icons.Default.GraphicEq,
-        contentDescription = "音频提取图标",
+        contentDescription = "提取音频",
         tint = MaterialTheme.colorScheme.secondary,
         modifier = Modifier.size(48.dp),
     )
 
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(SpacingTokens.xl))
 
     CircularProgressIndicator(
         modifier = Modifier.size(52.dp),
@@ -226,16 +224,15 @@ private fun ExtractingPhase() {
         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(SpacingTokens.lg))
 
     Text(
         text = "正在提取音频轨道...",
         style = MaterialTheme.typography.bodyLarge,
-        fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.onSurface,
     )
 
-    Spacer(Modifier.height(6.dp))
+    Spacer(Modifier.height(SpacingTokens.sm))
 
     AudioWaveformIndicator(waveOffset = waveOffset)
 }
@@ -255,12 +252,12 @@ private fun RecognizingPhase(currentPhase: String?) {
 
     Icon(
         imageVector = Icons.Default.Mic,
-        contentDescription = "语音识别图标",
+        contentDescription = "语音识别",
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size((48 * micScale).dp),
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(SpacingTokens.lg))
 
     if (currentPhase != null) {
         Text(
@@ -268,21 +265,20 @@ private fun RecognizingPhase(currentPhase: String?) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
     }
 
     LinearProgressIndicator(
-        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+        modifier = Modifier.fillMaxWidth().height(6.dp).clip(ShapeTokens.smallShape),
         color = MaterialTheme.colorScheme.primary,
         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
 
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(SpacingTokens.md))
 
     Text(
         text = "正在进行语音识别...",
         style = MaterialTheme.typography.bodyLarge,
-        fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.onSurface,
     )
 }
@@ -293,21 +289,20 @@ private fun ErrorPhase(onRetry: () -> Unit) {
 
     Icon(
         imageVector = Icons.Default.Error,
-        contentDescription = "错误图标",
+        contentDescription = "错误",
         tint = MaterialTheme.colorScheme.error,
         modifier = Modifier.size(48.dp),
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(SpacingTokens.lg))
 
     Text(
         text = "处理过程中出现错误",
-        style = MaterialTheme.typography.bodyLarge,
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.error,
     )
 
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(SpacingTokens.xs))
 
     Text(
         text = "请检查文件格式或网络连接后重试",
@@ -315,15 +310,15 @@ private fun ErrorPhase(onRetry: () -> Unit) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(SpacingTokens.lg))
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
         Button(
             onClick = onRetry,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {
-            Text("重试", fontWeight = FontWeight.Medium)
+            Text("重试", style = MaterialTheme.typography.labelLarge)
         }
         TextButton(onClick = { showHelpDialog = true }) {
             Text("查看帮助", color = MaterialTheme.colorScheme.onSurfaceVariant)

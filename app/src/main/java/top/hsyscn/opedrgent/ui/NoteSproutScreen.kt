@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Environment
-import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -13,7 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -26,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -47,12 +46,10 @@ import top.hsyscn.opedrgent.note.SproutService
 import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.AccentOrange
-import top.hsyscn.opedrgent.ui.theme.DisabledColor
-import top.hsyscn.opedrgent.ui.theme.SuccessGreen
-import top.hsyscn.opedrgent.ui.theme.TextPrimary
-import top.hsyscn.opedrgent.ui.theme.TextSecondary
+import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 import top.hsyscn.opedrgent.ui.theme.themeSproutBackground
 import top.hsyscn.opedrgent.ui.theme.themeSproutChipBg
@@ -82,6 +79,7 @@ fun NoteSproutScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+    val feedback = LocalFeedbackController.current
 
     var article by remember { mutableStateOf(note.getSproutArticle()) }
     var isGenerating by remember { mutableStateOf(false) }
@@ -153,13 +151,13 @@ fun NoteSproutScreen(
                                         onFailure = { e -> errorMessage = e },
                                         onDone = {})
                                 },
-                                leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                                leadingIcon = { Icon(Icons.Default.Refresh, "重新发芽") },
                                 enabled = !isGenerating,
                             )
                             DropdownMenuItem(
                                 text = { Text("编辑笔记") },
                                 onClick = { showMenu = false; onEditNote() },
-                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                leadingIcon = { Icon(Icons.Default.Edit, "编辑笔记") },
                             )
                             DropdownMenuItem(
                                 text = { Text("复制报告") },
@@ -170,16 +168,16 @@ fun NoteSproutScreen(
                                         clipboardManager.setText(AnnotatedString(reportText))
                                     }
                                 },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, "复制报告") },
                                 enabled = article != null,
                             )
                             DropdownMenuItem(
                                 text = { Text("添加标签") },
                                 onClick = {
-                                    Toast.makeText(context, context.getString(R.string.msg_feature_under_development), Toast.LENGTH_SHORT).show()
+                                    feedback.showFeedback(context.getString(R.string.msg_feature_under_development))
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.Default.Label, null) },
+                                leadingIcon = { Icon(Icons.Default.Label, "添加标签") },
                             )
                             DropdownMenuItem(
                                 text = { Text("复制全文") },
@@ -187,10 +185,10 @@ fun NoteSproutScreen(
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     val text = article?.toMarkdownText() ?: ""
                                     ClipData.newPlainText("发芽报告", text).let { clipboard.setPrimaryClip(it) }
-                                    Toast.makeText(context, context.getString(R.string.msg_copied_to_clipboard), Toast.LENGTH_SHORT).show()
+                                    feedback.showFeedback(context.getString(R.string.msg_copied_to_clipboard))
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, "复制全文") },
                             )
                             DropdownMenuItem(
                                 text = { Text("导出 Markdown") },
@@ -199,10 +197,10 @@ fun NoteSproutScreen(
                                     val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
                                     val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                                     File(dir, fileName).writeText(text)
-                                    Toast.makeText(context, "已导出到下载目录", Toast.LENGTH_SHORT).show()
+                                    feedback.showFeedback("已导出到下载目录")
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.Default.FileDownload, null) },
+                                leadingIcon = { Icon(Icons.Default.FileDownload, "导出 Markdown") },
                             )
                         }
                     }
@@ -267,13 +265,14 @@ private fun SproutArticleContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val feedback = LocalFeedbackController.current
     val dateFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = SpacingTokens.xl),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         ReportHeader(dateFormat.format(Date(article.generatedAt)), article.modelUsed)
 
         if (article.summary.isNotEmpty()) {
@@ -293,15 +292,15 @@ private fun SproutArticleContent(
         }
 
         AnimatedVisibility(visible = isRefreshing) {
-            LinearProgressIndicator(Modifier.fillMaxWidth(), color = SuccessGreen)
+            LinearProgressIndicator(Modifier.fillMaxWidth(), color = MaterialTheme.customColors.successGreen)
         }
 
         // 底部操作栏：仅在发芽报告存在时显示
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.sm))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md, Alignment.End),
         ) {
             // 追加笔记
             FilledTonalButton(
@@ -311,12 +310,12 @@ private fun SproutArticleContent(
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
                             repository.quickCreate(reportText)
                         }
-                        Toast.makeText(context, "已追加为新笔记", Toast.LENGTH_SHORT).show()
+                        feedback.showFeedback("已追加为新笔记")
                     }
                 },
             ) {
-                Icon(Icons.Default.NoteAdd, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.NoteAdd, "追加笔记", Modifier.size(16.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text("追加笔记")
             }
 
@@ -332,8 +331,8 @@ private fun SproutArticleContent(
                     context.startActivity(Intent.createChooser(intent, "分享"))
                 },
             ) {
-                Icon(Icons.Default.Share, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.Share, "分享", Modifier.size(16.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text("分享")
             }
 
@@ -344,8 +343,8 @@ private fun SproutArticleContent(
                     onResprout(seedContent)
                 },
             ) {
-                Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.AutoAwesome, "再发芽", Modifier.size(16.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text("再发芽")
             }
         }
@@ -364,8 +363,8 @@ private fun ReportHeader(dateStr: String, modelName: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
-            shape = RoundedCornerShape(4.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, TextPrimary),
+            shape = ShapeTokens.extraSmallShape,
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface),
             color = Color.Transparent,
         ) {
             Text(
@@ -375,12 +374,12 @@ private fun ReportHeader(dateStr: String, modelName: String) {
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 4.sp,
                 ),
-                color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Description, null, tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.Description, "日期", tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
             Text(dateStr, style = MaterialTheme.typography.labelSmall, color = themeSproutMetaText())
         }
     }
@@ -394,10 +393,10 @@ private fun SummaryBlock(summary: String) {
         Modifier
             .fillMaxWidth()
             .background(Brush.linearGradient(listOf(themeSproutSummaryStart(), themeSproutSummaryEnd())))
-            .padding(18.dp),
+            .padding(SpacingTokens.lg + SpacingTokens.xs),
     ) {
         Text(summary, style = MaterialTheme.typography.bodyLarge.copy(
-            color = Color.White, fontWeight = FontWeight.Medium, lineHeight = 24.sp,
+            color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, lineHeight = 24.sp,
         ))
     }
 }
@@ -407,34 +406,33 @@ private fun SummaryBlock(summary: String) {
 @Composable
 private fun ArticleCard(section: ArticleSection, index: Int) {
     Card(
-        shape = RoundedCornerShape(0.dp),
+        shape = RectangleShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(bottom = 16.dp)) {
+        Column(Modifier.padding(bottom = SpacingTokens.lg)) {
             Text(
                 text = section.title.ifEmpty { "${String.format("%02d", index + 1)}. 未命名洞察" },
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
                 ),
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(SpacingTokens.lg))
 
             if (section.seed.isNotEmpty()) {
                 SeedBlock(seed = section.seed)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(SpacingTokens.lg))
             }
 
             MarkdownText(text = section.body, maxChars = 2000)
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(SpacingTokens.lg))
 
-            if (section.ahaMoment.isNotEmpty()) {
-                AhaBlock(moment = section.ahaMoment, importance = section.importance)
+            if (section.shockingMoment.isNotEmpty()) {
+                ShockingBlock(moment = section.shockingMoment, importance = section.importance)
             }
 
             HorizontalDivider(color = themeSproutDivider(), thickness = 1.dp)
@@ -446,8 +444,8 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
 
 @Composable
 private fun SeedBlock(seed: String) {
-    Row(Modifier.padding(start = 4.dp)) {
-        Text(text = "  ", fontSize = 14.sp)
+    Row(Modifier.padding(start = SpacingTokens.xs)) {
+        Text(text = "  ", style = MaterialTheme.typography.bodyMedium)
         Text(
             text = seed,
             style = MaterialTheme.typography.bodyMedium,
@@ -464,7 +462,7 @@ private fun SeedBlock(seed: String) {
 @Composable
 private fun ArticleBody(body: String) {
     val lines = body.lines().filter { it.isNotBlank() }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
         lines.forEach { line ->
             when {
                 line.startsWith("> ") -> QuoteBlock(line.removePrefix("> "))
@@ -478,39 +476,39 @@ private fun ArticleBody(body: String) {
 
 @Composable
 private fun PlainText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp, color = TextPrimary))
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp, color = MaterialTheme.colorScheme.onSurface))
 }
 
 @Composable
 private fun BoldText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 26.sp, color = TextPrimary))
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 26.sp, color = MaterialTheme.colorScheme.onSurface))
 }
 
 @Composable
 private fun QuoteBlock(text: String) {
     Box(Modifier.fillMaxWidth().background(themeSproutQuoteBg()).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary, lineHeight = 22.sp))
+        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 22.sp))
     }
 }
 
-// ==================== Aha 瞬间块 ====================
+// ==================== 震惊瞬间块 ====================
 
 @Composable
-private fun AhaBlock(moment: String, importance: Int) {
-    Row(Modifier.padding(start = 4.dp)) {
-        Text(text = "  ", fontSize = 15.sp)
+private fun ShockingBlock(moment: String, importance: Int) {
+    Row(Modifier.padding(start = SpacingTokens.xs)) {
+        Text(text = "  ", style = MaterialTheme.typography.bodyLarge)
         Column(Modifier.weight(1f)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(importance) { Text("●", color = AccentOrange, fontSize = 10.sp) }
+            Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xxs)) {
+                repeat(importance) { Text("●", color = MaterialTheme.customColors.accentOrange, style = MaterialTheme.typography.labelSmall) }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(SpacingTokens.xs))
             val displayText = "\"$moment\""
             Text(
                 text = displayText,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Medium,
                     lineHeight = 24.sp,
-                    color = AccentOrange,
+                    color = MaterialTheme.customColors.accentOrange,
                     textDecoration = TextDecoration.Underline,
                 ),
             )
@@ -526,23 +524,24 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
 
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("行动建议", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = AccentBlue)
+            Text("行动建议", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+            if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentBlue)
         }
         if (items.isNotEmpty()) {
-            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = 8.dp), color = SuccessGreen, trackColor = themeDividerColor())
+            LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = SpacingTokens.sm), color = MaterialTheme.customColors.successGreen, trackColor = themeDividerColor())
         }
         items.forEachIndexed { idx, item ->
             val done = idx in completed
             Row(
-                Modifier.fillMaxWidth().clickable { onToggle(idx) }.padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().clickable { onToggle(idx) }.padding(vertical = SpacingTokens.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
-                    tint = if (done) SuccessGreen else DisabledColor)
+                Icon(if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = if (done) "已完成" else "未完成",
+                    tint = if (done) MaterialTheme.customColors.successGreen else MaterialTheme.colorScheme.outline)
                 Text(item, style = MaterialTheme.typography.bodyMedium,
-                    color = if (done) TextSecondary else TextPrimary,
+                    color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     textDecoration = if (done) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f))
             }
@@ -555,8 +554,8 @@ private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (I
 @Composable
 private fun ConceptsSection(concepts: List<String>) {
     Column {
-        Text("相关概念", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(10.dp))
+        Text("相关概念", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+        Spacer(Modifier.height(SpacingTokens.sm))
         // 简化：用 Column + Row 模拟流式布局，避免自定义 Layout 的复杂度
         var rowContent by remember { mutableStateOf(listOf<String>()) }
         var rows by remember { mutableStateOf(mutableListOf<List<String>>()) }
@@ -566,7 +565,7 @@ private fun ConceptsSection(concepts: List<String>) {
             rowContent = newRow
         }
         // 直接用简单的 Wrap 样式展示
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.wrapContentHeight()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.wrapContentHeight()) {
             concepts.forEach {
                 SuggestionChip(onClick = {}, label = { Text(it) },
                     colors = SuggestionChipDefaults.suggestionChipColors(containerColor = themeSproutChipBg()))
@@ -583,10 +582,10 @@ private fun SproutLoadingView() {
         val infiniteTransition = rememberInfiniteTransition(label = "sprout")
         val scale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.25f,
             animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s")
-        Box(Modifier.size(80.dp).scale(scale).background(SuccessGreen.copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
-            Text("*", fontSize = 40.sp)
+        Box(Modifier.size(80.dp).scale(scale).background(MaterialTheme.customColors.successGreen.copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
+            Text("*", style = MaterialTheme.typography.displayLarge)
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Text("正在发芽...", style = MaterialTheme.typography.titleMedium)
         Text("AI 正在深度分析你的笔记", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -595,20 +594,20 @@ private fun SproutLoadingView() {
 @Composable
 private fun SproutErrorView(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Default.ErrorOutline, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
-        Spacer(Modifier.height(16.dp)); Text("发芽失败", style = MaterialTheme.typography.titleMedium)
-        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
-        Spacer(Modifier.height(24.dp)); Button(onClick = onRetry) { Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(8.dp)); Text("重试") }
+        Icon(Icons.Default.ErrorOutline, "错误", Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+        Spacer(Modifier.height(SpacingTokens.lg)); Text("发芽失败", style = MaterialTheme.typography.titleMedium)
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = SpacingTokens.xxl))
+        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onRetry) { Icon(Icons.Default.Refresh, "重试"); Spacer(Modifier.width(SpacingTokens.sm)); Text("重试") }
     }
 }
 
 @Composable
 private fun SproutEmptyView(onGenerate: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("*", fontSize = 64.sp); Spacer(Modifier.height(16.dp))
+        Text("*", style = MaterialTheme.typography.displayLarge); Spacer(Modifier.height(SpacingTokens.lg))
         Text("还没有发芽报告", style = MaterialTheme.typography.titleMedium)
         Text("让 AI 帮你深度分析这篇笔记", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("开始发芽") }
+        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, "开始发芽"); Spacer(Modifier.width(SpacingTokens.sm)); Text("开始发芽") }
     }
 }
 
@@ -678,7 +677,7 @@ private fun SproutArticle.toMarkdown(): String = buildString {
         appendLine("## ${section.title}")
         if (section.seed.isNotEmpty()) appendLine("*${section.seed}*").appendLine()
         appendLine(section.body).appendLine()
-        if (section.ahaMoment.isNotEmpty()) appendLine("**Aha:** ${section.ahaMoment}").appendLine()
+        if (section.shockingMoment.isNotEmpty()) appendLine("**震惊瞬间:** ${section.shockingMoment}").appendLine()
     }
     if (actionItems.isNotEmpty()) {
         appendLine("## 行动建议")
@@ -696,7 +695,7 @@ private fun SproutArticle.toPlainText(): String = buildString {
     articles.forEach { section ->
         if (section.title.isNotEmpty()) appendLine("## ${section.title}")
         appendLine(section.body)
-        if (section.ahaMoment.isNotEmpty()) appendLine("Aha: ${section.ahaMoment}")
+        if (section.shockingMoment.isNotEmpty()) appendLine("震惊瞬间: ${section.shockingMoment}")
     }
     if (actionItems.isNotEmpty()) {
         appendLine("行动建议:")

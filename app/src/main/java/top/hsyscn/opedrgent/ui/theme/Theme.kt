@@ -9,67 +9,80 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Blue80,
+    primary = PrimaryBrand,
     onPrimary = Color.White,
-    primaryContainer = Blue40.copy(alpha = 0.2f),
-    secondary = BlueGrey80,
+    primaryContainer = PrimaryRing,
+    onPrimaryContainer = Color.White,
+    secondary = ForegroundSecondaryDark,
     onSecondary = Color.White,
-    secondaryContainer = SurfaceLight_Dark,
-    tertiary = Teal80,
-    background = BgGray_Dark,
-    onBackground = TextDark_Dark,
-    surface = CardWhite_Dark,
-    onSurface = TextDark_Dark,
-    surfaceVariant = Color(0xFF2A2D33),
-    onSurfaceVariant = TextGrey_Dark,
-    outline = BorderLight_Dark,
-    outlineVariant = DividerColor_Dark,
-    error = DangerRed,
-    errorContainer = ErrorBackground,
-    // Extended semantic (used via MaterialTheme.colorScheme)
-    surfaceContainerLow = SurfaceElevated_Dark,
-    surfaceContainer = CardBackground_Dark,
-    surfaceContainerHigh = SurfaceLight_Dark,
-    inverseSurface = InterviewDarkBg,
-    inverseOnSurface = TextDark_Dark,
-    inversePrimary = InterviewPurple,
+    secondaryContainer = BackgroundSecondaryDark,
+    onSecondaryContainer = ForegroundDark,
+    tertiary = PrimaryRing,
+    onTertiary = Color.White,
+    tertiaryContainer = BackgroundMutedDark,
+    onTertiaryContainer = ForegroundDark,
+    background = BackgroundDark,
+    onBackground = ForegroundDark,
+    surface = BackgroundCardDark,
+    onSurface = ForegroundDark,
+    surfaceVariant = BackgroundMutedDark,
+    onSurfaceVariant = ForegroundMutedDark,
+    outline = BorderDark,
+    outlineVariant = BorderDark,
+    error = Error,
+    onError = Color.White,
+    errorContainer = ErrorDarkBg,
+    onErrorContainer = Error,
+    surfaceContainerLow = BackgroundMutedDark,
+    surfaceContainer = BackgroundSecondaryDark,
+    surfaceContainerHigh = BackgroundCardDark,
+    inverseSurface = BackgroundLight,
+    inverseOnSurface = ForegroundLight,
+    inversePrimary = PrimaryRing,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Blue40,
+    primary = PrimaryBrand,
     onPrimary = Color.White,
-    primaryContainer = LightBlueBg,
-    secondary = BlueGrey40,
+    primaryContainer = PrimarySubtle,
+    onPrimaryContainer = ForegroundAccentLight,
+    secondary = ForegroundSecondaryLight,
     onSecondary = Color.White,
-    secondaryContainer = SurfaceLight,
-    tertiary = Teal40,
-    background = DarkBackground,
-    onBackground = TextDark,
-    surface = DarkSurface,
-    onSurface = TextDark,
-    surfaceVariant = Color(0xFFE8EDF5),
-    onSurfaceVariant = TextGrey,
+    secondaryContainer = BackgroundSecondaryLight,
+    onSecondaryContainer = ForegroundLight,
+    tertiary = PrimaryRing,
+    onTertiary = Color.White,
+    tertiaryContainer = BackgroundMutedLight,
+    onTertiaryContainer = ForegroundLight,
+    background = BackgroundLight,
+    onBackground = ForegroundLight,
+    surface = BackgroundCardLight,
+    onSurface = ForegroundLight,
+    surfaceVariant = BackgroundMutedLight,
+    onSurfaceVariant = ForegroundMutedLight,
     outline = BorderLight,
-    outlineVariant = DividerColor,
-    error = DangerRed,
-    errorContainer = ErrorBackground,
-    // Extended semantic (used via MaterialTheme.colorScheme)
-    surfaceContainerLow = SurfaceElevated,
-    surfaceContainer = CardBackground,
-    surfaceContainerHigh = SurfaceLight,
-    inverseSurface = InterviewDarkBg,
-    inverseOnSurface = Color.White,
-    inversePrimary = InterviewPurple,
+    outlineVariant = BorderLightVariant,
+    error = Error,
+    onError = Color.White,
+    errorContainer = ErrorBg,
+    onErrorContainer = Error,
+    surfaceContainerLow = BackgroundMutedLight,
+    surfaceContainer = BackgroundSecondaryLight,
+    surfaceContainerHigh = BackgroundCardLight,
+    inverseSurface = BackgroundDark,
+    inverseOnSurface = ForegroundDark,
+    inversePrimary = PrimaryRing,
 )
 
 @Composable
 fun OpedrgentTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -80,10 +93,14 @@ fun OpedrgentTheme(
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
+    val customColors = if (darkTheme) DarkCustomColors else LightCustomColors
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalCustomColors provides customColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }

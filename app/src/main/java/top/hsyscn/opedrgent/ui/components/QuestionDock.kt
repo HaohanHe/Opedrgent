@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -49,7 +48,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -60,8 +58,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
@@ -90,13 +88,13 @@ fun QuestionDock(
 
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -104,31 +102,30 @@ fun QuestionDock(
             ) {
                 Text(
                     text = if (collapsed) "选择题 (${questions.size})" else (if (isMultiQuestion) "问题 ${currentQuestionIndex + 1}/${questions.size}" else questions[currentQuestionIndex].header),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(
                     onClick = { collapsed = ! collapsed },
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(SpacingTokens.xl),
                 ) {
                     Icon(
                         imageVector = if (collapsed) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (collapsed) "展开" else "折叠",
                         tint = themeTextGrey(),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SpacingTokens.md),
                     )
                 }
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(SpacingTokens.xl),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "取消",
                         tint = themeTextGrey(),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SpacingTokens.md),
                     )
                 }
             }
@@ -138,15 +135,13 @@ fun QuestionDock(
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     val currentQ = questions[currentQuestionIndex]
 
                     Text(
                         text = currentQ.question,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = themeTextDark(),
-                        lineHeight = 22.sp,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -161,7 +156,7 @@ fun QuestionDock(
 
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 240.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                     ) {
                         itemsIndexed(currentQ.options) { idx, opt ->
                             val isSelected = opt.label in answers.getOrDefault(currentQuestionIndex, emptySet())
@@ -222,7 +217,7 @@ fun QuestionDock(
                         OutlinedTextField(
                             value = customInputs.getOrDefault(currentQuestionIndex, ""),
                             onValueChange = { customInputs[currentQuestionIndex] = it },
-                            placeholder = { Text("输入自定义答案...", color = themeTextGrey(), fontSize = 13.sp) },
+                            placeholder = { Text("输入自定义答案...", color = themeTextGrey(), style = MaterialTheme.typography.bodySmall) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
@@ -250,13 +245,13 @@ fun QuestionDock(
                                     }
                                 },
                             singleLine = true,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = ShapeTokens.smallShape,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BubbleBlue,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
                                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                cursorColor = BubbleBlue,
+                                cursorColor = MaterialTheme.colorScheme.primary,
                             ),
                         )
                     }
@@ -265,7 +260,7 @@ fun QuestionDock(
                         LaunchedEffect(Unit) { focusRequester.requestFocus() }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.xs))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -276,7 +271,7 @@ fun QuestionDock(
                             Text("取消", color = themeTextGrey())
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                             if (isMultiQuestion && currentQuestionIndex > 0) {
                                 TextButton(onClick = { currentQuestionIndex-- }) {
                                     Text("上一步")
@@ -289,8 +284,8 @@ fun QuestionDock(
                                 androidx.compose.material3.Button(
                                     onClick = { currentQuestionIndex++ },
                                     enabled = canProceed,
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    shape = ShapeTokens.smallShape,
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                                 ) {
                                     Text("下一步")
                                 }
@@ -302,8 +297,8 @@ fun QuestionDock(
                                         submitAllAnswers(answers, customInputs, questions, onAnswer)
                                     },
                                     enabled = canProceed && !isSubmitting,
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    shape = ShapeTokens.smallShape,
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                                 ) {
                                     if (isSubmitting) {
                                         androidx.compose.material3.CircularProgressIndicator(
@@ -312,9 +307,9 @@ fun QuestionDock(
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     } else {
-                                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Send, contentDescription = "提交", modifier = Modifier.size(16.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                     Text(if (isSubmitting) "提交中..." else "确认提交")
                                 }
                             }
@@ -335,46 +330,46 @@ private fun OptionRow(
     onClick: () -> Unit,
     onKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { false },
 ) {
-    val bgColor = if (selected) BubbleBlue.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
-    val borderColor = if (selected) BubbleBlue else Color.Transparent
-    val textColor = if (selected) BubbleBlue else themeTextDark()
-    val descColor = if (selected) BubbleBlue.copy(alpha = 0.8f) else themeTextGrey()
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val bgColor = if (selected) primaryColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
+    val borderColor = if (selected) primaryColor else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+    val textColor = if (selected) primaryColor else themeTextDark()
+    val descColor = if (selected) primaryColor.copy(alpha = 0.8f) else themeTextGrey()
 
     Card(
-        shape = RoundedCornerShape(10.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        border = if (selected) androidx.compose.foundation.BorderStroke(1.5.dp, BubbleBlue) else null,
+        border = if (selected) androidx.compose.foundation.BorderStroke(1.5.dp, primaryColor) else null,
         modifier = Modifier
             .fillMaxWidth()
             .onKeyEvent(onKeyEvent),
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(if (multiple) 20.dp else 20.dp)
-                    .clip(if (multiple) RoundedCornerShape(4.dp) else CircleShape)
-                    .background(if (selected) BubbleBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                    .size(if (multiple) SpacingTokens.lg else SpacingTokens.lg)
+                    .clip(if (multiple) ShapeTokens.extraSmallShape else CircleShape)
+                    .background(if (selected) primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 contentAlignment = Alignment.Center,
             ) {
                 this@Row.AnimatedVisibility(visible = selected) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(if (multiple) 14.dp else 14.dp),
+                        contentDescription = "已选中",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(if (multiple) SpacingTokens.sm else SpacingTokens.sm),
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    fontSize = 14.sp,
+                    style = if (selected) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyMedium,
                     color = textColor,
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth(),
@@ -384,7 +379,6 @@ private fun OptionRow(
                         text = description,
                         style = MaterialTheme.typography.bodySmall,
                         color = descColor,
-                        fontSize = 12.sp,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )

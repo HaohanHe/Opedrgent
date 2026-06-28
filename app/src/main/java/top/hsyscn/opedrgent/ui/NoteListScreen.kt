@@ -2,6 +2,8 @@ package top.hsyscn.opedrgent.ui
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -9,7 +11,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,16 +21,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.note.Folder
 import top.hsyscn.opedrgent.note.FolderRepository
@@ -40,30 +44,34 @@ import top.hsyscn.opedrgent.note.icon
 import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.AiSearchResult
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import java.text.SimpleDateFormat
-import java.util.*
-import androidx.compose.ui.text.style.TextOverflow
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.note.SourceType
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import java.text.SimpleDateFormat
+import java.util.*
+import android.content.Intent
+import android.net.Uri
+import top.hsyscn.opedrgent.ui.theme.*
 
 /**
- * 笔记列表页。
+ * 笔记列表页（Doubao 风格重设计）。
  *
  * 功能：
- * - 搜索栏（标题/内容模糊搜索）
- * - 类型筛选 Tab（全部/文本/会议/语音/链接/闪念/AI）
- * - 笔记卡片列表（置顶优先、时间倒序）
+ * - 顶部标题栏 + 搜索/图谱入口
+ * - 圆角搜索栏
+ * - 类型筛选 Pill（全部/文本/会议/语音/AI）
+ * - 置顶笔记分区（左侧强调色边框）
+ * - 笔记卡片列表（白色卡片、阴影、圆角 16dp、类型 chip、摘要、元信息）
  * - 空状态引导
- * - 长按菜单（删除/置顶/分享）
+ * - 长按/更多菜单（删除/置顶/分享/发芽等）
  * - FAB 新建笔记
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteListScreen(
     repository: NoteRepository,
@@ -127,6 +135,9 @@ fun NoteListScreen(
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
 
+    val pinnedNotes = remember(displayNotes) { displayNotes.filter { it.isPinned } }
+    val unpinnedNotes = remember(displayNotes) { displayNotes.filter { !it.isPinned } }
+
     // 宽屏预览面板：选中的笔记
     var previewNote by remember { mutableStateOf<Note?>(null) }
     LaunchedEffect(selectedNoteId) {
@@ -169,67 +180,29 @@ fun NoteListScreen(
 
     // 笔记列表内容（竖屏和横屏共用）
     val noteListContent: @Composable (Modifier) -> Unit = { outerModifier ->
-        Box(modifier = outerModifier.background(themeBgGray())) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // 顶部栏
-            TopAppBar(
-                title = { Text("笔记", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    if (showBackButton) {
-                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "返回") }
-                    }
-                },
-                actions = {
-                    // 知识图谱入口
-                    IconButton(onClick = onGraphClick) {
-                        Icon(
-                            Icons.Default.AccountTree,
-                            "知识图谱",
-                            tint = AccentBlue,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                    Text(
-                        text = "${noteCount.toInt()} 条",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 16.dp),
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = themeBgGray(),
-                ),
-            )
+        Box(modifier = outerModifier.background(themeBackgroundSecondary())) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 顶部栏
+                NoteHeader(
+                    noteCount = noteCount.toInt(),
+                    showBackButton = showBackButton,
+                    onBack = onBack,
+                    onSearchClick = { /* 搜索栏已在下方常驻，点击可聚焦（如需扩展可在此处理）*/ },
+                    onGraphClick = onGraphClick,
+                )
 
-            // 搜索栏（使用 OutlinedTextField 替代 SearchBar，避免遮挡下方内容）
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    if (it.isEmpty()) {
-                        isAiSearchActive = false
-                        onClearAiSearch()
-                    }
-                },
-                placeholder = { Text("搜索笔记...（支持自然语言）") },
-                leadingIcon = { Icon(Icons.Default.Search, "搜索") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = {
-                            searchQuery = ""
+                // 搜索栏
+                DoubaoSearchBar(
+                    query = searchQuery,
+                    onQueryChange = {
+                        searchQuery = it
+                        if (it.isEmpty()) {
                             isAiSearchActive = false
                             onClearAiSearch()
-                        }) {
-                            Icon(Icons.Default.Close, "清除")
                         }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
+                    },
                     onSearch = {
                         val query = searchQuery.trim()
                         if (query.isNotBlank()) {
@@ -243,187 +216,238 @@ fun NoteListScreen(
                             }
                         }
                     },
-                ),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            )
-
-            // 搜索历史
-            if (searchQuery.isEmpty() && searchHistory.isNotEmpty()) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "搜索历史",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        TextButton(
-                            onClick = onClearSearchHistory,
-                            contentPadding = PaddingValues(0.dp),
-                        ) {
-                            Text("清除", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        searchHistory.forEach { historyItem ->
-                            AssistChip(
-                                onClick = {
-                                    searchQuery = historyItem
-                                    val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
-                                    if (nlKeywords.any { historyItem.contains(it) }) {
-                                        isAiSearchActive = true
-                                        onAiSearch(historyItem)
-                                    } else {
-                                        isAiSearchActive = false
-                                        onClearAiSearch()
-                                    }
-                                },
-                                label = { Text(historyItem, fontSize = 12.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.History,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 类型筛选 Chip 行
-            TypeFilterChips(
-                selectedType = selectedType,
-                onTypeSelected = { selectedType = it },
-                noteCount = noteCount.toInt(),
-            )
-
-            // 标签筛选 Chip 行
-            if (allTags.isNotEmpty()) {
-                TagFilterChips(
-                    tags = allTags,
-                    selectedTag = selectedTag,
-                    onTagSelected = { selectedTag = it },
+                    onClear = {
+                        searchQuery = ""
+                        isAiSearchActive = false
+                        onClearAiSearch()
+                    },
+                    modifier = Modifier.padding(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.xs),
                 )
-            }
 
-            // 文件夹导航
-            if (currentFolderId != null || folders.isNotEmpty()) {
-                FolderNavigation(
-                    currentFolderId = currentFolderId,
-                    folders = folders,
-                    allFolders = allFolders,
-                    onFolderClick = { folderId -> currentFolderId = folderId },
-                    onBackToRoot = { currentFolderId = null },
-                    onCreateFolder = { showFolderDialog = true; editingFolder = null },
-                    onRenameFolder = { folder -> showFolderDialog = true; editingFolder = folder },
-                    onDeleteFolder = { folder ->
-                        scope.launch {
-                            folderRepository.deleteFolder(folder.id)
-                            if (currentFolderId == folder.id) {
-                                currentFolderId = null
+                // 搜索历史
+                if (searchQuery.isEmpty() && searchHistory.isNotEmpty()) {
+                    Column(modifier = Modifier.padding(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.sm)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "搜索历史",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = themeForegroundMuted(),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            TextButton(
+                                onClick = onClearSearchHistory,
+                                contentPadding = PaddingValues(),
+                            ) {
+                                Text("清除", style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
                             }
                         }
-                    },
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // AI 搜索加载指示器
-            if (isAiSearching) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = AccentBlue)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "AI 正在理解您的搜索意图...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                        ) {
+                            searchHistory.forEach { historyItem ->
+                                AssistChip(
+                                    onClick = {
+                                        searchQuery = historyItem
+                                        val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
+                                        if (nlKeywords.any { historyItem.contains(it) }) {
+                                            isAiSearchActive = true
+                                            onAiSearch(historyItem)
+                                        } else {
+                                            isAiSearchActive = false
+                                            onClearAiSearch()
+                                        }
+                                    },
+                                    label = { Text(historyItem, style = MaterialTheme.typography.labelMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.History,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(SpacingTokens.lg),
+                                        )
+                                    },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = themeCardWhite(),
+                                        labelColor = themeForegroundSecondary(),
+                                    ),
+                                    border = BorderStroke(SizeTokens.borderWidth, themeBackgroundMuted()),
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            // 笔记列表
-            if (displayNotes.isEmpty() && !isAiSearching) {
-                EmptyNoteState(onNewNote = onNewNote)
-            } else if (!isAiSearching) {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // 关联推荐区域
-                    if (recommendedNotes.isNotEmpty() && !isAiSearchActive) {
-                        item(key = "recommendation") {
-                            RecommendationCard(
-                                sourceTitle = latestNoteTitle,
-                                recommendedNotes = recommendedNotes.take(3),
-                                onNoteClick = onNoteClick,
+                // 类型筛选 Pill 行
+                TypeFilterPills(
+                    selectedType = selectedType,
+                    onTypeSelected = { selectedType = it },
+                    modifier = Modifier.padding(top = SpacingTokens.sm, bottom = SpacingTokens.md),
+                )
+
+                // 标签筛选 Chip 行
+                if (allTags.isNotEmpty()) {
+                    TagFilterChips(
+                        tags = allTags,
+                        selectedTag = selectedTag,
+                        onTagSelected = { selectedTag = it },
+                    )
+                }
+
+                // 文件夹导航
+                if (currentFolderId != null || folders.isNotEmpty()) {
+                    FolderNavigation(
+                        currentFolderId = currentFolderId,
+                        folders = folders,
+                        allFolders = allFolders,
+                        onFolderClick = { folderId -> currentFolderId = folderId },
+                        onBackToRoot = { currentFolderId = null },
+                        onCreateFolder = { showFolderDialog = true; editingFolder = null },
+                        onRenameFolder = { folder -> showFolderDialog = true; editingFolder = folder },
+                        onDeleteFolder = { folder ->
+                            scope.launch {
+                                folderRepository.deleteFolder(folder.id)
+                                if (currentFolderId == folder.id) {
+                                    currentFolderId = null
+                                }
+                            }
+                        },
+                    )
+                }
+
+                // AI 搜索加载指示器
+                if (isAiSearching) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xl),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = themePrimary())
+                            Spacer(Modifier.height(SpacingTokens.sm))
+                            Text(
+                                "AI 正在理解您的搜索意图...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeForegroundMuted(),
                             )
                         }
                     }
+                }
 
-                    items(displayNotes, key = { it.id }) { note ->
-                        val relevance = aiSearchResults.find { it.note.id == note.id }?.relevance
-                        NoteCard(
-                            note = note,
-                            relevance = relevance,
-                            onClick = {
-                                if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
-                            },
-                            onTogglePin = { scope.launch { repository.togglePin(note.id) } },
-                            onDelete = { scope.launch { repository.deleteNote(note.id) } },
-                            onShare = { onShareNote(note.id) },
-                            onSprout = { onSproutNote(note.id) },
-                            onSendToChat = { onSendToChat(note.id) },
-                            onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
-                            onEdit = { onEditNote(note.id) },
-                            onAppend = { onAppendNote(note.id) },
-                            onCorrect = { onCorrectNote(note.id) },
-                            onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
-                            onAddTag = { onAddTag(note.id) },
-                            linkCount = repository.getLinkCount(note.id),
-                        )
+                // 笔记列表
+                if (displayNotes.isEmpty() && !isAiSearching) {
+                    EmptyNoteState(onNewNote = onNewNote)
+                } else if (!isAiSearching) {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.sm),
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                    ) {
+                        // 关联推荐区域
+                        if (recommendedNotes.isNotEmpty() && !isAiSearchActive) {
+                            item(key = "recommendation") {
+                                RecommendationCard(
+                                    sourceTitle = latestNoteTitle,
+                                    recommendedNotes = recommendedNotes.take(3),
+                                    onNoteClick = onNoteClick,
+                                )
+                            }
+                        }
+
+                        // 置顶分区
+                        if (pinnedNotes.isNotEmpty()) {
+                            item(key = "pinned_header") {
+                                Text(
+                                    text = "置顶",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = themeForegroundMuted(),
+                                    modifier = Modifier.padding(bottom = SpacingTokens.sm),
+                                )
+                            }
+                            items(pinnedNotes, key = { "pinned_${it.id}" }) { note ->
+                                val relevance = aiSearchResults.find { it.note.id == note.id }?.relevance
+                                Column(modifier = Modifier.animateItem()) {
+                                    NoteCard(
+                                        note = note,
+                                        relevance = relevance,
+                                        isPinnedSection = true,
+                                        onClick = {
+                                            if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
+                                        },
+                                        onTogglePin = { scope.launch { repository.togglePin(note.id) } },
+                                        onDelete = { scope.launch { repository.deleteNote(note.id) } },
+                                        onShare = { onShareNote(note.id) },
+                                        onSprout = { onSproutNote(note.id) },
+                                        onSendToChat = { onSendToChat(note.id) },
+                                        onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
+                                        onEdit = { onEditNote(note.id) },
+                                        onAppend = { onAppendNote(note.id) },
+                                        onCorrect = { onCorrectNote(note.id) },
+                                        onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
+                                        onAddTag = { onAddTag(note.id) },
+                                        linkCount = repository.getLinkCount(note.id),
+                                    )
+                                }
+                            }
+                            item(key = "pinned_spacer") {
+                                Spacer(Modifier.height(SpacingTokens.sm))
+                            }
+                        }
+
+                        // 普通笔记列表
+                        items(unpinnedNotes, key = { it.id }) { note ->
+                            val relevance = aiSearchResults.find { it.note.id == note.id }?.relevance
+                            Column(modifier = Modifier.animateItem()) {
+                                NoteCard(
+                                    note = note,
+                                    relevance = relevance,
+                                    isPinnedSection = false,
+                                    onClick = {
+                                        if (isLandscape) selectedNoteId = note.id else onNoteClick(note.id)
+                                    },
+                                    onTogglePin = { scope.launch { repository.togglePin(note.id) } },
+                                    onDelete = { scope.launch { repository.deleteNote(note.id) } },
+                                    onShare = { onShareNote(note.id) },
+                                    onSprout = { onSproutNote(note.id) },
+                                    onSendToChat = { onSendToChat(note.id) },
+                                    onSendWithSkill = { skillId -> onSendWithSkill(note.id, skillId) },
+                                    onEdit = { onEditNote(note.id) },
+                                    onAppend = { onAppendNote(note.id) },
+                                    onCorrect = { onCorrectNote(note.id) },
+                                    onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
+                                    onAddTag = { onAddTag(note.id) },
+                                    linkCount = repository.getLinkCount(note.id),
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        // FAB
-        FloatingActionButton(
-            onClick = onNewNote,
-            containerColor = AccentBlue,
-            contentColor = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp)
-                .size(56.dp),
-            shape = CircleShape,
-        ) {
-            Icon(Icons.Default.Add, "新建笔记", tint = Color.White)
-        }
+            // FAB
+            FloatingActionButton(
+                onClick = onNewNote,
+                containerColor = themePrimary(),
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(SizeTokens.screenHorizontalPadding)
+                    .size(SizeTokens.fabSize),
+                shape = CircleShape,
+            ) {
+                Icon(Icons.Default.Add, "新建笔记", tint = MaterialTheme.colorScheme.onPrimary)
+            }
         } // Box
     } // noteListContent lambda
 
     // 根据屏幕方向选择布局
     if (isLandscape) {
-        Row(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
+        Row(modifier = Modifier.fillMaxSize().background(themeBackgroundSecondary())) {
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 noteListContent(Modifier.fillMaxSize())
             }
-            VerticalDivider(thickness = 1.dp, color = Color(0xFFE0E0E0))
-            Box(modifier = Modifier.width(400.dp).fillMaxHeight().background(themeBgGray())) {
+            VerticalDivider(thickness = SizeTokens.borderWidth, color = themeBackgroundMuted())
+            Box(modifier = Modifier.width(SizeTokens.previewPanelWidth).fillMaxHeight().background(themeBackgroundSecondary())) {
                 if (previewNote != null) {
                     NotePreviewPanel(
                         note = previewNote!!,
@@ -432,7 +456,7 @@ fun NoteListScreen(
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("选择一条笔记预览", color = Color.Gray)
+                        Text("选择一条笔记预览", color = themeForegroundMuted())
                     }
                 }
             }
@@ -442,126 +466,170 @@ fun NoteListScreen(
     }
 }
 
-/** 笔记预览面板（宽屏右侧） */
 @Composable
-private fun NotePreviewPanel(
-    note: Note,
-    onEdit: () -> Unit,
-    onSendToChat: () -> Unit,
+private fun NoteHeader(
+    noteCount: Int,
+    showBackButton: Boolean,
+    onBack: () -> Unit,
+    onSearchClick: () -> Unit,
+    onGraphClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .fillMaxWidth()
+            .padding(start = if (showBackButton) SpacingTokens.xs else SizeTokens.screenHorizontalPadding, end = SpacingTokens.lg, top = SpacingTokens.lg, bottom = SpacingTokens.md),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 标题
+        if (showBackButton) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    "返回",
+                    tint = themeForeground(),
+                    modifier = Modifier.size(SizeTokens.iconLg),
+                )
+            }
+        }
         Text(
-            text = note.title.ifBlank { "无标题" },
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            text = "笔记",
+            style = MaterialTheme.typography.headlineLarge,
+            color = themeForeground(),
+            modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.height(8.dp))
-        // 元信息
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = note.type.displayName(),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                modifier = Modifier
-                    .background(note.type.color(), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
-                style = MaterialTheme.typography.labelSmall,
-                color = themeTextGrey(),
-            )
-        }
-        // 标签
-        val tagList = note.getTags()
-        if (tagList.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (tag in tagList.take(5)) {
-                    Text(
-                        text = "#$tag",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AccentBlue,
-                        modifier = Modifier
-                            .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
+        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
+            IconButton(onClick = onSearchClick) {
+                Icon(
+                    Icons.Default.Search,
+                    "搜索",
+                    tint = themeForegroundSecondary(),
+                    modifier = Modifier.size(SizeTokens.iconLg),
+                )
             }
-        }
-        Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = Color(0xFFE0E0E0))
-        Spacer(Modifier.height(16.dp))
-        // 内容
-        if (note.content.isNotBlank()) {
-            MarkdownText(
-                text = note.content,
-                maxChars = 8000,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            Text("（空笔记）", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
-        }
-        Spacer(Modifier.height(24.dp))
-        // 操作按钮
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onEdit,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                shape = RoundedCornerShape(10.dp),
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("编辑")
-            }
-            OutlinedButton(
-                onClick = onSendToChat,
-                shape = RoundedCornerShape(10.dp),
-            ) {
-                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("发到对话")
+            IconButton(onClick = onGraphClick) {
+                Icon(
+                    Icons.Default.AccountTree,
+                    "知识图谱",
+                    tint = themeForegroundSecondary(),
+                    modifier = Modifier.size(SizeTokens.iconLg),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TypeFilterChips(
+private fun DoubaoSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+
+    BasicTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            color = themeForeground(),
+        ),
+        cursorBrush = SolidColor(themePrimary()),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                onSearch()
+                focusManager.clearFocus()
+            },
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(SizeTokens.searchBarHeight)
+            .focusRequester(focusRequester),
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(themeBackgroundMuted(), ShapeTokens.pillShape)
+                    .padding(horizontal = SizeTokens.contentPaddingMd),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = themeForegroundMuted(),
+                    modifier = Modifier.size(SizeTokens.iconMd),
+                )
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Box(modifier = Modifier.weight(1f)) {
+                    if (query.isEmpty()) {
+                        Text(
+                            "搜索笔记…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = themeForegroundMuted(),
+                        )
+                    }
+                    innerTextField()
+                }
+                if (query.isNotEmpty()) {
+                    Spacer(Modifier.width(SpacingTokens.xs))
+                    IconButton(onClick = onClear, modifier = Modifier.size(SpacingTokens.xl)) {
+                        Icon(
+                            Icons.Default.Close,
+                            "清除",
+                            tint = themeForegroundMuted(),
+                            modifier = Modifier.size(SizeTokens.iconMd),
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
+private data class FilterPill(val type: NoteType?, val label: String)
+
+private val filterPills = listOf(
+    FilterPill(null, "全部"),
+    FilterPill(NoteType.TEXT, "文本"),
+    FilterPill(NoteType.MEETING, "会议"),
+    FilterPill(NoteType.ASR, "语音"),
+    FilterPill(NoteType.AI_CHAT, "AI"),
+)
+
+@Composable
+private fun TypeFilterPills(
     selectedType: NoteType?,
     onTypeSelected: (NoteType?) -> Unit,
-    noteCount: Int,
+    modifier: Modifier = Modifier,
 ) {
-    val types = listOf(null to "全部") + NoteType.entries.map { it to it.displayName() }
-    val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = AccentBlue,
-        selectedLabelColor = Color.White,
-    )
-
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = SizeTokens.screenHorizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
-        types.forEach { (type, label) ->
-            val isSelected = type == selectedType
-            FilterChip(
-                selected = isSelected,
-                onClick = { onTypeSelected(type) },
-                label = {
-                    Text(label, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
-                },
-                colors = chipColors,
-                shape = RoundedCornerShape(20.dp),
-                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-            )
+        filterPills.forEach { pill ->
+            val isSelected = pill.type == selectedType
+            val bgColor = if (isSelected) themePrimary() else themeBackgroundMuted()
+            val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else themeForegroundSecondary()
+
+            Box(
+                modifier = Modifier
+                    .clip(ShapeTokens.pillShape)
+                    .background(bgColor)
+                    .clickable { onTypeSelected(pill.type) }
+                    .padding(horizontal = SizeTokens.contentPaddingMd, vertical = SizeTokens.compactSpacing),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    pill.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = textColor,
+                )
+            }
         }
     }
 }
@@ -572,45 +640,47 @@ private fun TagFilterChips(
     selectedTag: String?,
     onTagSelected: (String?) -> Unit,
 ) {
-    val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = Color(0xFFE67E22),
-        selectedLabelColor = Color.White,
-    )
-
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.sm),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
-        // 全部标签按钮
         FilterChip(
             selected = selectedTag == null,
             onClick = { onTagSelected(null) },
-            label = { Text("全部标签", fontSize = 12.sp) },
-            colors = chipColors,
-            shape = RoundedCornerShape(16.dp),
-            border = if (selectedTag == null) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+            label = { Text("全部标签", style = MaterialTheme.typography.labelMedium) },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = themePrimary(),
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = themeBackgroundMuted(),
+                labelColor = themeForegroundSecondary(),
+            ),
+            shape = ShapeTokens.pillShape,
+            border = if (selectedTag == null) null else BorderStroke(SizeTokens.borderWidth, themeBackgroundMuted()),
         )
-        
-        // 各个标签按钮
+
         tags.take(10).forEach { tag ->
             val isSelected = tag == selectedTag
             FilterChip(
                 selected = isSelected,
                 onClick = { onTagSelected(if (isSelected) null else tag) },
-                label = { Text(tag, fontSize = 12.sp) },
-                colors = chipColors,
-                shape = RoundedCornerShape(16.dp),
-                border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE67E22).copy(alpha = 0.3f)),
+                label = { Text(tag, style = MaterialTheme.typography.labelMedium) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = themePrimary(),
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = themeBackgroundMuted(),
+                    labelColor = themeForegroundSecondary(),
+                ),
+                shape = ShapeTokens.pillShape,
+                border = if (isSelected) null else BorderStroke(SizeTokens.borderWidth, themeBackgroundMuted()),
             )
         }
-        
-        // 如果标签超过10个，显示"+N"按钮
+
         if (tags.size > 10) {
             Text(
                 "+${tags.size - 10}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 8.dp, top = 8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = themeForegroundMuted(),
+                modifier = Modifier.padding(start = SpacingTokens.sm, top = SpacingTokens.sm),
             )
         }
     }
@@ -627,22 +697,17 @@ private fun FolderNavigation(
     onRenameFolder: (Folder) -> Unit,
     onDeleteFolder: (Folder) -> Unit,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
-
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-        // 文件夹导航面包屑
+    Column(modifier = Modifier.padding(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 返回根目录按钮
             if (currentFolderId != null) {
-                IconButton(onClick = onBackToRoot, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.ArrowBack, "返回根目录", modifier = Modifier.size(16.dp))
+                IconButton(onClick = onBackToRoot, modifier = Modifier.size(SpacingTokens.xl)) {
+                    Icon(Icons.Default.ArrowBack, "返回根目录", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
                 }
-                Spacer(Modifier.width(4.dp))
-                
-                // 显示当前路径
+                Spacer(Modifier.width(SpacingTokens.xs))
+
                 val currentPath = buildList {
                     var folderId: Long? = currentFolderId
                     while (folderId != null) {
@@ -653,39 +718,37 @@ private fun FolderNavigation(
                         } else break
                     }
                 }
-                
+
                 currentPath.forEachIndexed { index, folder ->
                     if (index > 0) {
-                        Text(" > ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(" > ", style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
                     }
                     Text(
                         folder.name,
-                        fontSize = 12.sp,
-                        color = if (index == currentPath.lastIndex) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (index == currentPath.lastIndex) themePrimary() else themeForegroundMuted(),
                         modifier = Modifier.clickable { onFolderClick(folder.id) },
                     )
                 }
             } else {
-                Icon(Icons.Default.Folder, "文件夹", tint = AccentBlue, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("文件夹", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Default.Folder, "文件夹", tint = themePrimary(), modifier = Modifier.size(SpacingTokens.lg))
+                Spacer(Modifier.width(SpacingTokens.xs))
+                Text("文件夹", style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
             }
 
             Spacer(Modifier.weight(1f))
 
-            // 新建文件夹按钮
-            IconButton(onClick = onCreateFolder, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(16.dp), tint = AccentBlue)
+            IconButton(onClick = onCreateFolder, modifier = Modifier.size(SpacingTokens.xl)) {
+                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
             }
         }
 
-        // 文件夹网格
         if (folders.isNotEmpty()) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                modifier = Modifier.heightIn(max = 120.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.heightIn(max = SizeTokens.folderGridMaxHeight),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
             ) {
                 gridItems(folders) { folder ->
                     FolderItem(
@@ -711,36 +774,36 @@ private fun FolderItem(
 
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-        modifier = Modifier.height(60.dp),
+        shape = ShapeTokens.smallShape,
+        colors = CardDefaults.cardColors(containerColor = themeBackgroundMuted().copy(alpha = 0.6f)),
+        modifier = Modifier.height(SizeTokens.folderItemHeight),
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Default.Folder, null, tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconLg))
+            Spacer(Modifier.width(SizeTokens.compactSpacing))
             Text(
                 folder.name,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 modifier = Modifier.weight(1f),
             )
             Box {
-                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(14.dp))
+                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(SizeTokens.iconLg)) {
+                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(SizeTokens.iconXs))
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                     DropdownMenuItem(
                         text = { Text("重命名") },
                         onClick = { showMenu = false; onRename() },
-                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)) },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(SpacingTokens.lg)) },
                     )
                     DropdownMenuItem(
                         text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                         onClick = { showMenu = false; onDelete() },
-                        leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)) },
+                        leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(SpacingTokens.lg)) },
                     )
                 }
             }
@@ -795,7 +858,94 @@ private fun FolderDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 笔记预览面板（宽屏右侧） */
+@Composable
+private fun NotePreviewPanel(
+    note: Note,
+    onEdit: () -> Unit,
+    onSendToChat: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(SpacingTokens.xl),
+    ) {
+        Text(
+            text = note.title.ifBlank { "无标题" },
+            style = MaterialTheme.typography.headlineLarge,
+            color = themeForeground(),
+        )
+        Spacer(Modifier.height(SpacingTokens.sm))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val chipColors = note.type.chipColors()
+            Text(
+                text = note.type.displayName(),
+                style = MaterialTheme.typography.labelSmall,
+                color = chipColors.second,
+                modifier = Modifier
+                    .background(chipColors.first, ShapeTokens.smallShape)
+                    .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
+            )
+            Spacer(Modifier.width(SpacingTokens.sm))
+            Text(
+                text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
+                style = MaterialTheme.typography.labelSmall,
+                color = themeForegroundMuted(),
+            )
+        }
+        val tagList = note.getTags()
+        if (tagList.isNotEmpty()) {
+            Spacer(Modifier.height(SpacingTokens.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing)) {
+                for (tag in tagList.take(5)) {
+                    Text(
+                        text = "#$tag",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = themePrimary(),
+                        modifier = Modifier
+                            .background(themePrimary().copy(alpha = 0.1f), ShapeTokens.smallShape)
+                            .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(SpacingTokens.lg))
+        HorizontalDivider(color = themeBackgroundMuted())
+        Spacer(Modifier.height(SpacingTokens.lg))
+        if (note.content.isNotBlank()) {
+            MarkdownText(
+                text = note.content,
+                maxChars = 8000,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Text("（空笔记）", color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(SpacingTokens.xl))
+        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+            Button(
+                onClick = onEdit,
+                colors = ButtonDefaults.buttonColors(containerColor = themePrimary()),
+                shape = ShapeTokens.smallShape,
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = "编辑", modifier = Modifier.size(SpacingTokens.lg))
+                Spacer(Modifier.width(SpacingTokens.xs))
+                Text("编辑")
+            }
+            OutlinedButton(
+                onClick = onSendToChat,
+                shape = ShapeTokens.smallShape,
+            ) {
+                Icon(Icons.Default.Chat, contentDescription = "发送到对话", modifier = Modifier.size(SpacingTokens.lg))
+                Spacer(Modifier.width(SpacingTokens.xs))
+                Text("发到对话")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun NoteCard(
     note: Note,
@@ -813,203 +963,226 @@ private fun NoteCard(
     onAddTag: () -> Unit = {},
     linkCount: Int = 0,
     relevance: Int? = null,
+    isPinnedSection: Boolean = false,
 ) {
     val sheetState = rememberModalBottomSheetState()
     var showSheet by remember { mutableStateOf(false) }
+    val chipColors = note.type.chipColors()
+    val ctx = LocalContext.current
+    val primaryColor = themePrimary()
 
     Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth(),
+        shape = ShapeTokens.mediumShape,
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isPinnedSection) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = primaryColor,
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(SpacingTokens.xs.toPx(), size.height),
+                        )
+                    }
+                } else Modifier
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { showSheet = true },
+                )
+            },
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // 第一行：类型图标 + 标题 + 置顶 + 时间
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 类型图标
-                Surface(
-                    color = note.type.color().copy(alpha = 0.1f),
-                    shape = CircleShape,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(SpacingTokens.lg),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(ElevationTokens.none),
+            ) {
+                // 类型 chip
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(ShapeTokens.pillShape)
+                            .background(chipColors.first)
+                            .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs),
+                    ) {
+                        Text(
+                            note.type.displayName(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = chipColors.second,
+                        )
+                    }
+
+                    if (relevance != null) {
+                        Spacer(Modifier.width(SpacingTokens.sm))
+                        Text(
+                            "相关度 ${relevance}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = themePrimary(),
+                            modifier = Modifier
+                                .background(themePrimary().copy(alpha = 0.12f), ShapeTokens.tagShape)
+                                .padding(horizontal = SizeTokens.compactSpacing, vertical = SpacingTokens.xxs),
+                        )
                     }
                 }
 
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
 
                 // 标题
                 Text(
-                    text = note.title,
+                    text = note.title.ifBlank { "无标题" },
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    color = themeForeground(),
                     maxLines = 1,
-                    modifier = Modifier.weight(1f),
+                    overflow = TextOverflow.Ellipsis,
                 )
 
-                // 置顶标记
-                if (note.isPinned) {
-                    Icon(Icons.Default.PushPin, "置顶", tint = AccentBlue, modifier = Modifier.size(16.dp))
+                // 摘要
+                if (note.summary.isNotEmpty()) {
+                    Spacer(Modifier.height(SpacingTokens.xs))
+                    Text(
+                        text = note.summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = themeForegroundMuted(),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
-                // 关联数标记
-                if (linkCount > 0) {
-                    Spacer(Modifier.width(4.dp))
-                    Surface(
-                        color = AccentBlue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(8.dp),
+                // 标签
+                val tags = note.getTags()
+                if (tags.isNotEmpty()) {
+                    Spacer(Modifier.height(SpacingTokens.sm))
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
+                        tags.take(3).forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(ShapeTokens.tagShape)
+                                    .background(themePrimary().copy(alpha = 0.08f))
+                                    .padding(horizontal = SizeTokens.compactSpacing, vertical = SpacingTokens.xxs),
+                            ) {
+                                Text(
+                                    tag,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = themePrimary(),
+                                )
+                            }
+                        }
+                        if (tags.size > 3) {
+                            Text("+${tags.size - 3}", style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
+                        }
+                    }
+                }
+
+                // 来源链接卡片
+                if (note.sourceUrl.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = SizeTokens.sectionGapSm)
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(note.sourceUrl))
+                                runCatching { ctx.startActivity(intent) }
+                            },
+                        colors = CardDefaults.cardColors(containerColor = themeBackgroundMuted().copy(alpha = 0.5f)),
+                        shape = ShapeTokens.iconShape,
+                        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.none),
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(SpacingTokens.md),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = "来源链接",
+                                tint = themePrimary(),
+                                modifier = Modifier.size(SizeTokens.iconMd),
+                            )
+                            Spacer(modifier = Modifier.width(SpacingTokens.sm))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = note.sourceUrl,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = themePrimary(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = "打开链接",
+                                tint = themeForegroundMuted(),
+                                modifier = Modifier.size(SpacingTokens.lg),
+                            )
+                        }
+                    }
+                }
+
+                // 元信息行
+                Spacer(Modifier.height(SizeTokens.sectionGapSm))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                ) {
+                    Text(
+                        relativeTime(note.updatedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = themeForegroundMuted(),
+                    )
+                    Text("·", style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
+                    Text(
+                        noteMetaText(note),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = themeForegroundMuted(),
+                    )
+                    if (linkCount > 0) {
+                        Text("·", style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
                                 Icons.Default.Hub,
                                 "关联",
-                                tint = AccentBlue,
-                                modifier = Modifier.size(12.dp),
+                                tint = themePrimary(),
+                                modifier = Modifier.size(SpacingTokens.md),
                             )
-                            Spacer(Modifier.width(2.dp))
+                            Spacer(Modifier.width(SpacingTokens.xxs))
                             Text(
                                 "$linkCount",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = AccentBlue,
-                            )
-                        }
-                    }
-                }
-
-                // 更多菜单
-                IconButton({ showSheet = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                // AI 相关度标签
-                if (relevance != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(4.dp),
-                    ) {
-                        Text(
-                            "相关度 ${relevance}%",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(4.dp))
-                }
-
-                // 来源类型标签
-                val sourceLabel = when (note.sourceType) {
-                    SourceType.ASR, SourceType.MEETING_TRANSCRIPT -> "录音"
-                    SourceType.LINK_EXTRACT -> "链接"
-                    SourceType.MANUAL -> "手动"
-                    SourceType.AI_GENERATED -> "AI生成"
-                    else -> null
-                }
-                if (sourceLabel != null) {
-                    Surface(
-                        color = AccentBlue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(4.dp),
-                    ) {
-                        Text(
-                            sourceLabel,
-                            fontSize = 10.sp,
-                            color = AccentBlue,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(4.dp))
-                }
-
-                // 时间
-                Text(
-                    text = noteListFormatTime(note.updatedAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // 摘要预览
-            if (note.summary.isNotEmpty()) {
-                Text(
-                    text = note.summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    lineHeight = 18.sp,
-                )
-            }
-
-            // 标签
-            val tags = note.getTags()
-            if (tags.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    tags.take(3).forEach { tag ->
-                        Surface(color = AccentBlue.copy(alpha = 0.08f), shape = RoundedCornerShape(10.dp)) {
-                            Text(tag, fontSize = 11.sp, color = AccentBlue, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                        }
-                    }
-                    if (tags.size > 3) {
-                        Text("+${tags.size - 3}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-
-            // 来源链接卡片
-            if (note.sourceUrl.isNotEmpty()) {
-                val ctx = LocalContext.current
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .clickable {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(note.sourceUrl))
-                            runCatching { ctx.startActivity(intent) }
-                        },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Link,
-                            contentDescription = null,
-                            tint = AccentBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = note.sourceUrl,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AccentBlue,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "来源链接",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = themeTextGrey(),
+                                color = themePrimary(),
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "打开链接",
-                            tint = themeTextGrey(),
-                            modifier = Modifier.size(16.dp)
-                        )
                     }
                 }
+            }
+
+            // 右侧 Chevron / 置顶标记
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.padding(start = SpacingTokens.sm),
+            ) {
+                if (note.isPinned) {
+                    Icon(
+                        Icons.Default.PushPin,
+                        "置顶",
+                        tint = themePrimary(),
+                        modifier = Modifier.size(SpacingTokens.lg),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = themeForegroundMuted(),
+                    modifier = Modifier.size(SizeTokens.iconMd),
+                )
             }
         }
     }
@@ -1040,70 +1213,72 @@ private fun RecommendationCard(
     onNoteClick: (Long) -> Unit,
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+            containerColor = themePrimary().copy(alpha = 0.08f),
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.none),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // 标题行
+        Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "发现关联",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = themeForeground(),
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "与「$sourceTitle」相关",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    color = themeForegroundMuted(),
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(SizeTokens.sectionGapSm))
 
-            // 关联笔记列表
             recommendedNotes.forEachIndexed { index, note ->
                 if (index > 0) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
+                        modifier = Modifier.padding(vertical = SpacingTokens.sm),
+                        color = themeBackgroundMuted(),
                     )
                 }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onNoteClick(note.id) }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = SizeTokens.compactSpacing),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 类型图标
-                    Surface(
-                        color = note.type.color().copy(alpha = 0.1f),
-                        shape = CircleShape,
-                        modifier = Modifier.size(24.dp),
+                    val chipColors = note.type.chipColors()
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(chipColors.first)
+                            .size(SpacingTokens.xl),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(note.type.icon(), contentDescription = null, tint = note.type.color(), modifier = Modifier.size(14.dp))
-                        }
+                        Icon(
+                            note.type.icon(),
+                            contentDescription = null,
+                            tint = chipColors.second,
+                            modifier = Modifier.size(SizeTokens.iconXs),
+                        )
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(SizeTokens.sectionGapSm))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = note.title.ifBlank { "无标题" },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
+                            color = themeForeground(),
                         )
                         if (note.summary.isNotEmpty()) {
                             Text(
                                 text = note.summary,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
+                                color = themeForegroundMuted(),
                                 maxLines = 1,
                             )
                         }
@@ -1111,8 +1286,8 @@ private fun RecommendationCard(
                     Icon(
                         Icons.Default.ChevronRight,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
-                        modifier = Modifier.size(18.dp),
+                        tint = themeForegroundMuted(),
+                        modifier = Modifier.size(SizeTokens.iconMd),
                     )
                 }
             }
@@ -1122,41 +1297,64 @@ private fun RecommendationCard(
 
 @Composable
 private fun EmptyNoteState(onNewNote: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            Icons.Default.Edit,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "还没有笔记",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "点击右下角 + 创建第一条笔记，\n或从 AI 对话中保存精彩内容",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        )
-        Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onNewNote, shape = RoundedCornerShape(12.dp)) {
-            Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("写一条笔记")
-        }
-    }
+    EmptyStateView(
+        icon = {
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = null,
+                modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                tint = themeForegroundMuted().copy(alpha = 0.4f),
+            )
+        },
+        title = "还没有笔记",
+        subtitle = "点击右下角 + 创建第一条笔记，\n或从 AI 对话中保存精彩内容",
+        actionLabel = "写一条笔记",
+        onAction = onNewNote,
+        modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
+    )
 }
 
 // ==================== 工具函数 ====================
 
+private fun noteMetaText(note: Note): String {
+    return when (note.sourceType) {
+        SourceType.ASR, SourceType.MEETING_TRANSCRIPT -> "来自录音"
+        else -> {
+            val count = if (note.wordCount > 0) note.wordCount else note.content.length
+            when {
+                count >= 10000 -> "${count / 10000}万${(count % 10000) / 1000}千字"
+                count >= 1000 -> "${count / 1000},${String.format("%03d", count % 1000)} 字"
+                else -> "$count 字"
+            }
+        }
+    }
+}
+
 private fun noteListFormatTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
     return sdf.format(Date(timestamp))
+}
+
+private fun relativeTime(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    val oneMinute = 60_000L
+    val oneHour = 60 * oneMinute
+    val oneDay = 24 * oneHour
+
+    return when {
+        diff < oneHour -> {
+            val minutes = (diff / oneMinute).coerceAtLeast(1)
+            "${minutes}分钟前"
+        }
+        diff < oneDay -> "${diff / oneHour}小时前"
+        diff < 2 * oneDay -> "昨天"
+        diff < 7 * oneDay -> "${diff / oneDay}天前"
+        else -> noteListFormatTime(timestamp)
+    }
+}
+
+@Composable
+private fun NoteType.chipColors(): Pair<Color, Color> {
+    return noteTypeContainerColor(this) to noteTypeContentColor(this)
 }

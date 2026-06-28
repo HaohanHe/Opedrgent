@@ -44,6 +44,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -76,15 +78,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.mcp.editors.DiscussionMessage
+import top.hsyscn.opedrgent.mcp.editors.DynamicRole
 import top.hsyscn.opedrgent.mcp.editors.EditorRole
 import top.hsyscn.opedrgent.mcp.editors.EditorTeamService
 import top.hsyscn.opedrgent.mcp.editors.RoleInstance
 import top.hsyscn.opedrgent.note.NoteType
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
@@ -120,7 +125,7 @@ fun EditorTeamScreen(
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val service = remember { EditorTeamService(vm.apiSettings) }
+    val service = remember { EditorTeamService(vm.apiSettings, context = context) }
     val listState = rememberLazyListState()
 
     // 群聊状态
@@ -128,6 +133,9 @@ fun EditorTeamScreen(
     var inputText by remember { mutableStateOf(initialInput) }
     var isProcessing by remember { mutableStateOf(false) }
     var currentSpeakingAlias by remember { mutableStateOf("") } // 当前正在发言的角色
+    var pipelineIndex by rememberSaveable { mutableStateOf(0) }
+    var pipelineMenuExpanded by remember { mutableStateOf(false) }
+    val selectedPipeline = if (pipelineIndex == 0) EditorRole.defaultPipeline else EditorRole.quickPolishPipeline
 
     DisposableEffect(Unit) {
         onDispose { service.cancel() }
@@ -168,44 +176,93 @@ fun EditorTeamScreen(
         inputText = ""
         isProcessing = true
 
+        val history = messages
+            .filter { !it.isUser && !it.isError && it.content.isNotBlank() }
+            .mapIndexed { idx, msg ->
+                val role = RoleInstance.Dynamic(
+                    DynamicRole(
+                        name = msg.roleName.ifBlank { msg.roleAlias },
+                        alias = msg.roleAlias,
+                        icon = msg.roleIcon,
+                        systemPrompt = "",
+                    )
+                )
+                DiscussionMessage(role = role, content = msg.content, order = idx)
+            }
+
         try {
-            val result = service.groupDiscussion(
+            val result = service.groupDiscussionStreaming(
                 userInput = text.trim(),
-                roles = EditorRole.defaultPipeline,
-                onEachMessage = { discussionMsg: top.hsyscn.opedrgent.mcp.editors.DiscussionMessage ->
-                    val msg = GroupChatMessage(
-                        id = "ai_${System.currentTimeMillis()}_${discussionMsg.order}",
-                        roleAlias = discussionMsg.role.alias,
-                        roleIcon = discussionMsg.role.icon,
-                        roleColor = discussionMsg.role.displayColor,
-                        roleName = discussionMsg.role.name,
-                        content = discussionMsg.content,
+                roles = selectedPipeline,
+                discussionHistory = history,
+                onRoleStart = { alias ->
+                    currentSpeakingAlias = alias
+                    val role = selectedPipeline.firstOrNull { it.alias == alias }
+                    val placeholder = GroupChatMessage(
+                        id = "stream_${System.currentTimeMillis()}_$alias",
+                        roleAlias = alias,
+                        roleIcon = role?.icon ?: "?",
+                        roleColor = role?.color ?: 0xFF999999L,
+                        roleName = role?.displayName ?: alias,
+                        content = "",
                         timestamp = System.currentTimeMillis(),
                         isUser = false,
-                        isFinalDraft = discussionMsg.isFinalDraft,
+                        isStreaming = true,
                     )
-                    messages = messages + msg
+                    messages = messages + placeholder
+                },
+                onRoleChunk = { alias, chunk ->
+                    messages = messages.map { msg ->
+                        if (msg.isStreaming && msg.roleAlias == alias) {
+                            msg.copy(content = msg.content + chunk)
+                        } else msg
+                    }
+                },
+                onRoleComplete = { alias, fullText ->
+                    messages = messages.map { msg ->
+                        if (msg.isStreaming && msg.roleAlias == alias) {
+                            msg.copy(content = fullText.ifBlank { msg.content }, isStreaming = false)
+                        } else msg
+                    }
                     currentSpeakingAlias = ""
+                },
+                onEachMessage = { discussionMsg ->
+                    if (discussionMsg.isFinalDraft) {
+                        val lastAiIdx = messages.indexOfLast { !it.isUser && !it.isError }
+                        if (lastAiIdx >= 0) {
+                            messages = messages.mapIndexed { idx, msg ->
+                                if (idx == lastAiIdx) msg.copy(isFinalDraft = true) else msg
+                            }
+                        }
+                    }
                 },
             )
 
-            // 如果没有通过回调添加消息（异常路径），补充最终稿
             if (result.finalDraft.isNotBlank() && messages.none { it.isFinalDraft }) {
-                val finalMsg = GroupChatMessage(
-                    id = "final_${System.currentTimeMillis()}",
-                    roleAlias = "主编",
-                    roleIcon = "E",
-                    roleColor = 0xFF27AE60,
-                    roleName = "总编主编",
-                    content = result.finalDraft,
-                    timestamp = System.currentTimeMillis(),
-                    isUser = false,
-                    isFinalDraft = true,
-                )
-                messages = messages + finalMsg
+                val existingIdx = messages.indexOfLast { !it.isUser && it.content == result.finalDraft }
+                if (existingIdx >= 0) {
+                    messages = messages.mapIndexed { idx, msg ->
+                        if (idx == existingIdx) msg.copy(isFinalDraft = true) else msg
+                    }
+                } else {
+                    val editorRole = selectedPipeline.lastOrNull()
+                    val finalMsg = GroupChatMessage(
+                        id = "final_${System.currentTimeMillis()}",
+                        roleAlias = editorRole?.alias ?: "主编",
+                        roleIcon = editorRole?.icon ?: "E",
+                        roleColor = editorRole?.color ?: 0xFF27AE60,
+                        roleName = editorRole?.displayName ?: "主编",
+                        content = result.finalDraft,
+                        timestamp = System.currentTimeMillis(),
+                        isUser = false,
+                        isFinalDraft = true,
+                    )
+                    messages = messages + finalMsg
+                }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             showSnackbar("已停止")
+            messages = messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it }
         } catch (e: Exception) {
             val errorMsg = GroupChatMessage(
                 id = "error_${System.currentTimeMillis()}",
@@ -221,11 +278,12 @@ fun EditorTeamScreen(
         } finally {
             isProcessing = false
             currentSpeakingAlias = ""
+            messages = messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it }
         }
     }
 
     // 参与讨论的角色列表（用于顶部展示）
-    val participants = EditorRole.defaultPipeline
+    val participants = selectedPipeline
 
     Scaffold(
         containerColor = themeBgGray(),
@@ -236,11 +294,11 @@ fun EditorTeamScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("写作模式", fontWeight = FontWeight.Bold)
                         if (messages.any { !it.isUser }) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(SpacingTokens.xs))
                             Text(
                                 text = "(${participants.size}人讨论中)",
                                 color = themeTextGrey(),
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
@@ -254,14 +312,44 @@ fun EditorTeamScreen(
                     }
                 },
                 actions = {
+                    Box {
+                        TextButton(
+                            onClick = { pipelineMenuExpanded = true },
+                            enabled = !isProcessing,
+                        ) {
+                            Text(
+                                if (pipelineIndex == 0) "完整讨论" else "快速润色",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = pipelineMenuExpanded,
+                            onDismissRequest = { pipelineMenuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("完整讨论（5人）") },
+                                onClick = {
+                                    pipelineIndex = 0
+                                    pipelineMenuExpanded = false
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("快速润色（4人）") },
+                                onClick = {
+                                    pipelineIndex = 1
+                                    pipelineMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
                     TextButton(
                         onClick = {
                             messages = emptyList()
                             inputText = ""
                         },
-                        enabled = messages.isNotEmpty(),
+                        enabled = messages.isNotEmpty() && !isProcessing,
                     ) {
-                        Text("新建", fontSize = 13.sp)
+                        Text("新建", style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = themeCardWhite()),
@@ -281,9 +369,9 @@ fun EditorTeamScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(themeCardWhite())
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                 )
-                HorizontalDivider(color = Color(0xFFEEEEEE))
+                HorizontalDivider(color = themeDividerColor())
             }
 
             // 消息列表
@@ -301,9 +389,9 @@ fun EditorTeamScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                        .padding(horizontal = SpacingTokens.sm),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                    contentPadding = PaddingValues(vertical = SpacingTokens.sm),
                 ) {
                     itemsIndexed(messages, key = { _, msg -> msg.id }) { _, message ->
                         when {
@@ -335,7 +423,8 @@ fun EditorTeamScreen(
                     }
 
                     // 正在输入指示器
-                    if (isProcessing && currentSpeakingAlias.isNotBlank()) {
+                    val hasStreamingContent = messages.any { it.isStreaming && it.content.isNotEmpty() }
+                    if (isProcessing && currentSpeakingAlias.isNotBlank() && !hasStreamingContent) {
                         item {
                             TypingIndicator(alias = currentSpeakingAlias, participants = participants)
                         }
@@ -374,7 +463,7 @@ private fun ParticipantBar(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
     ) {
@@ -382,28 +471,28 @@ private fun ParticipantBar(
             val isSpeaking = role.alias == speakingAlias
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(SpacingTokens.xxl)
                     .background(
                         Color(role.color).copy(alpha = if (isSpeaking) 0.25f else 0.08f),
                         CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(role.icon, fontSize = 15.sp)
+                Text(role.icon, style = MaterialTheme.typography.titleSmall)
             }
         }
         Spacer(Modifier.weight(1f))
         if (speakingAlias.isNotBlank()) {
             Text(
                 text = "$speakingAlias 正在说...",
-                fontSize = 11.sp,
-                color = Color(roles.firstOrNull { it.alias == speakingAlias }?.color ?: 0xFF999999L),
+                style = MaterialTheme.typography.labelSmall,
+                color = roles.firstOrNull { it.alias == speakingAlias }?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline,
                 fontWeight = FontWeight.Medium,
             )
         } else {
             Text(
                 text = "${roles.size} 位编辑已就位",
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = themeTextGrey(),
             )
         }
@@ -422,34 +511,33 @@ private fun WritingWelcomeArea(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(20.dp)
+            .padding(SpacingTokens.xl)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(SpacingTokens.xxl))
 
         Text(
             text = "写作模式",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.displaySmall,
             color = themeTextDark(),
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             text = "把你的想法扔进来，几位编辑会在群里讨论，最后给你一版定稿",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
 
         // 群成员预览
-        Text(text = "本次讨论阵容", fontSize = 12.sp, color = themeTextGrey())
-        Spacer(Modifier.height(8.dp))
+        Text(text = "本次讨论阵容", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+        Spacer(Modifier.height(SpacingTokens.sm))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+            modifier = Modifier.padding(horizontal = SpacingTokens.lg),
         ) {
             participants.forEach { role ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -459,12 +547,12 @@ private fun WritingWelcomeArea(
                             .background(Color(role.color).copy(alpha = 0.1f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(role.icon, fontSize = 20.sp)
+                        Text(role.icon, style = MaterialTheme.typography.titleLarge)
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
                         text = role.alias,
-                        fontSize = 10.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = Color(role.color),
                         fontWeight = FontWeight.Medium,
                     )
@@ -472,7 +560,7 @@ private fun WritingWelcomeArea(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
 
         // 快捷场景
         WritingQuickScenarios(onSelect = { scenario ->
@@ -480,21 +568,21 @@ private fun WritingWelcomeArea(
             onSend(scenario)
         })
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
 
         // 输入区
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 90.dp, max = 180.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(10.dp))
-                        .padding(12.dp),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, ShapeTokens.smallShape)
+                        .padding(SpacingTokens.md),
                 ) {
                     if (welcomeInput.isEmpty()) {
                         Text(
@@ -510,33 +598,33 @@ private fun WritingWelcomeArea(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     Button(
                         onClick = { onSend(welcomeInput) },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        shape = ShapeTokens.extraLargeShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
                         enabled = welcomeInput.isNotBlank(),
                     ) {
-                        Icon(Icons.Default.Send, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SpacingTokens.lg))
+                        Spacer(Modifier.width(SpacingTokens.xs))
                         Text("开始讨论")
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Text(
             text = "文采匠负责润色 / 历史学家拉古论今 / 技术审查找漏洞 / 逻辑侦探查论证 / 主编综合定稿",
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = themeTextGrey().copy(alpha = 0.6f),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(SpacingTokens.xxl))
     }
 }
 
@@ -552,24 +640,24 @@ private fun WritingQuickScenarios(onSelect: (String) -> Unit) {
     )
 
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         scenarios.forEach { (title, desc, icon) ->
             Card(
                 onClick = { onSelect(title) },
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(icon, fontSize = 17.sp)
-                    Spacer(Modifier.width(8.dp))
+                    Text(icon, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Column {
-                        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text(desc, fontSize = 10.sp, color = themeTextGrey())
+                        Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(desc, style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                     }
                 }
             }
@@ -587,10 +675,18 @@ private fun UserBubble(content: String) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.78f)
-                .background(AccentBlue.copy(alpha = 0.08f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 4.dp, bottomStart = 16.dp))
-                .padding(12.dp),
+                .background(
+                    MaterialTheme.customColors.accentBlue.copy(alpha = 0.08f),
+                    RoundedCornerShape(
+                        topStart = ShapeTokens.large,
+                        topEnd = ShapeTokens.large,
+                        bottomEnd = ShapeTokens.extraSmall,
+                        bottomStart = ShapeTokens.large,
+                    ),
+                )
+                .padding(SpacingTokens.md),
         ) {
-            Text(text = content, fontSize = 14.sp, color = themeTextDark(), lineHeight = 20.sp)
+            Text(text = content, style = MaterialTheme.typography.bodyMedium, color = themeTextDark())
         }
     }
 }
@@ -617,51 +713,64 @@ private fun AgentBubble(
             modifier = Modifier
                 .size(34.dp)
                 .background(bubbleColor.copy(alpha = 0.1f), CircleShape)
-                .padding(2.dp),
+                .padding(SpacingTokens.xxs),
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, fontSize = 17.sp)
+            Text(icon, style = MaterialTheme.typography.titleMedium)
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(SpacingTokens.sm))
 
         // 气泡主体
         Column(modifier = Modifier.weight(1f)) {
             // 名字标签
             Text(
                 text = name.ifBlank { alias },
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = bubbleColor,
             )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(SpacingTokens.xxs))
 
             // 内容气泡
             Box(
                 modifier = Modifier
-                    .background(bubbleColor.copy(alpha = 0.05f), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 14.dp, bottomStart = 4.dp))
-                    .padding(12.dp),
+                    .background(
+                        bubbleColor.copy(alpha = 0.05f),
+                        RoundedCornerShape(
+                            topStart = ShapeTokens.large,
+                            topEnd = ShapeTokens.large,
+                            bottomEnd = ShapeTokens.large,
+                            bottomStart = ShapeTokens.extraSmall,
+                        ),
+                    )
+                    .padding(SpacingTokens.md),
             ) {
                 Column {
+                    val displayText = when {
+                        isStreaming && content.isNotEmpty() -> "$content▍"
+                        content.isEmpty() -> if (isStreaming) "..." else "(无内容)"
+                        else -> content
+                    }
                     MarkdownText(
-                        text = content.ifEmpty { if (isStreaming) "..." else "(无内容)" },
+                        text = displayText,
                         maxChars = 4000,
                     )
                     // 单条复制按钮
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 6.dp),
+                            .padding(top = SpacingTokens.xs),
                         horizontalArrangement = Arrangement.End,
                     ) {
                         IconButton(
                             onClick = onCopy,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(SpacingTokens.xl),
                         ) {
                             Icon(
                                 Icons.Default.ContentCopy,
-                                "复制",
-                                modifier = Modifier.size(12.dp),
+                                contentDescription = stringResource(R.string.cd_copy),
+                                modifier = Modifier.size(SpacingTokens.sm),
                                 tint = themeTextGrey(),
                             )
                         }
@@ -681,13 +790,15 @@ private fun FinalDraftCard(
 ) {
     var expanded by rememberSaveable("final_draft_expanded") { mutableStateOf(true) }
 
+    val finalDraftColor = MaterialTheme.customColors.successGreen
+
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF27AE60).copy(alpha = 0.05f),
+            containerColor = finalDraftColor.copy(alpha = 0.05f),
         ),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             // 头部
             Row(
                 modifier = Modifier
@@ -698,33 +809,33 @@ private fun FinalDraftCard(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .background(Color(0xFF27AE60).copy(alpha = 0.15f), RoundedCornerShape(6.dp)),
+                        .background(finalDraftColor.copy(alpha = 0.15f), ShapeTokens.extraSmallShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("E", fontSize = 14.sp)
+                    Text("E", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "主编定稿",
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF27AE60),
+                        color = finalDraftColor,
                     )
                     Text(
                         text = "${content.length} 字 -- 综合各位意见后的最终版本",
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = themeTextGrey(),
                     )
                 }
-                Text(if (expanded) "▼" else "▶", fontSize = 10.sp, color = themeTextGrey())
+                Text(if (expanded) "▼" else "▶", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
             }
 
             AnimatedVisibility(visible = expanded) {
                 Column {
                     HorizontalDivider(
-                        color = Color(0xFF27AE60).copy(alpha = 0.1f),
-                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = finalDraftColor.copy(alpha = 0.1f),
+                        modifier = Modifier.padding(vertical = SpacingTokens.sm),
                     )
                     MarkdownText(text = content, maxChars = 5000)
 
@@ -732,25 +843,25 @@ private fun FinalDraftCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            .padding(top = SpacingTokens.sm),
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm, Alignment.End),
                     ) {
                         OutlinedButton(
                             onClick = onSaveToNote,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = ShapeTokens.largeShape,
                         ) {
-                            Icon(Icons.Default.NoteAdd, null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("存为笔记", fontSize = 12.sp)
+                            Icon(Icons.Default.NoteAdd, contentDescription = stringResource(R.string.cd_save), modifier = Modifier.size(SpacingTokens.md))
+                            Spacer(Modifier.width(SpacingTokens.xs))
+                            Text("存为笔记", style = MaterialTheme.typography.labelMedium)
                         }
                         Button(
                             onClick = onCopy,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF27AE60)),
+                            shape = ShapeTokens.largeShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = finalDraftColor),
                         ) {
-                            Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("复制全文", fontSize = 12.sp, color = Color.White)
+                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.cd_copy), modifier = Modifier.size(SpacingTokens.md))
+                            Spacer(Modifier.width(SpacingTokens.xs))
+                            Text("复制全文", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -763,13 +874,13 @@ private fun FinalDraftCard(
 @Composable
 private fun ErrorBubble(content: String) {
     Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+        shape = ShapeTokens.mediumShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.customColors.errorBackground),
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("!", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
-            Spacer(Modifier.width(8.dp))
-            Text(content, fontSize = 13.sp, color = Color(0xFFC62828))
+        Row(modifier = Modifier.padding(SpacingTokens.md), verticalAlignment = Alignment.CenterVertically) {
+            Text("!", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.customColors.dangerRed)
+            Spacer(Modifier.width(SpacingTokens.sm))
+            Text(content, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.customColors.dangerRed)
         }
     }
 }
@@ -781,26 +892,26 @@ private fun TypingIndicator(
     participants: List<EditorRole>,
 ) {
     val role = participants.firstOrNull { it.alias == alias }
-    val roleColor = Color(role?.color ?: 0xFF999999)
+    val roleColor = role?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(start = 42.dp, top = 4.dp),
+        modifier = Modifier.padding(start = 42.dp, top = SpacingTokens.xs),
     ) {
         // 跳动的三个点
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xxs)) {
             repeat(3) { index ->
                 Box(
                     modifier = Modifier
-                        .size(5.dp)
+                        .size(SpacingTokens.xxs)
                         .background(roleColor, CircleShape)
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(SpacingTokens.sm))
         Text(
             text = "$alias 正在思考...",
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey(),
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
         )
@@ -818,11 +929,11 @@ private fun ChatInputBar(
     isEnabled: Boolean,
 ) {
     Card(
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shape = RoundedCornerShape(topStart = ShapeTokens.extraLarge, topEnd = ShapeTokens.extraLarge),
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.sm)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
@@ -831,13 +942,13 @@ private fun ChatInputBar(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 42.dp, max = 110.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(22.dp))
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(ShapeTokens.extraLarge))
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                 ) {
                     if (inputText.isEmpty()) {
                         Text(
                             text = "把你的想法或草稿贴进来...",
-                            color = Color(0xFFBDBDBD),
+                            color = MaterialTheme.colorScheme.outline,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -849,37 +960,37 @@ private fun ChatInputBar(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
                 if (isProcessing) {
                     OutlinedButton(
                         onClick = onStop,
                         shape = CircleShape,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = Color(0xFFE53935),
+                            contentColor = MaterialTheme.customColors.dangerRed,
                         ),
                         modifier = Modifier.size(42.dp),
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.cd_stop), modifier = Modifier.size(18.dp))
                     }
                 } else {
                     Button(
                         onClick = { onSend(inputText) },
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
                         enabled = isEnabled,
                         modifier = Modifier.size(42.dp),
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Icon(Icons.Default.Send, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(18.dp))
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(SpacingTokens.xs))
             Text(
                 text = if (isProcessing) "点击红色按钮停止讨论" else "Enter 发送",
-                fontSize = 10.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = themeTextGrey().copy(alpha = 0.6f),
                 modifier = Modifier.align(Alignment.End),
             )

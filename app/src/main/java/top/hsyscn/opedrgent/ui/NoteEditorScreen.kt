@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.max
-import android.widget.Toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -55,18 +54,14 @@ import top.hsyscn.opedrgent.note.color
 import top.hsyscn.opedrgent.note.displayName
 import top.hsyscn.opedrgent.note.ParsedSummary
 import top.hsyscn.opedrgent.note.parseAiSummary
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
-import top.hsyscn.opedrgent.ui.theme.TextPrimary
 import top.hsyscn.opedrgent.ui.theme.DangerRed
 import top.hsyscn.opedrgent.ui.theme.ErrorBackground
 import top.hsyscn.opedrgent.ui.theme.ErrorBorder
 import top.hsyscn.opedrgent.ui.theme.DeleteConfirmRed
-import top.hsyscn.opedrgent.ui.theme.SuccessGreen
-import top.hsyscn.opedrgent.ui.theme.SproutQuoteBg
-import top.hsyscn.opedrgent.ui.theme.SproutSeedText
-import top.hsyscn.opedrgent.ui.theme.SproutChipBg
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.components.AudioPlayer
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.SproutEmptyIllustration
@@ -228,7 +223,7 @@ fun NoteEditorScreen(
 
     if (forceReadOnly) {
         // ════════════════════════════════════════
-        // 阅读模式（只读展示）— Dedao Brain 风格 Tab + 浮动底栏
+        // 阅读模式（只读展示）— opedrgent 风格 Tab + 浮动底栏
         // ════════════════════════════════════════
         val tabTitles = listOf("原文", "笔记内容", "发芽", "追加笔记")
 
@@ -269,19 +264,19 @@ fun NoteEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         tags.forEach { tag ->
                             Surface(
-                                color = AccentOrange.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.customColors.accentOrange.copy(alpha = 0.1f),
+                                shape = ShapeTokens.mediumShape,
                             ) {
                                 Text(
                                     tag,
-                                    fontSize = 12.sp,
-                                    color = AccentOrange,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.customColors.accentOrange,
+                                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                                 )
                             }
                         }
@@ -303,7 +298,7 @@ fun NoteEditorScreen(
                     selectedTabIndex = selectedTab,
                     edgePadding = 16.dp,
                     containerColor = MaterialTheme.colorScheme.background,
-                    contentColor = AccentBlue,
+                    contentColor = MaterialTheme.customColors.accentBlue,
                     divider = {},
                 ) {
                     tabTitles.forEachIndexed { index, title ->
@@ -313,11 +308,14 @@ fun NoteEditorScreen(
                             text = {
                                 Text(
                                     title,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                                    style = if (selectedTab == index) {
+                                        MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                                    } else {
+                                        MaterialTheme.typography.titleSmall
+                                    },
                                 )
                             },
-                            selectedContentColor = AccentBlue,
+                            selectedContentColor = MaterialTheme.customColors.accentBlue,
                             unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -347,7 +345,7 @@ fun NoteEditorScreen(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                                         .padding(bottom = 36.dp),
                                 ) {
                                     // 来源链接卡片
@@ -356,7 +354,7 @@ fun NoteEditorScreen(
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(16.dp)
+                                                .padding(SpacingTokens.lg)
                                                 .clickable {
                                                     val intent = android.content.Intent(
                                                         android.content.Intent.ACTION_VIEW,
@@ -367,13 +365,13 @@ fun NoteEditorScreen(
                                             colors = CardDefaults.cardColors(containerColor = themeCardBackground()),
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(16.dp),
+                                                modifier = Modifier.padding(SpacingTokens.lg),
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
                                                 Icon(
                                                     Icons.Default.Link,
-                                                    contentDescription = null,
-                                                    tint = AccentBlue,
+                                                    contentDescription = "来源链接",
+                                                    tint = MaterialTheme.customColors.accentBlue,
                                                 )
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
@@ -385,7 +383,7 @@ fun NoteEditorScreen(
                                                     Text(
                                                         url,
                                                         style = MaterialTheme.typography.bodyMedium,
-                                                        color = AccentBlue,
+                                                        color = MaterialTheme.customColors.accentBlue,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis,
                                                     )
@@ -409,7 +407,7 @@ fun NoteEditorScreen(
                                         icon = {
                                             Icon(
                                                 Icons.Default.Mic,
-                                                contentDescription = null,
+                                                contentDescription = "麦克风",
                                                 modifier = Modifier.size(72.dp),
                                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                             )
@@ -424,7 +422,7 @@ fun NoteEditorScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .verticalScroll(rememberScrollState())
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                                             .padding(bottom = 36.dp),
                                     )
                                 }
@@ -449,7 +447,7 @@ fun NoteEditorScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                        .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     subTabTitles.forEachIndexed { index, title ->
@@ -457,23 +455,24 @@ fun NoteEditorScreen(
                                         Box(
                                             modifier = Modifier
                                                 .clickable { selectedSubTab = index }
-                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
                                                     title,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                                    color = if (selected) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    ),
+                                                    color = if (selected) MaterialTheme.customColors.accentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                                 if (selected) {
-                                                    Spacer(Modifier.height(2.dp))
+                                                    Spacer(Modifier.height(SpacingTokens.xxs))
                                                     Box(
                                                         modifier = Modifier
                                                             .width(20.dp)
-                                                            .height(2.dp)
-                                                            .background(AccentBlue, RoundedCornerShape(1.dp)),
+                                                            .height(SpacingTokens.xxs)
+                                                            .background(MaterialTheme.customColors.accentBlue, CircleShape),
                                                     )
                                                 }
                                             }
@@ -486,7 +485,7 @@ fun NoteEditorScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                                 ) {
                                     when (selectedSubTab) {
                                         0 -> {
@@ -518,20 +517,19 @@ fun NoteEditorScreen(
                                                     parsedSummary.keyQuotes.forEach { quote ->
                                                         Surface(
                                                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                            shape = RoundedCornerShape(8.dp),
+                                                            shape = ShapeTokens.smallShape,
                                                             modifier = Modifier.fillMaxWidth(),
                                                         ) {
                                                             Row(
-                                                                modifier = Modifier.padding(12.dp),
+                                                                modifier = Modifier.padding(SpacingTokens.md),
                                                                 verticalAlignment = Alignment.Top,
                                                             ) {
                                                                 Text(
-                                                                    "\"",
-                                                                    fontSize = 18.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = AccentBlue,
-                                                                    modifier = Modifier.padding(end = 8.dp),
-                                                                )
+                                                        "\"",
+                                                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                                        color = MaterialTheme.customColors.accentBlue,
+                                                        modifier = Modifier.padding(end = SpacingTokens.sm),
+                                                    )
                                                                 Text(
                                                                     quote,
                                                                     style = MaterialTheme.typography.bodyMedium,
@@ -547,7 +545,7 @@ fun NoteEditorScreen(
                                                     icon = {
                                                         Icon(
                                                             Icons.Default.FormatQuote,
-                                                            contentDescription = null,
+                                                            contentDescription = "引用",
                                                             modifier = Modifier.size(56.dp),
                                                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                                         )
@@ -573,9 +571,9 @@ fun NoteEditorScreen(
                                                         ) {
                                                             Text(
                                                                 "\u2610",
-                                                                fontSize = 16.sp,
-                                                                color = AccentBlue,
-                                                                modifier = Modifier.padding(end = 10.dp),
+                                                                style = MaterialTheme.typography.bodyLarge,
+                                                                color = MaterialTheme.customColors.accentBlue,
+                                                                modifier = Modifier.padding(end = SpacingTokens.sm),
                                                             )
                                                             Text(
                                                                 item,
@@ -591,7 +589,7 @@ fun NoteEditorScreen(
                                                     icon = {
                                                         Icon(
                                                             Icons.Default.CheckCircle,
-                                                            contentDescription = null,
+                                                            contentDescription = "待办",
                                                             modifier = Modifier.size(56.dp),
                                                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                                         )
@@ -625,7 +623,7 @@ fun NoteEditorScreen(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                                         .padding(bottom = 36.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
@@ -633,33 +631,31 @@ fun NoteEditorScreen(
                                     val topSummary = article?.summary ?: report?.summary
                                     if (!topSummary.isNullOrBlank()) {
                                         Surface(
-                                            color = SuccessGreen.copy(alpha = 0.08f),
-                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.customColors.successGreen.copy(alpha = 0.08f),
+                                            shape = ShapeTokens.mediumShape,
                                             modifier = Modifier.fillMaxWidth(),
                                         ) {
-                                            Column(modifier = Modifier.padding(14.dp)) {
+                                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         Icons.Default.Lightbulb,
-                                                        contentDescription = null,
-                                                        tint = SuccessGreen,
+                                                        contentDescription = "核心洞察",
+                                                        tint = MaterialTheme.customColors.successGreen,
                                                         modifier = Modifier.size(16.dp),
                                                     )
                                                     Spacer(Modifier.width(6.dp))
                                                     Text(
                                                         "核心洞察",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = SuccessGreen,
+                                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                        color = MaterialTheme.customColors.successGreen,
                                                     )
                                                 }
                                                 Spacer(Modifier.height(6.dp))
                                                 Text(
-                                                    topSummary,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    lineHeight = 20.sp,
-                                                )
+                                                        topSummary,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                    )
                                             }
                                         }
                                     }
@@ -671,10 +667,10 @@ fun NoteEditorScreen(
                                             article.articles.forEachIndexed { idx, section ->
                                                 Surface(
                                                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                                    shape = RoundedCornerShape(12.dp),
+                                                    shape = ShapeTokens.mediumShape,
                                                     modifier = Modifier.fillMaxWidth(),
                                                 ) {
-                                                    Column(modifier = Modifier.padding(14.dp)) {
+                                                    Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                                         // 章节标题 + 重要性标记
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             Text(
@@ -689,7 +685,7 @@ fun NoteEditorScreen(
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .size(6.dp)
-                                                                        .background(AccentOrange, CircleShape)
+                                                                        .background(MaterialTheme.customColors.accentOrange, CircleShape)
                                                                 )
                                                                 if (section.importance.coerceIn(1, 5) > it) {
                                                                     Spacer(Modifier.width(3.dp))
@@ -701,14 +697,14 @@ fun NoteEditorScreen(
 
                                                         // 种子引用
                                                         Surface(
-                                                            color = SproutQuoteBg,
-                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = MaterialTheme.customColors.sproutQuoteBg,
+                                                            shape = ShapeTokens.smallShape,
                                                         ) {
                                                             Text(
                                                                 "种子：${section.seed}",
                                                                 style = MaterialTheme.typography.bodySmall,
-                                                                color = SproutSeedText,
-                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                                color = MaterialTheme.customColors.sproutSeedText,
+                                                                modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                                                                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                                                             )
                                                         }
@@ -721,22 +717,21 @@ fun NoteEditorScreen(
                                                             modifier = Modifier.fillMaxWidth(),
                                                         )
 
-                                                        // Aha 金句
-                                                        if (section.ahaMoment.isNotBlank()) {
+                                                        // 震惊瞬间金句
+                                                        if (section.shockingMoment.isNotBlank()) {
                                                             Spacer(Modifier.height(10.dp))
                                                             Row(modifier = Modifier.fillMaxWidth()) {
                                                                 Icon(
                                                                     Icons.Default.AutoAwesome,
-                                                                    contentDescription = null,
-                                                                    tint = AccentOrange,
+                                                                    contentDescription = "震惊瞬间",
+                                                                    tint = MaterialTheme.customColors.accentOrange,
                                                                     modifier = Modifier.size(16.dp),
                                                                 )
                                                                 Spacer(Modifier.width(6.dp))
                                                                 Text(
-                                                                    section.ahaMoment,
-                                                                    style = MaterialTheme.typography.bodyMedium,
-                                                                    color = AccentOrange,
-                                                                    fontWeight = FontWeight.Medium,
+                                                                    section.shockingMoment,
+                                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                                                    color = MaterialTheme.customColors.accentOrange,
                                                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                                                                 )
                                                             }
@@ -749,17 +744,17 @@ fun NoteEditorScreen(
                                         // 旧格式报告：提示用户重新发芽以获取完整内容
                                         Surface(
                                             color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                            shape = RoundedCornerShape(12.dp),
+                                            shape = ShapeTokens.mediumShape,
                                             modifier = Modifier.fillMaxWidth(),
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(16.dp),
+                                                modifier = Modifier.padding(SpacingTokens.lg),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 Icon(
                                                     Icons.Default.Lightbulb,
-                                                    contentDescription = null,
-                                                    tint = AccentOrange,
+                                                    contentDescription = "旧版发芽报告",
+                                                    tint = MaterialTheme.customColors.accentOrange,
                                                     modifier = Modifier.size(32.dp),
                                                 )
                                                 Spacer(Modifier.height(12.dp))
@@ -799,7 +794,7 @@ fun NoteEditorScreen(
                                                                         },
                                                                         onFailure = { e ->
                                                                             withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                                Toast.makeText(context, "发芽失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                                                snackbarHostState.showSnackbar("发芽失败: ${e.message}")
                                                                             }
                                                                         },
                                                                     )
@@ -819,7 +814,7 @@ fun NoteEditorScreen(
                                                         )
                                                         Spacer(Modifier.width(8.dp))
                                                     }
-                                                    Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                                                    Icon(Icons.Default.AutoAwesome, "重新发芽", Modifier.size(16.dp))
                                                     Spacer(Modifier.width(6.dp))
                                                     Text("重新发芽")
                                                 }
@@ -831,34 +826,33 @@ fun NoteEditorScreen(
                                     val allActionItems = article?.actionItems ?: report?.actionItems ?: emptyList()
                                     if (allActionItems.isNotEmpty()) {
                                         Surface(
-                                            color = AccentBlue.copy(alpha = 0.06f),
-                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.06f),
+                                            shape = ShapeTokens.mediumShape,
                                             modifier = Modifier.fillMaxWidth(),
                                         ) {
-                                            Column(modifier = Modifier.padding(14.dp)) {
+                                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         Icons.Default.CheckCircle,
-                                                        contentDescription = null,
-                                                        tint = AccentBlue,
+                                                        contentDescription = "行动建议",
+                                                        tint = MaterialTheme.customColors.accentBlue,
                                                         modifier = Modifier.size(16.dp),
                                                     )
                                                     Spacer(Modifier.width(6.dp))
                                                     Text(
                                                         "行动建议",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = AccentBlue,
+                                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                        color = MaterialTheme.customColors.accentBlue,
                                                     )
                                                 }
                                                 Spacer(Modifier.height(8.dp))
                                                 allActionItems.forEachIndexed { index, item ->
-                                                    Row(modifier = Modifier.padding(vertical = 3.dp)) {
+                                                    Row(modifier = Modifier.padding(vertical = SpacingTokens.xxs)) {
                                                         Text(
                                                             "${index + 1}.",
                                                             modifier = Modifier.width(20.dp),
-                                                            color = MaterialTheme.colorScheme.primary,
-                                                            fontWeight = FontWeight.Medium,
+                                                            color = MaterialTheme.customColors.accentBlue,
+                                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                                         )
                                                         Text(item, style = MaterialTheme.typography.bodyMedium)
                                                     }
@@ -872,31 +866,30 @@ fun NoteEditorScreen(
                                     if (!concepts.isNullOrEmpty()) {
                                         Surface(
                                             color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                            shape = RoundedCornerShape(12.dp),
+                                            shape = ShapeTokens.mediumShape,
                                             modifier = Modifier.fillMaxWidth(),
                                         ) {
-                                            Column(modifier = Modifier.padding(14.dp)) {
+                                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                                 Text(
                                                     "相关概念",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.SemiBold,
+                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
-                                                Spacer(Modifier.height(8.dp))
+                                                Spacer(Modifier.height(SpacingTokens.sm))
                                                 FlowRow(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                                                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
                                                 ) {
                                                     concepts.forEach { concept ->
                                                         Surface(
-                                                            shape = RoundedCornerShape(16.dp),
-                                                            color = SproutChipBg,
+                                                            shape = ShapeTokens.largeShape,
+                                                            color = MaterialTheme.customColors.sproutChipBg,
                                                         ) {
                                                             Text(
                                                                 concept,
-                                                                fontSize = 12.sp,
-                                                                color = TextPrimary,
-                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                                style = MaterialTheme.typography.labelMedium,
+                                                                color = MaterialTheme.colorScheme.onSurface,
+                                                                modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                                                             )
                                                         }
                                                     }
@@ -909,7 +902,7 @@ fun NoteEditorScreen(
                                     if (article != null) {
                                         HorizontalDivider()
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(top = SpacingTokens.sm),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                         ) {
                                             Text(
@@ -957,10 +950,10 @@ fun NoteEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(noteType.icon(), null, tint = noteType.color(), modifier = Modifier.size(14.dp))
+                        Icon(noteType.icon(), "笔记类型", tint = noteType.color(), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(noteType.displayName(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -971,8 +964,8 @@ fun NoteEditorScreen(
                             Text(
                                 "保存于 ${EditorUtils.formatTimeAgo(lastSavedAt!!)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = SuccessGreen,
-                                modifier = Modifier.padding(start = 8.dp),
+                                color = MaterialTheme.customColors.successGreen,
+                                modifier = Modifier.padding(start = SpacingTokens.sm),
                             )
                         }
                     }
@@ -1066,19 +1059,19 @@ fun NoteEditorScreen(
                             Icon(
                                 if (isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
                                 if (isPreviewMode) "编辑" else "预览",
-                                tint = AccentBlue,
+                                tint = MaterialTheme.customColors.accentBlue,
                             )
                         }
 
                         // 格式化工具栏切换
                         IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
-                            Icon(Icons.Default.FormatBold, "格式化", tint = AccentBlue)
+                            Icon(Icons.Default.FormatBold, "格式化", tint = MaterialTheme.customColors.accentBlue)
                         }
 
                         // AI 操作按钮（只在编辑已有笔记时显示）
                         if (noteId != null) {
                             IconButton(onClick = { showAiMenu = true }) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = AccentBlue)
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = MaterialTheme.customColors.accentBlue)
                             }
                         }
 
@@ -1086,8 +1079,8 @@ fun NoteEditorScreen(
                             onClick = { scope.launch { save(showGraphInfo = true) } },
                             enabled = !isSaving && content.text.isNotBlank(),
                         ) {
-                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AccentBlue)
-                        else Text(stringResource(R.string.action_save), fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.customColors.accentBlue)
+                        else Text(stringResource(R.string.action_save), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.customColors.accentBlue)
                         }
 
                         // 在聊天中讨论按钮
@@ -1099,9 +1092,9 @@ fun NoteEditorScreen(
                                 },
                                 enabled = content.text.isNotBlank(),
                             ) {
-                                Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
+                                Icon(Icons.Default.ChatBubbleOutline, "在对话中讨论", modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentBlue)
                                 Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.note_editor_discuss), fontWeight = FontWeight.SemiBold, color = AccentBlue)
+                                Text(stringResource(R.string.note_editor_discuss), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.customColors.accentBlue)
                             }
                         }
                     },
@@ -1120,15 +1113,11 @@ fun NoteEditorScreen(
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
-                textStyle = TextStyle(
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
+                textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 singleLine = true,
-                cursorBrush = SolidColor(AccentBlue),
+                cursorBrush = SolidColor(MaterialTheme.customColors.accentBlue),
                 decorationBox = { innerTextField ->
-                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Box(modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)) {
                         if (title.isEmpty()) {
                             Text("标题（可选）", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         }
@@ -1140,7 +1129,7 @@ fun NoteEditorScreen(
             )
 
             // 标签输入区域
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Column(modifier = Modifier.padding(horizontal = SpacingTokens.lg)) {
                 // 已添加的标签
                 if (tags.isNotEmpty()) {
                     Row(
@@ -1149,42 +1138,42 @@ fun NoteEditorScreen(
                     ) {
                         tags.forEach { tag ->
                             Surface(
-                                color = AccentOrange.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.customColors.accentOrange.copy(alpha = 0.1f),
+                                shape = ShapeTokens.mediumShape,
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                                 ) {
-                                    Text(tag, fontSize = 12.sp, color = AccentOrange)
-                                    Spacer(Modifier.width(4.dp))
+                                    Text(tag, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentOrange)
+                                    Spacer(Modifier.width(SpacingTokens.xs))
                                     IconButton(
                                         onClick = { removeTag(tag) },
                                         modifier = Modifier.size(14.dp),
                                     ) {
-                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = AccentOrange)
+                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = MaterialTheme.customColors.accentOrange)
                                     }
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
                 }
 
                 // 标签输入框
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.Label, "标签", tint = AccentOrange, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.Label, "标签", tint = MaterialTheme.customColors.accentOrange, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     BasicTextField(
                         value = tagInput,
                         onValueChange = { tagInput = it },
-                        textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+                        textStyle = MaterialTheme.typography.bodyMedium,
                         singleLine = true,
-                        cursorBrush = SolidColor(AccentOrange),
+                        cursorBrush = SolidColor(MaterialTheme.customColors.accentOrange),
                         decorationBox = { innerTextField ->
                             Box {
                                 if (tagInput.isEmpty()) {
-                                    Text("添加标签（最多200个，每个40字符）", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                    Text("添加标签（最多200个，每个40字符）", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                 }
                                 innerTextField()
                             }
@@ -1195,13 +1184,13 @@ fun NoteEditorScreen(
                     )
                     if (tagInput.isNotEmpty()) {
                         IconButton(onClick = { addTag() }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = AccentOrange)
+                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentOrange)
                         }
                     }
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = SpacingTokens.sm))
 
             // 格式化工具栏（仅 Markdown 模式显示）
             if (showFormatToolbar && !isPreviewMode && editorMode == "markdown") {
@@ -1229,7 +1218,7 @@ fun NoteEditorScreen(
                         .weight(1f)
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
             } else if (editorMode == "richtext") {
                 // 富文本编辑模式（Notally 风格）
@@ -1245,7 +1234,7 @@ fun NoteEditorScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     placeholder = "开始书写...\n\n选中文字即可加粗、斜体、代码等格式",
                 )
             } else {
@@ -1253,17 +1242,15 @@ fun NoteEditorScreen(
                 BasicTextField(
                     value = content,
                     onValueChange = { content = it },
-                    textStyle = TextStyle(
-                        fontSize = 16.sp,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
                         lineHeight = 26.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface,
                     ),
-                    cursorBrush = SolidColor(AccentBlue),
+                    cursorBrush = SolidColor(MaterialTheme.customColors.accentBlue),
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                         .onPreviewKeyEvent { keyEvent ->
                             val keyCode = keyEvent.nativeKeyEvent.keyCode
                             when {
@@ -1317,8 +1304,7 @@ fun NoteEditorScreen(
                                 val textBeforeCursor = content.text.take(cursorPosition)
                                 Text(
                                     text = ghostText,
-                                    style = TextStyle(
-                                        fontSize = 16.sp,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
                                         lineHeight = 26.sp,
                                         fontFamily = FontFamily.Monospace,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
@@ -1340,10 +1326,10 @@ fun NoteEditorScreen(
                                 Text(
                                     text = "Tab 接受 | Esc 取消",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AccentBlue.copy(alpha = 0.5f),
+                                    color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.5f),
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
-                                        .padding(end = 4.dp, bottom = 4.dp),
+                                        .padding(end = SpacingTokens.xs, bottom = SpacingTokens.xs),
                                 )
                             }
                         }
@@ -1372,15 +1358,12 @@ fun NoteEditorScreen(
 
                             if (shouldComplete && contextText.trim().length > 3) {
                                 isGhostTextActive = true
-                                // 优先使用 LLM 补全回调，否则使用本地启发式补全
-                                scope.launch {
-                                    val completion = if (onRequestCompletion != null) {
-                                        try { onRequestCompletion(contextText) } catch (_: Exception) { "" }
-                                    } else {
-                                        EditorUtils.heuristicComplete(contextText)
-                                    }
-                                    ghostText = completion
+                                val completion = if (onRequestCompletion != null) {
+                                    try { onRequestCompletion(contextText) } catch (_: Exception) { "" }
+                                } else {
+                                    EditorUtils.heuristicComplete(contextText)
                                 }
+                                ghostText = completion
                             }
                         }
                     }
@@ -1394,11 +1377,11 @@ fun NoteEditorScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(noteType.icon(), null, tint = noteType.color(), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Icon(noteType.icon(), "笔记类型", tint = noteType.color(), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(SpacingTokens.xs))
                     Text(noteType.displayName(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     Spacer(Modifier.weight(1f))
@@ -1409,8 +1392,8 @@ fun NoteEditorScreen(
                         Text(
                             "已保存 ${EditorUtils.formatTimeAgo(lastSavedAt!!)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = SuccessGreen,
-                            modifier = Modifier.padding(start = 8.dp),
+                            color = MaterialTheme.customColors.successGreen,
+                            modifier = Modifier.padding(start = SpacingTokens.sm),
                         )
                     }
                 }
@@ -1438,7 +1421,7 @@ fun NoteEditorScreen(
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
                     }
-                    HorizontalDivider(color = themeDividerColor(), modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(color = themeDividerColor(), modifier = Modifier.padding(vertical = SpacingTokens.xs))
                     AIActionButton("AI 编辑团", "8人编辑团协作创作", "editor_team") {
                         showAiMenu = false
                         scope.launch { save() }
@@ -1468,7 +1451,7 @@ fun NoteEditorScreen(
                         save(showGraphInfo = true)
                         onBack()
                     }
-                }) { Text(stringResource(R.string.note_editor_save_leave), fontWeight = FontWeight.SemiBold, color = AccentBlue) }
+                }) { Text(stringResource(R.string.note_editor_save_leave), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.customColors.accentBlue) }
             },
             dismissButton = {
                 TextButton(onClick = {

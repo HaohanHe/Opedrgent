@@ -1,5 +1,13 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -98,14 +106,14 @@ fun ExportScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(SpacingTokens.lg)
                 .verticalScroll(rememberScrollState()),
         ) {
             Text(
                 text = "会话导出",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(bottom = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
 
             ExportOptionCard(
@@ -156,17 +164,17 @@ fun ExportScreen(
                 },
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             HorizontalDivider()
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             Text(
                 text = "复制到剪贴板",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(bottom = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
 
             ExportOptionCard(
@@ -207,17 +215,17 @@ fun ExportScreen(
                 },
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             HorizontalDivider()
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             Text(
                 text = "分享",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(bottom = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
 
             ExportOptionCard(
@@ -268,41 +276,41 @@ private fun ExportOptionCard(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = SpacingTokens.xs),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(SpacingTokens.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
                 color = AccentBlue.copy(alpha = 0.1f),
                 modifier = Modifier.size(40.dp),
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = null,
+                    contentDescription = "图标",
                     tint = AccentBlue,
-                    modifier = Modifier.size(20.dp).padding(10.dp),
+                    modifier = Modifier.size(20.dp).padding(SpacingTokens.md),
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(SpacingTokens.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                 )
                 Text(
                     text = description,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
             }

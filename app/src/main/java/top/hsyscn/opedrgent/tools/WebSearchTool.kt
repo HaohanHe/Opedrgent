@@ -2,10 +2,13 @@ package top.hsyscn.opedrgent.tools
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
@@ -17,10 +20,12 @@ import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.network.WebViewAgent
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
+import top.hsyscn.opedrgent.utils.smartTruncate
 import java.util.concurrent.ConcurrentHashMap
 
 class WebSearchTool(
@@ -44,115 +49,6 @@ class WebSearchTool(
 
     private suspend fun getWebViewAgent(): WebViewAgent {
         return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
-    }
-
-    /**
-     * 智能截取：按段落边界截取，保留完整句子
-     */
-    private fun smartTruncate(text: String, maxLen: Int): String {
-        if (text.length <= maxLen) return text
-        val truncated = text.take(maxLen)
-        // 尝试在段落边界截断
-        val lastParagraph = truncated.lastIndexOf("\n\n")
-        if (lastParagraph > maxLen * 0.6) return truncated.substring(0, lastParagraph)
-        // 尝试在句子边界截断
-        val lastSentence = maxOf(truncated.lastIndexOf("。"), truncated.lastIndexOf(". "), truncated.lastIndexOf("！"), truncated.lastIndexOf("？"))
-        if (lastSentence > maxLen * 0.5) return truncated.substring(0, lastSentence + 1)
-        // 最后在空格处截断
-        val lastSpace = truncated.lastIndexOf(' ')
-        if (lastSpace > maxLen * 0.7) return truncated.substring(0, lastSpace)
-        return truncated
-    }
-
-    /**
-     * 搜索查询词预处理。
-     *
-     * LLM 生成的搜索词常存在以下问题：
-     * 1. 多个关键词用空格/逗号/顿号拼接成一长串（如 "跨时代 人才 跃迁 计划 官方 文件"）
-     * 2. 夹杂无意义的停用词和语气词
-     * 3. 过长导致搜索引擎逐字匹配返回字典解释而非主题内容
-     *
-     * 本函数负责：
-     * - 去除首尾空白，折叠连续空格
-     * - 去除中文停用词（的/了/是/在/等无检索价值的字）
-     * - 截断过长的中文 query（保留前 N 个有意义的片段）
-     * - 去除重复关键词
-     */
-    private fun sanitizeQuery(raw: String): String {
-        var q = raw.trim()
-
-        if (q.isBlank()) return q
-
-        val original = q
-
-        // 1. 折叠连续空白（空格、全角空格、换行、制表符）
-        q = q.replace(Regex("[\\s\\u3000]+"), " ").trim()
-
-        // 2. 去除常见中文停用词
-        //    单字停用词（独立出现时无检索价值，不影响词语内部如"计划"）
-        val singleCharStopWords = setOf(
-            '的', '了', '是', '在', '我', '你', '他', '她', '它',
-            '这', '那', '有', '和', '与', '或', '等', '及', '中',
-            '上', '下', '以', '对', '为', '从', '到', '把', '被',
-            '让', '给', '向', '往', '比', '最', '更', '很', '太',
-            '也', '都', '就', '又', '再', '还', '会', '能', '可',
-            '要', '不', '没',
-        )
-        // 多字停用词（整个片段匹配时丢弃）
-        val multiWordStopWords = setOf("什么", "怎么", "如何", "为何")
-        // 按空格分词后，去掉纯停用词片段
-        val segments = q.split(" ").filter { it.isNotBlank() }
-        val cleanedSegments = segments.map { seg ->
-            if (seg in multiWordStopWords) return@map ""
-            if (seg.length == 1 && seg[0] in singleCharStopWords) return@map ""
-            seg
-        }.filter { it.isNotBlank() }
-
-        q = cleanedSegments.joinToString(" ")
-
-        // 3. 去重：如果相同关键词出现多次，只保留第一次
-        val seen = mutableSetOf<String>()
-        val deduped = mutableListOf<String>()
-        for (seg in q.split(" ")) {
-            val key = seg.lowercase()
-            if (key !in seen) {
-                seen.add(key)
-                deduped.add(seg)
-            }
-        }
-        q = deduped.joinToString(" ")
-
-        // 4. 中文 query 长度控制：
-        //    统计中文字符数，超过阈值时截取前几个最有意义的关键词片段
-        val chineseCharCount = q.count { it in '\u4e00'..'\u9fff' }
-        val maxChineseChars = 20 // 搜索引擎对中文的最佳输入长度
-        if (chineseCharCount > maxChineseChars) {
-            val parts = q.split(" ").toMutableList()
-            var accumulated = 0
-            val keep = mutableListOf<String>()
-            for (part in parts) {
-                val partCnCount = part.count { it in '\u4e00'..'\u9fff' }
-                if (accumulated + partCnCount > maxChineseChars && keep.isNotEmpty()) break
-                keep.add(part)
-                accumulated += partCnCount
-            }
-            val truncated = keep.joinToString(" ")
-            DebugLog.i("sanitizeQuery: 截断 '$q' -> '$truncated' (中文 ${chineseCharCount}->${accumulated} 字)")
-            q = truncated
-        }
-
-        // 5. 最终清理：确保没有残留的多余空格
-        q = q.replace(Regex("\\s+"), " ").trim()
-
-        if (q != original) {
-            DebugLog.i("sanitizeQuery: '$original' -> '$q'")
-        }
-
-        return q.ifBlank { original }
     }
 
     private suspend fun translateQueryToEnglish(query: String, config: ApiConfig): String {
@@ -244,11 +140,12 @@ class WebSearchTool(
             }
         }
 
-        // ★ 搜索查询词预处理：清洗空格、去除停用词、截断过长query、提取核心关键词
+        // ★ 搜索查询词预处理：仅 trim 与折叠空白，保留原始词组结构
         query = sanitizeQuery(query)
 
         val method = (tp.state.input["method"] ?: "ddg").lowercase().trim()
-        DebugLog.i("web_search: query=$query method=$method useProvider=$useProviderSearch")
+        val phase = tp.state.input["phase"]?.lowercase()?.trim() ?: "scan"
+        DebugLog.i("web_search: query=$query method=$method phase=$phase useProvider=$useProviderSearch")
 
         when (method) {
             "webview", "bing", "builtin" -> return webviewSearch(tp, query)
@@ -265,97 +162,11 @@ class WebSearchTool(
             return providerNativeSearch(tp, query, config)
         }
 
-        DebugLog.i("web_search: query='$query'")
-        // ★ 修复：搜索结果从3条增加到5条，提供更多参考来源
-        val searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 5)
-
-        val sourceLabel = if (searchResults.isNotEmpty()) {
-            val first = searchResults.first()
-            when {
-                first.url.contains("bing.com") -> "Bing"
-                first.url.contains("duckduckgo") -> "DuckDuckGo"
-                else -> "Web"
-            }
-        } else ""
-
-        if (searchResults.isEmpty()) {
-            DebugLog.w("web_search: all HTTP searches failed, falling back to WebView")
-            return webviewSearch(tp, query)
+        DebugLog.i("web_search: query='$query' phase=$phase")
+        return when (phase) {
+            "deep" -> executeDeepPhase(tp, query, config)
+            else -> executeScanPhase(tp, query)
         }
-
-        val formatted = buildString {
-            appendLine("搜索结果（共 ${searchResults.size} 条，来源：$sourceLabel）：")
-            searchResults.forEachIndexed { idx, r ->
-                val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.title).let { if (it.isBlank()) r.url else it }
-                appendLine("${idx + 1}. [${safeTitle}](${r.url})")
-                val snip = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.snippet)
-                if (snip.isNotEmpty()) appendLine("   $snip")
-                appendLine()
-            }
-        }
-
-        // ★ 修复：max_fetch 默认值从1增加到2，获取更多网页正文
-        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 2).coerceIn(1, 3)
-        val fetchedResults = mutableListOf<String>()
-        val fetchedSources = mutableListOf<String>()
-        val toFetch = searchResults.take(maxFetch)
-
-        coroutineScope {
-            val deferreds = toFetch.map { result ->
-                async(Dispatchers.IO) {
-                    // 优先用 Jina Reader 抓取正文，失败则用摘要
-                    val jinaResult = runCatching { searcher.fetchViaJina(result.url) }.getOrNull()
-                    if (jinaResult != null && jinaResult.text.length > 100) {
-                        val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = result.url)
-                        val content = smartTruncate(sanitized.content, maxContentChars)
-                        val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(jinaResult.title).let { if (it.isBlank()) result.title else it }
-                        return@async Pair("\n--- 来源：${safeTitle} (${result.url}) ---\n$content\n", result.url)
-                    }
-
-                    // Jina 失败，用搜索摘要
-                    if (result.snippet != null && result.snippet.isNotBlank()) {
-                        val effectiveSnippet = smartTruncate(result.snippet, maxSnippetChars)
-                        return@async Pair("\n--- 来源：${result.title} (${result.url}) ---\n${effectiveSnippet}\n", result.url)
-                    }
-
-                    null
-                }
-            }
-            deferreds.awaitAll().filterNotNull().forEach { (content, url) ->
-                fetchedResults.add(content)
-                fetchedSources.add(url)
-            }
-        }
-
-        if (fetchedResults.isEmpty() && toFetch.isNotEmpty()) {
-            DebugLog.w("web_search: all fetch methods failed for ${toFetch.size} urls, returning snippet-only fallback")
-            val snippetOnly = buildString {
-                appendLine("搜索结果（共 ${searchResults.size} 条，来源：$sourceLabel）：")
-                searchResults.forEachIndexed { idx, r ->
-                    appendLine("${idx + 1}. [${r.title}](${r.url})")
-                    appendLine("   ${r.snippet ?: "无摘要"}")
-                    appendLine()
-                }
-                appendLine("※ 注意：网页内容抓取失败，仅能搜索到标题和摘要。建议尝试点击链接打开外部浏览器查看。")
-            }
-            return ToolResult(
-                toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = snippetOnly, endTime = System.currentTimeMillis())),
-                addedSources = searchResults.map { it.url },
-            )
-        }
-
-        val output = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(buildString {
-            append(formatted)
-            if (fetchedResults.isNotEmpty()) {
-                appendLine("=== 已抓取网页正文 ===")
-                fetchedResults.forEach { append(it) }
-            }
-        })
-
-        return ToolResult(
-            toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())),
-            addedSources = fetchedSources,
-        )
     }
 
     private suspend fun webviewSearch(tp: ToolPart, query: String): ToolResult {
@@ -517,6 +328,185 @@ class WebSearchTool(
         }
     }
 
+    private fun parsePhase(tp: ToolPart): String =
+        tp.state.input["phase"]?.lowercase()?.trim() ?: "scan"
+
+    private fun parseUrls(tp: ToolPart): List<String> =
+        tp.state.input["urls"]?.split(Regex("[|\\n]+"))?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+
+    private fun normalizeSearchUrl(url: String): String =
+        url.trim().lowercase().removeSuffix("/").substringBefore("#")
+
+    private fun formatSourceLabel(result: SearchResult): String {
+        val engine = result.sourceEngines.firstOrNull()
+        if (!engine.isNullOrBlank()) return engine
+        return try {
+            java.net.URL(result.url).host.removePrefix("www.")
+        } catch (_: Exception) { result.url }
+    }
+
+    private suspend fun executeScanPhase(tp: ToolPart, query: String): ToolResult {
+        DebugLog.i("web_search scan: query='$query'")
+        var searchResults = searcher.searchAsync(query, buildSearchConfig(), limit = 30)
+
+        if (searchResults.size < 30) {
+            val needed = (50 - searchResults.size).coerceIn(20, 50)
+            DebugLog.i("web_search scan: HTTP engines returned ${searchResults.size}, enriching via WebView up to $needed")
+            val wvResults = runCatching {
+                getWebViewAgent().searchQuery(query, maxResults = needed)
+            }.getOrNull()?.map {
+                SearchResult(
+                    title = it.title,
+                    url = it.url,
+                    snippet = it.snippet,
+                    sourceEngines = setOf("webview"),
+                )
+            } ?: emptyList()
+            searchResults = (searchResults + wvResults)
+                .distinctBy { normalizeSearchUrl(it.url) }
+                .take(50)
+        }
+
+        if (searchResults.isEmpty()) {
+            return ToolResult(
+                toolPart = tp.copy(state = tp.state.copy(
+                    status = ToolStateType.COMPLETED,
+                    output = "未找到与 '$query' 相关的搜索结果，请尝试更换关键词。",
+                    endTime = System.currentTimeMillis(),
+                )),
+            )
+        }
+
+        val output = formatScanResults(searchResults)
+        return ToolResult(
+            toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())),
+            addedSources = searchResults.map { it.url },
+        )
+    }
+
+    private fun formatScanResults(results: List<SearchResult>): String = buildString {
+        appendLine("共找到 ${results.size} 条相关结果，请从中选择 5-10 个你想深入阅读的条目，回复格式：")
+        appendLine("选择: 1,3,7,12,15")
+        appendLine("或调用 web_search?phase=deep&urls=<url1>|<url2>|...")
+        appendLine()
+        results.forEachIndexed { idx, r ->
+            val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.title).let { if (it.isBlank()) r.url else it }
+            appendLine("${idx + 1}. [${safeTitle}](${r.url})")
+            val snip = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(r.snippet)
+            if (snip.isNotEmpty()) appendLine("   摘要：$snip")
+            appendLine("   来源：${formatSourceLabel(r)}")
+            appendLine()
+        }
+    }
+
+    private suspend fun executeDeepPhase(tp: ToolPart, query: String, config: ApiConfig): ToolResult {
+        val urls = parseUrls(tp)
+        if (urls.isEmpty()) {
+            DebugLog.w("web_search deep: urls empty, falling back to scan")
+            return executeScanPhase(tp, query)
+        }
+
+        val maxContentChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
+            top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
+        )
+        val maxFetch = (tp.state.input["max_fetch"]?.toIntOrNull() ?: 5).coerceIn(1, 10)
+        val toFetch = urls.take(maxFetch)
+
+        val fetchedResults = mutableListOf<String>()
+        val fetchedSources = mutableListOf<String>()
+
+        coroutineScope {
+            val deferreds = toFetch.map { url ->
+                async(Dispatchers.IO) {
+                    deepFetchUrl(url, maxContentChars)
+                }
+            }.toMutableList()
+            // 按完成顺序收集结果，单个 URL 的超时不会阻塞其他 URL
+            while (deferreds.isNotEmpty()) {
+                val (index, result) = select<Pair<Int, Pair<String, String>?>> {
+                    deferreds.forEachIndexed { idx, deferred ->
+                        deferred.onAwait { idx to it }
+                    }
+                }
+                deferreds.removeAt(index)
+                result?.let { (content, sourceUrl) ->
+                    fetchedResults.add(content)
+                    fetchedSources.add(sourceUrl)
+                }
+            }
+        }
+
+        if (fetchedResults.isEmpty()) {
+            return ToolResult(
+                toolPart = tp.copy(state = tp.state.copy(
+                    status = ToolStateType.ERROR,
+                    error = "无法获取指定网页内容，已尝试 Jina Reader 和内置浏览器抓取。",
+                    endTime = System.currentTimeMillis(),
+                )),
+            )
+        }
+
+        val output = buildString {
+            appendLine("已深入抓取 ${fetchedResults.size} 个网页：")
+            fetchedResults.forEach { append(it) }
+        }
+
+        return ToolResult(
+            toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = output, endTime = System.currentTimeMillis())),
+            addedSources = fetchedSources,
+        )
+    }
+
+    private suspend fun deepFetchUrl(url: String, maxContentChars: Int): Pair<String, String>? {
+        var jinaTimedOut = false
+        val jinaResult = try {
+            withContext(Dispatchers.IO) {
+                withTimeout(10_000) { searcher.fetchViaJina(url) }
+            }
+        } catch (e: TimeoutCancellationException) {
+            DebugLog.w("deepFetchUrl: Jina timeout for $url")
+            jinaTimedOut = true
+            null
+        } catch (e: Exception) {
+            DebugLog.w("deepFetchUrl: Jina failed: ${e.message}")
+            null
+        }
+        if (jinaResult != null && jinaResult.text.length > 100) {
+            val sanitized = PromptSafety.sanitizeForPrompt(jinaResult.text, sourceLabel = url)
+            val content = smartTruncate(sanitized.content, maxContentChars)
+            val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(jinaResult.title).let { if (it.isBlank()) url else it }
+            return Pair("\n--- 来源：${safeTitle} (${url}) ---\n${content}\n", url)
+        }
+
+        var wvTimedOut = false
+        val wvResult = try {
+            withTimeout(15_000) { getWebViewAgent().fetchUrl(url) }
+        } catch (e: TimeoutCancellationException) {
+            DebugLog.w("deepFetchUrl: WebView timeout for $url")
+            wvTimedOut = true
+            null
+        } catch (e: Exception) {
+            DebugLog.w("deepFetchUrl: WebView failed: ${e.message}")
+            null
+        }
+        if (wvResult != null && wvResult.text.length > 100) {
+            val sanitized = PromptSafety.sanitizeForPrompt(wvResult.text, sourceLabel = url)
+            val content = smartTruncate(sanitized.content, maxContentChars)
+            val safeTitle = top.hsyscn.opedrgent.utils.StringUtils.sanitizeJsonNull(wvResult.title).let { if (it.isBlank()) url else it }
+            return Pair("\n--- 来源：${safeTitle} (${url}) ---\n${content}\n", url)
+        }
+
+        // 任一阶段发生过超时：记录为部分结果，而不是完全丢弃该 URL
+        if (jinaTimedOut || wvTimedOut) {
+            return Pair(
+                "\n--- 来源：$url (读取超时，仅部分获取) ---\n[PARTIAL_TIMEOUT]\n已获取片段：（无）\n",
+                url,
+            )
+        }
+
+        return null
+    }
+
     fun destroy() {
         webViewAgent?.destroy()
         webViewAgent = null
@@ -527,11 +517,84 @@ class WebSearchTool(
         return mapOf(
             "web_search" to ToolBinding(
                 name = "web_search",
-                description = """搜索互联网获取最新信息。
+                description = """搜索互联网获取最新信息。默认进入 scan 阶段，仅返回标题、摘要、URL 列表；需要深入阅读时请进入 deep 阶段并指定 URLs。
 
 ⚠️ 仅在用户未提供具体 URL 时使用此工具。若用户已给出 URL，请使用 read_url 直接访问。""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("query", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "搜索关键词")
+                        })
+                        put("method", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("enum", org.json.JSONArray().apply { put("ddg"); put("webview"); put("provider_native"); put("mcp"); put("multimodal") })
+                            put("description", "搜索方法，默认 ddg（多引擎聚合）。特殊模式：webview 内置浏览器、provider_native 厂商原生联网、mcp JS 注入、multimodal 多模态点击")
+                        })
+                        put("phase", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("enum", org.json.JSONArray().apply { put("scan"); put("deep") })
+                            put("description", "搜索阶段：scan 仅扫描列表（默认），deep 深入抓取指定 URL 正文")
+                        })
+                        put("urls", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "deep 阶段要抓取的 URL，多个用 | 分隔")
+                        })
+                        put("max_fetch", org.json.JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "deep 阶段最多抓取的 URL 数量，默认 5，最大 10")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("query") })
+                },
                 invoker = { tp, config, sp, ups -> executeWebSearch(tp, config, sp, ups) },
             ),
         )
     }
+}
+
+/**
+ * 搜索查询词预处理（dumb-pipe 版）。
+ *
+ * 仅做最小化清洗，保留原始查询的语义和词组边界：
+ * - 去除首尾空白
+ * - 折叠连续空白（含全角空格）为单个半角空格
+ * - 不删除停用词、不过滤单字、不去重、不截断中文
+ * - 支持 {"query":"..."} 外层 JSON 解包
+ *
+ * 如果清洗后为空，则回退到原始输入。
+ */
+fun sanitizeQuery(raw: String): String {
+    val unwrapped = unwrapJsonQuery(raw).trim()
+
+    if (unwrapped.isBlank()) return raw.trim()
+
+    var q = unwrapped.replace(Regex("[\\s\\u3000]+"), " ").trim()
+
+    if (q != unwrapped) {
+        DebugLog.i("sanitizeQuery: '$unwrapped' -> '$q'")
+    }
+
+    return q.ifBlank { raw.trim() }
+}
+
+private fun unwrapJsonQuery(raw: String): String {
+    val trimmed = raw.trim()
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return raw
+
+    val key = "\"query\""
+    val keyIndex = trimmed.indexOf(key)
+    if (keyIndex < 0) return raw
+
+    val colonIndex = trimmed.indexOf(':', startIndex = keyIndex + key.length)
+    if (colonIndex < 0) return raw
+
+    val valueStart = trimmed.indexOf('"', startIndex = colonIndex + 1)
+    if (valueStart < 0) return raw
+
+    val valueEnd = trimmed.indexOf('"', startIndex = valueStart + 1)
+    if (valueEnd < 0) return raw
+
+    return trimmed.substring(valueStart + 1, valueEnd)
 }

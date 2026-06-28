@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -26,10 +27,6 @@ class MimoTtsTool(
                 invoker = { tp, config, sp, ups -> executeMimoTts(tp, config, sp, ups) },
             ),
         )
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
     }
 
     @Tool("mimo_tts")

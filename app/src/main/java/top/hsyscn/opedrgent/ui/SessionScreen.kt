@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package top.hsyscn.opedrgent.ui
 
@@ -39,7 +39,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -61,6 +60,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,13 +86,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -102,19 +102,14 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.AutomationKind
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
 import top.hsyscn.opedrgent.ui.SttProgressState
 import top.hsyscn.opedrgent.ui.SttUiState
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.GreenDot
-import top.hsyscn.opedrgent.ui.theme.LightBlueBg
-import top.hsyscn.opedrgent.ui.theme.DisabledColor
-import top.hsyscn.opedrgent.ui.theme.InputBorder
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 
@@ -138,6 +133,9 @@ import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun SessionScreen(
@@ -159,6 +157,9 @@ fun SessionScreen(
     var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
+    var scrollAnchor by remember(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
+    var lastBottomMessageId by remember(state.current?.id) { mutableStateOf<String?>(null) }
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -245,16 +246,15 @@ fun SessionScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { vm.closeSession(); onBack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "back", tint = themeTextDark())
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = themeTextDark())
             }
             Text(
                 text = session?.title ?: "Opedrgent",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
+                style = MaterialTheme.typography.titleMedium,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
             )
@@ -264,25 +264,25 @@ fun SessionScreen(
                 modifier = Modifier
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .size(36.dp),
+                    .size(SpacingTokens.xxl),
                 onClick = { actionSheetOpen = true },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = "more", tint = themeTextDark(), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.MoreHoriz, contentDescription = "更多选项", tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
                 }
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.sm))
             Card(
                 shape = CircleShape,
                 colors = CardDefaults.cardColors(containerColor = themeBarBg()),
                 modifier = Modifier
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .size(36.dp),
+                    .size(SpacingTokens.xxl),
                 onClick = onOpenSettings,
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.Settings, contentDescription = "settings", tint = themeTextDark(), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Settings, contentDescription = "设置", tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
                 }
             }
         }
@@ -296,17 +296,61 @@ fun SessionScreen(
                 Text("选择一个会话开始对话", color = themeTextGrey())
             }
         } else {
-            val msgCount = session.messages.size + if (state.isStreaming) 1 else 0
-            LaunchedEffect(msgCount, state.streamingText.length) {
-                if (msgCount > 0) {
-                    kotlinx.coroutines.delay(100)
-                    listState.animateScrollToItem(msgCount - 1)
-                }
-            }
-
             // 发芽结果视图 - 自然显示在聊天中
             val sproutResult by vm.sproutResult.collectAsStateCompat()
             val sproutingState by vm.sproutingState.collectAsStateCompat()
+
+            val totalListItems = 1 + session.messages.size +
+                (if (state.isStreaming && state.streamingSessionId == session.id) 1 else 0) +
+                (if (state.activeQuestion != null) 1 else 0) +
+                (if (sproutResult != null || sproutingState != SproutingState.IDLE) 1 else 0)
+
+            LaunchedEffect(totalListItems, state.streamingText.length) {
+                val currentLastMessageId = session.messages.lastOrNull()?.id
+                val shouldScroll = (state.isStreaming && state.streamingSessionId == session.id) ||
+                    currentLastMessageId != lastBottomMessageId
+                if (shouldScroll && totalListItems > 0) {
+                    lastBottomMessageId = currentLastMessageId
+                    kotlinx.coroutines.delay(100)
+                    listState.animateScrollToItem(totalListItems - 1)
+                }
+            }
+
+            // 到达顶部自动加载更早消息
+            LaunchedEffect(session.id, listState) {
+                snapshotFlow { listState.firstVisibleItemIndex }
+                    .distinctUntilChanged()
+                    .collect { index ->
+                        if (index == 0) {
+                            if (!reachedTop && vm.state.value.hasMoreOlderRounds && !vm.state.value.isLoadingOlderRounds) {
+                                reachedTop = true
+                                vm.loadMoreRounds(session.id)
+                            }
+                        } else {
+                            reachedTop = false
+                        }
+                    }
+            }
+
+            // 加载旧消息后恢复滚动锚点，避免列表跳动
+            LaunchedEffect(state.isLoadingOlderRounds, session.id) {
+                if (state.isLoadingOlderRounds) {
+                    val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                    if (first != null && first.key != "_loading_header") {
+                        scrollAnchor = (first.key as String) to listState.firstVisibleItemScrollOffset
+                    }
+                } else {
+                    val anchor = scrollAnchor
+                    val messages = session.messages
+                    if (anchor != null) {
+                        val newIndex = 1 + messages.indexOfFirst { it.id == anchor.first }
+                        if (newIndex > 0) {
+                            listState.scrollToItem(newIndex, anchor.second)
+                        }
+                    }
+                    scrollAnchor = null
+                }
+            }
 
             // Messages
             LazyColumn(
@@ -314,42 +358,68 @@ fun SessionScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(horizontal = SpacingTokens.md),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
-                items(session.messages, key = { it.id }) { msg ->
-                    when (msg.role) {
-                        Role.USER -> UserBubble(
-                            text = msg.textContent,
-                            clipboard = clipboard,
-                            onUndo = { vm.deleteMessage(msg.id) },
-                        )
-                        Role.ASSISTANT -> AIMessageCard(
-                            message = msg,
-                            onSpeak = { vm.toggleSpeak(msg.textContent) },
-                            isSpeaking = state.isSpeaking,
-                            clipboard = clipboard,
-                            onUndo = { vm.deleteMessage(msg.id) },
-                        )
-                        Role.SYSTEM -> {
-                            when (msg.messageType) {
-                                MessageType.INFO -> MessageBodyInfo(message = msg.textContent)
-                                MessageType.CONFIG_UPDATE -> {
-                                    val cfgParts = msg.textContent.split("|")
-                                    if (cfgParts.size == 3) {
-                                        MessageBodyConfigUpdate(
-                                            configName = cfgParts[0],
-                                            oldValue = cfgParts[1],
-                                            newValue = cfgParts[2],
-                                        )
-                                    }
-                                }
-                                MessageType.ERROR -> MessageBodyError(
-                                    errorText = msg.textContent,
-                                    snackbarHostState = snackbar,
+                item(key = "_loading_header") {
+                    if (state.isLoadingOlderRounds || !state.hasMoreOlderRounds) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = SpacingTokens.md),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (state.isLoadingOlderRounds) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(SizeTokens.iconMd),
+                                    strokeWidth = 2.dp,
                                 )
-                                MessageType.AUDIO -> {}
-                                MessageType.TEXT -> {}
+                            } else if (!state.hasMoreOlderRounds) {
+                                Text(
+                                    text = stringResource(R.string.chat_history_all_loaded),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = themeTextGrey(),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                items(session.messages, key = { it.id }) { msg ->
+                    Column(modifier = Modifier.animateItem()) {
+                        when (msg.role) {
+                            Role.USER -> UserBubble(
+                                text = msg.textContent,
+                                clipboard = clipboard,
+                                onUndo = { vm.deleteMessage(msg.id) },
+                            )
+                            Role.ASSISTANT -> AIMessageCard(
+                                message = msg,
+                                onSpeak = { vm.toggleSpeak(msg.textContent) },
+                                isSpeaking = state.isSpeaking,
+                                clipboard = clipboard,
+                                onUndo = { vm.deleteMessage(msg.id) },
+                            )
+                            Role.SYSTEM -> {
+                                when (msg.messageType) {
+                                    MessageType.INFO -> MessageBodyInfo(message = msg.textContent)
+                                    MessageType.CONFIG_UPDATE -> {
+                                        val cfgParts = msg.textContent.split("|")
+                                        if (cfgParts.size == 3) {
+                                            MessageBodyConfigUpdate(
+                                                configName = cfgParts[0],
+                                                oldValue = cfgParts[1],
+                                                newValue = cfgParts[2],
+                                            )
+                                        }
+                                    }
+                                    MessageType.ERROR -> MessageBodyError(
+                                        errorText = msg.textContent,
+                                        snackbarHostState = snackbar,
+                                    )
+                                    MessageType.AUDIO -> {}
+                                    MessageType.TEXT -> {}
+                                }
                             }
                         }
                     }
@@ -357,44 +427,50 @@ fun SessionScreen(
 
                 if (state.isStreaming && state.streamingSessionId == session.id) {
                     item(key = "_streaming") {
-                        StreamingCard(
-                            text = state.streamingText,
-                            reasoning = state.streamingReasoning,
-                            toolParts = state.streamingToolParts,
-                            phase = state.streamingPhase,
-                        )
+                        Column(modifier = Modifier.animateItem()) {
+                            StreamingCard(
+                                text = state.streamingText,
+                                reasoning = state.streamingReasoning,
+                                toolParts = state.streamingToolParts,
+                                phase = state.streamingPhase,
+                            )
+                        }
                     }
                 }
 
                 if (state.activeQuestion != null) {
                     item(key = "_question") {
-                        QuestionCard(
-                            question = state.activeQuestion!!,
-                            onAnswer = { vm.answerQuestion(it) },
-                            onDismiss = { vm.dismissQuestion() },
-                        )
+                        Column(modifier = Modifier.animateItem()) {
+                            QuestionCard(
+                                question = state.activeQuestion!!,
+                                onAnswer = { vm.answerQuestion(it) },
+                                onDismiss = { vm.dismissQuestion() },
+                            )
+                        }
                     }
                 }
 
                 // 发芽结果视图 - 自然显示在聊天中
                 if (sproutResult != null || sproutingState != SproutingState.IDLE) {
                     item(key = "_sprout") {
-                        top.hsyscn.opedrgent.ui.components.SproutResultView(
-                            markdownReport = sproutResult ?: "",
-                            sproutingState = sproutingState,
-                            onCopy = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("发芽结果", sproutResult ?: ""))
-                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard)) }
-                            },
-                            onContinueChat = {
-                                // 可以添加继续对话的逻辑，比如询问关于发芽结果的问题
-                            },
-                            onDismiss = {
-                                vm._sproutResult.value = null
-                                vm._sproutingState.value = SproutingState.IDLE
-                            },
-                        )
+                        Column(modifier = Modifier.animateItem()) {
+                            top.hsyscn.opedrgent.ui.components.SproutResultView(
+                                markdownReport = sproutResult ?: "",
+                                sproutingState = sproutingState,
+                                onCopy = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("发芽结果", sproutResult ?: ""))
+                                    scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard)) }
+                                },
+                                onContinueChat = {
+                                    // 可以添加继续对话的逻辑，比如询问关于发芽结果的问题
+                                },
+                                onDismiss = {
+                                    vm._sproutResult.value = null
+                                    vm._sproutingState.value = SproutingState.IDLE
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -404,19 +480,19 @@ fun SessionScreen(
                 OutlinedButton(
                     onClick = { vm.stopGeneration() },
                     modifier = Modifier
-                        .padding(horizontal = 66.dp, vertical = 4.dp)
+                        .padding(horizontal = 66.dp, vertical = SpacingTokens.xs)
                         .fillMaxWidth(),
-                    shape = RoundedCornerShape(7.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = LightBlueBg),
+                    shape = ShapeTokens.smallShape,
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     border = ButtonDefaults.outlinedButtonBorder(enabled = true),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(17.dp)
-                            .background(AccentBlue, RoundedCornerShape(2.dp)),
+                            .size(SpacingTokens.md)
+                            .background(MaterialTheme.colorScheme.primary, ShapeTokens.extraSmallShape),
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("停止回复", color = AccentBlue, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.width(SpacingTokens.sm))
+                    Text("停止回复", style = MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary))
                 }
             }
 
@@ -424,33 +500,31 @@ fun SessionScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp),
+                    .padding(start = SpacingTokens.md, end = SpacingTokens.md, bottom = SpacingTokens.md, top = SpacingTokens.xs),
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
                 // Scope selector
                 Surface(
                     onClick = { showScopeSheet = true },
-                    shape = RoundedCornerShape(12.dp),
-                    color = AccentBlue.copy(alpha = 0.1f),
+                    shape = ShapeTokens.mediumShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                     modifier = Modifier.height(37.dp),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.sm),
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = AccentBlue,
-                            modifier = Modifier.size(14.dp),
+                            contentDescription = "搜索范围",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(SpacingTokens.sm),
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.xs))
                         Text(
                             text = state.searchScope.label,
-                            color = AccentBlue,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.primary),
                         )
                     }
                 }
@@ -458,7 +532,7 @@ fun SessionScreen(
                 // "+" button for more options
                 Card(
                     shape = CircleShape,
-                    colors = CardDefaults.cardColors(containerColor = AccentBlue),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .size(37.dp)
                         .clip(CircleShape),
@@ -467,9 +541,9 @@ fun SessionScreen(
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
                             Icons.Default.Add,
-                            contentDescription = "more",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
+                            contentDescription = "更多选项",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(SpacingTokens.md),
                         )
                     }
                 }
@@ -477,13 +551,13 @@ fun SessionScreen(
                 Card(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp)),
-                    shape = RoundedCornerShape(14.dp),
+                        .clip(ShapeTokens.largeShape),
+                    shape = ShapeTokens.largeShape,
                     colors = CardDefaults.cardColors(containerColor = themeSurfaceElevated()),
                 ) {
                     Box {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                         OutlinedTextField(
@@ -494,10 +568,10 @@ fun SessionScreen(
                                 .weight(1f)
                                 .heightIn(min = 37.dp, max = 120.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
+                                focusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                                focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                             ),
                             maxLines = 5,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
@@ -515,7 +589,7 @@ fun SessionScreen(
                         )
                         // Camera/Files button
                         IconButton(onClick = { filePicker.launch(arrayOf("image/*", "audio/*", "video/*", "application/pdf")) }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = "attach file", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.CameraAlt, contentDescription = "附加文件", tint = themeTextGrey(), modifier = Modifier.size(SpacingTokens.md))
                         }
                         // Microphone button
                         if (vm.isSttEnabled()) {
@@ -560,9 +634,9 @@ fun SessionScreen(
                             }) {
                                 Icon(
                                     Icons.Default.Mic,
-                                    contentDescription = "stt",
-                                    tint = if (listening) AccentBlue else themeTextGrey(),
-                                    modifier = Modifier.size(18.dp),
+                                    contentDescription = "语音输入",
+                                    tint = if (listening) MaterialTheme.colorScheme.primary else themeTextGrey(),
+                                    modifier = Modifier.size(SpacingTokens.md),
                                 )
                             }
                         }
@@ -583,8 +657,7 @@ fun SessionScreen(
                                         Column {
                                             Text(
                                                 cmd.usage,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
+                                                style = MaterialTheme.typography.titleSmall,
                                             )
                                             Text(
                                                 cmd.description,
@@ -609,9 +682,9 @@ fun SessionScreen(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(
                         containerColor = when {
-                            isSending -> DisabledColor  // 发送中：灰色
-                            prompt.isNotBlank() -> AccentBlue
-                            else -> InputBorder
+                            isSending -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)  // 发送中：禁用态
+                            prompt.isNotBlank() -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.outline
                         },
                     ),
                     modifier = Modifier
@@ -633,16 +706,16 @@ fun SessionScreen(
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         if (isSending) {
                             androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(SpacingTokens.md),
                                 strokeWidth = 2.dp,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                             )
                         } else {
                             Icon(
                                 Icons.Default.ArrowForward,
-                                contentDescription = "send",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp),
+                                contentDescription = "发送",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(SpacingTokens.md),
                             )
                         }
                     }
@@ -660,20 +733,19 @@ fun SessionScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(SpacingTokens.lg),
                     ) {
                         Text(
                             text = "更多方式",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 16.dp),
+                            modifier = Modifier.padding(bottom = SpacingTokens.lg),
                         )
 
                         // Photo/Image
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = SpacingTokens.xs)
                                 .clickable {
                                     showMoreOptionsSheet = false
                                     filePicker.launch(arrayOf("image/*"))
@@ -683,20 +755,20 @@ fun SessionScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(SpacingTokens.lg),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
                                     Icons.Default.CameraAlt,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(24.dp),
+                                    contentDescription = "拍照或图片",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(SpacingTokens.xl),
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "拍照/图片",
-                                        fontWeight = FontWeight.Medium,
+                                        style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
                                         text = "白板记录/课堂笔记/日常饮食，秒变笔记",
@@ -711,7 +783,7 @@ fun SessionScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = SpacingTokens.xs)
                                 .clickable {
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("knowledge")
@@ -721,20 +793,20 @@ fun SessionScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(SpacingTokens.lg),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
                                     Icons.Default.Save,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(24.dp),
+                                    contentDescription = "知识库",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(SpacingTokens.xl),
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "知识库",
-                                        fontWeight = FontWeight.Medium,
+                                        style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
                                         text = "导入文档/PDF/图片，AI 可检索引用",
@@ -749,7 +821,7 @@ fun SessionScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = SpacingTokens.xs)
                                 .clickable {
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("editorTeam")
@@ -759,19 +831,19 @@ fun SessionScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(SpacingTokens.lg),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
                                     text = "\uD83E\uDDD1\u200D\uD83C\uDFA8",
-                                    fontSize = 24.sp,
-                                    modifier = Modifier.padding(end = 4.dp),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    modifier = Modifier.padding(end = SpacingTokens.xs),
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(SpacingTokens.sm))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "AI 编辑团",
-                                        fontWeight = FontWeight.Medium,
+                                        style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
                                         text = "AI 动态规划编辑团队",
@@ -782,7 +854,7 @@ fun SessionScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(SpacingTokens.lg))
                     }
                 }
             }
@@ -796,13 +868,12 @@ fun SessionScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(SpacingTokens.lg),
                 ) {
                     Text(
                         text = "选择数据源范围",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        modifier = Modifier.padding(bottom = SpacingTokens.lg),
                     )
                     SearchScope.entries.forEach { scopeEntry ->
                         Row(
@@ -812,18 +883,18 @@ fun SessionScreen(
                                     vm.setSearchScope(scopeEntry)
                                     showScopeSheet = false
                                 }
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = SpacingTokens.md),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
                                 selected = scopeEntry == state.searchScope,
                                 onClick = null,
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(SpacingTokens.md))
                             Column {
                                 Text(
                                     text = scopeEntry.label,
-                                    fontWeight = FontWeight.Medium,
+                                    style = MaterialTheme.typography.titleSmall,
                                 )
                                 val description = when (scopeEntry) {
                                     SearchScope.ALL -> "笔记、知识库和全网搜索"
@@ -838,7 +909,7 @@ fun SessionScreen(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.lg))
                 }
             }
         }
@@ -853,7 +924,7 @@ fun SessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = SpacingTokens.lg)
                     .padding(bottom = 80.dp),
             )
         }
@@ -867,7 +938,7 @@ fun SessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
             )
         }
 
@@ -919,7 +990,7 @@ fun SessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 12.dp, vertical = 110.dp),
+                    .padding(horizontal = SpacingTokens.md, vertical = 110.dp),
             )
         }
     }
@@ -931,14 +1002,13 @@ fun SessionScreen(
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 Text(
                     text = "会话操作",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.titleMedium,
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.fillMaxWidth()) {
                     Button(
                         onClick = {
                             scope.launch {
@@ -948,7 +1018,7 @@ fun SessionScreen(
                             actionSheetOpen = false
                         },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(11.dp),
+                        shape = ShapeTokens.mediumShape,
                     ) { Text("导出会话") }
                     Button(
                         onClick = {
@@ -959,7 +1029,7 @@ fun SessionScreen(
                             actionSheetOpen = false
                         },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(11.dp),
+                        shape = ShapeTokens.mediumShape,
                     ) { Text("导出上下文") }
                 }
 
@@ -969,11 +1039,11 @@ fun SessionScreen(
                         onOpenSubScreen("export")
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(11.dp),
+                    shape = ShapeTokens.mediumShape,
                     colors = ButtonDefaults.buttonColors(containerColor = themeCardBackground(), contentColor = themeTextDark()),
                 ) { Text("完整导出中心") }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
             }
         }
     }
@@ -984,14 +1054,14 @@ fun SessionScreen(
             onDismissRequest = { vm.dismissAutomationSuggestion() },
             title = { Text("自动化建议") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Text("AI 基于当前会话建议了一个定时任务：")
                     Text("名称: ${suggestion.name}", fontWeight = FontWeight.SemiBold)
                     Text("周期: 每 ${suggestion.intervalMinutes} 分钟")
                     Text("类型: ${if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) "心跳整理" else "定时 Prompt"}")
                     if (suggestion.kind == AutomationKind.RUN_PROMPT && !suggestion.prompt.isNullOrBlank()) {
-                        Text("Prompt:", fontWeight = FontWeight.Medium)
-                        Text(suggestion.prompt, fontSize = 13.sp, color = Color.Gray)
+                        Text("Prompt:", style = MaterialTheme.typography.titleSmall)
+                        Text(suggestion.prompt, style = MaterialTheme.typography.bodySmall.copy(color = themeTextGrey()))
                     }
                 }
             },

@@ -11,6 +11,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.settings.ApiConfig
+import top.hsyscn.opedrgent.settings.MIMO_API_URL
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
@@ -19,7 +20,6 @@ import java.util.concurrent.TimeUnit
 object MimoTtsClient {
     private val client = HttpClients.longRunning
 
-    private const val MIMO_TTS_URL = "https://api.xiaomimimo.com/v1/chat/completions"
     private const val MAX_TEXT_LENGTH = 2500
 
     enum class Model(val id: String) {
@@ -125,10 +125,10 @@ object MimoTtsClient {
             val requestBody = json.toString().toRequestBody("application/json".toMediaType())
 
             val httpRequest = Request.Builder()
-                .url(MIMO_TTS_URL)
+                .url(MIMO_API_URL)
                 .post(requestBody)
                 .header("Content-Type", "application/json")
-                .header("api-key", apiKey)
+                .let { buildAuthHeader(it, apiKey) }
                 .build()
 
             val response = client.newCall(httpRequest).execute()
@@ -298,6 +298,14 @@ object MimoTtsClient {
         }
 
         return audioConfig
+    }
+
+    private fun buildAuthHeader(requestBuilder: Request.Builder, apiKey: String): Request.Builder {
+        return when {
+            apiKey.startsWith("tp-") -> requestBuilder.header("api-key", apiKey)
+            apiKey.startsWith("AIza") -> requestBuilder.header("x-goog-api-key", apiKey)
+            else -> requestBuilder.header("Authorization", "Bearer $apiKey")
+        }
     }
 
     fun suggestVoiceForText(text: String): Voice? {

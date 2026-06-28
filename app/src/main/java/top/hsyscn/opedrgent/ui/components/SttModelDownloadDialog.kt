@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
@@ -33,17 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * STT 语音模型下载弹窗 — 对齐 Gemma 4 ModelDownloadDialog 的视觉风格，
@@ -84,46 +79,45 @@ fun SttModelDownloadDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(20.dp),
+                .padding(horizontal = SpacingTokens.xl),
+            shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(SpacingTokens.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 androidx.compose.material3.Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    tint = AccentBlue,
-                    modifier = Modifier.size(48.dp),
+                    contentDescription = "下载语音模型",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(SpacingTokens.xxl),
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
                     text = "正在下载 $modelName",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = themeTextDark(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
                 Text(
                     text = modelDescription,
-                    fontSize = 14.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 // 进度区
                 when (status) {
@@ -138,17 +132,16 @@ fun SttModelDownloadDialog(
                             LinearProgressIndicator(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = AccentBlue,
-                                trackColor = AccentBlue.copy(alpha = 0.15f),
+                                    .height(SpacingTokens.xs)
+                                    .clip(ShapeTokens.smallShape),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
                                 text = statusDetail.ifEmpty { "解压中..." },
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = themeTextDark(),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
@@ -160,17 +153,16 @@ fun SttModelDownloadDialog(
                             LinearProgressIndicator(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = themeTextGrey().copy(alpha = 0.5f),
-                                trackColor = AccentBlue.copy(alpha = 0.15f),
+                                    .height(SpacingTokens.xs)
+                                    .clip(ShapeTokens.smallShape),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
                                 text = statusDetail.ifEmpty { "切换下载源..." },
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = themeTextGrey(),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -181,17 +173,17 @@ fun SttModelDownloadDialog(
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = null,
+                                contentDescription = "下载失败",
                                 tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(SpacingTokens.xxl),
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "下载失败", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.sm))
+                            Text(text = "下载失败", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(SpacingTokens.xs))
                             Text(
                                 text = statusDetail.ifEmpty { "未知错误" },
-                                fontSize = 13.sp,
-                                color = themeTextGrey(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
                             )
@@ -205,54 +197,53 @@ fun SttModelDownloadDialog(
                             LinearProgressIndicator(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = Color.Transparent,
-                                trackColor = AccentBlue.copy(alpha = 0.15f),
+                                    .height(SpacingTokens.xs)
+                                    .clip(ShapeTokens.smallShape),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
                                 text = if (totalMb > 0) "准备下载 ($totalMb MB)" else "准备中...",
-                                fontSize = 14.sp,
-                                color = themeTextGrey(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 // 古诗轮播卡片
                 SttQuoteCard(currentQuoteIndex = shuffledIndices[quotePointer])
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
                     text = "好东西，就要来了...",
-                    fontSize = 13.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 // 取消按钮
                 TextButton(
                     onClick = onCancel,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(10.dp),
+                        .padding(horizontal = SpacingTokens.lg),
+                    shape = ShapeTokens.mediumShape,
                 ) {
                     Text(
                         text = "取消下载",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
             }
         }
     }
@@ -264,7 +255,7 @@ private fun SttQuoteCard(currentQuoteIndex: Int) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Crossfade(
@@ -275,30 +266,29 @@ private fun SttQuoteCard(currentQuoteIndex: Int) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(SpacingTokens.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
                 Text(
                     text = currentQuote.text,
-                    fontSize = 16.sp,
-                    color = themeTextDark(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
-                    lineHeight = 26.sp,
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
 
                 Text(
                     text = "-- ${currentQuote.author}",
-                    fontSize = 13.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.sm))
             }
         }
     }
@@ -321,22 +311,21 @@ private fun SttProgressSection(
                     progress = { percent / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = AccentBlue,
-                    trackColor = AccentBlue.copy(alpha = 0.15f),
+                        .height(SpacingTokens.xs)
+                        .clip(ShapeTokens.smallShape),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(SpacingTokens.md))
             Text(
                 text = "$percent%",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = AccentBlue,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -344,14 +333,14 @@ private fun SttProgressSection(
         ) {
             Text(
                 text = if (totalMb > 0) "${downloadedMb} MB / ${totalMb} MB" else "${downloadedMb} MB",
-                fontSize = 13.sp,
-                color = themeTextGrey(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (speedText.isNotEmpty()) {
                 Text(
                     text = speedText,
-                    fontSize = 13.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

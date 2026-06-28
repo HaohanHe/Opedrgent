@@ -6,6 +6,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.text.SimpleDateFormat
+import java.util.concurrent.ConcurrentHashMap
 import java.util.Date
 import java.util.Locale
 
@@ -43,7 +44,7 @@ class InsightSproutEngine(
     /** 进度回调：当每个声音状态变化时触发 */
     var onVoiceProgress: ((SproutVoice, SproutVoiceStatus) -> Unit)? = null
 
-    private val phaseCache = mutableMapOf<String, Any?>()
+    private val phaseCache = ConcurrentHashMap<String, Any?>()
 
     // ==================== 核心入口：思想空间发芽 ====================
 
@@ -169,7 +170,7 @@ class InsightSproutEngine(
                 synthesizeAll(voiceStatements.toMap(), rawSeedsJson, inputText)
             }.onSuccess { result ->
                 synthesis = result
-                completedPhases.add(SproutPhase.AHA_INSIGHT)
+                completedPhases.add(SproutPhase.SHOCKING_INSIGHT)
                 DebugLog.i("InsightSproutEngine: [ThinkingSpace] 阶段3 综合完成")
             }.onFailure { e ->
                 DebugLog.w("InsightSproutEngine: [ThinkingSpace] 阶段3 综合跳过: ${e.message}")

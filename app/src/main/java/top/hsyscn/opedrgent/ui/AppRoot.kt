@@ -45,7 +45,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -111,7 +110,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -122,13 +123,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -138,33 +137,17 @@ import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.utils.DebugLog
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.AccentOrange
-import top.hsyscn.opedrgent.ui.theme.BarBg
-import top.hsyscn.opedrgent.ui.theme.BgGray
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.CardWhite
-import top.hsyscn.opedrgent.ui.theme.CitationBg
-import top.hsyscn.opedrgent.ui.theme.GreenDot
-import top.hsyscn.opedrgent.ui.theme.LightBlueBg
-import top.hsyscn.opedrgent.ui.theme.TextDark
-import top.hsyscn.opedrgent.ui.theme.TextGrey
-import top.hsyscn.opedrgent.ui.theme.UserBubbleEnd
-import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
-import top.hsyscn.opedrgent.ui.theme.BadgeError
-import top.hsyscn.opedrgent.ui.theme.BorderLight
-import top.hsyscn.opedrgent.ui.theme.SuccessGreen
-import top.hsyscn.opedrgent.ui.theme.DangerRed
-import top.hsyscn.opedrgent.ui.theme.ChipWarningBg
-import top.hsyscn.opedrgent.ui.theme.ChipWarningText
-import top.hsyscn.opedrgent.ui.theme.ChipSuccessBg
-import top.hsyscn.opedrgent.ui.theme.ChipSuccessText
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.QuestionCard
 import top.hsyscn.opedrgent.ui.components.QuestionDock
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
+import top.hsyscn.opedrgent.ui.components.FeedbackController
+import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.components.UserBubble
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
@@ -199,8 +182,8 @@ fun BadgeDot(
     if (visible) {
         Box(
             modifier = modifier
-                .size(8.dp)
-                .background(BadgeError, CircleShape)
+                .size(SpacingTokens.sm)
+                .background(MaterialTheme.customColors.dangerRed, CircleShape)
         )
     }
 }
@@ -228,19 +211,6 @@ fun AppRoot(
         vm.refreshPendingCounts()
     }
 
-    if (subScreen != null) {
-        BackHandler {
-            subScreen = when {
-                subScreen?.startsWith("noteEditor_") == true -> "notes"
-                subScreen?.startsWith("noteReader_") == true -> "notes"
-                subScreen?.startsWith("noteShare_") == true -> "notes"
-                subScreen?.startsWith("noteSprout_") == true -> "notes"
-                subScreen == "noteGraph" -> "notes"
-                else -> null
-            }
-        }
-    }
-
     val state by vm.state.collectAsStateCompat()
 
     LaunchedEffect(initialShareText) {
@@ -255,7 +225,7 @@ fun AppRoot(
         val action = initialAction
         if (action != null) {
             when (action) {
-                "meeting" -> {
+                "meeting", "recording" -> {
                     selectedTab = MainTab.RECORDING
                 }
                 "new_chat" -> {
@@ -292,41 +262,86 @@ fun AppRoot(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val feedbackController = remember(snackbarHostState, scope) {
+        FeedbackController(snackbarHostState, scope)
+    }
+
+    // 全局返回键处理：子页面 -> 返回上一层；非首页 Tab -> 回到首页；首页 -> 双击退出
+    var lastBackPressedTime by remember { mutableLongStateOf(0L) }
+    BackHandler {
+        when {
+            subScreen != null -> {
+                subScreen = when {
+                    subScreen?.startsWith("noteEditor_") == true -> "notes"
+                    subScreen?.startsWith("noteReader_") == true -> "notes"
+                    subScreen?.startsWith("noteShare_") == true -> "notes"
+                    subScreen?.startsWith("noteSprout_") == true -> "notes"
+                    subScreen == "noteGraph" -> "notes"
+                    else -> null
+                }
+            }
+            selectedTab != MainTab.HOME -> {
+                selectedTab = MainTab.HOME
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressedTime > 2000L) {
+                    lastBackPressedTime = now
+                    scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.exit_press_again)) }
+                } else {
+                    (context as? Activity)?.finish()
+                }
+            }
+        }
+    }
+
+    // 观察 ViewModel 的通用反馈消息，统一以 Snackbar 展示（替代 ViewModel 内 Toast）
+    LaunchedEffect(Unit) {
+        vm.feedbackMessage.collect { msg ->
+            if (!msg.isNullOrBlank()) {
+                snackbarHostState.showSnackbar(msg)
+                vm.consumeFeedback()
+            }
+        }
+    }
+
     val activity = LocalContext.current as? android.app.Activity
     @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
     val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }
     val isLandscape = windowSizeClass?.widthSizeClass != WindowWidthSizeClass.Compact
 
+    CompositionLocalProvider(LocalFeedbackController provides feedbackController) {
     Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (isLandscape) {
             NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
                 val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val navSelectedLabelColor = MaterialTheme.colorScheme.primary
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Home, contentDescription = stringResource(R.string.tab_home)) },
                     label = { Text(stringResource(R.string.tab_home), color = if (selectedTab == MainTab.HOME) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.HOME,
                     onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Note, contentDescription = stringResource(R.string.tab_notes)) },
                     label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.NOTES,
                     onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Mic, contentDescription = stringResource(R.string.tab_recording)) },
                     label = { Text(stringResource(R.string.tab_recording), color = if (selectedTab == MainTab.RECORDING) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.RECORDING,
                     onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                 )
                 NavigationRailItem(
                     icon = {
-                        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Chat, contentDescription = null)
+                        Box(modifier = Modifier.size(SpacingTokens.xl), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Chat, contentDescription = stringResource(R.string.tab_ai))
                             BadgeDot(
                                 visible = state.pendingMessageCount > 0,
-                                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                                modifier = Modifier.align(Alignment.TopEnd).offset(x = SpacingTokens.xs, y = -SpacingTokens.xs)
                             )
                         }
                     },
@@ -335,7 +350,7 @@ fun AppRoot(
                     onClick = { selectedTab = MainTab.AI; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.tab_settings)) },
                     label = { Text(stringResource(R.string.tab_settings), color = if (selectedTab == MainTab.SETTINGS) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.SETTINGS,
                     onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
@@ -357,30 +372,30 @@ fun AppRoot(
                         val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         val navSelectedLabelColor = MaterialTheme.colorScheme.primary
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                            icon = { Icon(Icons.Default.Home, contentDescription = stringResource(R.string.tab_home)) },
                             label = { Text(stringResource(R.string.tab_home), color = if (selectedTab == MainTab.HOME) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.HOME,
                             onClick = { selectedTab = MainTab.HOME; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Note, contentDescription = null) },
+                            icon = { Icon(Icons.Default.Note, contentDescription = stringResource(R.string.tab_notes)) },
                             label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.NOTES,
                             onClick = { selectedTab = MainTab.NOTES; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                            icon = { Icon(Icons.Default.Mic, contentDescription = stringResource(R.string.tab_recording)) },
                             label = { Text(stringResource(R.string.tab_recording), color = if (selectedTab == MainTab.RECORDING) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.RECORDING,
                             onClick = { selectedTab = MainTab.RECORDING; subScreen = null },
                         )
                         NavigationBarItem(
                             icon = {
-                                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Chat, contentDescription = null)
+                                Box(modifier = Modifier.size(SpacingTokens.xl), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Chat, contentDescription = stringResource(R.string.tab_ai))
                                     BadgeDot(
                                         visible = state.pendingMessageCount > 0,
-                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = SpacingTokens.xs, y = -SpacingTokens.xs)
                                     )
                                 }
                             },
@@ -389,7 +404,7 @@ fun AppRoot(
                             onClick = { selectedTab = MainTab.AI; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.tab_settings)) },
                             label = { Text(stringResource(R.string.tab_settings), color = if (selectedTab == MainTab.SETTINGS) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.SETTINGS,
                             onClick = { selectedTab = MainTab.SETTINGS; subScreen = null },
@@ -533,6 +548,7 @@ fun AppRoot(
                         onAddTag = { noteId -> /* 已在编辑器内处理 */ },
                         onAppendNote = { noteId -> /* 已在编辑器内处理 */ },
                         editorMode = vm.getEditorMode(),
+                        sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings, hippocampus),
                     )
                 }
                 null -> {
@@ -574,6 +590,7 @@ fun AppRoot(
                             onNavigateToInterview = {
                                 subScreen = "interview"
                             },
+                            onNavigateToSearch = { selectedTab = MainTab.NOTES },
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
@@ -633,6 +650,7 @@ fun AppRoot(
                             toNotes = { subScreen = "notes" },
                             toHippocampus = { subScreen = "hippocampus" },
                             toVoiceprint = { subScreen = "voiceprint" },
+                            toExport = { subScreen = "export" },
                             hippocampus = hippocampus,
                             showBackButton = false,
                             toOpenSource = { subScreen = "opensource" },
@@ -673,6 +691,7 @@ fun AppRoot(
                                     onAddToKnowledgeBase = { id -> vm.addNoteToKnowledgeBase(id) },
                                     onAddTag = { id -> subScreen = "noteEditor_$id" },
                                     onAppendNote = { id -> subScreen = "noteEditor_$id" },
+                                    sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings, hippocampus),
                                 )
                             }
                         }
@@ -708,6 +727,7 @@ fun AppRoot(
                                 onAddTag = { nid -> /* 已在编辑器内处理 */ },
                                 onAppendNote = { nid -> /* 已在编辑器内处理 */ },
                                 editorMode = vm.getEditorMode(),
+                                sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings, hippocampus),
                             )
                         }
                         subScreen?.startsWith("noteShare_") == true -> {
@@ -756,6 +776,7 @@ fun AppRoot(
         }
         }
     }
+    }
 }
 
 @Composable
@@ -792,9 +813,9 @@ fun SessionsScreen(
                 value = q,
                 onValueChange = { q = it; vm.setSessionSearchQuery(it) },
                 label = { Text(stringResource(R.string.sessions_search_hint)) },
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
+                modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm).fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -808,20 +829,20 @@ fun SessionsScreen(
                             text = "在 ${state.sessions.size} 个会话中找到 ${state.messageSearchResults.size} 条消息",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
                         )
                     }
                     items(state.messageSearchResults, key = { it.messageId }) { result ->
                         Card(
                             modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs)
                                 .fillMaxWidth(),
-                            shape = RoundedCornerShape(11.dp),
+                            shape = ShapeTokens.mediumShape,
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                             onClick = { onSelectSession(result.sessionId) },
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = result.sessionTitle,
@@ -837,7 +858,7 @@ fun SessionsScreen(
                                         fontWeight = FontWeight.Medium,
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(SpacingTokens.xs))
                                 Text(
                                     text = result.matchSnippet,
                                     style = MaterialTheme.typography.bodySmall,
@@ -845,7 +866,7 @@ fun SessionsScreen(
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(SpacingTokens.xxs))
                                 Text(
                                     text = formatTime(result.timestamp),
                                     style = MaterialTheme.typography.labelSmall,
@@ -859,16 +880,16 @@ fun SessionsScreen(
                     items(state.sessions, key = { it.id }) { s ->
                         Card(
                             modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
                                 .fillMaxWidth(),
-                            shape = RoundedCornerShape(11.dp),
+                            shape = ShapeTokens.mediumShape,
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                             onClick = { onSelectSession(s.id) },
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                 Text(text = s.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(SpacingTokens.sm))
                                 Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -942,14 +963,14 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             if (state.memories.isEmpty()) {
                 item {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xxl),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                     ) {
                         Text(stringResource(R.string.memory_empty), style = MaterialTheme.typography.bodyLarge)
                         Text(stringResource(R.string.memory_empty_hint), style = MaterialTheme.typography.bodySmall)
@@ -958,8 +979,8 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
             items(state.memories, key = { it.id }) { entry ->
                 Card(
-                    modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
-                    shape = RoundedCornerShape(11.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
+                    shape = ShapeTokens.mediumShape,
                     onClick = {
                         editingId = entry.id
                         title = entry.title
@@ -968,19 +989,19 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         editorOpen = true
                     },
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(SpacingTokens.md)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = entry.title.ifBlank { stringResource(R.string.memory_no_title) }, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             AssistChip(
                                 onClick = {},
                                 label = { Text(entry.type.label, style = MaterialTheme.typography.labelSmall) },
-                                modifier = Modifier.height(24.dp),
+                                modifier = Modifier.height(SpacingTokens.xl),
                             )
                             IconButton(onClick = { vm.deleteMemory(entry.id) }) {
                                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(SpacingTokens.xs))
                         Text(text = entry.content.take(200) + if (entry.content.length > 200) "…" else "", style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -1008,7 +1029,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     if (editingId != null) {
                         TextButton(onClick = {
                             vm.deleteMemory(editingId ?: return@TextButton)
@@ -1020,8 +1041,8 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
             },
             title = { Text(if (editingId == null) stringResource(R.string.memory_new) else stringResource(R.string.memory_edit)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         types.forEach { memType ->
                             FilterChip(
                                 selected = selectedType == memType.name,
@@ -1109,8 +1130,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     Text(
                         text = "${state.skills.size + gallerySkills.size} 项",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGrey,
-                        modifier = Modifier.padding(end = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = SpacingTokens.sm),
                     )
                 },
             )
@@ -1123,8 +1144,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 AnimatedVisibility(visible = showImportMenu, enter = fadeIn(), exit = fadeOut()) {
                     Column(
                         horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                        modifier = Modifier.padding(bottom = SpacingTokens.md)
                     ) {
                         // ① 从 URL 加载
                         ImportFabOption(
@@ -1164,7 +1185,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 // 主 FAB 按钮
                 FloatingActionButton(
                     onClick = { showImportMenu = !showImportMenu },
-                    containerColor = AccentBlue,
+                    containerColor = MaterialTheme.customColors.accentBlue,
                 ) {
                     Icon(
                         imageVector = if (showImportMenu) Icons.Default.Close else Icons.Default.Add,
@@ -1176,7 +1197,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             // ════════════════════════════════════
             // 第一区：Gallery 标准技能（来自 SkillLoader）
@@ -1217,8 +1238,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 // 分隔线
                 item {
                     HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        color = Color.LightGray.copy(alpha = 0.3f),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                     )
                 }
             }
@@ -1236,9 +1257,9 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
                 items(state.skills, key = { it.id }) { s ->
                     Card(
-                        modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
-                        shape = RoundedCornerShape(11.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardWhite),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
+                        shape = ShapeTokens.mediumShape,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         onClick = {
                             editingId = s.id
                             name = s.name
@@ -1246,30 +1267,30 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             editorOpen = true
                         },
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(SpacingTokens.md)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = s.name,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextDark,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.sm))
                                 // 旧版标识标签
                                 AssistChip(
                                     onClick = {},
-                                    label = { Text("Legacy", fontSize = 11.sp) },
+                                    label = { Text("Legacy", style = MaterialTheme.typography.labelSmall) },
                                     border = null,
                                     colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                                        containerColor = Color.Gray.copy(alpha = 0.15f),
-                                        labelColor = Color.Gray,
+                                        containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                        labelColor = MaterialTheme.colorScheme.outline,
                                     ),
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.sm))
                             Text(
                                 text = s.prompt.take(120) + if (s.prompt.length > 120) "…" else "",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                             )
                         }
@@ -1283,25 +1304,25 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             if (state.skills.isEmpty() && gallerySkills.isEmpty()) {
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xxl),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
                                 imageVector = Icons.Default.DeveloperBoard,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = Color.LightGray,
+                                contentDescription = null, // decorative empty-state illustration
+                                modifier = Modifier.size(SpacingTokens.xxl * 2),
+                                tint = MaterialTheme.colorScheme.outline,
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = stringResource(R.string.skills_empty), color = TextGrey, fontSize = 16.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.lg))
+                            Text(text = stringResource(R.string.skills_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                            Spacer(modifier = Modifier.height(SpacingTokens.sm))
                             Text(
                                 text = stringResource(R.string.skills_empty_hint),
-                                color = TextGrey,
-                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 32.dp),
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xxl),
                             )
                         }
                     }
@@ -1347,11 +1368,11 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     if (isImporting) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(SpacingTokens.md),
                             strokeWidth = 2.dp,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.sm))
                     }
                     Text(stringResource(R.string.action_download))
                 }
@@ -1363,11 +1384,11 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             },
             title = { Text("从 URL 导入 Skill") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Text(
                         text = stringResource(R.string.skills_url_import_desc),
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGrey,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedTextField(
                         value = urlInput,
@@ -1383,7 +1404,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (msg.startsWith("导入成功")) SuccessGreen else DangerRed,
+                            color = if (msg.startsWith("导入成功")) MaterialTheme.customColors.successGreen else MaterialTheme.customColors.dangerRed,
                         )
                     }
                 }
@@ -1404,12 +1425,12 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     editorOpen = false
                 }) {
                     Icon(Icons.Default.Save, contentDescription = "save")
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(stringResource(R.string.action_save))
                 }
             },
             dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     if (deleting) {
                         TextButton(onClick = {
                             val id = editingId
@@ -1422,7 +1443,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             },
             title = { Text(if (editingId == null) stringResource(R.string.skills_new_custom) else stringResource(R.string.skills_edit_custom)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -1451,18 +1472,18 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
 @Composable
 private fun SectionHeader(title: String, subtitle: String, count: Int) {
     Row(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = subtitle, fontSize = 12.sp, color = TextGrey)
+            Text(text = title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(SpacingTokens.xxs))
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(
             text = "$count",
-            fontSize = 12.sp,
-            color = AccentBlue,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.customColors.accentBlue,
             fontWeight = FontWeight.Medium,
         )
     }
@@ -1474,14 +1495,14 @@ private fun ImportFabOption(icon: androidx.compose.ui.graphics.vector.ImageVecto
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(AccentBlue.copy(alpha = 0.9f))
+            .clip(ShapeTokens.extraLargeShape)
+            .background(MaterialTheme.customColors.accentBlue.copy(alpha = 0.9f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(SpacingTokens.md)) // decorative, label describes action
+        Spacer(modifier = Modifier.width(SpacingTokens.sm))
+        Text(text = label, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -1494,44 +1515,44 @@ private fun GallerySkillCard(
     onDelete: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
-        shape = RoundedCornerShape(11.dp),
+        modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (skill.isEnabled) CardWhite else Color.LightGray.copy(alpha = 0.3f),
+            containerColor = if (skill.isEnabled) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
         ),
         onClick = onClick,
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             // 第一行：名称 + 标签组
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = skill.metadata.name,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (skill.isEnabled) TextDark else TextGrey,
+                    color = if (skill.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 // 内置标签
                 if (skill.isBuiltIn) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("内置", fontSize = 10.sp) },
+                        label = { Text("内置", style = MaterialTheme.typography.labelSmall) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                            containerColor = AccentBlue.copy(alpha = 0.12f),
-                            labelColor = AccentBlue,
+                            containerColor = MaterialTheme.customColors.accentBlue.copy(alpha = 0.12f),
+                            labelColor = MaterialTheme.customColors.accentBlue,
                         ),
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
                 // 需要 Secret 标签
                 if (skill.needsSecret) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("API Key", fontSize = 10.sp) },
+                        label = { Text("API Key", style = MaterialTheme.typography.labelSmall) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                            containerColor = ChipWarningBg, // 浅橙
-                            labelColor = ChipWarningText,
+                            containerColor = MaterialTheme.customColors.chipWarningBg, // 浅橙
+                            labelColor = MaterialTheme.customColors.chipWarningText,
                         ),
                     )
                 }
@@ -1539,27 +1560,27 @@ private fun GallerySkillCard(
                 if (skill.localScriptsPath != null) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("JS", fontSize = 10.sp) },
+                        label = { Text("JS", style = MaterialTheme.typography.labelSmall) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                            containerColor = ChipSuccessBg, // 浅绿
-                            labelColor = ChipSuccessText,
+                            containerColor = MaterialTheme.customColors.chipSuccessBg, // 浅绿
+                            labelColor = MaterialTheme.customColors.chipSuccessText,
                         ),
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
             // 描述文本
             Text(
                 text = skill.metadata.description,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (skill.isEnabled) TextDark.copy(alpha = 0.7f) else TextGrey,
+                color = if (skill.isEnabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
             // 底部操作栏：分类 + 启用开关 + 删除
             Row(
@@ -1570,11 +1591,11 @@ private fun GallerySkillCard(
                 // 分类标签
                 Text(
                     text = skill.metadata.category.displayName,
-                    fontSize = 11.sp,
-                    color = TextGrey,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .background(Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), ShapeTokens.extraSmallShape)
+                        .padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1586,30 +1607,30 @@ private fun GallerySkillCard(
                             if (skill.isEnabled) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = Color.White,
+                                    contentDescription = null, // decorative switch-on indicator
+                                    modifier = Modifier.size(SpacingTokens.md),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                 )
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = AccentBlue,
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.customColors.accentBlue,
                         ),
                     )
 
                     // 非内置技能显示删除按钮
                     if (!skill.isBuiltIn) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.sm))
                         IconButton(
                             onClick = onDelete,
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(SpacingTokens.xxl),
                         ) {
                             Icon(
                             Icons.Default.Delete,
                             contentDescription = stringResource(R.string.action_delete),
-                            tint = Color.Gray,
-                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(SpacingTokens.lg),
                         )
                         }
                     }

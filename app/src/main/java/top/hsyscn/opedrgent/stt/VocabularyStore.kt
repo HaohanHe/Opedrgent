@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.stt
 import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONArray
+import org.json.JSONObject
 import org.json.JSONTokener
 
 class VocabularyStore(context: Context) {
@@ -16,19 +17,19 @@ class VocabularyStore(context: Context) {
     fun addTerm(term: String) {
         val normalized = term.trim()
         if (normalized.isBlank()) return
-        val terms = getTermsSet().toMutableSet()
-        terms.add(normalized)
-        saveTermsSet(terms)
+        val map = getTermsMap().toMutableMap()
+        map[normalized] = normalized
+        saveTermsMap(map)
     }
 
     fun removeTerm(term: String) {
-        val terms = getTermsSet().toMutableSet()
-        terms.remove(term)
-        saveTermsSet(terms)
+        val map = getTermsMap().toMutableMap()
+        map.remove(term)
+        saveTermsMap(map)
     }
 
     fun listTerms(): List<String> {
-        return getTermsSet().sorted()
+        return getTermsMap().keys.sorted()
     }
 
     fun search(query: String): List<String> {
@@ -39,32 +40,46 @@ class VocabularyStore(context: Context) {
 
     fun applyVocabulary(text: String): String {
         var result = text
-        for (term in listTerms()) {
+        for ((term, replacement) in getTermsMap()) {
             if (term.isBlank()) continue
-            // Very naive replacement - just ensure the term is present
-            // In real app, this would use pinyin/sound similarity
-            result = result.replace(term, term)
+            result = result.replace(term, replacement, ignoreCase = true)
         }
         return result
     }
 
-    private fun getTermsSet(): Set<String> {
-        val jsonStr = prefs.getString(KEY_TERMS, null) ?: return emptySet()
+    private fun getTermsMap(): Map<String, String> {
+        val jsonStr = prefs.getString(KEY_TERMS, null) ?: return emptyMap()
         return try {
             val array = JSONTokener(jsonStr).nextValue() as? JSONArray
             if (array != null) {
-                (0 until array.length()).map { array.getString(it) }.toSet()
+                val map = mutableMapOf<String, String>()
+                for (i in 0 until array.length()) {
+                    val item = array.get(i)
+                    if (item is JSONObject) {
+                        val t = item.optString("term", "")
+                        val r = item.optString("replacement", t)
+                        if (t.isNotBlank()) map[t] = r
+                    } else if (item is String && item.isNotBlank()) {
+                        map[item] = item
+                    }
+                }
+                map
             } else {
-                emptySet()
+                emptyMap()
             }
         } catch (_: Exception) {
-            emptySet()
+            emptyMap()
         }
     }
 
-    private fun saveTermsSet(terms: Set<String>) {
+    private fun saveTermsMap(map: Map<String, String>) {
         val array = JSONArray()
-        terms.sorted().forEach { array.put(it) }
+        map.keys.sorted().forEach { key ->
+            val obj = JSONObject()
+            obj.put("term", key)
+            obj.put("replacement", map[key])
+            array.put(obj)
+        }
         prefs.edit().putString(KEY_TERMS, array.toString()).apply()
     }
 }
