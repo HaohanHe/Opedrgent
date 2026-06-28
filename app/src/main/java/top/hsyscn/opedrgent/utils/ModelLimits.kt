@@ -76,6 +76,20 @@ object ModelLimits {
         if (maxTokens >= 100_000) 1000
         else (maxTokens / 100).coerceIn(100, 500)
 
+    // ==================== Agent 工具调用轮次 ====================
+
+    /**
+     * Agent 工具循环的最大轮次（ResearchState 的 roundsUsed 维度）。
+     * 由于 executeOneRound 里 advanceTo 会被调用两次（开始思考 + 工具执行后），
+     * 实际允许的工具调用轮数 ≈ maxAgentRounds / 2。
+     * 大上下文模型给更多轮次，避免 DeepSeek V4 Flash 等模型在复杂查询时被硬截断。
+     */
+    fun maxAgentRounds(maxTokens: Int): Int =
+        if (maxTokens >= 1_000_000) 24      // 约 12 轮实际工具调用
+        else if (maxTokens >= 200_000) 20   // 约 10 轮
+        else if (maxTokens >= 128_000) 16   // 约 8 轮
+        else 12                             // 约 6 轮
+
     // ==================== 海马体 / 记忆查询 ====================
 
     /** 海马体关键词最大数量 */
