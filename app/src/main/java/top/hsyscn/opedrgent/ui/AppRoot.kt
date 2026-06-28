@@ -225,7 +225,7 @@ fun AppRoot(
         val action = initialAction
         if (action != null) {
             when (action) {
-                "meeting" -> {
+                "meeting", "recording" -> {
                     selectedTab = MainTab.RECORDING
                 }
                 "new_chat" -> {
