@@ -171,6 +171,14 @@ class ModelDownloadManager(private val context: Context) {
         DebugLog.i("ModelDownloadManager", "Download cancelled: $modelId")
     }
 
+    fun pauseDownload(modelId: String) {
+        activeDownloads[modelId]?.cancel()
+        activeDownloads.remove(modelId)
+
+        // 暂停不清除临时文件，保留已下载进度用于断点续传
+        DebugLog.i("ModelDownloadManager", "Download paused: $modelId")
+    }
+
     fun deleteModel(modelId: String): Boolean {
         cancelDownload(modelId)
 
@@ -256,10 +264,14 @@ class ModelDownloadManager(private val context: Context) {
 
             // 206 表示服务器支持断点续传；200 等表示返回完整内容，需要从头开始
             val supportsResume = response.code == 206
+            DebugLog.i("ModelDownloadManager", "Download response for ${modelInfo.id}: code=${response.code}, existingLength=$existingLength, supportsResume=$supportsResume")
             val startBytes = if (supportsResume) {
                 existingLength
             } else {
-                if (tempFile.exists()) tempFile.delete()
+                if (tempFile.exists()) {
+                    DebugLog.w("ModelDownloadManager", "Server ignored Range for ${modelInfo.id}, clearing ${tempFile.length()} bytes temp file")
+                    tempFile.delete()
+                }
                 0L
             }
             val totalBytes = if (contentLength > 0) {
