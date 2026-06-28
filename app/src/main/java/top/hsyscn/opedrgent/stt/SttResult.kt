@@ -3,14 +3,14 @@ package top.hsyscn.opedrgent.stt
 /**
  * 说话人调色板 — 为每个说话人分配一致的视觉颜色。
  *
- * 参考得到大脑的 sentence-index 圆形颜色编码方案：
+ * 参考opedrgent的 sentence-index 圆形颜色编码方案：
  *   - 每个说话人分配唯一 RGB 颜色
  *   - 同一说话人的所有句子使用相同颜色
  *   - 预设一组高辨识度的柔和色彩
  */
 object SpeakerColorPalette {
 
-    /** 预设说话人颜色 (RGB int)，参考得到大脑配色风格 */
+    /** 预设说话人颜色 (RGB int)，参考opedrgent配色风格 */
     private val PRESET_COLORS = listOf(
         0xFF8CCFEB.toInt(), // 蓝 rgb(140, 207, 235)
         0xFFEAB37E.toInt(), // 橙 rgb(234, 179, 126)
@@ -50,7 +50,7 @@ object SpeakerColorPalette {
 
     /**
      * 获取说话人显示名称。
-     * 将 "Speaker_0", "speaker-1" 等原始 ID 转换为 "说话人1", "说话人2" 格式（参考得到大脑）。
+     * 将 "Speaker_0", "speaker-1" 等原始 ID 转换为 "说话人1", "说话人2" 格式（参考opedrgent）。
      */
     fun formatSpeakerName(speakerId: String?): String {
         if (speakerId.isNullOrBlank()) return "未知"
@@ -64,7 +64,7 @@ object SpeakerColorPalette {
 object TranscriptTimeFormatter {
 
     /**
-     * 将毫秒数格式化为 HH:MM:SS 格式（参考得到大脑 sentence-starttime）。
+     * 将毫秒数格式化为 HH:MM:SS 格式（参考opedrgent sentence-starttime）。
      */
     fun formatMsToHMS(ms: Long): String {
         val totalSeconds = ms / 1000
@@ -142,7 +142,7 @@ data class MeetingTranscriptResult(
 )
 
 /**
- * 单个转录段落，带说话人标签和颜色编码（参考得到大脑 sentence-item 数据模型）。
+ * 单个转录段落，带说话人标签和颜色编码（参考opedrgent sentence-item 数据模型）。
  *
  * 对应 DOM 结构:
  *   <div class="sentence-item sentence-item--clickable">
@@ -166,7 +166,7 @@ data class MeetingSegment(
 )
 
 /**
- * 结构化智能总结数据模型（参考得到大脑 智能总结 Tab 内容结构）。
+ * 结构化智能总结数据模型（参考opedrgent 智能总结 Tab 内容结构）。
  *
  * 包含:
  *   - 录音信息 (元数据)

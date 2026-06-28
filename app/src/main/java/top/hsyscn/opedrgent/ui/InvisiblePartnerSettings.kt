@@ -3,6 +3,7 @@
 package top.hsyscn.opedrgent.ui
 
 import android.content.Context
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -48,7 +48,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,6 +66,8 @@ import top.hsyscn.opedrgent.service.AutoSproutWorker
 import top.hsyscn.opedrgent.service.DailyDigestNotifier
 import top.hsyscn.opedrgent.storage.PersonaDetector
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
@@ -256,25 +257,25 @@ fun InvisiblePartnerSettingsScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(12.dp)
+                .padding(SpacingTokens.md)
                 .padding(bottom = 100.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
 
             // ── 0. 使用模式选择器 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text("使用模式", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
 
                     // 自动切换开关
                     Row(
@@ -298,7 +299,7 @@ fun InvisiblePartnerSettingsScreen(
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.md))
 
                     if (autoPersonaEnabled) {
                         // 自动模式：显示检测结果，RadioButtons 禁用
@@ -313,7 +314,7 @@ fun InvisiblePartnerSettingsScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = SpacingTokens.sm),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
@@ -321,7 +322,7 @@ fun InvisiblePartnerSettingsScreen(
                                     onClick = null,  // 自动模式下不可点击
                                     enabled = false,
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(SpacingTokens.sm))
                                 Column {
                                     Text(
                                         text = persona.label,
@@ -340,7 +341,7 @@ fun InvisiblePartnerSettingsScreen(
                             }
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(SpacingTokens.sm))
 
                         // 检测原因说明
                         Text(
@@ -349,7 +350,7 @@ fun InvisiblePartnerSettingsScreen(
                             color = BubbleBlue,
                         )
 
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(SpacingTokens.xs))
 
                         Text(
                             text = "系统会根据时间、内容和日程自动调整",
@@ -363,14 +364,14 @@ fun InvisiblePartnerSettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onPersonaChanged(persona) }
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = SpacingTokens.sm),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
                                     selected = (selectedPersona == persona),
                                     onClick = { onPersonaChanged(persona) },
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(SpacingTokens.sm))
                                 Column {
                                     Text(persona.label, style = MaterialTheme.typography.bodyMedium)
                                     Text(
@@ -384,18 +385,18 @@ fun InvisiblePartnerSettingsScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             // ── 1. 录音自动保存 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "录音自动保存", fontWeight = FontWeight.SemiBold)
@@ -416,13 +417,13 @@ fun InvisiblePartnerSettingsScreen(
             // ── 2. 自动发芽 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "自动发芽", fontWeight = FontWeight.SemiBold)
@@ -448,7 +449,7 @@ fun InvisiblePartnerSettingsScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = BubbleBlue,
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(SpacingTokens.xs))
                             }
                             DropdownMenu(
                                 expanded = showSproutHourPicker,
@@ -472,13 +473,13 @@ fun InvisiblePartnerSettingsScreen(
             // ── 3. 每日推送 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "每日推送", fontWeight = FontWeight.SemiBold)
@@ -504,7 +505,7 @@ fun InvisiblePartnerSettingsScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = BubbleBlue,
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(SpacingTokens.xs))
                             }
                             DropdownMenu(
                                 expanded = showDigestHourPicker,
@@ -528,13 +529,13 @@ fun InvisiblePartnerSettingsScreen(
             // ── 4. 温暖点评 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "温暖点评", fontWeight = FontWeight.SemiBold)
@@ -556,13 +557,13 @@ fun InvisiblePartnerSettingsScreen(
             // ── 5. 最大发芽数 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.mediumShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "最大发芽数", fontWeight = FontWeight.SemiBold)
@@ -591,12 +592,11 @@ fun InvisiblePartnerSettingsScreen(
             HorizontalDivider()
 
             // 底部说明文字
-            Column(modifier = Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.padding(vertical = SpacingTokens.sm), verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 Text(
                     text = "关于无感伙伴模式",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    color = Color(0xFF555555),
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = "无感伙伴模式让 AI 在后台默默为你工作。打开开关后，系统会在指定时间自动完成录音转写、内容分析、发芽报告生成和每日摘要推送，无需手动操作。所有数据仅存储在本地设备上。",

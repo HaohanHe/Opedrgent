@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.interview
 
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.Collections
 
 /**
  * 海马体记忆系统 — 对话注意力锚定层。
@@ -70,6 +71,17 @@ class HippocampusMemory(
         private const val MAX_KEYWORDS = 8
         /** 最大关键话题数量 */
         private const val MAX_KEY_TOPICS = 15
+        /** 停用词表 — 过滤目标关键词中的功能词 */
+        private val STOPWORDS = setOf(
+            "的", "了", "是", "在", "和", "与", "或", "也", "都", "就",
+            "等", "中", "上", "下", "对", "为", "从", "到", "把", "被",
+            "但是", "然而", "因此", "所以", "而且", "以及", "或者", "还是",
+            "不是", "就是", "这个", "那个", "一个", "一些", "可以", "应该",
+            "需要", "已经", "正在", "什么", "怎么", "为什么", "进行", "完成",
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "and", "or", "but", "in", "on", "at", "to", "for", "of",
+            "with", "by", "from", "about", "into", "through", "during",
+        )
     }
 
     // ==================== 目标锚定 ====================
@@ -91,6 +103,7 @@ class HippocampusMemory(
         val anchoredAt: Long = System.currentTimeMillis(),
     )
 
+    @Volatile
     private var goalAnchor: GoalAnchor? = null
 
     /**
@@ -231,7 +244,7 @@ class HippocampusMemory(
         val timestamp: Long = System.currentTimeMillis(),
     )
 
-    private val turnHistory = mutableListOf<TurnRecord>()
+    private val turnHistory = Collections.synchronizedList(mutableListOf<TurnRecord>())
 
     /**
      * 检测当前轮次是否存在主题漂移。
@@ -266,34 +279,36 @@ class HippocampusMemory(
         }
 
         // ===== 维度2：关键词匹配得分（中文优化：字符级部分匹配）=====
-        var matchedTopics = 0
+        var matchedScore = 0f
         val matchedTopicNames = mutableListOf<String>()
         for (topic in anchor.keyTopics) {
             // 精确匹配优先
             if (combinedText.contains(topic.lowercase())) {
-                matchedTopics++
+                matchedScore += 1.0f
                 matchedTopicNames.add(topic)
             } else if (topic.length >= 2) {
                 // 中文模糊匹配：话题中 >= 50% 的字符出现在文本中，算部分匹配（权重 0.5）
                 val topicChars = topic.lowercase().toSet()
                 val matchedChars = topicChars.count { combinedText.contains(it) }
                 if (matchedChars.toFloat() / topicChars.size >= 0.5f) {
-                    matchedTopics += 0.5f.toInt()  // 部分匹配算半分
+                    matchedScore += 0.5f  // 部分匹配算半分
                     matchedTopicNames.add(topic)
                 }
             }
         }
         val keywordScore = if (anchor.keyTopics.isNotEmpty()) {
-            matchedTopics.toFloat() / anchor.keyTopics.size.toFloat()
+            matchedScore / anchor.keyTopics.size.toFloat()
         } else 1.0f
 
-        // ===== 维度3：CJK 字符级相似度（修复中文 Jaccard）=====
-        // 对中文取字符级 bigram 重叠，而非按空格分词
-        val goalChars = anchor.primaryGoal.filter { it.isLetter() }.toSet()
-        val responseChars = combinedText.filter { it.isLetter() }.toSet()
-        val charOverlap = goalChars.intersect(responseChars).size.toFloat()
-        val charUnion = goalChars.union(responseChars).size.toFloat()
-        val jaccardScore = if (charUnion > 0) charOverlap / charUnion else 1.0f
+        val goalKeywords = extractKeywords(anchor.primaryGoal, MAX_KEYWORDS)
+            .filter { it.length >= 2 }
+            .filterNot { STOPWORDS.contains(it.lowercase()) }
+        val jaccardScore = if (goalKeywords.isNotEmpty()) {
+            val matched = goalKeywords.count { kw ->
+                combinedText.contains(kw.lowercase())
+            }
+            matched.toFloat() / goalKeywords.size.toFloat()
+        } else 1.0f
 
         // ===== 维度4：历史趋势（连续低分检测）=====
         val recentScores = turnHistory.takeLast(3).map { it.driftResult.relevanceScore }

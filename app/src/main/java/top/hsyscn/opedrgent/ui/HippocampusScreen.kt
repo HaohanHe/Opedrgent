@@ -1,5 +1,10 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.AccentPurple
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,7 +25,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
@@ -48,6 +54,7 @@ fun HippocampusScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<SourceType?>(null) }
     var items by remember { mutableStateOf<List<IndexedItem>>(emptyList()) }
+    val scope = rememberCoroutineScope()
 
     // 初始加载 + 搜索/筛选变化时刷新（IO 线程 + 防抖）
     LaunchedEffect(searchQuery, selectedType) {
@@ -76,7 +83,7 @@ fun HippocampusScreen(
                     text = "${items.size} 条",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp),
+                    modifier = Modifier.padding(end = SpacingTokens.lg),
                 )
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -99,13 +106,13 @@ fun HippocampusScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = SpacingTokens.lg)
                 .height(48.dp),
-            shape = RoundedCornerShape(11.dp),
+            shape = ShapeTokens.smallShape,
             singleLine = true,
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
 
         // 类型筛选 Chip 行
         TypeFilterRow(
@@ -113,22 +120,24 @@ fun HippocampusScreen(
             onTypeSelected = { selectedType = it },
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
 
         // 索引列表
         if (items.isEmpty()) {
             EmptyHippocampusState()
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
                 items(items, key = { it.id }) { item ->
                     HippocampusItemCard(
                         item = item,
                         onDelete = {
-                            hippocampus.delete(item.id)
-                            items = items.filter { it.id != item.id }
+                            scope.launch {
+                                hippocampus.delete(item.id)
+                                items = items.filter { it.id != item.id }
+                            }
                         },
                     )
                 }
@@ -151,14 +160,14 @@ private fun TypeFilterRow(
     )
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = AccentBlue,
-        selectedLabelColor = Color.White,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
     )
 
     Row(
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = SpacingTokens.lg),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         types.forEach { (type, label) ->
             val isSelected = type == selectedType
@@ -168,12 +177,11 @@ private fun TypeFilterRow(
                 label = {
                     Text(
                         label,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        style = if (isSelected) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
                     )
                 },
                 colors = chipColors,
-                shape = RoundedCornerShape(20.dp),
+                shape = ShapeTokens.largeShape,
                 border = if (isSelected) null else BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
@@ -208,39 +216,39 @@ private fun HippocampusItemCard(
             val color by animateColorAsState(
                 when (dismissState.targetValue) {
                     SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
-                    else -> Color.Transparent
+                    else -> MaterialTheme.colorScheme.surface.copy(alpha = 0f)
                 },
                 label = "swipe_bg",
             )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(color, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 20.dp),
+                    .background(color, ShapeTokens.mediumShape)
+                    .padding(horizontal = SpacingTokens.xl),
                 contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = stringResource(R.string.cd_delete),
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onError,
                 )
             }
         },
         enableDismissFromStartToEnd = false,
     ) {
         Card(
-            shape = RoundedCornerShape(14.dp),
+            shape = ShapeTokens.mediumShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(SpacingTokens.md)) {
                 // 第一行：来源类型标签 + 标题 + 时间
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 来源类型标签
                     SourceTypeChip(sourceType = item.sourceType)
 
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(SpacingTokens.md))
 
                     // 标题
                     Text(
@@ -260,7 +268,7 @@ private fun HippocampusItemCard(
                     )
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
 
                 // 摘要
                 if (item.summary.isNotEmpty()) {
@@ -270,34 +278,33 @@ private fun HippocampusItemCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 18.sp,
                     )
                 }
 
                 // 关键词
                 if (item.keywords.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     val keywords = item.keywords.split(",").filter { it.isNotBlank() }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                         keywords.take(4).forEach { kw ->
                             Surface(
                                 color = AccentBlue.copy(alpha = 0.08f),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = ShapeTokens.smallShape,
                             ) {
                                 Text(
                                     kw,
-                                    fontSize = 11.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = AccentBlue,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs),
                                 )
                             }
                         }
                         if (keywords.size > 4) {
                             Text(
                                 "+${keywords.size - 4}",
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 2.dp),
+                                modifier = Modifier.padding(top = SpacingTokens.xxs),
                             )
                         }
                     }
@@ -333,30 +340,30 @@ private fun HippocampusItemCard(
 private fun SourceTypeChip(sourceType: SourceType) {
     val (color, label) = when (sourceType) {
         SourceType.NOTE -> AccentBlue to "笔记"
-        SourceType.CONVERSATION -> Color(0xFF4CAF50) to "对话"
-        SourceType.RECORDING -> Color(0xFFE67E22) to "录音"
-        SourceType.SPROUT -> Color(0xFF9C27B0) to "发芽"
-        SourceType.INTERVIEW -> Color(0xFF00BCD4) to "面试"
-        SourceType.USER_MEMORY -> Color(0xFF607D8B) to "记忆"
-        SourceType.USER_PREFERENCES -> Color(0xFF795548) to "偏好"
+        SourceType.CONVERSATION -> SuccessGreen to "对话"
+        SourceType.RECORDING -> AccentOrange to "录音"
+        SourceType.SPROUT -> AccentPurple to "发芽"
+        SourceType.INTERVIEW -> AccentBlue to "面试"
+        SourceType.USER_MEMORY -> MaterialTheme.colorScheme.outline to "记忆"
+        SourceType.USER_PREFERENCES -> AccentOrange to "偏好"
     }
 
     Surface(
         color = color.copy(alpha = 0.1f),
-        shape = RoundedCornerShape(8.dp),
+        shape = ShapeTokens.smallShape,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 Icons.Default.Memory,
-                contentDescription = null,
+                contentDescription = label,
                 tint = color,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(SpacingTokens.sm),
             )
-            Spacer(Modifier.width(4.dp))
-            Text(label, fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(SpacingTokens.xs))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = color)
         }
     }
 }
@@ -364,23 +371,23 @@ private fun SourceTypeChip(sourceType: SourceType) {
 @Composable
 private fun EmptyHippocampusState() {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             Icons.Default.Memory,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
+            contentDescription = "记忆索引",
+            modifier = Modifier.size(SpacingTokens.xxl),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         Text(
             "暂无记忆索引",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             "当您创建笔记、对话、录音或完成面试时，\n海马体会自动建立记忆索引",
             style = MaterialTheme.typography.bodyMedium,

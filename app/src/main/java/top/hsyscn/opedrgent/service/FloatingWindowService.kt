@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import top.hsyscn.opedrgent.MainActivity
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -186,11 +187,12 @@ class FloatingWindowService : Service() {
             (36 * dp).toInt(), (36 * dp).toInt()
         ).apply { rightMargin = (8 * dp).toInt() })
 
-        // 停止按钮
+        // 停止按钮（使用方形停止图标，避免被误认为取消）
         val stopBtn = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setImageResource(R.drawable.ic_stop_square)
             setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
             setColorFilter(0xFFE53935.toInt())
+            contentDescription = "结束录音"
             setOnClickListener {
                 onStop?.invoke()
             }

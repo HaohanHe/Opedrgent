@@ -177,21 +177,24 @@ class NoteSyncService(
             }
 
             // 2. 处理仅远端有的笔记（下载导入）
+            val downloadedNotes = mutableListOf<Note>()
             for (remoteFile in remoteFiles) {
                 if (remoteFile.displayName !in localNoteMap) {
                     try {
                         val content = client.download("${config.remotePath}${remoteFile.displayName}")
                         if (content != null) {
                             val remoteNote = json.decodeFromString<SyncNote>(content)
-                            val note = remoteNote.toNote().copy(id = 0) // 新 ID
-                            repository.saveNote(note)
-                            downloaded++
+                            downloadedNotes.add(remoteNote.toNote().copy(id = 0)) // 新 ID
                         }
                     } catch (e: Exception) {
                         DebugLog.w("$TAG: 下载远端笔记 ${remoteFile.displayName} 失败 — ${e.message}")
                         errors++
                     }
                 }
+            }
+            if (downloadedNotes.isNotEmpty()) {
+                val importedIds = repository.importNotes(downloadedNotes)
+                downloaded += importedIds.size
             }
 
             // 记录同步时间

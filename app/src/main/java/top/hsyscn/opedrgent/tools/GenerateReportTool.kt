@@ -6,16 +6,13 @@ import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 
 class GenerateReportTool(
     private val llm: LlmClient,
 ) : ToolSet {
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
-    }
 
     @Tool("generate_report")
     @ToolDescription("生成研究报告：整理研究结果，生成结构化的报告。参数中 topic 为必填，data 为可选（包含研究数据）。")

@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 /**
- * 发芽报告数据库 — 独立持久化每份发芽报告（参照得到大脑设计）
+ * 发芽报告数据库 — 独立持久化每份发芽报告（参照opedrgent设计）
  *
  * 每次发芽生成一份报告，永久保存。
  * 与笔记通过 source_note_id 关联，支持一份笔记多次发芽（保留历史版本）。

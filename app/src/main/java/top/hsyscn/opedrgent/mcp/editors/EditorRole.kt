@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.mcp.editors
 
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 编辑角色 — 写作模式群聊人设。
@@ -287,10 +288,6 @@ enum class EditorRole(
         val defaultPipeline: List<EditorRole>
             get() = listOf(STYLIST, HISTORIAN, TECH_REVIEWER, LOGIC_DETECTIVE, EDITOR_IN_CHIEF)
 
-        /** 完整创作流程（长文场景，全角色参与） */
-        val fullCreationPipeline: List<EditorRole>
-            get() = listOf(STYLIST, HISTORIAN, TECH_REVIEWER, LOGIC_DETECTIVE, EDITOR_IN_CHIEF)
-
         /** 快速润色流程（已有草稿场景，跳过历史学家） */
         val quickPolishPipeline: List<EditorRole>
             get() = listOf(TECH_REVIEWER, LOGIC_DETECTIVE, STYLIST, EDITOR_IN_CHIEF)
@@ -323,7 +320,7 @@ data class DynamicRole(
 
     /** 获取显示颜色（优先匹配预设，否则随机分配） */
     val displayColor: Long
-        get() = matchedPreset()?.color ?: DEFAULT_COLORS[name.hashCode() % DEFAULT_COLORS.size]
+        get() = matchedPreset()?.color ?: DEFAULT_COLORS[(name.hashCode() and 0x7FFFFFFF) % DEFAULT_COLORS.size]
 
     companion object {
         private val DEFAULT_COLORS = longArrayOf(
@@ -402,7 +399,7 @@ internal fun levenshteinDistance(a: String, b: String): Int {
     return dp[a.length][b.length]
 }
 
-private fun dist(a: String, b: String): Int = levenshteinDistance(a.lowercase(), b.lowercase())
+internal fun dist(a: String, b: String): Int = levenshteinDistance(a.lowercase(), b.lowercase())
 
 // ==================== 条件边（对标 Koog onCondition） ====================
 
@@ -427,7 +424,7 @@ data class ConditionalBranch(
  * 工作流存储：跨步骤共享状态（对标 Koog storage）
  */
 class WorkflowStorage {
-    private val data = mutableMapOf<String, Any>()
+    private val data = ConcurrentHashMap<String, Any>()
     
     fun set(key: String, value: Any) {
         data[key] = value

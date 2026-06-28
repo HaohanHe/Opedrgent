@@ -20,14 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -46,16 +42,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.isSystemInDarkTheme
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.material3.Text
 
 enum class RecordingState {
@@ -78,14 +69,14 @@ fun RecordingCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = ShapeTokens.extraLargeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(SpacingTokens.xl),
         ) {
             // Header with waveform
             Row(
@@ -116,8 +107,8 @@ fun RecordingCard(
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    AccentBlue.copy(alpha = 0.15f),
-                                    AccentBlue.copy(alpha = 0.05f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
                                 ),
                             ),
                             shape = CircleShape,
@@ -125,21 +116,20 @@ fun RecordingCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = null,
-                        tint = AccentBlue,
-                        modifier = Modifier.size((24 * pulseScale).dp),
+                        contentDescription = "录音",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(SpacingTokens.xl * pulseScale),
                     )
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(SpacingTokens.lg))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = formatElapsed(elapsedSeconds),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeTextDark(),
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontFamily = FontFamily.Monospace,
                     )
                     // 录音状态指示文字
                     Text(
@@ -148,15 +138,20 @@ fun RecordingCard(
                             RecordingState.PAUSED -> "⏸ 已暂停"
                             else -> fileName
                         },
-                        fontSize = if (recordingState == RecordingState.RECORDING) 13.sp else 12.sp,
-                        color = if (recordingState == RecordingState.RECORDING) MaterialTheme.colorScheme.error else themeTextGrey(),
-                        fontWeight = if (recordingState == RecordingState.RECORDING) FontWeight.Medium else FontWeight.Normal,
+                        style = if (recordingState == RecordingState.RECORDING)
+                            MaterialTheme.typography.labelMedium
+                        else
+                            MaterialTheme.typography.bodySmall,
+                        color = if (recordingState == RecordingState.RECORDING)
+                            MaterialTheme.colorScheme.error
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (recordingState != RecordingState.RECORDING) {
                         Text(
                             text = fileName,
-                            fontSize = 11.sp,
-                            color = themeTextGrey().copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             maxLines = 1,
                         )
                     }
@@ -167,13 +162,13 @@ fun RecordingCard(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "取消录音",
-                        tint = themeTextGrey(),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             // Waveform visualization
             WaveformVisualizer(
@@ -184,7 +179,7 @@ fun RecordingCard(
                     .height(64.dp),
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xl))
 
             // Control buttons
             Row(
@@ -203,19 +198,19 @@ fun RecordingCard(
                             Icon(
                                 imageVector = Icons.Default.Pause,
                                 contentDescription = "暂停",
-                                tint = themeTextDark(),
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp),
                             )
                         }
                     }
 
-                    Spacer(Modifier.width(24.dp))
+                    Spacer(Modifier.width(SpacingTokens.xl))
 
                     // Stop button — 使用方块图标，红色背景突出显示
                     Surface(
                         onClick = onStop,
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error,  // 红色：醒目的停止按钮
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -223,7 +218,7 @@ fun RecordingCard(
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
-                                    .background(Color.White, RoundedCornerShape(3.dp)),
+                                    .background(MaterialTheme.colorScheme.onError, ShapeTokens.extraSmallShape),
                             )
                         }
                     }
@@ -232,20 +227,20 @@ fun RecordingCard(
                     Surface(
                         onClick = onResume,
                         shape = CircleShape,
-                        color = AccentBlue.copy(alpha = 0.1f),
+                        color = MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier.size(56.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = "继续",
-                                tint = AccentBlue,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp),
                             )
                         }
                     }
 
-                    Spacer(Modifier.width(24.dp))
+                    Spacer(Modifier.width(SpacingTokens.xl))
 
                     // Stop button (红色，与录音中一致)
                     Surface(
@@ -258,7 +253,7 @@ fun RecordingCard(
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
-                                    .background(Color.White, RoundedCornerShape(3.dp)),
+                                    .background(MaterialTheme.colorScheme.onError, ShapeTokens.extraSmallShape),
                             )
                         }
                     }
@@ -268,17 +263,17 @@ fun RecordingCard(
                         modifier = Modifier
                             .width(200.dp)
                             .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = AccentBlue,
+                            .clip(ShapeTokens.extraSmallShape),
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Text("处理中...", color = themeTextGrey(), fontSize = 13.sp)
+                    Spacer(Modifier.width(SpacingTokens.md))
+                    Text("处理中...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
             if (recordingState == RecordingState.PAUSED) {
-                Spacer(Modifier.height(8.dp))
-                Text("已暂停", color = themeTextGrey(), fontSize = 12.sp)
+                Spacer(Modifier.height(SpacingTokens.sm))
+                Text("已暂停", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -290,10 +285,10 @@ private fun WaveformVisualizer(
     isRecording: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val accentBlue = AccentBlue
-    val greyLight = if (isSystemInDarkTheme()) Color(0xFF444444) else Color(0xFFE0E0E0)
+    val accentColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
-    Canvas(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
+    Canvas(modifier = modifier.clip(ShapeTokens.mediumShape)) {
         val barCount = 48
         val spacing = size.width / barCount
         val barWidth = spacing * 0.45f
@@ -315,9 +310,9 @@ private fun WaveformVisualizer(
 
             val color = if (isRecording) {
                 val alpha = 0.3f + 0.7f * (1f - normalizedPos * 0.5f)
-                accentBlue.copy(alpha = alpha)
+                accentColor.copy(alpha = alpha)
             } else {
-                greyLight
+                trackColor
             }
 
             drawRoundRect(

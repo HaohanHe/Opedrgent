@@ -16,6 +16,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -33,17 +34,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import java.util.Locale
 
 @Composable
@@ -144,7 +147,7 @@ fun HoldToDictate(
                     .size(56.dp)
                     .scale(ringScale)
                     .clip(CircleShape)
-                    .background(Color.Red.copy(alpha = ringAlpha))
+                    .background(MaterialTheme.customColors.dangerRed.copy(alpha = ringAlpha))
             )
         }
 
@@ -154,14 +157,14 @@ fun HoldToDictate(
                 .scale(if (isRecording) pulseScale else 1f)
                 .clip(CircleShape)
                 .background(
-                    if (isRecording) Color.Red else MaterialTheme.colorScheme.primary
+                    if (isRecording) MaterialTheme.customColors.dangerRed else MaterialTheme.colorScheme.primary
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = if (isRecording) android.R.drawable.ic_btn_speak_now else android.R.drawable.ic_btn_speak_now),
                 contentDescription = if (isRecording) "正在录音" else "按住说话",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -169,8 +172,7 @@ fun HoldToDictate(
         if (isRecording && elapsedTime > 0L) {
             Text(
                 text = formatDuration(elapsedTime),
-                color = Color.Red,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.customColors.dangerRed),
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -231,4 +233,24 @@ private fun formatDuration(millis: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@Preview(showBackground = true, name = "Light")
+@Composable
+private fun HoldToDictatePreview() {
+    OpedrgentTheme(darkTheme = false) {
+        Box(modifier = Modifier.padding(SpacingTokens.xxl)) {
+            HoldToDictate(onSpeechResult = {})
+        }
+    }
+}
+
+@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, name = "Dark")
+@Composable
+private fun HoldToDictateDarkPreview() {
+    OpedrgentTheme(darkTheme = true) {
+        Box(modifier = Modifier.padding(SpacingTokens.xxl)) {
+            HoldToDictate(onSpeechResult = {})
+        }
+    }
 }

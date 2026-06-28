@@ -2,17 +2,23 @@
 
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.customColors
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.health.connect.client.HealthConnectClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
@@ -32,14 +38,32 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.ImportExport
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -76,19 +100,19 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
@@ -108,17 +132,32 @@ import top.hsyscn.opedrgent.ui.theme.InterviewPurple
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.BackgroundPermHelper
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
-import top.hsyscn.opedrgent.ui.theme.themeDividerColor
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.*
 import top.hsyscn.opedrgent.utils.LocaleHelper
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.SettingsBrightness
+
+private const val BadgeBgAlpha = 0.15f
+
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, toAutomations: () -> Unit, toMemory: () -> Unit, toNotes: () -> Unit, toHippocampus: () -> Unit = {}, toVocabulary: () -> Unit = {}, toVoiceprint: () -> Unit = {}, hippocampus: HippocampusIndex? = null, showBackButton: Boolean = true, onInvisiblePartner: () -> Unit = {}, toOpenSource: () -> Unit = {}) {
+fun SettingsScreen(
+    vm: MainViewModel,
+    onBack: () -> Unit,
+    toSkills: () -> Unit,
+    toAutomations: () -> Unit,
+    toMemory: () -> Unit,
+    toNotes: () -> Unit,
+    toHippocampus: () -> Unit = {},
+    toVocabulary: () -> Unit = {},
+    toVoiceprint: () -> Unit = {},
+    toExport: () -> Unit = {},
+    hippocampus: HippocampusIndex? = null,
+    showBackButton: Boolean = true,
+    onInvisiblePartner: () -> Unit = {},
+    toOpenSource: () -> Unit = {},
+) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
@@ -132,6 +171,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
     var segmentEnabled by rememberSaveable { mutableStateOf(vm.isSegmentEnabled()) }
+    val hippocampusCount by produceState(0, hippocampus) {
+        value = hippocampus?.count() ?: 0
+    }
     var ttsDownloadOnly by rememberSaveable { mutableStateOf(vm.isTtsDownloadOnly()) }
     var ttsMimoEnabled by rememberSaveable { mutableStateOf(vm.isTtsMimoEnabled()) }
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
@@ -141,6 +183,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
     var calendarEnabled by rememberSaveable { mutableStateOf(vm.isCalendarEnabled()) }
     var healthEnabled by rememberSaveable { mutableStateOf(vm.isHealthEnabled()) }
     var themeMode by rememberSaveable { mutableStateOf(vm.getThemeMode()) }
+    var dynamicColorEnabled by rememberSaveable { mutableStateOf(vm.isDynamicColorEnabled()) }
     var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
@@ -173,6 +216,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             maxTokens = if (savedMax > 0) savedMax else base.maxTokens,
         )
     }
+
     val locationPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             locationEnabled = true
@@ -193,34 +237,43 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             scope.launch { snackbar.showSnackbar("未授予日历权限") }
         }
     }
-    // Health Connect 权限请求（使用专用 PermissionController 合约）
     val healthPermLauncher = rememberLauncherForActivityResult(
         androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
-    ) { granted ->
-        if (granted.containsAll(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)) {
-            healthEnabled = true
-            vm.saveHealthEnabled(true)
-        } else {
-            healthEnabled = false
-            scope.launch { snackbar.showSnackbar("未授予全部健康数据权限") }
+    ) { result ->
+        scope.launch {
+            // Health Connect 授权弹窗返回的是本次发生变化的权限集合，
+            // 已经授予的权限不会包含在 result 中，因此必须重新查询已授权集合。
+            val granted = try {
+                HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions()
+            } catch (_: Exception) {
+                result
+            }
+            if (granted.containsAll(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)) {
+                healthEnabled = true
+                vm.saveHealthEnabled(true)
+            } else {
+                healthEnabled = false
+                vm.saveHealthEnabled(false)
+                snackbar.showSnackbar("未授予全部健康数据权限")
+            }
         }
     }
-    // ACTIVITY_RECOGNITION 权限（部分设备读取步数需要），授权后自动发起 Health Connect 权限请求
     val activityRecognitionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
         } else {
-            // 即使拒绝也尝试 Health Connect 权限（部分设备不需要此权限）
-            healthPermLauncher.launch(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)
+            healthEnabled = false
+            vm.saveHealthEnabled(false)
+            scope.launch { snackbar.showSnackbar("未授予活动识别权限") }
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_settings), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_settings), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     if (showBackButton) {
                         IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back)) }
@@ -229,531 +282,375 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = themeBgGray(),
+        containerColor = themeBackgroundSecondary(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
-                .padding(padding),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.lg),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
         ) {
-        item {
-            // ── 语言设置 ──
-            var appLanguage by rememberSaveable { mutableStateOf(vm.getAppLanguage()) }
-
-            Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = stringResource(R.string.settings_language), fontWeight = FontWeight.Bold, color = themeTextDark())
-                    Spacer(modifier = Modifier.height(10.dp))
-                    
-                    val languageOptions = listOf(
-                        "system" to stringResource(R.string.language_system),
-                        "zh" to stringResource(R.string.language_chinese),
-                        "en" to stringResource(R.string.language_english),
-                        "ja" to stringResource(R.string.language_japanese),
-                    )
-                    
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    ) {
-                        languageOptions.forEach { (tag, label) ->
-                            FilterChip(
-                                selected = appLanguage == tag,
-                                onClick = {
-                                    if (appLanguage == tag) return@FilterChip
-                                    appLanguage = tag
-                                    vm.saveAppLanguage(tag)
-                                    LocaleHelper.setLocale(context, tag)
-                                    // 仅在语言真正改变时才 recreate，避免无谓卡顿
-                                    (context as? Activity)?.let { activity ->
-                                        activity.recreate()
-                                    }
-                                },
-                                label = { Text(label, fontSize = 13.sp) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            // ── 主题设置 ──
-            Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "外观主题", fontWeight = FontWeight.Bold, color = themeTextDark())
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val themeOptions = listOf(
-                        "system" to "跟随系统",
-                        "light" to "浅色",
-                        "dark" to "深色",
-                    )
-                    val themeIcons = mapOf(
-                        "system" to Icons.Default.SettingsBrightness,
-                        "light" to Icons.Default.LightMode,
-                        "dark" to Icons.Default.DarkMode,
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    ) {
-                        themeOptions.forEach { (value, label) ->
-                            FilterChip(
-                                selected = themeMode == value,
-                                onClick = {
-                                    if (themeMode == value) return@FilterChip
-                                    themeMode = value
-                                    vm.saveThemeMode(value)
-                                    (context as? Activity)?.recreate()
-                                },
-                                label = { Text(label, fontSize = 13.sp) },
-                                leadingIcon = {
-                                    themeIcons[value]?.let {
-                                        Icon(it, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    }
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            HorizontalDivider()
-
-            Text(stringResource(R.string.settings_model_provider), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            if (isLocalMode) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = BubbleBlue.copy(alpha = 0.06f)),
+            // ── 模型配置 ──
+            SettingGroup(title = "模型配置") {
+                Column(
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(stringResource(R.string.msg_local_mode_running), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BubbleBlue)
-                            Text(stringResource(R.string.msg_local_mode_desc), color = themeTextGrey(), fontSize = 11.sp)
+                    if (isLocalMode) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconMd))
+                            Spacer(Modifier.width(SpacingTokens.sm))
+                            Column {
+                                Text(stringResource(R.string.msg_local_mode_running), style = MaterialTheme.typography.titleSmall, color = BubbleBlue)
+                                Text(stringResource(R.string.msg_local_mode_desc), color = themeTextGrey(), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
-                    }
-                }
-            } else {
-                Box {
-                OutlinedTextField(
-                    value = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }?.name ?: "自定义",
-                    onValueChange = {},
-                    label = { Text("供应商") },
-                    modifier = Modifier.fillMaxWidth(),
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { providerMenuExpanded = true }) {
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = "展开")
+                    } else {
+                        Box {
+                            OutlinedTextField(
+                                value = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }?.name ?: "自定义",
+                                onValueChange = {},
+                                label = { Text("供应商") },
+                                modifier = Modifier.fillMaxWidth(),
+                                readOnly = true,
+                                trailingIcon = {
+                                    IconButton(onClick = { providerMenuExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "展开")
+                                    }
+                                },
+                            )
+                            DropdownMenu(expanded = providerMenuExpanded, onDismissRequest = { providerMenuExpanded = false }) {
+                                PROVIDER_PRESETS.forEach { preset ->
+                                    DropdownMenuItem(
+                                        text = { Text(preset.name) },
+                                        onClick = {
+                                            baseUrl = preset.baseUrl
+                                            if (preset.models.isNotEmpty()) model = preset.models.first()
+                                            providerMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
                         }
-                    },
-                )
-                DropdownMenu(expanded = providerMenuExpanded, onDismissRequest = { providerMenuExpanded = false }) {
-                    PROVIDER_PRESETS.forEach { preset ->
-                        DropdownMenuItem(
-                            text = { Text(preset.name) },
-                            onClick = {
-                                baseUrl = preset.baseUrl
-                                if (preset.models.isNotEmpty()) model = preset.models.first()
-                                providerMenuExpanded = false
-                            },
+
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("Base URL") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
                         )
-                    }
-                }
-            }
 
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text("Base URL") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-
-            Box {
-                OutlinedTextField(
-                    value = model,
-                    onValueChange = { model = it },
-                    label = { Text("Model") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    trailingIcon = {
-                        Row {
-                            // 从 API 实时获取模型列表
-                            IconButton(
-                                onClick = {
-                                    if (!isFetchingModels) {
-                                        isFetchingModels = true
-                                        scope.launch {
-                                            val result = ModelFetcher.fetchModels(baseUrl, apiKey)
-                                            fetchedModels = result
-                                            isFetchingModels = false
-                                            modelMenuExpanded = result != null
-                                            if (result == null) {
-                                                snackbar.showSnackbar("获取模型列表失败 — 请检查 API Key 是否正确，或查看日志详情")
+                        Box {
+                            OutlinedTextField(
+                                value = model,
+                                onValueChange = { model = it },
+                                label = { Text("Model") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                trailingIcon = {
+                                    Row {
+                                        IconButton(
+                                            onClick = {
+                                                if (!isFetchingModels) {
+                                                    isFetchingModels = true
+                                                    scope.launch {
+                                                        val result = ModelFetcher.fetchModels(baseUrl, apiKey)
+                                                        fetchedModels = result
+                                                        isFetchingModels = false
+                                                        modelMenuExpanded = result != null
+                                                        if (result == null) {
+                                                            snackbar.showSnackbar("获取模型列表失败 — 请检查 API Key 是否正确，或查看日志详情")
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            enabled = !isFetchingModels,
+                                        ) {
+                                            if (isFetchingModels) {
+                                                CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconMd), strokeWidth = SpacingTokens.xxs)
+                                            } else {
+                                                Icon(Icons.Default.Refresh, contentDescription = "从 API 获取模型列表")
                                             }
+                                        }
+                                        IconButton(onClick = { modelMenuExpanded = true }) {
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "展开模型")
                                         }
                                     }
                                 },
-                                enabled = !isFetchingModels,
-                            ) {
-                                if (isFetchingModels) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                } else {
-                                    Icon(Icons.Default.Refresh, contentDescription = "从 API 获取模型列表")
-                                }
-                            }
-                            IconButton(onClick = { modelMenuExpanded = true }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "展开模型")
-                            }
-                        }
-                    },
-                )
-                val currentPreset = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }
-                // 合并：预置模型 + API 获取的模型（去重）
-                val presetModels = currentPreset?.models ?: emptyList()
-                val allModels = if (fetchedModels != null) {
-                    val merged = (presetModels + fetchedModels!!).distinct()
-                    merged
-                } else {
-                    presetModels
-                }
-                if (allModels.isNotEmpty()) {
-                    DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
-                        // 预置模型标题
-                        if (presetModels.isNotEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("预置模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
-                                onClick = {},
-                                enabled = false,
                             )
-                            presetModels.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m) },
-                                    onClick = {
-                                        model = m
-                                        modelMenuExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                        // API 获取的模型（排除已预置的）
-                        val apiOnlyModels = fetchedModels?.filter { it !in presetModels } ?: emptyList()
-                        if (apiOnlyModels.isNotEmpty()) {
-                            if (presetModels.isNotEmpty()) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            }
-                            DropdownMenuItem(
-                                text = { Text("API 可用模型", fontWeight = FontWeight.Bold, color = themeTextGrey(), fontSize = 12.sp) },
-                                onClick = {},
-                                enabled = false,
-                            )
-                            apiOnlyModels.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m) },
-                                    onClick = {
-                                        model = m
-                                        modelMenuExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API Key") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-
-            OutlinedTextField(
-                value = jinaApiKey,
-                onValueChange = { jinaApiKey = it },
-                label = { Text("Jina API Key (可选)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            }
-        }
-
-        item {
-            HorizontalDivider()
-
-            Text(stringResource(R.string.settings_memory_management), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = toMemory,
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_memory_entries), fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.settings_memory_count, memoryCount), style = MaterialTheme.typography.bodySmall)
-                    }
-                    Icon(Icons.Default.ArrowForward, contentDescription = stringResource(R.string.cd_enter))
-                }
-            }
-        }
-
-        item {
-            Spacer(Modifier.height(12.dp))
-
-            // ── 云同步（WebDAV）──
-            var syncServerUrl by rememberSaveable { mutableStateOf(vm.getSyncConfig().serverUrl) }
-            var syncUsername by rememberSaveable { mutableStateOf(vm.getSyncConfig().username) }
-            var syncPassword by rememberSaveable { mutableStateOf(vm.getSyncConfig().password) }
-            var syncRemotePath by rememberSaveable { mutableStateOf(vm.getSyncConfig().remotePath) }
-            val isSyncing by vm.isSyncing.collectAsState()
-            val syncResult by vm.syncState.collectAsState()
-
-            Text("云同步（WebDAV）", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "通过 WebDAV 同步笔记到私有云（坚果云、NextCloud 等）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeTextGrey(),
-                    )
-                    OutlinedTextField(
-                        value = syncServerUrl,
-                        onValueChange = { syncServerUrl = it },
-                        label = { Text("服务器地址") },
-                        placeholder = { Text("https://dav.example.com") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = syncUsername,
-                            onValueChange = { syncUsername = it },
-                            label = { Text("用户名") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                        )
-                        OutlinedTextField(
-                            value = syncPassword,
-                            onValueChange = { syncPassword = it },
-                            label = { Text("密码") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                        )
-                    }
-                    OutlinedTextField(
-                        value = syncRemotePath,
-                        onValueChange = { syncRemotePath = it },
-                        label = { Text("远端路径") },
-                        placeholder = { Text("/opedrgent/notes/") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-
-                    // 操作按钮行
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(
-                            onClick = {
-                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
-                                    serverUrl = syncServerUrl.trim(),
-                                    username = syncUsername.trim(),
-                                    password = syncPassword.trim(),
-                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
-                                )
-                                vm.saveSyncConfig(config)
-                                scope.launch {
-                                    val ok = vm.testSyncConnection()
-                                    snackbar.showSnackbar(if (ok) "连接成功" else "连接失败，请检查配置")
-                                }
-                            },
-                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
-                            shape = RoundedCornerShape(11.dp),
-                        ) {
-                            Text("测试连接", fontSize = 13.sp)
-                        }
-                        Button(
-                            onClick = {
-                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
-                                    serverUrl = syncServerUrl.trim(),
-                                    username = syncUsername.trim(),
-                                    password = syncPassword.trim(),
-                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
-                                )
-                                vm.saveSyncConfig(config)
-                                vm.runSync()
-                            },
-                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
-                            shape = RoundedCornerShape(11.dp),
-                        ) {
-                            if (isSyncing) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(6.dp))
-                                Text("同步中...", fontSize = 13.sp)
+                            val currentPreset = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }
+                            val presetModels = currentPreset?.models ?: emptyList()
+                            val allModels = if (fetchedModels != null) {
+                                (presetModels + fetchedModels!!).distinct()
                             } else {
-                                Text("立即同步", fontSize = 13.sp)
+                                presetModels
+                            }
+                            if (allModels.isNotEmpty()) {
+                                DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
+                                    if (presetModels.isNotEmpty()) {
+                                        DropdownMenuItem(
+                                            text = { Text("预置模型", style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
+                                            onClick = {},
+                                            enabled = false,
+                                        )
+                                        presetModels.forEach { m ->
+                                            DropdownMenuItem(
+                                                text = { Text(m) },
+                                                onClick = {
+                                                    model = m
+                                                    modelMenuExpanded = false
+                                                },
+                                            )
+                                        }
+                                    }
+                                    val apiOnlyModels = fetchedModels?.filter { it !in presetModels } ?: emptyList()
+                                    if (apiOnlyModels.isNotEmpty()) {
+                                        if (presetModels.isNotEmpty()) {
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
+                                        }
+                                        DropdownMenuItem(
+                                            text = { Text("API 可用模型", style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
+                                            onClick = {},
+                                            enabled = false,
+                                        )
+                                        apiOnlyModels.forEach { m ->
+                                            DropdownMenuItem(
+                                                text = { Text(m) },
+                                                onClick = {
+                                                    model = m
+                                                    modelMenuExpanded = false
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
+
+                        OutlinedTextField(
+                            value = apiKey,
+                            onValueChange = { apiKey = it },
+                            label = { Text("API Key") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        OutlinedTextField(
+                            value = jinaApiKey,
+                            onValueChange = { jinaApiKey = it },
+                            label = { Text("Jina API Key (可选)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
                     }
 
-                    // 同步状态信息
-                    syncResult?.let { result ->
-                        val lastSync = vm.getLastSyncTime()
-                        val timeStr = if (lastSync > 0) {
-                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-                            sdf.format(java.util.Date(lastSync))
-                        } else "从未"
-                        Text(
-                            text = buildString {
-                                append("上次同步: $timeStr")
-                                if (result.errors > 0) {
-                                    append(" | 错误: ${result.errors}")
+                    HorizontalDivider(color = themeBorder())
+
+                    // 本地模型
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconLg))
+                        Spacer(Modifier.width(SpacingTokens.md))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_local_model_title), style = MaterialTheme.typography.titleSmall, color = themeTextDark())
+                            Text(
+                                text = if (isLocalMode && localModelId != null) {
+                                    val info = AvailableLocalModels.findById(localModelId!!)
+                                    "当前使用: ${info?.displayName ?: localModelId}"
+                                } else stringResource(R.string.settings_local_model_offline_desc),
+                                color = themeTextGrey(),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(
+                            checked = isLocalMode,
+                            onCheckedChange = {
+                                isLocalMode = it
+                                vm.saveLocalModelEnabled(it)
+                                if (it) {
+                                    if (localModelId != null) {
+                                        val info = AvailableLocalModels.findById(localModelId!!)
+                                        if (info != null && localEngine.isModelDownloaded(info)) {
+                                            val path = localEngine.getModelPath(info)
+                                            if (path != null) {
+                                                scope.launch {
+                                                    val loaded = try {
+                                                        localEngine.loadModel(path, info, buildUserInferenceConfig(info))
+                                                    } catch (e: IllegalArgumentException) {
+                                                        if (e.message?.contains("Insufficient memory") == true) {
+                                                            showMemoryWarning = e.message
+                                                            return@launch
+                                                        } else {
+                                                            throw e
+                                                        }
+                                                    }
+
+                                                    if (loaded) {
+                                                        snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
+                                                    } else {
+                                                        isLocalMode = false
+                                                        vm.saveLocalModelEnabled(false)
+                                                        val errorState = (localEngine.state as? LocalLlmState.Error)
+                                                        val errorMsg = errorState?.message ?: "未知错误"
+                                                        snackbar.showSnackbar("模型加载失败: $errorMsg")
+                                                    }
+                                                }
+                                            } else {
+                                                isLocalMode = false
+                                                vm.saveLocalModelEnabled(false)
+                                                scope.launch { snackbar.showSnackbar("模型文件不存在") }
+                                            }
+                                        } else {
+                                            isLocalMode = false
+                                            vm.saveLocalModelEnabled(false)
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_download_model_first)) }
+                                        }
+                                    } else {
+                                        isLocalMode = false
+                                        vm.saveLocalModelEnabled(false)
+                                        scope.launch { snackbar.showSnackbar("请先选择并下载模型") }
+                                    }
                                 } else {
-                                    append(" | 上传: ${result.uploaded} 下载: ${result.downloaded} 耗时: ${result.duration}ms")
+                                    localEngine.unload()
+                                    vm.saveLocalModelId(null)
+                                    localModelId = null
+                                    scope.launch { snackbar.showSnackbar("已切换到 API 模式") }
                                 }
                             },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (result.errors > 0) MaterialTheme.colorScheme.error else themeTextGrey(),
+                            colors = SwitchDefaults.colors(checkedTrackColor = BubbleBlue),
                         )
-                    } ?: run {
-                        val lastSync = vm.getLastSyncTime()
-                        if (lastSync > 0) {
-                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-                            Text(
-                                text = "上次同步: ${sdf.format(java.util.Date(lastSync))}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeTextGrey(),
+                    }
+
+                    OutlinedButton(
+                        onClick = { showModelSelector = true },
+                        shape = ShapeTokens.smallShape,
+                        contentPadding = PaddingValues(horizontal = SizeTokens.buttonHorizontalMd, vertical = SizeTokens.compactSpacing),
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SpacingTokens.lg), tint = BubbleBlue)
+                        Spacer(Modifier.width(SpacingTokens.sm))
+                        Text(stringResource(R.string.settings_select_model), style = MaterialTheme.typography.bodySmall, color = BubbleBlue)
+                    }
+
+                    val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
+                    if (isLocalMode && currentInfo != null) {
+                        var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }
+                        var localTopK by rememberSaveable { mutableStateOf(vm.getLocalTopK()) }
+                        var localTopP by rememberSaveable { mutableStateOf(vm.getLocalTopP()) }
+                        var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
+
+                        Text(stringResource(R.string.settings_inference_params), style = MaterialTheme.typography.titleSmall, color = themeTextDark())
+                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+
+                        Spacer(Modifier.height(SpacingTokens.sm))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Temperature", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Slider(
+                                    value = localTemp,
+                                    onValueChange = { localTemp = it },
+                                    valueRange = 0.01f..2.0f,
+                                    steps = 39,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text("${String.format("%.2f", localTemp)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Top P", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Slider(
+                                    value = localTopP,
+                                    onValueChange = { localTopP = it },
+                                    valueRange = 0.1f..1.0f,
+                                    steps = 17,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text("${String.format("%.2f", localTopP)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                            }
+                        }
+
+                        Spacer(Modifier.height(SpacingTokens.sm))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Top K: $localTopK", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Slider(
+                                    value = localTopK.toFloat(),
+                                    onValueChange = { localTopK = it.toInt() },
+                                    valueRange = 1f..128f,
+                                    steps = 126,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            OutlinedTextField(
+                                value = if (localMaxTok > 0) localMaxTok.toString() else "",
+                                onValueChange = { localMaxTok = it.toIntOrNull() ?: 0 },
+                                label = { Text("最大输出", style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.width(SizeTokens.textFieldWidthSm),
+                                singleLine = true,
                             )
+                        }
+
+                        Spacer(Modifier.height(SpacingTokens.sm))
+
+                        OutlinedButton(
+                            onClick = {
+                                vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
+                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_params_saved)) }
+                            },
+                            shape = ShapeTokens.smallShape,
+                            contentPadding = PaddingValues(horizontal = SizeTokens.buttonHorizontalSm, vertical = SpacingTokens.xs),
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs), tint = BubbleBlue)
+                            Spacer(Modifier.width(SpacingTokens.xs))
+                            Text(stringResource(R.string.msg_save_params), style = MaterialTheme.typography.labelSmall, color = BubbleBlue)
                         }
                     }
                 }
             }
-        }
 
-        item {
-            Spacer(Modifier.height(12.dp))
-
-            // 编辑器模式设置
-            var editorMode by rememberSaveable { mutableStateOf(vm.getEditorMode()) }
-
-            Text("编辑器模式", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "笔记编辑器的默认输入模式",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeTextGrey(),
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = editorMode == "richtext",
-                            onClick = {
-                                editorMode = "richtext"
-                                vm.saveEditorMode("richtext")
-                            },
-                            label = { Text("富文本（推荐）", fontSize = 13.sp) },
-                        )
-                        FilterChip(
-                            selected = editorMode == "markdown",
-                            onClick = {
-                                editorMode = "markdown"
-                                vm.saveEditorMode("markdown")
-                            },
-                            label = { Text("Markdown", fontSize = 13.sp) },
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        if (editorMode == "richtext") "Notally 风格，选中文字即可加格式" else "适合开发者，手写语法",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeTextGrey(),
-                    )
-                }
-            }
-        }
-
-        item {
-            Spacer(Modifier.height(12.dp))
-
-            Text(stringResource(R.string.settings_voice), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // ── 语音设置 ──
+            SettingGroup(title = "语音设置") {
+                Column(
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                ) {
+                    // STT
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = stringResource(R.string.settings_stt_label), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(text = stringResource(R.string.settings_stt_label), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                         Switch(checked = sttEnabled, onCheckedChange = { sttEnabled = it })
                     }
                     if (sttEnabled) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(R.string.settings_stt_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = sttEngine == "local",
                                     onClick = { sttEngine = "local" },
-                                    label = { Text(stringResource(R.string.settings_local_sherpa), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text(stringResource(R.string.settings_local_sherpa), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttEngine == "stepaudio",
                                     onClick = { sttEngine = "stepaudio" },
-                                    label = { Text("StepAudio", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("StepAudio", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttEngine == "mimo",
                                     onClick = { sttEngine = "mimo" },
-                                    label = { Text("MiMo ASR", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("MiMo ASR", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                         }
@@ -761,7 +658,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = stringResource(R.string.settings_mimo_asr_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
+                                color = AccentOrange,
                             )
                         }
                         if (sttEngine == "stepaudio") {
@@ -779,16 +676,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             )
                         }
 
-                        // 识别模式选择
                         val isStreamingModel = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(color = themeBorder())
                         Text(
                             text = "识别模式",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.titleSmall,
                         )
                         if (isStreamingModel) {
-                            // 流式模型：自动使用真流式，无需选择
                             sttStreamingMode = "streaming"
                             Text(
                                 text = "Paraformer 流式模型：实时流式识别（文本可修正）",
@@ -796,8 +690,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 color = MaterialTheme.colorScheme.primary,
                             )
 
-                            // HR 同音字替换开关（仅流式模型支持）
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "同音字矫正", style = MaterialTheme.typography.bodyMedium)
@@ -809,8 +701,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 }
                                 Switch(checked = hrEnabled, onCheckedChange = { hrEnabled = it; vm.saveHrEnabled(it) })
                             }
-                            // 分段识别开关（长音频优化）
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "分段识别", style = MaterialTheme.typography.bodyMedium)
@@ -822,13 +712,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 }
                                 Switch(checked = segmentEnabled, onCheckedChange = { segmentEnabled = it; vm.saveSegmentEnabled(it) })
                             }
-                            // HR 资源下载按钮（未下载时显示）
                             val hrDownloaded = remember { mutableStateOf(ModelManager.isHrDownloaded(context)) }
                             if (!hrDownloaded.value) {
                                 var hrDownloading by remember { mutableStateOf(false) }
                                 var hrProgress by remember { mutableStateOf(0f) }
                                 var hrError by remember { mutableStateOf<String?>(null) }
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(SizeTokens.compactSpacing))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -843,7 +732,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                         )
                                     }
                                     if (hrDownloading) {
-                                        CircularProgressIndicator(progress = { hrProgress }, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(progress = { hrProgress }, modifier = Modifier.size(SpacingTokens.xl), strokeWidth = SpacingTokens.xxs)
                                     } else {
                                         TextButton(onClick = {
                                             hrDownloading = true
@@ -865,30 +754,30 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 }
                                             }
                                         }) {
-                                            Text("下载", fontSize = 12.sp)
+                                            Text("下载", style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
                                 hrError?.let {
-                                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                    Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         } else {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = sttStreamingMode == "pseudo",
                                     onClick = { sttStreamingMode = "pseudo" },
-                                    label = { Text("伪流式（实时显示）", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("伪流式（实时显示）", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttStreamingMode == "batch",
                                     onClick = { sttStreamingMode = "batch" },
-                                    label = { Text("录制后识别（更准确）", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("录制后识别（更准确）", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                             Text(
@@ -898,7 +787,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             )
                         }
 
-                        // ★ 本地语音模型下载管理
                         if (sttEngine == "local") {
                             val sttModelManager = remember { ModelManager }
                             val scope = rememberCoroutineScope()
@@ -907,7 +795,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             var downloadStatusText by rememberSaveable { mutableStateOf("") }
                             var showDeleteConfirm by rememberSaveable { mutableStateOf<ModelType?>(null) }
 
-                            // STT 下载弹窗状态
                             var sttDialogVisible by rememberSaveable { mutableStateOf(false) }
                             var sttDialogModelName by rememberSaveable { mutableStateOf("") }
                             var sttDialogModelDesc by rememberSaveable { mutableStateOf("") }
@@ -918,14 +805,13 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             var sttDialogStatus by rememberSaveable { mutableStateOf("idle") }
                             var sttDialogStatusDetail by rememberSaveable { mutableStateOf("") }
 
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(color = themeBorder())
                             Text(
                                 text = stringResource(R.string.settings_local_models_label),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                             )
 
-                            // 模型切换选择器
                             val downloadedModels = sttModelManager.AVAILABLE_MODELS.filter {
                                 sttModelManager.isModelDownloaded(context, it.type)
                             }
@@ -933,11 +819,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 var selectedLocalModel by rememberSaveable { mutableStateOf(vm.getSelectedLocalModel()) }
                                 Text(
                                     text = "当前使用的模型",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium,
+                                    style = MaterialTheme.typography.labelMedium,
                                 )
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
                                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                                 ) {
                                     FilterChip(
@@ -946,8 +831,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                             selectedLocalModel = ""
                                             vm.saveSelectedLocalModel("")
                                         },
-                                        label = { Text("自动", fontSize = 11.sp) },
-                                        shape = RoundedCornerShape(16.dp),
+                                        label = { Text("自动", style = MaterialTheme.typography.labelSmall) },
+                                        shape = ShapeTokens.largeShape,
                                     )
                                     downloadedModels.forEach { modelInfo ->
                                         val label = when (modelInfo.type) {
@@ -963,8 +848,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 selectedLocalModel = modelInfo.type.name
                                                 vm.saveSelectedLocalModel(modelInfo.type.name)
                                             },
-                                            label = { Text(label, fontSize = 11.sp) },
-                                            shape = RoundedCornerShape(16.dp),
+                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                            shape = ShapeTokens.largeShape,
                                         )
                                     }
                                 }
@@ -981,7 +866,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
+                                        .padding(vertical = SizeTokens.compactSpacing),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Column(modifier = Modifier.weight(1f, fill = false)) {
@@ -994,92 +879,85 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                     ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
                                                     else -> modelInfo.modelName
                                                 },
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 13.sp,
+                                                style = MaterialTheme.typography.labelLarge,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
-                                            Spacer(Modifier.width(6.dp))
-                                            // 已下载标签 / 推荐标签
+                                            Spacer(Modifier.width(SpacingTokens.sm))
                                             if (isDownloaded) {
                                                 Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = SuccessGreen.copy(alpha = 0.15f),
+                                                    shape = ShapeTokens.extraSmallShape,
+                                                    color = SuccessGreen.copy(alpha = BadgeBgAlpha),
                                                 ) {
                                                     Text(
                                                         text = "已下载",
-                                                        fontSize = 10.sp,
+                                                        style = MaterialTheme.typography.labelSmall,
                                                         color = SuccessGreen,
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        modifier = Modifier.padding(horizontal = SizeTokens.badgeHorizontalPadding, vertical = SizeTokens.badgeVerticalPadding),
                                                     )
                                                 }
                                             } else if (modelInfo.type == sttModelManager.getRecommendedModel(context)) {
                                                 Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                                    shape = ShapeTokens.extraSmallShape,
+                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = BadgeBgAlpha),
                                                 ) {
                                                     Text(
                                                         text = "推荐",
-                                                        fontSize = 10.sp,
+                                                        style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        modifier = Modifier.padding(horizontal = SizeTokens.badgeHorizontalPadding, vertical = SizeTokens.badgeVerticalPadding),
                                                     )
                                                 }
                                             }
                                         }
                                         Text(
                                             text = "$sizeStr | ${modelInfo.minRamMB}MB RAM",
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MaterialTheme.typography.labelSmall,
                                             color = themeTextGrey(),
-                                            fontSize = 11.sp,
                                         )
 
-                                        // 下载进度条
                                         if (isDownloading && downloadProgress > 0f) {
                                             LinearProgressIndicator(
                                                 progress = { downloadProgress },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(3.dp)
-                                                    .padding(top = 4.dp),
+                                                    .height(SizeTokens.progressTrackHeight)
+                                                    .padding(top = SpacingTokens.xs),
                                                 color = MaterialTheme.colorScheme.primary,
                                                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                             )
                                             Text(
                                                 text = downloadStatusText,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontSize = 10.sp,
+                                                style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                             )
                                         }
                                     }
 
-                                    // 操作按钮
                                     if (isDownloading) {
                                         TextButton(onClick = { downloadingModel = null }) {
-                                            Text("取消", fontSize = 12.sp)
+                                            Text("取消", style = MaterialTheme.typography.bodySmall)
                                         }
                                     } else if (isDownloaded) {
                                         IconButton(
                                             onClick = { showDeleteConfirm = modelInfo.type },
-                                            modifier = Modifier.size(32.dp),
+                                            modifier = Modifier.size(SpacingTokens.xxl),
                                         ) {
                                             Icon(
                                                 Icons.Outlined.DeleteOutline,
                                                 contentDescription = "删除模型",
-                                                modifier = Modifier.size(16.dp),
+                                                modifier = Modifier.size(SpacingTokens.lg),
                                                 tint = MaterialTheme.colorScheme.error,
                                             )
                                         }
                                     } else {
                                         FilledTonalButton(
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            contentPadding = PaddingValues(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                                             onClick = {
                                                 downloadingModel = modelInfo.type
                                                 downloadProgress = 0f
                                                 downloadStatusText = context.getString(R.string.settings_preparing)
 
-                                                // 弹窗 + 通知栏
                                                 sttDialogModelName = when (modelInfo.type) {
                                                     ModelType.PARAFORMER -> "Paraformer"
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
@@ -1138,15 +1016,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                                 }
                                             },
                                         ) {
-                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(stringResource(R.string.action_download), fontSize = 12.sp)
+                                            Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs))
+                                            Spacer(Modifier.width(SpacingTokens.xs))
+                                            Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
                             }
 
-                            // 删除确认弹窗
                             if (showDeleteConfirm != null) {
                                 AlertDialog(
                                     onDismissRequest = { showDeleteConfirm = null },
@@ -1168,7 +1045,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                 )
                             }
 
-                            // STT 模型下载弹窗
                             if (sttDialogVisible) {
                                 SttModelDownloadDialog(
                                     modelName = sttDialogModelName,
@@ -1189,34 +1065,38 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             }
                         }
                     }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // TTS
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = stringResource(R.string.settings_tts_section), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(text = stringResource(R.string.settings_tts_section), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                         Switch(checked = ttsEnabled, onCheckedChange = { ttsEnabled = it })
                     }
                     if (ttsEnabled) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(R.string.settings_tts_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                             ) {
                                 FilterChip(
                                     selected = ttsEngine == "system",
                                     onClick = { ttsEngine = "system" },
-                                    label = { Text("系统 TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("系统 TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = ttsEngine == "stepaudio",
                                     onClick = { ttsEngine = "stepaudio" },
-                                    label = { Text("StepAudio TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("StepAudio TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = ttsEngine == "mimo",
                                     onClick = { ttsEngine = "mimo" },
-                                    label = { Text("MiMo TTS", fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    label = { Text("MiMo TTS", style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
                                 )
                             }
                         }
@@ -1231,7 +1111,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Text(
                                 text = stringResource(R.string.settings_mimo_tts_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
+                                color = AccentOrange,
                             )
                         }
                     }
@@ -1262,31 +1142,33 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         }
                     }
                     Text(text = stringResource(R.string.settings_speed))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_slow)) }
-                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_normal)) }
-                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_speed_fast)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Button(onClick = { ttsRate = 0.85f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_slow)) }
+                        Button(onClick = { ttsRate = 1.0f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_normal)) }
+                        Button(onClick = { ttsRate = 1.2f }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_speed_fast)) }
                     }
                     Text(text = stringResource(R.string.settings_language))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_chinese)) }
-                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = RoundedCornerShape(11.dp)) { Text(stringResource(R.string.settings_english)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Button(onClick = { ttsLocaleTag = "zh-CN" }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_chinese)) }
+                        Button(onClick = { ttsLocaleTag = "en-US" }, enabled = ttsEnabled, shape = ShapeTokens.smallShape) { Text(stringResource(R.string.settings_english)) }
                     }
-                }
-            }
-        }
 
-        item {
-            // 录音时长限制
-            Spacer(Modifier.height(12.dp))
-            Text("录音时长限制", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HorizontalDivider(color = themeBorder())
+
+                    // 声纹识别
+                    SettingNavigationRow(
+                        title = stringResource(R.string.settings_voiceprint_section),
+                        subtitle = stringResource(R.string.settings_voiceprint_desc),
+                        icon = Icons.Default.Fingerprint,
+                        iconTint = InterviewPurple,
+                        onClick = toVoiceprint,
+                        showDivider = false,
+                    )
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 录音时长限制
+                    Text("录音时长限制", style = MaterialTheme.typography.titleSmall)
                     Text(
                         text = stringResource(R.string.settings_duration_desc),
                         style = MaterialTheme.typography.bodySmall,
@@ -1305,14 +1187,14 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                             Box {
                                 OutlinedButton(
                                     onClick = { expanded = true },
-                                    shape = RoundedCornerShape(11.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    shape = ShapeTokens.smallShape,
+                                    contentPadding = PaddingValues(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                                 ) {
                                     Text(
                                         text = if (currentHours.value == 0) "无限制" else "${currentHours.value}小时",
-                                        fontSize = 13.sp,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconMd))
                                 }
                                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                                     hoursOptions.forEachIndexed { index, h ->
@@ -1331,26 +1213,373 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                     }
                 }
             }
-        }
 
-        item {
-            // OCR 模型管理
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_ocr_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // ── 知识与记忆 ──
+            SettingGroup(title = "知识与记忆") {
+                SettingNavigationRow(
+                    title = stringResource(R.string.settings_memory_entries),
+                    subtitle = stringResource(R.string.settings_memory_count, memoryCount),
+                    icon = Icons.Default.Memory,
+                    iconTint = AccentBlue,
+                    onClick = toMemory,
+                )
+                SettingNavigationRow(
+                    title = stringResource(R.string.settings_my_notes),
+                    subtitle = stringResource(R.string.settings_notes_desc),
+                    icon = Icons.Default.Book,
+                    iconTint = SuccessGreen,
+                    onClick = toNotes,
+                )
+                SettingNavigationRow(
+                    title = stringResource(R.string.settings_hippocampus_index),
+                    subtitle = "共 $hippocampusCount 条索引条目",
+                    icon = Icons.Default.Psychology,
+                    iconTint = InterviewPurple,
+                    onClick = toHippocampus,
+                    showDivider = false,
+                )
+            }
+
+            // ── 功能 ──
+            SettingGroup(title = "功能") {
+                Column(
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                ) {
+                    // 语言设置
+                    var appLanguage by rememberSaveable { mutableStateOf(vm.getAppLanguage()) }
+                    Text(text = stringResource(R.string.settings_language), style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
+                    val languageOptions = listOf(
+                        "system" to stringResource(R.string.language_system),
+                        "zh" to stringResource(R.string.language_chinese),
+                        "en" to stringResource(R.string.language_english),
+                        "ja" to stringResource(R.string.language_japanese),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        languageOptions.forEach { (tag, label) ->
+                            FilterChip(
+                                selected = appLanguage == tag,
+                                onClick = {
+                                    if (appLanguage == tag) return@FilterChip
+                                    appLanguage = tag
+                                    vm.saveAppLanguage(tag)
+                                    LocaleHelper.setLocale(context, tag)
+                                    (context as? Activity)?.let { activity ->
+                                        activity.recreate()
+                                    }
+                                },
+                                label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 主题设置
+                    Text(text = "外观主题", style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
+                    val themeOptions = listOf(
+                        "system" to "跟随系统",
+                        "light" to "浅色",
+                        "dark" to "深色",
+                    )
+                    val themeIcons = mapOf(
+                        "system" to Icons.Default.SettingsBrightness,
+                        "light" to Icons.Default.LightMode,
+                        "dark" to Icons.Default.DarkMode,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        themeOptions.forEach { (value, label) ->
+                            FilterChip(
+                                selected = themeMode == value,
+                                onClick = {
+                                    if (themeMode == value) return@FilterChip
+                                    themeMode = value
+                                    vm.saveThemeMode(value)
+                                    (context as? Activity)?.recreate()
+                                },
+                                label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = {
+                                    themeIcons[value]?.let {
+                                        Icon(it, contentDescription = "图标", modifier = Modifier.size(SpacingTokens.lg))
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    SettingSwitchRow(
+                        title = "动态主题",
+                        subtitle = "使用系统壁纸颜色（Android 12+）",
+                        checked = dynamicColorEnabled,
+                        onCheckedChange = {
+                            dynamicColorEnabled = it
+                            vm.saveDynamicColorEnabled(it)
+                            (context as? Activity)?.recreate()
+                        },
+                        showDivider = false,
+                    )
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 编辑器模式
+                    var editorMode by rememberSaveable { mutableStateOf(vm.getEditorMode()) }
+                    Text(text = "编辑器模式", style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
+                    Text(
+                        text = "笔记编辑器的默认输入模式",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        FilterChip(
+                            selected = editorMode == "richtext",
+                            onClick = {
+                                editorMode = "richtext"
+                                vm.saveEditorMode("richtext")
+                            },
+                            label = { Text("富文本（推荐）", style = MaterialTheme.typography.bodyMedium) },
+                        )
+                        FilterChip(
+                            selected = editorMode == "markdown",
+                            onClick = {
+                                editorMode = "markdown"
+                                vm.saveEditorMode("markdown")
+                            },
+                            label = { Text("Markdown", style = MaterialTheme.typography.bodyMedium) },
+                        )
+                    }
+                    Text(
+                        text = if (editorMode == "richtext") "Notally 风格，选中文字即可加格式" else "适合开发者，手写语法",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 后台运行
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_bg_run_label),
+                        subtitle = stringResource(R.string.settings_bg_run_desc),
+                        checked = bgRunning,
+                        onCheckedChange = {
+                            bgRunning = it
+                            if (it) {
+                                val activity = context as? Activity
+                                if (activity != null) {
+                                    val status = BackgroundPermHelper.checkPermissions(context)
+                                    if (!status.batteryOptOk) {
+                                        BackgroundPermHelper.requestBatteryOptimization(activity)
+                                    }
+                                    if (!status.autostartGranted) {
+                                        BackgroundPermHelper.requestAutostart(activity)
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    if (!bgRunning) {
+                        Text(
+                            text = stringResource(R.string.settings_bg_run_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeForegroundMuted(),
+                        )
+                    }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 位置与环境
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_location),
+                        subtitle = stringResource(R.string.settings_location_desc),
+                        checked = locationEnabled,
+                        onCheckedChange = {
+                            if (it) {
+                                locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            } else {
+                                locationEnabled = false
+                                vm.saveLocationEnabled(false)
+                            }
+                        },
+                    )
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_deep_thinking),
+                        subtitle = stringResource(R.string.settings_deep_thinking_desc),
+                        checked = deepThinkingEnabled,
+                        onCheckedChange = {
+                            deepThinkingEnabled = it
+                            vm.saveDeepThinking(it)
+                        },
+                    )
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_debug_mode),
+                        subtitle = stringResource(R.string.settings_debug_mode_desc),
+                        checked = debugMode,
+                        onCheckedChange = {
+                            debugMode = it
+                            vm.saveDebugMode(it)
+                        },
+                    )
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_calendar),
+                        subtitle = stringResource(R.string.settings_calendar_desc),
+                        checked = calendarEnabled,
+                        onCheckedChange = {
+                            if (it) {
+                                calendarPermLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.READ_CALENDAR,
+                                        Manifest.permission.WRITE_CALENDAR,
+                                    )
+                                )
+                            } else {
+                                calendarEnabled = false
+                                vm.saveCalendarEnabled(false)
+                            }
+                        },
+                    )
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_health),
+                        subtitle = stringResource(R.string.settings_health_desc),
+                        checked = healthEnabled,
+                        onCheckedChange = {
+                            if (it) {
+                                val availability = top.hsyscn.opedrgent.health.HealthConnectHelper.getAvailability(context)
+                                when (availability) {
+                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.Available -> {
+                                        activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                    }
+                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.NeedsUpdate -> {
+                                        scope.launch { snackbar.showSnackbar("请先更新 Health Connect 应用") }
+                                        top.hsyscn.opedrgent.health.HealthConnectHelper.openHealthConnectSettings(context)
+                                    }
+                                    else -> {
+                                        scope.launch { snackbar.showSnackbar("设备不支持 Health Connect") }
+                                    }
+                                }
+                            } else {
+                                healthEnabled = false
+                                vm.saveHealthEnabled(false)
+                            }
+                        },
+                        showDivider = false,
+                    )
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 联网查询
+                    SettingSwitchRow(
+                        title = stringResource(R.string.settings_web_search_label),
+                        subtitle = stringResource(R.string.settings_web_search_desc),
+                        checked = webSearchEnabled,
+                        onCheckedChange = {
+                            webSearchEnabled = it
+                            vm.saveWebSearchEnabled(it)
+                        },
+                    )
+                    if (webSearchEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = stringResource(R.string.settings_search_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            ) {
+                                FilterChip(
+                                    selected = webSearchSource == "own",
+                                    onClick = { webSearchSource = "own"; vm.saveWebSearchSource("own") },
+                                    label = { Text(stringResource(R.string.settings_own_engine), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
+                                )
+                                FilterChip(
+                                    selected = webSearchSource == "provider",
+                                    onClick = { webSearchSource = "provider"; vm.saveWebSearchSource("provider") },
+                                    label = { Text(stringResource(R.string.settings_provider_builtin), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
+                                )
+                                FilterChip(
+                                    selected = webSearchSource == "external",
+                                    onClick = { webSearchSource = "external"; vm.saveWebSearchSource("external") },
+                                    label = { Text(stringResource(R.string.settings_external_api), style = MaterialTheme.typography.bodySmall) },
+                                    shape = ShapeTokens.largeShape,
+                                )
+                            }
+                        }
+                        if (webSearchSource == "own") {
+                            Text(
+                                text = stringResource(R.string.settings_own_engine_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+                        if (webSearchSource == "provider") {
+                            Text(
+                                text = stringResource(R.string.settings_provider_builtin_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AccentOrange,
+                            )
+                        }
+                        if (webSearchSource == "external") {
+                            Text(
+                                text = stringResource(R.string.settings_external_api_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = stringResource(R.string.settings_web_search_off_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SuccessGreen,
+                        )
+                    }
+
+                    if (webSearchEnabled && webSearchSource == "external") {
+                        HorizontalDivider(color = themeBorder())
+                        Text(
+                            text = "外挂搜索 API 配置",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        OutlinedTextField(
+                            value = tavilyApiKey,
+                            onValueChange = { tavilyApiKey = it },
+                            label = { Text("Tavily API Key（AI专用搜索，免费1000次/月）") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = braveApiKey,
+                            onValueChange = { braveApiKey = it },
+                            label = { Text("Brave Search API Key") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = searchProviderOrder,
+                            onValueChange = { searchProviderOrder = it },
+                            label = { Text("搜索优先级（如 tavily,brave,bing,baidu,ddg）") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // OCR 模型管理
+                    Text(stringResource(R.string.settings_ocr_section), style = MaterialTheme.typography.titleSmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "PP-OCRv6 增强识别", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.settings_ocr_enhanced), style = MaterialTheme.typography.titleSmall)
                             Text(
-                                text = "百度第六代 OCR 模型，中英文识别精度更高（需下载 77MB）",
+                                text = stringResource(R.string.settings_ocr_enhanced_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
                         }
                     }
-                    // OCR 模型下载状态
                     val ocrModelManager = remember { top.hsyscn.opedrgent.ocr.OcrModelManager }
                     val ocrModel = ocrModelManager.PP_OCR_V6
                     val ocrDownloaded = remember { mutableStateOf(ocrModelManager.isModelDownloaded(context, ocrModel.id)) }
@@ -1362,24 +1591,24 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                         Text(
                             text = ocrModel.displayName,
                             modifier = Modifier.weight(1f),
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                         if (ocrDownloaded.value) {
-                            Surface(shape = RoundedCornerShape(4.dp), color = SuccessGreen.copy(alpha = 0.15f)) {
-                                Text(stringResource(R.string.settings_model_downloaded), fontSize = 10.sp, color = SuccessGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                            Surface(shape = ShapeTokens.extraSmallShape, color = SuccessGreen.copy(alpha = BadgeBgAlpha)) {
+                                Text(stringResource(R.string.settings_model_downloaded), style = MaterialTheme.typography.labelSmall, color = SuccessGreen, modifier = Modifier.padding(horizontal = SizeTokens.badgeHorizontalPadding, vertical = SizeTokens.badgeVerticalPadding))
                             }
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(SpacingTokens.sm))
                             TextButton(onClick = {
                                 ocrModelManager.clearModelCache(context, ocrModel.id)
                                 ocrDownloaded.value = false
-                            }) { Text("删除", fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
+                            }) { Text(stringResource(R.string.settings_delete_ocr), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                         } else if (ocrDownloading.value) {
-                            LinearProgressIndicator(progress = { ocrProgress.value }, modifier = Modifier.weight(1f).height(3.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(ocrStatusText.value, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                            LinearProgressIndicator(progress = { ocrProgress.value }, modifier = Modifier.weight(1f).height(SizeTokens.progressTrackHeight))
+                            Spacer(Modifier.width(SpacingTokens.sm))
+                            Text(ocrStatusText.value, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         } else {
                             FilledTonalButton(
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                contentPadding = PaddingValues(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                                 onClick = {
                                     ocrDownloading.value = true
                                     scope.launch {
@@ -1406,554 +1635,186 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, toSkills: () -> Unit, 
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.sp.value.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.action_download), fontSize = 12.sp)
+                                Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs))
+                                Spacer(Modifier.width(SpacingTokens.xs))
+                                Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
-                }
-            }
-        }
 
-        item {
-            HorizontalDivider()
+                    HorizontalDivider(color = themeBorder())
 
-            Text(stringResource(R.string.settings_web_search_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_web_search_label), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_web_search_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = webSearchEnabled, onCheckedChange = { webSearchEnabled = it; vm.saveWebSearchEnabled(it) })
-                    }
-                    if (webSearchEnabled) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = stringResource(R.string.settings_search_engine), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            ) {
-                                FilterChip(
-                                    selected = webSearchSource == "own",
-                                    onClick = { webSearchSource = "own"; vm.saveWebSearchSource("own") },
-                                    label = { Text(stringResource(R.string.settings_own_engine), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
-                                )
-                                FilterChip(
-                                    selected = webSearchSource == "provider",
-                                    onClick = { webSearchSource = "provider"; vm.saveWebSearchSource("provider") },
-                                    label = { Text(stringResource(R.string.settings_provider_builtin), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
-                                )
-                                FilterChip(
-                                    selected = webSearchSource == "external",
-                                    onClick = { webSearchSource = "external"; vm.saveWebSearchSource("external") },
-                                    label = { Text(stringResource(R.string.settings_external_api), fontSize = 12.sp) },
-                                    shape = RoundedCornerShape(20.dp),
-                                )
-                            }
-                        }
-                        if (webSearchSource == "own") {
-                            Text(
-                                text = stringResource(R.string.settings_own_engine_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeTextGrey(),
-                            )
-                        }
-                        if (webSearchSource == "provider") {
-                            Text(
-                                text = stringResource(R.string.settings_provider_builtin_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE67E22),
-                            )
-                        }
-                        if (webSearchSource == "external") {
-                            Text(
-                                text = stringResource(R.string.settings_external_api_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeTextGrey(),
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = stringResource(R.string.settings_web_search_off_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SuccessGreen,
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            HorizontalDivider()
-
-            Text(stringResource(R.string.settings_bg_run_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_bg_run_label), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_bg_run_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = bgRunning, onCheckedChange = {
-                            bgRunning = it
-                            if (it) {
-                                val activity = context as? Activity
-                                if (activity != null) {
-                                    val status = top.hsyscn.opedrgent.utils.BackgroundPermHelper.checkPermissions(context)
-                                    if (!status.batteryOptOk) {
-                                        top.hsyscn.opedrgent.utils.BackgroundPermHelper.requestBatteryOptimization(activity)
-                                    }
-                                    if (!status.autostartGranted) {
-                                        top.hsyscn.opedrgent.utils.BackgroundPermHelper.requestAutostart(activity)
-                                    }
-                                }
-                            }
-                        })
-                    }
-                    if (!bgRunning) {
-                        Text(
-                            text = stringResource(R.string.settings_bg_run_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            HorizontalDivider()
-
-            Text(stringResource(R.string.settings_location_env_section), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_location), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_location_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = locationEnabled, onCheckedChange = {
-                            if (it) {
-                                locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                            } else {
-                                locationEnabled = false
-                                vm.saveLocationEnabled(false)
-                            }
-                        })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_deep_thinking), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_deep_thinking_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(
-                            checked = deepThinkingEnabled,
-                            onCheckedChange = {
-                                deepThinkingEnabled = it
-                                vm.saveDeepThinking(it)
-                            },
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_debug_mode), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_debug_mode_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = debugMode, onCheckedChange = {
-                            debugMode = it
-                            vm.saveDebugMode(it)
-                        })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_calendar), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_calendar_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = calendarEnabled, onCheckedChange = {
-                            if (it) {
-                                calendarPermLauncher.launch(
-                                    arrayOf(
-                                        android.Manifest.permission.READ_CALENDAR,
-                                        android.Manifest.permission.WRITE_CALENDAR,
-                                    )
-                                )
-                            } else {
-                                calendarEnabled = false
-                                vm.saveCalendarEnabled(false)
-                            }
-                        })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.settings_health), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = stringResource(R.string.settings_health_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = healthEnabled, onCheckedChange = {
-                            if (it) {
-                                // 先检查 Health Connect 是否可用
-                                val availability = top.hsyscn.opedrgent.health.HealthConnectHelper.getAvailability(context)
-                                when (availability) {
-                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.Available -> {
-                                        // 先请求 ACTIVITY_RECOGNITION，再请求 Health Connect 权限
-                                        activityRecognitionLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
-                                    }
-                                    top.hsyscn.opedrgent.health.HealthConnectAvailability.NeedsUpdate -> {
-                                        scope.launch { snackbar.showSnackbar("请先更新 Health Connect 应用") }
-                                        top.hsyscn.opedrgent.health.HealthConnectHelper.openHealthConnectSettings(context)
-                                    }
-                                    else -> {
-                                        scope.launch { snackbar.showSnackbar("设备不支持 Health Connect") }
-                                    }
-                                }
-                            } else {
-                                healthEnabled = false
-                                vm.saveHealthEnabled(false)
-                            }
-                        })
-                    }
-                }
-            }
-        }
-
-        item {
-            HorizontalDivider()
-
-            Text("本地模型", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text(stringResource(R.string.settings_local_model_title), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = themeTextDark())
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Text(
-                        text = if (isLocalMode && localModelId != null) {
-                            val info = AvailableLocalModels.findById(localModelId!!)
-                            "当前使用: ${info?.displayName ?: localModelId}"
-                        } else stringResource(R.string.settings_local_model_offline_desc),
-                        color = themeTextGrey(),
-                        fontSize = 13.sp,
+                    // 技能库 & 自动化
+                    SettingNavigationRow(
+                        title = stringResource(R.string.title_skills_library),
+                        icon = Icons.Default.AutoAwesome,
+                        iconTint = AccentOrange,
+                        onClick = toSkills,
                     )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Switch(
-                            checked = isLocalMode,
-                            onCheckedChange = { 
-                                isLocalMode = it
-                                vm.saveLocalModelEnabled(it)
-                                if (it) {
-                                    if (localModelId != null) {
-                                        val info = AvailableLocalModels.findById(localModelId!!)
-                                        if (info != null && localEngine.isModelDownloaded(info)) {
-                                            val path = localEngine.getModelPath(info)
-                                            if (path != null) {
-                                                scope.launch {
-                                                    val loaded = try {
-                                                        localEngine.loadModel(path, info, buildUserInferenceConfig(info))
-                                                    } catch (e: IllegalArgumentException) {
-                                                        if (e.message?.contains("Insufficient memory") == true) {
-                                                            showMemoryWarning = e.message
-                                                            return@launch
-                                                        } else {
-                                                            throw e
-                                                        }
-                                                    }
-
-                                                    if (loaded) {
-                                                        snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
-                                                    } else {
-                                                        isLocalMode = false
-                                                        vm.saveLocalModelEnabled(false)
-                                                        val errorState = (localEngine.state as? LocalLlmState.Error)
-                                                        val errorMsg = errorState?.message ?: "未知错误"
-                                                        snackbar.showSnackbar("模型加载失败: $errorMsg")
-                                                    }
-                                                }
-                                            } else {
-                                                isLocalMode = false
-                                                vm.saveLocalModelEnabled(false)
-                                                scope.launch { snackbar.showSnackbar("模型文件不存在") }
-                                            }
-                                        } else {
-                                            isLocalMode = false
-                                            vm.saveLocalModelEnabled(false)
-                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_download_model_first)) }
-                                        }
-                                    } else {
-                                        isLocalMode = false
-                                        vm.saveLocalModelEnabled(false)
-                                        scope.launch { snackbar.showSnackbar("请先选择并下载模型") }
-                                    }
-                                } else {
-                                    localEngine.unload()
-                                    vm.saveLocalModelId(null)
-                                    localModelId = null
-                                    scope.launch { snackbar.showSnackbar("已切换到 API 模式") }
-                                }
-                            },
-                            colors = SwitchDefaults.colors(checkedTrackColor = BubbleBlue),
-                        )
-
-                        OutlinedButton(
-                            onClick = { showModelSelector = true },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = BubbleBlue)
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_select_model), fontSize = 12.sp, color = BubbleBlue)
-                        }
-                    }
-
-                    val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
-                    if (isLocalMode && currentInfo != null) {
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = themeDividerColor())
-                        Spacer(Modifier.height(10.dp))
-
-                        var localTemp by rememberSaveable { mutableStateOf(vm.getLocalTemperature()) }
-                        var localTopK by rememberSaveable { mutableStateOf(vm.getLocalTopK()) }
-                        var localTopP by rememberSaveable { mutableStateOf(vm.getLocalTopP()) }
-                        var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
-
-                        Text(stringResource(R.string.settings_inference_params), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = themeTextDark())
-                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", fontSize = 11.sp, color = themeTextGrey())
-
-                        Spacer(Modifier.height(8.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Temperature", fontSize = 11.sp, color = themeTextGrey())
-                                Slider(
-                                    value = localTemp,
-                                    onValueChange = { localTemp = it },
-                                    valueRange = 0.01f..2.0f,
-                                    steps = 39,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Text("${String.format("%.2f", localTemp)}", fontSize = 10.sp, color = themeTextGrey())
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Top P", fontSize = 11.sp, color = themeTextGrey())
-                                Slider(
-                                    value = localTopP,
-                                    onValueChange = { localTopP = it },
-                                    valueRange = 0.1f..1.0f,
-                                    steps = 17,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Text("${String.format("%.2f", localTopP)}", fontSize = 10.sp, color = themeTextGrey())
-                            }
-                        }
-
-                        Spacer(Modifier.height(6.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Top K: $localTopK", fontSize = 11.sp, color = themeTextGrey())
-                                Slider(
-                                    value = localTopK.toFloat(),
-                                    onValueChange = { localTopK = it.toInt() },
-                                    valueRange = 1f..128f,
-                                    steps = 126,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                            OutlinedTextField(
-                                value = if (localMaxTok > 0) localMaxTok.toString() else "",
-                                onValueChange = { localMaxTok = it.toIntOrNull() ?: 0 },
-                                label = { Text("最大输出", fontSize = 10.sp) },
-                                modifier = Modifier.width(100.dp),
-                                singleLine = true,
-                            )
-                        }
-
-                        Spacer(Modifier.height(6.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                vm.saveLocalParams(localTemp, localTopK, localTopP, localMaxTok)
-                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_params_saved)) }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        ) {
-                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = BubbleBlue)
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.msg_save_params), fontSize = 11.sp, color = BubbleBlue)
-                        }
-                    }
+                    SettingNavigationRow(
+                        title = stringResource(R.string.title_automations),
+                        icon = Icons.Default.Schedule,
+                        iconTint = BubbleBlue,
+                        onClick = toAutomations,
+                        showDivider = false,
+                    )
                 }
             }
-        }
 
-        item {
-Spacer(Modifier.height(12.dp))
-
-            // ── 高级选项（折叠区）──
-            // 海马体等实验性功能入口降级至此，普通用户不显示，高级用户可展开访问
-            var showAdvanced by rememberSaveable { mutableStateOf(false) }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                ),
-                onClick = { showAdvanced = !showAdvanced },
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+            // ── 导入导出 ──
+            SettingGroup(title = "导入导出") {
+                Column(
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 ) {
-                    Text(stringResource(R.string.settings_advanced_options), fontWeight = FontWeight.Medium, fontSize = 13.sp, color = themeTextGrey(), modifier = Modifier.weight(1f))
-                    Icon(
-                        imageVector = if (showAdvanced) Icons.Default.ArrowDropDown else Icons.Default.ArrowForward,
-                        contentDescription = if (showAdvanced) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
-                        modifier = Modifier.size(18.dp),
-                        tint = themeTextGrey(),
+                    var syncServerUrl by rememberSaveable { mutableStateOf(vm.getSyncConfig().serverUrl) }
+                    var syncUsername by rememberSaveable { mutableStateOf(vm.getSyncConfig().username) }
+                    var syncPassword by rememberSaveable { mutableStateOf(vm.getSyncConfig().password) }
+                    var syncRemotePath by rememberSaveable { mutableStateOf(vm.getSyncConfig().remotePath) }
+                    val isSyncing by vm.isSyncing.collectAsState()
+                    val syncResult by vm.syncState.collectAsState()
+
+                    Text("云同步（WebDAV）", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "通过 WebDAV 同步笔记到私有云（坚果云、NextCloud 等）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
                     )
-                }
-                androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // 海马体记忆入口（降级后仅在此折叠区内可见）
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = toHippocampus,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.settings_hippocampus_index), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("共 ${hippocampus?.count() ?: 0} 条索引条目 | 深层路由: hippocampus", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                    OutlinedTextField(
+                        value = syncServerUrl,
+                        onValueChange = { syncServerUrl = it },
+                        label = { Text("服务器地址") },
+                        placeholder = { Text("https://dav.example.com") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        OutlinedTextField(
+                            value = syncUsername,
+                            onValueChange = { syncUsername = it },
+                            label = { Text("用户名") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = syncPassword,
+                            onValueChange = { syncPassword = it },
+                            label = { Text("密码") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = syncRemotePath,
+                        onValueChange = { syncRemotePath = it },
+                        label = { Text("远端路径") },
+                        placeholder = { Text("/opedrgent/notes/") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        FilledTonalButton(
+                            onClick = {
+                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
+                                    serverUrl = syncServerUrl.trim(),
+                                    username = syncUsername.trim(),
+                                    password = syncPassword.trim(),
+                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
+                                )
+                                vm.saveSyncConfig(config)
+                                scope.launch {
+                                    val ok = vm.testSyncConnection()
+                                    snackbar.showSnackbar(if (ok) "连接成功" else "连接失败，请检查配置")
                                 }
-                                Icon(Icons.Default.ArrowForward, contentDescription = "进入", modifier = Modifier.size(16.dp))
+                            },
+                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
+                            shape = ShapeTokens.smallShape,
+                        ) {
+                            Text("测试连接", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        Button(
+                            onClick = {
+                                val config = top.hsyscn.opedrgent.sync.WebDavConfig(
+                                    serverUrl = syncServerUrl.trim(),
+                                    username = syncUsername.trim(),
+                                    password = syncPassword.trim(),
+                                    remotePath = syncRemotePath.ifBlank { "/opedrgent/notes/" },
+                                )
+                                vm.saveSyncConfig(config)
+                                vm.runSync()
+                            },
+                            enabled = syncServerUrl.isNotBlank() && !isSyncing,
+                            shape = ShapeTokens.smallShape,
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(modifier = Modifier.size(SpacingTokens.lg), strokeWidth = SpacingTokens.xxs)
+                                Spacer(Modifier.width(SpacingTokens.sm))
+                                Text("同步中...", style = MaterialTheme.typography.bodyMedium)
+                            } else {
+                                Text("立即同步", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
+                    }
 
-                        // 外挂 API 配置（Tavily / Brave）
-                        if (webSearchEnabled && webSearchSource == "external") {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    syncResult?.let { result ->
+                        val lastSync = vm.getLastSyncTime()
+                        val timeStr = if (lastSync > 0) {
+                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                            sdf.format(java.util.Date(lastSync))
+                        } else "从未"
+                        Text(
+                            text = buildString {
+                                append("上次同步: $timeStr")
+                                if (result.errors > 0) {
+                                    append(" | 错误: ${result.errors}")
+                                } else {
+                                    append(" | 上传: ${result.uploaded} 下载: ${result.downloaded} 耗时: ${result.duration}ms")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (result.errors > 0) MaterialTheme.colorScheme.error else themeTextGrey(),
+                        )
+                    } ?: run {
+                        val lastSync = vm.getLastSyncTime()
+                        if (lastSync > 0) {
+                            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                             Text(
-                                text = "外挂搜索 API 配置",
+                                text = "上次同步: ${sdf.format(java.util.Date(lastSync))}",
                                 style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            OutlinedTextField(
-                                value = tavilyApiKey,
-                                onValueChange = { tavilyApiKey = it },
-                                label = { Text("Tavily API Key（AI专用搜索，免费1000次/月）") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = braveApiKey,
-                                onValueChange = { braveApiKey = it },
-                                label = { Text("Brave Search API Key") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = searchProviderOrder,
-                                onValueChange = { searchProviderOrder = it },
-                                label = { Text("搜索优先级（如 tavily,brave,bing,baidu,ddg）") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
+                                color = themeTextGrey(),
                             )
                         }
                     }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    SettingNavigationRow(
+                        title = "导出与分享",
+                        subtitle = "导出笔记、对话记录为多种格式",
+                        icon = Icons.Default.ImportExport,
+                        iconTint = SuccessGreen,
+                        onClick = toExport,
+                        showDivider = false,
+                    )
                 }
             }
-        }
-
-        item {
-Spacer(Modifier.height(12.dp))
 
             // ── 关于 ──
-            HorizontalDivider()
-            Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = stringResource(R.string.settings_about), fontWeight = FontWeight.Bold, color = themeTextDark())
-                    Spacer(modifier = Modifier.height(10.dp))
-                    
+            SettingGroup(title = "关于") {
+                Column(
+                    modifier = Modifier.padding(SpacingTokens.lg),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
+                            contentDescription = "图标",
+                            modifier = Modifier.size(SizeTokens.sectionIcon),
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.md))
                         Column {
-                            Text(text = "Opedrgent", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = themeTextDark())
+                            Text(text = "Opedrgent", style = MaterialTheme.typography.headlineLarge, color = themeTextDark())
                             Text(
                                 text = stringResource(R.string.about_version, "1.0.0"),
                                 style = MaterialTheme.typography.bodySmall,
@@ -1961,9 +1822,7 @@ Spacer(Modifier.height(12.dp))
                             )
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     Text(
                         text = "hsyscn.top",
                         color = BubbleBlue,
@@ -1971,7 +1830,6 @@ Spacer(Modifier.height(12.dp))
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://hsyscn.top")))
                         }
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "BI4MIB.CN",
                         color = BubbleBlue,
@@ -1979,9 +1837,6 @@ Spacer(Modifier.height(12.dp))
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bi4mib.cn")))
                         }
                     )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
                     Text(
                         text = stringResource(R.string.about_visit_project),
                         color = BubbleBlue,
@@ -1989,50 +1844,30 @@ Spacer(Modifier.height(12.dp))
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/HaohanHe/Opedrgent")))
                         }
                     )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
+
+                    HorizontalDivider(color = themeBorder())
+
                     Text(
                         text = stringResource(R.string.about_open_source),
-                        fontWeight = FontWeight.Bold,
-                        color = themeTextDark()
+                        style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark())
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(R.string.about_open_source_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey()
                     )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // 跳转到独立开源声明页
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
+
+                    SettingNavigationRow(
+                        title = stringResource(R.string.about_view_open_source),
+                        icon = Icons.Default.Info,
+                        iconTint = themeForegroundMuted(),
                         onClick = toOpenSource,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.about_view_open_source),
-                                modifier = Modifier.weight(1f),
-                                fontWeight = FontWeight.SemiBold,
-                                color = themeTextDark(),
-                            )
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = themeTextGrey())
-                        }
-                    }
+                        showDivider = false,
+                    )
                 }
             }
-        }
 
-        item {
+            // ── 底部操作 ──
             Button(
                 onClick = {
                     vm.saveTts(
@@ -2066,35 +1901,28 @@ Spacer(Modifier.height(12.dp))
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.smallShape,
             ) {
                 Text(if (isLocalMode) "保存设置" else "保存")
             }
-            Text(text = "API Key 留空表示不修改。", modifier = Modifier.padding(top = 4.dp))
-            HorizontalDivider()
+            Text(text = stringResource(R.string.settings_api_key_hint), modifier = Modifier.padding(top = SpacingTokens.xs), color = themeForegroundMuted())
             Button(
                 onClick = { vm.clearApiKey() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = vm.hasApiKey(),
-                shape = RoundedCornerShape(11.dp),
+                shape = ShapeTokens.smallShape,
             ) {
-                Text("清除 API Key")
-            }
-            Button(onClick = toSkills, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                Text(stringResource(R.string.title_skills_library))
-            }
-            Button(onClick = toAutomations, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                Text(stringResource(R.string.title_automations))
+                Text(stringResource(R.string.settings_clear_api_key))
             }
             if (vm.hasApiKey()) {
-                Text(stringResource(R.string.settings_saved_key_hint))
+                Text(stringResource(R.string.settings_saved_key_hint), color = themeForegroundMuted())
             } else {
-                Text(stringResource(R.string.settings_not_set_key))
+                Text(stringResource(R.string.settings_not_set_key), color = themeForegroundMuted())
             }
         }
     }
 
-    // 本地模型选择对话框 (在 SettingsScreen 内部)
+    // 本地模型选择对话框
     if (showModelSelector) {
         ModelSelectorDialog(
             onDismiss = { showModelSelector = false },
@@ -2123,7 +1951,6 @@ Spacer(Modifier.height(12.dp))
             localEngine = localEngine,
             currentModelId = localModelId,
         )
-        } // item - settings content
     }
 
     showMemoryWarning?.let { msg ->
@@ -2162,5 +1989,157 @@ Spacer(Modifier.height(12.dp))
                 }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
+    }
+}
+
+@Composable
+private fun SettingGroup(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            color = themeForegroundMuted(),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(start = SpacingTokens.xs, bottom = SpacingTokens.sm),
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ShapeTokens.mediumShape,
+            colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
+            elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
+        ) {
+            Column {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(
+    title: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    subtitle: String? = null,
+    showDivider: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    val clickable = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .then(clickable)
+                .height(SizeTokens.settingRowHeight)
+                .padding(horizontal = SpacingTokens.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(SpacingTokens.xxl)
+                        .background(themeBackgroundSecondary(), shape = ShapeTokens.iconShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(SizeTokens.iconMd))
+                }
+                Spacer(Modifier.width(SpacingTokens.md))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = themeForeground(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        color = themeForegroundMuted(),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            trailing?.invoke()
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = if (icon != null) SizeTokens.settingDividerInset else SpacingTokens.lg),
+                color = themeBorder(),
+                thickness = SizeTokens.thinDividerThickness,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingNavigationRow(
+    title: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    subtitle: String? = null,
+    value: String? = null,
+    onClick: () -> Unit,
+    showDivider: Boolean = true,
+) {
+    SettingRow(
+        title = title,
+        modifier = modifier,
+        icon = icon,
+        iconTint = iconTint,
+        subtitle = subtitle,
+        showDivider = showDivider,
+        onClick = onClick,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (value != null) {
+                Text(
+                    text = value,
+                    color = themeForegroundMuted(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(SpacingTokens.xs))
+            }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = themeForegroundMuted(),
+                modifier = Modifier.size(SizeTokens.iconLg),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    showDivider: Boolean = true,
+) {
+    SettingRow(
+        title = title,
+        modifier = modifier,
+        icon = icon,
+        iconTint = iconTint,
+        subtitle = subtitle,
+        showDivider = showDivider,
+        onClick = { if (enabled) onCheckedChange(!checked) },
+    ) {
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }

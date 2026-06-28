@@ -103,6 +103,6 @@ enum class SproutPhase(
     SEED_EXTRACTION("种子提取"),
     CROSS_DOMAIN("跨领域关联"),
     WEB_ENHANCE("联网增强"),
-    AHA_INSIGHT("Aha洞察"),
+    SHOCKING_INSIGHT("震惊瞬间洞察"),
     QUOTE_RESONANCE("金句回响"),
 }

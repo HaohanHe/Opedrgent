@@ -50,7 +50,7 @@ object PromptBuilder {
         return sb.toString().trim()
     }
 
-    fun buildDynamicPrompt(
+    suspend fun buildDynamicPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
         memoryStore: MemoryStore? = null,
@@ -104,7 +104,7 @@ object PromptBuilder {
         return layers.filterNotNull().joinToString("\n\n").trim()
     }
 
-    fun buildSystemPrompt(
+    suspend fun buildSystemPrompt(
         apiSettings: ApiSettings,
         session: ResearchSession,
         memoryStore: MemoryStore? = null,
@@ -159,6 +159,14 @@ object PromptBuilder {
             "cache_ratio" to "%.1f%%".format(cacheRatio * 100),
             "estimated_static_tokens" to (staticLen / 3), // 粗略估算：中文约3字符/token
         )
+    }
+
+    /**
+     * 工具调用 guardrail 反思轮提示语。
+     * 当检测到 Agent 可能陷入循环时，要求 LLM 暂停工具调用并分析策略。
+     */
+    fun buildReflectionPrompt(): String {
+        return "[系统提示] 检测到当前研究策略可能陷入重复。请暂停工具调用，分析已获取的信息，并说明下一步将如何调整关键词、工具或 URL。如果认为已有信息足够，请直接输出阶段性结论。"
     }
 
     private fun buildIdentitySection(): String = """
@@ -218,6 +226,11 @@ Do NOT manually browse or construct URLs when a tool exists for that purpose.
 - 搜索为空 ≠ 无解，是关键词不好，换词再试（最多换2次不同关键词）
 - 多个独立操作可以并行调用
 - **URL 处理优先级**：用户消息中的 URL → read_url（直接访问）；无 URL 的问题 → web_search（搜索）
+
+### 工具调用提示
+- 单个工具超时、限流或返回部分内容，不代表研究结束。
+- 如果你认为已有信息足够，可以直接给出阶段性结论。
+- 如果你认为还需要补充，请尝试其他关键词、其他工具或其他 URL，不要重复调用同一个失败参数。
 
 ### ★ 工具失败处理（重要）
 - **同一工具连续失败 2 次后，立即停止调用该工具**，换用其他工具或基于已有知识回答
@@ -419,7 +432,7 @@ ${buildToolDetails()}
         return entry.content
     }
 
-    private fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?, hippocampusIndex: HippocampusIndex? = null): String? {
+    private suspend fun buildMemorySection(apiSettings: ApiSettings, memoryStore: MemoryStore?, hippocampusIndex: HippocampusIndex? = null): String? {
         val memory = memoryStore?.getMemoryBlock()?.trim().orEmpty().ifBlank { apiSettings.getMemory() }
 
         // 弹性截断：根据模型上下文窗口按比例计算

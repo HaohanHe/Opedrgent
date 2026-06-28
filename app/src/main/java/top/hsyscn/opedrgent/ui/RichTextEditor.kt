@@ -1,5 +1,14 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.graphics.Typeface
 import android.text.Spannable
 import android.text.style.StrikethroughSpan
@@ -160,7 +169,7 @@ fun RichTextEditor(
         if (editText.text.isNullOrEmpty()) {
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 4.dp, vertical = 8.dp)
+                    .padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.sm)
                     .align(Alignment.TopStart),
             ) {
                 androidx.compose.material3.Text(
@@ -178,7 +187,7 @@ fun RichTextEditor(
             exit = slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 8.dp),
+                .padding(bottom = SpacingTokens.sm),
         ) {
             SelectionFormatToolbar(
                 onBold = { toggleBold(editText, selectionStart, selectionEnd) },
@@ -406,14 +415,14 @@ private fun SelectionFormatToolbar(
     onLink: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = ShapeTokens.extraLargeShape,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 6.dp,
         tonalElevation = 4.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             FormatToolbarButton(

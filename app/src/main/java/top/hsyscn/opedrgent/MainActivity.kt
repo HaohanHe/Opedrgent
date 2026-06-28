@@ -36,13 +36,14 @@ class MainActivity : ComponentActivity() {
         pendingAction.value = extractAction(intent)
         setContent {
             val themeMode = remember { ApiSettings(this).getThemeMode() }
+            val dynamicColor = remember { ApiSettings(this).isDynamicColorEnabled() }
             val systemDark = isSystemInDarkTheme()
             val darkTheme = when (themeMode) {
                 "light" -> false
                 "dark" -> true
                 else -> systemDark
             }
-            OpedrgentTheme(darkTheme = darkTheme) {
+            OpedrgentTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 AppRoot(
                     initialShareText = pendingShareText.value,
                     initialAction = pendingAction.value,
@@ -70,9 +71,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun extractAction(intent: Intent?): String? {
-        return when (intent?.action) {
-            "top.hsyscn.opedrgent.ACTION_RECORD" -> "recording"
-            "top.hsyscn.opedrgent.ACTION_NEW_CHAT" -> "new_chat"
+        return when {
+            intent?.action == "top.hsyscn.opedrgent.ACTION_RECORD" -> "recording"
+            intent?.action == "top.hsyscn.opedrgent.ACTION_NEW_CHAT" -> "new_chat"
+            intent?.getBooleanExtra("start_recording", false) == true -> "recording"
             else -> null
         }
     }

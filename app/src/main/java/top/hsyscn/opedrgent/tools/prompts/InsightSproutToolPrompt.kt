@@ -2,7 +2,7 @@ package top.hsyscn.opedrgent.tools.prompts
 
 object InsightSproutToolPrompt {
     const val DESCRIPTION = "知识发芽（Insight Sprout）：对输入文本进行 4 阶段深度多维度分析，发芽衍生出结构化的洞察报告。" +
-        "支持种子提取、跨领域关联、Aha 洞察生成、金句回响四个阶段。"
+        "支持种子提取、跨领域关联、震惊瞬间洞察生成、金句回响四个阶段。"
 
     const val USAGE_GUIDELINES = """
 ## insight_sprout 工具使用规范
@@ -11,7 +11,7 @@ object InsightSproutToolPrompt {
 知识发芽是一种深度文本分析方法，通过 4 个阶段对输入文本进行多维度发散思考：
 1. **种子提取** — 从文本中识别核心概念和关键论点
 2. **跨领域关联** — 将种子概念映射到不同知识领域，建立类比和联结
-3. **Aha 洞察** — 基于前两阶段生成反直觉的深层洞察
+3. **震惊瞬间洞察** — 基于前两阶段生成反直觉的深层洞察
 4. **金句回响** — 匹配经典引用并延展思考
 
 ---

@@ -4,116 +4,168 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// ========== Material tonal palette tokens ==========
-val Blue80 = Color(0xFFAAC4FF)
-val BlueGrey80 = Color(0xFFBCC7DC)
-val Teal80 = Color(0xFFA0D4C8)
+// ========== Doubao design tokens ==========
 
-val Blue40 = Color(0xFF2B68DE)
-val BlueGrey40 = Color(0xFF5A6A7E)
-val Teal40 = Color(0xFF4A9A8A)
+// Primary brand
+val PrimaryBrand = Color(0xFF0065FD)
+val PrimaryHover = Color(0xFF0057DA)
+val PrimarySubtle = Color(0xFFE5E9FF)
+val PrimaryRing = Color(0xFF557FFF)
+
+// Light mode surfaces & text
+val BackgroundLight = Color(0xFFFFFFFF)
+val BackgroundSecondaryLight = Color(0xFFF9F9FA)
+val BackgroundMutedLight = Color(0xFFEFF1F4)
+val BackgroundCardLight = Color(0xFFFFFFFF)
+val ForegroundLight = Color(0xFF0E1115)
+val ForegroundSecondaryLight = Color(0xFF333942)
+val ForegroundMutedLight = Color(0xFF7F8D9F)
+val ForegroundAccentLight = Color(0xFF00266B)
+
+val BorderLight = Color(0xFFE7EAEF)
+val BorderLightVariant = Color(0xFFF0F2F5)
+
+// Semantic status colors
+val Success = Color(0xFF22C55E)
+val SuccessBg = Color(0xFFECFDF5)
+val Error = Color(0xFFEF4444)
+val ErrorBg = Color(0xFFFEF2F2)
+val Warning = Color(0xFFF59E0B)
+val WarningBg = Color(0xFFFFFBEB)
+
+// Dark mode surfaces & text
+val BackgroundDark = Color(0xFF0E1115)
+val BackgroundSecondaryDark = Color(0xFF161A1F)
+val BackgroundCardDark = Color(0xFF1A1E23)
+val BackgroundMutedDark = Color(0xFF22272D)
+val ForegroundDark = Color(0xFFEFF1F4)
+val ForegroundSecondaryDark = Color(0xFFC0C5CE)
+val ForegroundMutedDark = Color(0xFF7F8D9F)
+val ForegroundAccentDark = Color(0xFFC0D8FF)
+
+val BorderDark = Color(0xFF2A2F36)
+val InputDark = Color(0xFF2A2F36)
+
+val SuccessDarkBg = Color(red = 34f / 255, green = 197f / 255, blue = 94f / 255, alpha = 0.12f)
+val ErrorDarkBg = Color(red = 239f / 255, green = 68f / 255, blue = 68f / 255, alpha = 0.12f)
+val WarningDarkBg = Color(red = 245f / 255, green = 158f / 255, blue = 11f / 255, alpha = 0.12f)
 
 // ========== Core semantic (legacy compat) ==========
-val DarkBackground = Color(0xFFF5F5F6)    // 得到大脑背景色
-val DarkSurface = Color(0xFFFCFCFC)        // 得到大脑卡片背景
-val DarkText = Color(0xFF1D2129)           // 得到大脑主文字
-val DarkTextGrey = Color(0xFF8A8F99)       // 得到大脑次要文字
+val DarkBackground = BackgroundLight
+val DarkSurface = BackgroundCardLight
+val DarkText = ForegroundLight
+val DarkTextGrey = ForegroundMutedLight
 
-val AccentBlue = Color(0xFF08A1F9)         // 得到大脑链接蓝
-val LightBlueBg = Color(0xFFD1D7FE)
-val ButtonBg = Color(0xFFEDF2FE)
-val GreenDot = Color(0xFF2B7F47)
-val UserBubbleStart = Color(0xFF2B68DE)
-val UserBubbleEnd = Color(0xFF194CF0)
+val AccentBlue = PrimaryBrand
+val LightBlueBg = PrimarySubtle
+val ButtonBg = PrimarySubtle
+val GreenDot = Success
+val UserBubbleStart = PrimaryBrand
+val UserBubbleEnd = PrimaryHover
 
-val BubbleBlue = Color(0xFF2B68DE)
-val BubbleBlueEnd = Color(0xFF194CF0)
-val CitationBg = Color(0xFFD1D7FE)
-val BgGray = Color(0xFFF5F5F6)             // 得到大脑背景色
-val CardWhite = Color(0xFFFCFCFC)          // 得到大脑卡片背景
-val TextDark = Color(0xFF1D2129)           // 得到大脑主文字
-val TextGrey = Color(0xFF8A8F99)           // 得到大脑次要文字
-val BarBg = Color(0xFFF5F5F6)              // 得到大脑背景色
+val BubbleBlue = PrimaryBrand
+val BubbleBlueEnd = PrimaryHover
+val CitationBg = PrimarySubtle
+val BgGray = BackgroundLight
+val CardWhite = BackgroundCardLight
+val TextDark = ForegroundLight
+val TextGrey = ForegroundMutedLight
+val BarBg = BackgroundSecondaryLight
 
-// ========== 得到大脑风格扩展色板 ==========
-// Primary accent purple (得到大脑 brand color)
+// ========== opedrgent风格扩展色板 (mapped to Doubao) ==========
+// Primary accent purple kept as a distinct brand-adjacent color
 val AccentPurple = Color(0xFF766AF6)
 
 // Text hierarchy
-val TextPrimary = Color(0xFF1D2129)       // 主文字
-val TextSecondary = Color(0xFF8A8F99)     // 次要文字
-val TextTertiary = Color(0xFF4E5969)      // 辅助文字
+val TextPrimary = ForegroundLight
+val TextSecondary = ForegroundSecondaryLight
+val TextTertiary = ForegroundMutedLight
 
 // Surface / background hierarchy
-val SurfaceLight = Color(0xFFF7F8FA)      // 分区背景
-val CardBackground = Color(0xFFF5F7FA)    // 卡片/容器背景
-val SurfaceElevated = Color(0xFFFAFAFA)   // 浮层/输入区背景
+val SurfaceLight = BackgroundSecondaryLight
+val CardBackground = BackgroundMutedLight
+val SurfaceElevated = BackgroundCardLight
 
 // Border & divider
-val BorderLight = Color(0xFFE5E6EA)       // 轻边框
-val DividerColor = Color(0xFFF0F0F0)      // 分割线
-val InputBorder = Color(0xFFE0E0E0)       // 输入框边框
-val DisabledColor = Color(0xFFBDBDBD)     // 禁用态
+val DividerColor = BorderLightVariant
+val InputBorder = BorderLight
+val DisabledColor = ForegroundMutedLight
 
 // Semantic status colors
-val DangerRed = Color(0xFFC04040)         // 危险操作（删除图标）
-val ErrorBackground = Color(0xFFFFF3F3)   // 错误背景
-val ErrorBorder = Color(0xFFFFCCCC)       // 错误边框
-val DeleteConfirmRed = Color(0xFFCC3333)  // 删除确认按钮
+val DangerRed = Error
+val ErrorBackground = ErrorBg
+val ErrorBorder = Error.copy(alpha = 0.2f)
+val DeleteConfirmRed = Error
 
-val SuccessGreen = Color(0xFF4CAF50)      // 成功状态
+val SuccessGreen = Success
 
 // Feature accent colors
-val AccentOrange = Color(0xFFE67E22)      // 标签/高亮橙
-val WarningBg = Color(0xFFFFF8E1)         // 警告背景
-val WarningColor = Color(0xFFFF8F00)      // 警告文字/图标
+val AccentOrange = Warning
+val WarningColor = Warning
 
 // Chip / tag colors
-val ChipWarningBg = Color(0xFFFFF3E0)
-val ChipWarningText = Color(0xFFE65100)
-val ChipSuccessBg = Color(0xFFE8F5E9)
-val ChipSuccessText = Color(0xFF2E7D32)
+val ChipWarningBg = WarningBg
+val ChipWarningText = Warning
+val ChipSuccessBg = SuccessBg
+val ChipSuccessText = Success
 
 // Interview mode (intentional dark theme)
 val InterviewDarkBg = Color(0xFF1A1A2E)
 val InterviewPurple = Color(0xFF6C63FF)
+val InterviewSurface = Color(0xFF2A2A4A)
+val InterviewTextMuted = Color(0xFFB0B0CC)
+val InterviewInputBg = Color(0xFF222233)
+val InterviewBorder = Color(0xFF333355)
+val InterviewDisabledText = Color(0xFF555566)
 
 // Badge
-val BadgeError = Color(0xFFFF4444)
+val BadgeError = Error
 
 // Sprout/Insight page (warm paper aesthetic)
-val SproutBackground = Color(0xFFFAFAF5)     // 暖白纸张底色
-val SproutQuoteBg = Color(0xFFF5F0E8)        // 引用块暖灰背景
-val SproutChipBg = Color(0xFFF0EAD6)         // 标签暖色背景
-val SproutDivider = Color(0xFFE8E2D8)        // 暖色分割线（加深以确保可见）
-val SproutSeedText = Color(0xFF6B6B6B)       // 种子引文（比 #777 深，确保可读）
-val SproutMetaText = Color(0xFF9A9590)       // 元信息（日期/图标，比 #888 深）
-val SproutSummaryStart = Color(0xFF34D399)   // 摘要渐变起始色
-val SproutSummaryEnd = Color(0xFF059669)     // 摘要渐变结束色
+val SproutBackground = Color(0xFFFAFAF5)
+val SproutQuoteBg = Color(0xFFF5F0E8)
+val SproutChipBg = Color(0xFFF0EAD6)
+val SproutDivider = Color(0xFFE8E2D8)
+val SproutSeedText = Color(0xFF6B6B6B)
+val SproutMetaText = Color(0xFF9A9590)
+val SproutSummaryStart = Color(0xFF34D399)
+val SproutSummaryEnd = Color(0xFF059669)
 
 // Recording mode card
-val CoralRed = Color(0xFFFF5A5A)
-val CoralLight = Color(0xFFFFEAEA)
+val CoralRed = Error
+val CoralLight = ErrorBg
+
+// Dashboard card gradients (brand palette)
+val GradientPurpleStart = Color(0xFF6a11cb)
+val GradientPurpleEnd = Color(0xFF2575fc)
+val GradientIndigoStart = Color(0xFF667eea)
+val GradientIndigoEnd = Color(0xFF764ba2)
+val GradientPinkStart = Color(0xFFf093fb)
+val GradientPinkEnd = Color(0xFFf5576c)
+val GradientCyanStart = Color(0xFF4facfe)
+val GradientCyanEnd = Color(0xFF00f2fe)
 
 // ========== Dark mode variants ==========
-val BgGray_Dark = Color(0xFF121212)
-val CardWhite_Dark = Color(0xFF1E1E1E)
-val TextDark_Dark = Color(0xFFE8E8E8)
-val TextGrey_Dark = Color(0xFF9E9E9E)
-val BarBg_Dark = Color(0xFF1A1A1A)
-val SurfaceElevated_Dark = Color(0xFF252525)
-val SurfaceLight_Dark = Color(0xFF1C1C1C)
-val CardBackground_Dark = Color(0xFF1E1E1E)
-val BorderLight_Dark = Color(0xFF333333)
-val DividerColor_Dark = Color(0xFF2A2A2A)
+val BgGray_Dark = BackgroundDark
+val CardWhite_Dark = BackgroundCardDark
+val TextDark_Dark = ForegroundDark
+val TextGrey_Dark = ForegroundMutedDark
+val BarBg_Dark = BackgroundSecondaryDark
+val SurfaceElevated_Dark = BackgroundMutedDark
+val SurfaceLight_Dark = BackgroundSecondaryDark
+val CardBackground_Dark = BackgroundCardDark
+val BorderLight_Dark = BorderDark
+val DividerColor_Dark = BorderDark
+
 // Feature-specific dark variants
-val CoralLight_Dark = Color(0xFF3D1F1F)       // 录音模式选中背景
-val QuoteBg_Dark = Color(0xFF3D3520)          // 金句卡片背景
-val ActionItemBg_Dark = Color(0xFF1A2A3D)     // 待办卡片背景
-val ChipWarningBg_Dark = Color(0xFF3D2E1A)
-val ChipSuccessBg_Dark = Color(0xFF1A3D1F)
-val ErrorBackground_Dark = Color(0xFF3D1A1A)
-val WarningBg_Dark = Color(0xFF3D3520)
+val CoralLight_Dark = ErrorDarkBg
+val QuoteBg_Dark = WarningDarkBg
+val ActionItemBg_Dark = PrimaryRing.copy(alpha = 0.12f)
+val ChipWarningBg_Dark = WarningDarkBg
+val ChipSuccessBg_Dark = SuccessDarkBg
+val ErrorBackground_Dark = ErrorDarkBg
+val WarningBg_Dark = WarningDarkBg
+
 // Sprout dark variants
 val SproutBackground_Dark = Color(0xFF1A1C1A)
 val SproutQuoteBg_Dark = Color(0xFF2A2820)
@@ -123,6 +175,11 @@ val SproutSeedText_Dark = Color(0xFFB0B0B0)
 val SproutMetaText_Dark = Color(0xFF807A75)
 val SproutSummaryStart_Dark = Color(0xFF1B6B4A)
 val SproutSummaryEnd_Dark = Color(0xFF0D4030)
+
+// Chat bubble dark variants
+val UserBubbleStart_Dark = PrimaryRing
+val UserBubbleEnd_Dark = PrimaryBrand
+val CitationBg_Dark = PrimaryRing.copy(alpha = 0.25f)
 
 // ========== Theme-aware composable helpers ==========
 @Composable fun themeBgGray() = if (isSystemInDarkTheme()) BgGray_Dark else BgGray
@@ -150,3 +207,34 @@ val SproutSummaryEnd_Dark = Color(0xFF0D4030)
 @Composable fun themeSproutMetaText() = if (isSystemInDarkTheme()) SproutMetaText_Dark else SproutMetaText
 @Composable fun themeSproutSummaryStart() = if (isSystemInDarkTheme()) SproutSummaryStart_Dark else SproutSummaryStart
 @Composable fun themeSproutSummaryEnd() = if (isSystemInDarkTheme()) SproutSummaryEnd_Dark else SproutSummaryEnd
+
+// ========== Doubao semantic theme helpers (dark aware) ==========
+@Composable fun themePrimary() = PrimaryBrand
+@Composable fun themePrimaryRing() = PrimaryRing
+@Composable fun themePrimarySubtle() = if (isSystemInDarkTheme()) PrimaryRing.copy(alpha = 0.18f) else PrimarySubtle
+@Composable fun themeSuccess() = Success
+@Composable fun themeWarning() = Warning
+@Composable fun themeError() = Error
+@Composable fun themeBackgroundSecondary() = if (isSystemInDarkTheme()) BackgroundSecondaryDark else BackgroundSecondaryLight
+@Composable fun themeBackgroundMuted() = if (isSystemInDarkTheme()) BackgroundMutedDark else BackgroundMutedLight
+@Composable fun themeForeground() = if (isSystemInDarkTheme()) ForegroundDark else ForegroundLight
+@Composable fun themeForegroundSecondary() = if (isSystemInDarkTheme()) ForegroundSecondaryDark else ForegroundSecondaryLight
+@Composable fun themeForegroundMuted() = if (isSystemInDarkTheme()) ForegroundMutedDark else ForegroundMutedLight
+@Composable fun themeBorder() = if (isSystemInDarkTheme()) BorderDark else BorderLight
+
+// ========== Gradient theme helpers (dark aware) ==========
+@Composable fun themeGradientInterview(): List<Color> =
+    if (isSystemInDarkTheme()) listOf(Color(0xFF7C3AED), Color(0xFF9F67FF))
+    else listOf(Color(0xFF5856D6), Color(0xFF7C3AED))
+
+@Composable fun themeGradientEditor(): List<Color> =
+    if (isSystemInDarkTheme()) listOf(Color(0xFF818CF8), Color(0xFFA5B4FC))
+    else listOf(Color(0xFF6366F1), Color(0xFF818CF8))
+
+@Composable fun themeGradientVoice(): List<Color> =
+    if (isSystemInDarkTheme()) listOf(Color(0xFFF97316), Color(0xFFFB923C))
+    else listOf(Color(0xFFEF4444), Color(0xFFF97316))
+
+@Composable fun themeGradientSprout(): List<Color> =
+    if (isSystemInDarkTheme()) listOf(Color(0xFF34D399), Color(0xFF6EE7B7))
+    else listOf(Color(0xFF22C55E), Color(0xFF34D399))

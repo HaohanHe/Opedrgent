@@ -28,7 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
  * Markdown 格式工具栏组件
@@ -58,8 +58,8 @@ fun MarkdownFormatToolbar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
             ) {
                 FormatButton(
                     icon = Icons.Default.FormatBold,
@@ -108,8 +108,8 @@ fun MarkdownFormatToolbar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
             ) {
                 FormatButton(
                     icon = Icons.Default.Title,
@@ -151,8 +151,7 @@ fun FormatButton(
         if (text != null) {
             Text(
                 text,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
         } else {

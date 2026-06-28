@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,7 +28,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -106,7 +109,7 @@ fun NoteGraphScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("知识图谱", fontWeight = FontWeight.Bold) },
+                title = { Text("知识图谱", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
@@ -153,11 +156,11 @@ fun NoteGraphScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = SpacingTokens.lg)
                     .height(48.dp),
             ) {}
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
 
             // 图谱/时间线可视化区域
             if (nodes.isEmpty()) {
@@ -190,19 +193,19 @@ fun NoteGraphScreen(
                             // 搜索结果提示
                             if (highlightNoteIds.isNotEmpty()) {
                                 Surface(
-                                    color = AccentBlue,
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .padding(top = 8.dp),
-                                ) {
-                                    Text(
-                                        "找到 ${highlightNoteIds.size} 个相关笔记",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    )
-                                }
+                                color = MaterialTheme.customColors.accentBlue,
+                                shape = ShapeTokens.largeShape,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = SpacingTokens.sm),
+                            ) {
+                                Text(
+                                    "找到 ${highlightNoteIds.size} 个相关笔记",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
+                                )
+                            }
                             }
                         }
                     }
@@ -238,28 +241,28 @@ private fun StatsRow(stats: top.hsyscn.opedrgent.note.KnowledgeGraph.GraphStats)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
         StatCard(
             title = "总笔记",
             value = "${stats.totalNotes}",
             icon = Icons.Default.Description,
-            color = AccentBlue,
+            color = MaterialTheme.customColors.accentBlue,
             modifier = Modifier.weight(1f),
         )
         StatCard(
             title = "总关联",
             value = "${stats.totalLinks}",
             icon = Icons.Default.Hub,
-            color = Color(0xFF4CAF50),
+            color = MaterialTheme.customColors.successGreen,
             modifier = Modifier.weight(1f),
         )
         StatCard(
             title = "孤立笔记",
             value = "${stats.isolatedNotes}",
             icon = Icons.Default.PersonOff,
-            color = Color(0xFFE67E22),
+            color = MaterialTheme.customColors.accentOrange,
             modifier = Modifier.weight(1f),
         )
     }
@@ -275,17 +278,17 @@ private fun StatCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)
-            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(icon, contentDescription = null, /* 统计卡片中的图标为装饰性 */ tint = color, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(SpacingTokens.xs))
+            Text(value, style = MaterialTheme.typography.titleLarge, color = color)
+            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -301,6 +304,11 @@ private fun GraphCanvas(
     onNodeClick: (GraphNode) -> Unit,
     onNodeLongClick: (GraphNode) -> Unit,
 ) {
+    val accentBlue = MaterialTheme.customColors.accentBlue
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val successGreen = MaterialTheme.customColors.successGreen
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
     Canvas(
         modifier = Modifier
             .fillMaxSize()
@@ -354,7 +362,7 @@ private fun GraphCanvas(
             val isHighlighted = edge.sourceId in highlightNoteIds || edge.targetId in highlightNoteIds
 
             val strokeWidth = if (isHighlighted) 3f else 1.5f
-            val color = if (isHighlighted) AccentBlue else Color(0xFFCCCCCC).copy(alpha = 0.6f)
+            val color = if (isHighlighted) accentBlue else outlineColor.copy(alpha = 0.6f)
             val alpha = if (isHighlighted) 1f else 0.5f
 
             drawLine(
@@ -375,15 +383,15 @@ private fun GraphCanvas(
 
             val isHighlighted = node.id in highlightNoteIds
             val nodeColor = when {
-                isHighlighted -> AccentBlue
-                node.linkCount == 0 -> Color(0xFFE0E0E0)
-                else -> Color(0xFF4CAF50)
+                isHighlighted -> accentBlue
+                node.linkCount == 0 -> outlineColor.copy(alpha = 0.5f)
+                else -> successGreen
             }
 
             // 外圈光晕（高亮时）
             if (isHighlighted) {
                 drawCircle(
-                    color = AccentBlue.copy(alpha = 0.2f),
+                    color = accentBlue.copy(alpha = 0.2f),
                     radius = radius + 8f * scale,
                     center = transformedPos,
                 )
@@ -398,7 +406,7 @@ private fun GraphCanvas(
 
             // 节点边框
             drawCircle(
-                color = Color.White,
+                color = surfaceColor,
                 radius = radius,
                 center = transformedPos,
                 style = Stroke(width = 2f * scale),
@@ -448,20 +456,20 @@ private fun NotePreviewDialog(
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 22.sp,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 val tags = note.getTags()
                 if (tags.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         tags.take(5).forEach { tag ->
                             Surface(
-                                color = AccentBlue.copy(alpha = 0.08f),
-                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.08f),
+                                shape = ShapeTokens.smallShape,
                             ) {
                                 Text(
                                     tag,
-                                    fontSize = 11.sp,
-                                    color = AccentBlue,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.customColors.accentBlue,
+                                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs),
                                 )
                             }
                         }
@@ -487,23 +495,23 @@ private fun EmptyGraphState() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(SpacingTokens.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             Icons.Default.AccountTree,
-            contentDescription = null,
+            contentDescription = null, // 空状态装饰性图标
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         Text(
             "知识图谱为空",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Text(
             "创建更多笔记后，系统会自动建立关联",
             style = MaterialTheme.typography.bodyMedium,
@@ -544,31 +552,31 @@ private fun TimelineView(
 
     LazyColumn(
         state = scrollState,
-        modifier = modifier.padding(horizontal = 16.dp),
+        modifier = modifier.padding(horizontal = SpacingTokens.lg),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = SpacingTokens.xxl),
     ) {
         grouped.forEach { (monthLabel, monthNotes) ->
             // 月份标题
             item(key = "header_$monthLabel") {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(top = SpacingTokens.md, bottom = SpacingTokens.xs),
                 ) {
                     // 时间线圆点
                     Box(
                         modifier = Modifier
                             .size(12.dp)
-                            .background(AccentBlue, shape = androidx.compose.foundation.shape.CircleShape)
+                            .background(MaterialTheme.customColors.accentBlue, shape = CircleShape)
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(SpacingTokens.md))
                     Text(
                         monthLabel,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         "${monthNotes.size} 篇",
                         style = MaterialTheme.typography.bodySmall,
@@ -631,7 +639,7 @@ private fun TimelineNoteCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(SpacingTokens.md),
             verticalAlignment = Alignment.Top,
         ) {
             // 左侧时间标签
@@ -642,7 +650,7 @@ private fun TimelineNoteCard(
                 Text(
                     dateStr,
                     style = MaterialTheme.typography.labelSmall,
-                    color = AccentBlue,
+                    color = MaterialTheme.customColors.accentBlue,
                     maxLines = 2,
                 )
             }
@@ -652,10 +660,10 @@ private fun TimelineNoteCard(
                 modifier = Modifier
                     .width(2.dp)
                     .height(40.dp)
-                    .background(AccentBlue.copy(alpha = 0.3f))
+                    .background(MaterialTheme.customColors.accentBlue.copy(alpha = 0.3f))
             )
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(SpacingTokens.md))
 
             // 笔记内容
             Column(modifier = Modifier.weight(1f)) {

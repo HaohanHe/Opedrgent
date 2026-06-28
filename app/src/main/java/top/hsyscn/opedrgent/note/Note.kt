@@ -140,7 +140,7 @@ enum class SourceType {
  * 将原始笔记内容通过 AI 分析，生成结构化洞察报告，包含：
  * - 核心观点提炼
  * - 关键要点列表
- * - Aha 瞬间（高亮重要发现）
+ * - 震惊瞬间（高亮重要发现）
  * - 行动建议
  * - 相关概念链接
  */
@@ -153,8 +153,8 @@ data class SproutReport(
     val summary: String = "",
     /** 关键要点列表（3-5条） */
     val keyPoints: List<String> = emptyList(),
-    /** Aha 瞬间 — 高亮的重要发现或洞察 */
-    val ahaMoments: List<AhaMoment> = emptyList(),
+    /** 震惊瞬间 — 高亮的重要发现或洞察 */
+    val shockingMoments: List<ShockingMoment> = emptyList(),
     /** 行动建议 */
     val actionItems: List<String> = emptyList(),
     /** 相关概念/标签 */
@@ -171,7 +171,7 @@ data class SproutReport(
                 put("modelUsed", modelUsed)
                 put("summary", summary)
                 put("keyPoints", org.json.JSONArray(keyPoints))
-                put("ahaMoments", org.json.JSONArray(ahaMoments.map { it.toJson() }))
+                put("ahaMoments", org.json.JSONArray(shockingMoments.map { it.toJson() }))
                 put("actionItems", org.json.JSONArray(actionItems))
                 put("relatedConcepts", org.json.JSONArray(relatedConcepts))
                 put("sentiment", sentiment.name)
@@ -192,9 +192,9 @@ data class SproutReport(
                     keyPoints = json.optJSONArray("keyPoints")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList(),
-                    ahaMoments = json.optJSONArray("ahaMoments")?.let { arr ->
+                    shockingMoments = json.optJSONArray("ahaMoments")?.let { arr ->
                         (0 until arr.length()).mapNotNull {
-                            AhaMoment.fromJson(arr.getJSONObject(it).toString())
+                            ShockingMoment.fromJson(arr.getJSONObject(it).toString())
                         }
                     } ?: emptyList(),
                     actionItems = json.optJSONArray("actionItems")?.let { arr ->
@@ -203,7 +203,7 @@ data class SproutReport(
                     relatedConcepts = json.optJSONArray("relatedConcepts")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList(),
-                    sentiment = Sentiment.valueOf(json.optString("sentiment", "NEUTRAL")),
+                    sentiment = try { Sentiment.valueOf(json.optString("sentiment", "NEUTRAL")) } catch (_: Exception) { Sentiment.NEUTRAL },
                     readingTimeMinutes = json.optInt("readingTimeMinutes", 0),
                 )
             } catch (_: Exception) { null }
@@ -212,9 +212,9 @@ data class SproutReport(
 }
 
 /**
- * Aha 瞬间 — 笔记中的高光时刻
+ * 震惊瞬间 — 笔记中的高光时刻
  */
-data class AhaMoment(
+data class ShockingMoment(
     /** 原文引用 */
     val quote: String,
     /** AI 解读/点评 */
@@ -234,10 +234,10 @@ data class AhaMoment(
     }
 
     companion object {
-        fun fromJson(jsonStr: String): AhaMoment? {
+        fun fromJson(jsonStr: String): ShockingMoment? {
             return try {
                 val json = org.json.JSONObject(jsonStr)
-                AhaMoment(
+                ShockingMoment(
                     quote = json.optString("quote", ""),
                     insight = json.optString("insight", ""),
                     importance = json.optInt("importance", 3),
@@ -267,7 +267,7 @@ enum class Sentiment {
  * 因为你提到了洪堡兄弟...           ← 哪段笔记触发了这个洞察
  *
  * 1807年，普鲁士在耶拿战役中...     ← AI 展开叙述（加粗关键词）
- * 💡 Aha 瞬间                     ← 高光金句
+ * 💡 震惊瞬间                     ← 高光金句
  * "最勇敢的投资，不是在顺顺..."      ← 最有洞察力的那句话
  * ```
  *
@@ -276,7 +276,7 @@ enum class Sentiment {
  * | 维度 | 旧版 SproutReport | 新版 SproutArticle |
  * |------|-------------------|--------------------|
  * | 格式 | 结构化 JSON 字段 | Markdown 叙事文章 |
- * | 内容 | 要点列表 | 完整文章（种子+正文+Aha） |
+ * | 内容 | 要点列表 | 完整文章（种子+正文+震惊瞬间） |
  * | 可读性 | 机器友好 | 人类友好 |
  * | 视觉 | 卡片堆叠 | 文章流式阅读 |
  */
@@ -348,7 +348,7 @@ data class SproutArticle(
  * 三段式结构：
  * 1. 🌱 种子：原文中触发这段洞察的片段
  * 2. 正文：AI 展开叙述的完整分析（Markdown 格式）
- * 3. 💡 Aha 瞬间：最有力的一句金句
+ * 3. 💡 震惊瞬间：最有力的一句金句
  */
 data class ArticleSection(
     /** 编号标题（如"01. 一座王宫换来的大学"） */
@@ -357,8 +357,8 @@ data class ArticleSection(
     val seed: String,
     /** 正文 — AI 生成的完整分析（支持 Markdown） */
     val body: String,
-    /** 💡 Aha 瞬间 — 金句引用 */
-    val ahaMoment: String,
+    /** 💡 震惊瞬间 — 金句引用 */
+    val shockingMoment: String,
     /** 重要性 1-5 */
     val importance: Int = 3,
 ) {
@@ -367,7 +367,7 @@ data class ArticleSection(
             put("title", title)
             put("seed", seed)
             put("body", body)
-            put("ahaMoment", ahaMoment)
+            put("ahaMoment", shockingMoment)
             put("importance", importance)
         }.toString()
     }
@@ -380,7 +380,7 @@ data class ArticleSection(
                     title = json.optString("title", ""),
                     seed = json.optString("seed", ""),
                     body = json.optString("body", ""),
-                    ahaMoment = json.optString("ahaMoment", ""),
+                    shockingMoment = json.optString("ahaMoment", ""),
                     importance = json.optInt("importance", 3).coerceIn(1, 5),
                 )
             } catch (_: Exception) { null }

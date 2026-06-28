@@ -1,13 +1,21 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.storage.HippocampusIndex
+import top.hsyscn.opedrgent.storage.IndexedItem
+import top.hsyscn.opedrgent.storage.MemoryScope
 import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
 
@@ -32,6 +40,9 @@ class NoteRepository(
 
     /** 知识图谱引擎（懒加载，首次访问时初始化） */
     val knowledgeGraph: KnowledgeGraph by lazy { KnowledgeGraph(context) }
+
+    private val graphScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var linkNoteJob: Job? = null
 
     // 响应式变更通知
     private val _changeTrigger = MutableStateFlow(0L)
@@ -87,6 +98,21 @@ class NoteRepository(
         .flowOn(Dispatchers.IO)
         .conflate()
 
+    /** 今日新增笔记数 */
+    fun countToday(): Flow<Long> = _changeTrigger
+        .map { dao.countCreatedAfter(getTodayStart()) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
+
+    private fun getTodayStart(): Long {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
     /** 获取单条笔记 */
     suspend fun getNoteById(id: Long): Note? = dao.getById(id)
 
@@ -94,16 +120,47 @@ class NoteRepository(
     suspend fun saveNote(note: Note): Long {
         val id = dao.insertOrUpdate(note)
         _changeTrigger.value = System.currentTimeMillis()
-        // 保存后自动触发知识图谱更新
         val content = buildString {
             if (note.title.isNotBlank()) append(note.title).append(" ")
             append(note.content)
         }
         val noteIdStr = id.toString()
-        knowledgeGraph.linkNote(noteIdStr, content)
-        // 自动同步笔记记忆
+        linkNoteJob?.cancel()
+        linkNoteJob = graphScope.launch {
+            delay(5000)
+            knowledgeGraph.linkNote(noteIdStr, content)
+        }
         syncNoteMemory(id, note)
         return id
+    }
+
+    /**
+     * 批量导入笔记（用于同步/导入场景）。
+     *
+     * 逐条调用 [saveNote] 保留记忆同步、知识图谱关联等行为，
+     * 最后将所有新笔记批量写入海马体索引，避免多次逐条 upsert 的开销。
+     */
+    suspend fun importNotes(notes: List<Note>): List<Long> = withContext(Dispatchers.IO) {
+        if (notes.isEmpty()) return@withContext emptyList()
+        val ids = notes.map { saveNote(it) }
+
+        val hip = hippocampus
+        if (hip != null) {
+            val items = notes.zip(ids).map { (note, id) ->
+                IndexedItem(
+                    sourceType = HippoSourceType.NOTE,
+                    sourceId = id.toString(),
+                    title = note.title,
+                    summary = note.content.take(500),
+                    keywords = hip.extractKeywords(note.title, note.content),
+                    scope = MemoryScope.PROJECT,
+                )
+            }
+            if (items.isNotEmpty()) {
+                hip.insertBatch(items)
+            }
+        }
+        ids
     }
 
     /** 快速创建笔记（只需内容） */

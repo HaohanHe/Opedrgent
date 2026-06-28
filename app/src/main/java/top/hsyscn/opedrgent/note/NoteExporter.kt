@@ -357,10 +357,10 @@ private fun generateNoteDetailHtml(note: Note, uuid: String): String {
         val article = sproutArticle
         val sectionsHtml = article.articles.mapIndexed { _, sec ->
             val importanceStars = "*".repeat(sec.importance.coerceIn(1, 5))
-            val ahaHtml = if (sec.ahaMoment.isNotBlank()) {
+            val shockingHtml = if (sec.shockingMoment.isNotBlank()) {
                 "\n              <div class=\"aha-moment\">\n" +
-                "                <span class=\"aha-label\">Aha 瞬间</span>\n" +
-                "                <blockquote class=\"aha-quote\">${escapeHtml(sec.ahaMoment)}</blockquote>\n" +
+                "                <span class=\"aha-label\">震惊瞬间</span>\n" +
+                "                <blockquote class=\"aha-quote\">${escapeHtml(sec.shockingMoment)}</blockquote>\n" +
                 "              </div>"
             } else ""
             """
@@ -373,7 +373,7 @@ private fun generateNoteDetailHtml(note: Note, uuid: String): String {
               <div class="sprout-body">
                 ${renderMarkdownSimple(sec.body)}
               </div>
-              $ahaHtml
+              $shockingHtml
               <div class="sprout-importance">
                 重要度: <span class="stars">$importanceStars</span>
               </div>
@@ -1515,7 +1515,7 @@ body {
 .sprout-body li { margin: 0.25em 0; }
 .sprout-body strong { font-weight: 650; }
 
-/* Aha Moment Card */
+/* 震惊瞬间 Card */
 .aha-moment { margin-bottom: 12px; position: relative; z-index: 2; }
 .aha-label {
   display: inline-block;

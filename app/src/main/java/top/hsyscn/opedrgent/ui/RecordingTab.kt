@@ -1,5 +1,13 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -12,6 +20,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -167,7 +176,7 @@ data class CapturedPhoto(
 )
 
 /**
- * 录音 Tab —— 得到大脑风格重新设计。
+ * 录音 Tab —— opedrgent风格重新设计。
  *
  * 功能：
  * - 4 种录音模式选择（2x2 网格）
@@ -322,6 +331,7 @@ fun RecordingTab(
     }
 
     var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+    var showBackConfirmDialog by remember { mutableStateOf(false) }
     var recordingState by remember { mutableStateOf<RecordingState?>(null) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var amplitude by remember { mutableFloatStateOf(0f) }
@@ -331,6 +341,11 @@ fun RecordingTab(
     var savedToNote by remember { mutableStateOf(false) }
     var autoSaved by remember { mutableStateOf(false) }
     var autoSavedNoteId by remember { mutableStateOf(0L) }
+
+    // 录音进行中按返回键先弹确认，避免误触直接退出
+    BackHandler(enabled = recordingState == RecordingState.RECORDING || recordingState == RecordingState.PAUSED) {
+        showBackConfirmDialog = true
+    }
 
     // 录音完成后用于回放的音频文件路径
     var playbackAudioUri by remember { mutableStateOf<String?>(null) }
@@ -660,7 +675,7 @@ fun RecordingTab(
             text = {
                 Column {
                     Text(stringResource(R.string.recording_save_as_note_desc), style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(SpacingTokens.md))
                     androidx.compose.material3.OutlinedTextField(
                         value = noteTitle,
                         onValueChange = { noteTitle = it },
@@ -716,6 +731,45 @@ fun RecordingTab(
             },
             dismissButton = {
                 TextButton(onClick = { showOverlayPermissionDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
+    // 录音中返回确认对话框
+    if (showBackConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackConfirmDialog = false },
+            title = { Text(stringResource(R.string.recording_stop_confirm_title)) },
+            text = { Text(stringResource(R.string.recording_stop_confirm_desc)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBackConfirmDialog = false
+                        recordingState = null
+                        RecordingForegroundService.stop(context)
+                        try {
+                            audioRecord.value?.stop()
+                            audioRecord.value?.release()
+                            audioRecord.value = null
+                        } catch (_: Exception) {}
+                        try {
+                            systemAudioRecorder?.stopRecording()
+                            systemAudioRecorder = null
+                        } catch (_: Exception) {}
+                        vm.asrManager.stopStreaming()
+                        tempFilePath.value?.let { File(it).delete() }
+                        streamingText = ""
+                        capturedPhotos.forEach { photo ->
+                            try { File(photo.filePath).delete() } catch (_: Exception) {}
+                        }
+                        capturedPhotos = emptyList()
+                    },
+                ) { Text(stringResource(R.string.action_stop)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackConfirmDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -944,30 +998,30 @@ fun RecordingTab(
                         Text(
                         text = stringResource(R.string.recording_title),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
+                        style = MaterialTheme.typography.headlineLarge,
+                        modifier = Modifier.padding(start = SpacingTokens.xl, top = SpacingTokens.lg, bottom = SpacingTokens.sm),
                     )
 
                         // 模式标签
                         Row(
-                            modifier = Modifier.padding(horizontal = 20.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.xl),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 imageVector = recordingMode.icon,
-                                contentDescription = null,
+                                contentDescription = null, // 装饰性图标，文本已说明
                                 tint = AccentBlue,
                                 modifier = Modifier.size(18.dp),
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(SpacingTokens.sm))
                             Text(
                                 text = recordingMode.label,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = themeTextGrey(),
                             )
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(SpacingTokens.md))
 
                         // 转写结果
                         AnimatedVisibility(
@@ -1025,11 +1079,11 @@ fun RecordingTab(
                         // 音频回放
                         val audioUri = playbackAudioUri
                         if (audioUri != null) {
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(SpacingTokens.md))
                             AudioPlayer(audioUri = audioUri)
                         }
 
-                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(SpacingTokens.xl))
                     }
                 }
 
@@ -1073,7 +1127,7 @@ fun RecordingTab(
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(SpacingTokens.md))
                             Text("正在转录中，请稍候...")
                         }
                     },
@@ -1127,25 +1181,25 @@ private fun IdleModeSelection(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = SpacingTokens.xl),
     ) {
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Text(
                         text = stringResource(R.string.recording_select_mode),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
+                        style = MaterialTheme.typography.headlineLarge,
                         color = themeTextDark(),
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
                         text = stringResource(R.string.recording_select_mode_desc),
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = themeTextGrey(),
                     )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
 
         // 模式卡片
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
             ModeCard(
                 vm = vm,
                 mode = RecordingMode.RECORDING,
@@ -1171,9 +1225,9 @@ private fun IdleModeSelection(
         ) {
             Text(
                 text = run { val h = vm.getRecordingMaxHours(selectedMode.name); if (h == 0) "最长可录 无限制" else "最长可录 ${h}小时" },
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = SpacingTokens.md),
             )
             Box(
                 modifier = Modifier
@@ -1186,16 +1240,16 @@ private fun IdleModeSelection(
                 Icon(
                         imageVector = Icons.Default.Mic,
                         contentDescription = stringResource(R.string.cd_start_recording),
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(36.dp),
                     )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Text(
                 text = "点击开始录音",
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = themeTextGrey(),
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
 
             // 导入音视频按钮
@@ -1207,11 +1261,11 @@ private fun IdleModeSelection(
                         onSttDisabled()
                     }
                 },
-                modifier = Modifier.padding(bottom = 32.dp),
+                modifier = Modifier.padding(bottom = SpacingTokens.xxl),
             ) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("导入音视频", fontSize = 14.sp)
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text("导入音视频", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
@@ -1230,21 +1284,21 @@ private fun ModeCard(
     Card(
         modifier = modifier
             .aspectRatio(1.25f)
-            .border(2.dp, borderColor, RoundedCornerShape(16.dp))
+            .border(2.dp, borderColor, ShapeTokens.largeShape)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(SpacingTokens.lg),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Icon(
                 imageVector = mode.icon,
-                contentDescription = null,
+                contentDescription = null, // 装饰性图标，文本已说明
                 tint = if (isSelected) CoralRed else themeTextGrey(),
                 modifier = Modifier.size(28.dp),
             )
@@ -1252,13 +1306,13 @@ private fun ModeCard(
                 Text(
                     text = mode.label,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(SpacingTokens.xxs))
                 Text(
                     text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "无限制" else "${h}小时" },
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
             }
@@ -1294,33 +1348,33 @@ private fun RecordingScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = SpacingTokens.lg),
     ) {
         // 顶部模式标签
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp, bottom = 8.dp),
+                .padding(top = SpacingTokens.lg, bottom = SpacingTokens.sm),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = mode.icon,
-                    contentDescription = null,
+                    contentDescription = null, // 装饰性图标，文本已说明
                     tint = CoralRed,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
                     text = mode.label,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                 )
             }
             Text(
                 text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "最长 无限制" else "最长 ${h}小时" },
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
         }
@@ -1330,14 +1384,14 @@ private fun RecordingScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp),
+                    .padding(SpacingTokens.xl),
             ) {
                 if (streamingText.isBlank()) {
                     val hintText = if (mode == RecordingMode.INTERNAL) {
@@ -1347,7 +1401,7 @@ private fun RecordingScreen(
                     }
                     Text(
                         text = hintText,
-                        fontSize = 18.sp,
+                        style = MaterialTheme.typography.titleLarge,
                         color = themeTextGrey().copy(alpha = 0.5f),
                         lineHeight = (18 * 1.8).sp,
                         modifier = Modifier.align(Alignment.Center),
@@ -1360,7 +1414,7 @@ private fun RecordingScreen(
                     ) {
                         Text(
                             text = if (streamingText.length > 5000) streamingText.takeLast(5000) else streamingText,
-                            fontSize = 18.sp,
+                            style = MaterialTheme.typography.titleLarge,
                             color = themeTextDark(),
                             lineHeight = (18 * 1.8).sp,
                             modifier = Modifier.fillMaxWidth(),
@@ -1370,7 +1424,7 @@ private fun RecordingScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
 
         // 计时器 + 波形
         Column(
@@ -1379,15 +1433,15 @@ private fun RecordingScreen(
         ) {
             Text(
                 text = timeText,
-                fontSize = 28.sp,
+                style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = themeTextDark(),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             WaveformBars(amplitude = amplitude, isRecording = state == RecordingState.RECORDING, color = CoralRed)
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
 
         // 控制按钮行：取消 [大圆按钮] 完成
         Row(
@@ -1410,8 +1464,8 @@ private fun RecordingScreen(
                         modifier = Modifier.size(24.dp),
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.action_cancel), fontSize = 12.sp, color = themeTextGrey())
+                Spacer(Modifier.height(SpacingTokens.xs))
+                Text(stringResource(R.string.action_cancel), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
 
             // 大圆录音/暂停按钮
@@ -1429,14 +1483,14 @@ private fun RecordingScreen(
                     Icon(
                         imageVector = Icons.Default.Pause,
                         contentDescription = stringResource(R.string.action_pause),
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(32.dp),
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Mic,
                         contentDescription = stringResource(R.string.action_resume),
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(32.dp),
                     )
                 }
@@ -1457,18 +1511,18 @@ private fun RecordingScreen(
                         modifier = Modifier.size(24.dp),
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.action_done), fontSize = 12.sp, color = themeTextGrey())
+                Spacer(Modifier.height(SpacingTokens.xs))
+                Text(stringResource(R.string.action_done), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
 
         // 底部工具行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = SpacingTokens.lg),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1502,8 +1556,8 @@ private fun ToolIcon(icon: ImageVector, label: String, onClick: (() -> Unit)? = 
             tint = themeTextGrey(),
             modifier = Modifier.size(22.dp),
         )
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 11.sp, color = themeTextGrey())
+        Spacer(Modifier.height(SpacingTokens.xxs))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
     }
 }
 
@@ -1539,7 +1593,7 @@ private fun WaveformBars(
                 modifier = Modifier
                     .width(barWidth)
                     .height(maxHeight * heightFraction)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(ShapeTokens.extraSmallShape)
                     .background(color.copy(alpha = 0.8f)),
             )
         }
@@ -1549,9 +1603,9 @@ private fun WaveformBars(
 @Composable
 private fun SkeletonLoadingScreen() {
     val shimmerColors = listOf(
-        Color.LightGray.copy(alpha = 0.3f),
-        Color.LightGray.copy(alpha = 0.7f),
-        Color.LightGray.copy(alpha = 0.3f),
+        themeTextGrey().copy(alpha = 0.3f),
+        themeTextGrey().copy(alpha = 0.7f),
+        themeTextGrey().copy(alpha = 0.3f),
     )
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
@@ -1576,15 +1630,15 @@ private fun SkeletonLoadingScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(widthFraction)
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(horizontal = SpacingTokens.xl, vertical = SpacingTokens.md)
                     .height(14.dp)
-                    .background(brush, RoundedCornerShape(7.dp)),
+                    .background(brush, ShapeTokens.smallShape),
             )
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(SpacingTokens.xl))
         Text(
             text = "生成笔记中..",
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
         )
     }
@@ -1605,56 +1659,56 @@ private fun TranscriptResultCard(
     onContinueRecording: () -> Unit,
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = SpacingTokens.xl),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = if (autoSaved) Icons.Default.CheckCircle else Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = if (autoSaved) Color(0xFF4CAF50) else AccentBlue,
+                    contentDescription = null, // 装饰性图标，文本已说明
+                    tint = if (autoSaved) SuccessGreen else AccentBlue,
                     modifier = Modifier.size(20.dp),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
                     text = if (autoSaved) stringResource(R.string.recording_auto_saved) else stringResource(R.string.recording_transcript_result),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = if (autoSaved) Color(0xFF4CAF50) else themeTextDark(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (autoSaved) SuccessGreen else themeTextDark(),
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "${result.segments.size} 段",
                     color = themeTextGrey(),
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
 
             // 声纹识别结果
             if (identifiedSpeakerName != null) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(AccentBlue.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                        .background(AccentBlue.copy(alpha = 0.06f), ShapeTokens.smallShape)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
                     Icon(
                         Icons.Default.Person,
-                        contentDescription = null,
+                        contentDescription = null, // 装饰性图标，文本已说明
                         tint = AccentBlue,
                         modifier = Modifier.size(16.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = "说话人: $identifiedSpeakerName",
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = AccentBlue,
                     )
@@ -1662,31 +1716,31 @@ private fun TranscriptResultCard(
             }
 
             if (autoSaved) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = SpacingTokens.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF4CAF50),
+                        contentDescription = null, // 装饰性图标，文本已说明
+                        tint = SuccessGreen,
                         modifier = Modifier.size(14.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = stringResource(R.string.recording_auto_saved_hint),
-                        fontSize = 12.sp,
-                        color = Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SuccessGreen,
                     )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
             HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             // 智能总结 Tab（有总结数据时显示）
             val summary = result.smartSummary
@@ -1700,29 +1754,29 @@ private fun TranscriptResultCard(
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+                        shape = RoundedCornerShape(topStart = ShapeTokens.small, topEnd = ShapeTokens.small),
                         color = if (showSummaryTab) AccentBlue.copy(alpha = 0.1f) else Color.Transparent,
                         onClick = { showSummaryTab = true },
                     ) {
                         Text(
                             "智能总结",
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (showSummaryTab) FontWeight.Bold else FontWeight.Normal,
                             color = if (showSummaryTab) AccentBlue else themeTextGrey(),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                         )
                     }
                     Surface(
-                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+                        shape = RoundedCornerShape(topStart = ShapeTokens.small, topEnd = ShapeTokens.small),
                         color = if (!showSummaryTab) AccentBlue.copy(alpha = 0.1f) else Color.Transparent,
                         onClick = { showSummaryTab = false },
                     ) {
                         Text(
                             "原文",
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (!showSummaryTab) FontWeight.Bold else FontWeight.Normal,
                             color = if (!showSummaryTab) AccentBlue else themeTextGrey(),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                         )
                     }
                 }
@@ -1732,7 +1786,7 @@ private fun TranscriptResultCard(
                 } else {
                     Text(
                         text = result.fullText.ifBlank { "（无识别结果）" },
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = themeTextDark(),
                         lineHeight = 22.sp,
                         modifier = Modifier
@@ -1744,7 +1798,7 @@ private fun TranscriptResultCard(
             } else {
                 Text(
                     text = result.fullText.ifBlank { "（无识别结果）" },
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                     lineHeight = 22.sp,
                     modifier = Modifier
@@ -1755,90 +1809,90 @@ private fun TranscriptResultCard(
             }
 
             if (capturedPhotos.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
                 CapturedPhotosRow(photos = capturedPhotos)
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
             HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 OutlinedButton(
                     onClick = onCopy,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     modifier = Modifier.weight(1f).height(44.dp),
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text("复制", fontWeight = FontWeight.Medium)
                 }
 
                 if (autoSaved) {
                     Button(
                         onClick = onNavigateToNotes,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        shape = ShapeTokens.mediumShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
                         modifier = Modifier.weight(1f).height(44.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
                     }
                 } else {
                     Button(
                         onClick = onSave,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = ShapeTokens.mediumShape,
                         colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                         modifier = Modifier.weight(1f).height(44.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
                     }
                 }
                 Button(
                     onClick = onAiSummary,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                     modifier = Modifier.weight(1f).height(44.dp),
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
                 }
             }
 
             if (autoSaved) {
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Spacer(Modifier.height(SpacingTokens.md))
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     OutlinedButton(
                         onClick = onDiscardAutoSave,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = ShapeTokens.mediumShape,
                         modifier = Modifier.weight(1f).height(44.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE57373)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text(stringResource(R.string.recording_undo_save), fontWeight = FontWeight.Medium)
                     }
                     OutlinedButton(
                         onClick = onContinueRecording,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = ShapeTokens.mediumShape,
                         modifier = Modifier.weight(1f).height(44.dp),
                     ) {
-                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
                     }
                 }
             } else {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
                 OutlinedButton(
                     onClick = onContinueRecording,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
                 }
             }
@@ -1847,7 +1901,7 @@ private fun TranscriptResultCard(
 }
 
 /**
- * 智能总结内容展示 — 对齐得到大脑「智能总结」Tab 的 5 层结构。
+ * 智能总结内容展示 — 对齐opedrgent「智能总结」Tab 的 5 层结构。
  */
 @Composable
 private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) {
@@ -1855,7 +1909,7 @@ private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) 
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
     ) {
         // 1. 录音信息
         SummaryMetaCard(meta = summary.metaInfo)
@@ -1885,23 +1939,23 @@ private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) 
 @Composable
 private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = ShapeTokens.smallShape,
         color = AccentBlue.copy(alpha = 0.06f),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Info, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Default.Info, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(SpacingTokens.sm))
             Text(
                 text = buildString {
                     if (meta.duration.isNotEmpty()) append("时长: ${meta.duration}")
                     if (meta.participantCount > 0) append("  |  ${meta.participantCount}人")
                     if (meta.contentType.isNotEmpty()) append("  |  ${meta.contentType}")
                 },
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = themeTextDark(),
             )
         }
@@ -1910,28 +1964,28 @@ private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo
 
 @Composable
 private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSummary.SummarySection>) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md), modifier = Modifier.fillMaxWidth()) {
         sections.forEach { section ->
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
                 color = themeSurfaceLight(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Text(
                         text = section.title,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = themeTextDark(),
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
                     section.content.forEach { para ->
                         Text(
                             text = para,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = themeTextDark(),
                             lineHeight = 20.sp,
-                            modifier = Modifier.padding(bottom = 4.dp),
+                            modifier = Modifier.padding(bottom = SpacingTokens.xs),
                         )
                     }
                 }
@@ -1942,7 +1996,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
 
 @Composable
 private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.ChapterItem>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.fillMaxWidth()) {
         chapters.forEachIndexed { index, chapter ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 Surface(
@@ -1953,23 +2007,23 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                         .align(Alignment.Top),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text("${index + 1}", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(SpacingTokens.md))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = chapter.title,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = themeTextDark(),
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Surface(shape = RoundedCornerShape(4.dp), color = AccentBlue.copy(alpha = 0.1f)) {
+                        Spacer(Modifier.width(SpacingTokens.sm))
+                        Surface(shape = ShapeTokens.extraSmallShape, color = AccentBlue.copy(alpha = 0.1f)) {
                             Text(
                                 chapter.timestampFormatted,
-                                fontSize = 10.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = AccentBlue,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
@@ -1977,10 +2031,10 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                     }
                     Text(
                         text = chapter.summary,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                         lineHeight = 18.sp,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = SpacingTokens.xxs),
                     )
                 }
             }
@@ -1990,37 +2044,37 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
 
 @Composable
 private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteItem>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.fillMaxWidth()) {
         quotes.forEach { quote ->
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
                 color = themeQuoteBg(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(modifier = Modifier.padding(12.dp)) {
+                Row(modifier = Modifier.padding(SpacingTokens.md)) {
                     Icon(
                         Icons.Default.FormatQuote,
-                        contentDescription = null,
-                        tint = Color(0xFFF57C00),
+                        contentDescription = null, // 装饰性图标，文本已说明
+                        tint = WarningColor,
                         modifier = Modifier.size(18.dp).align(Alignment.Top),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = quote.text,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = themeTextDark(),
                             lineHeight = 19.sp,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFF57C00).copy(alpha = 0.12f)) {
+                        Spacer(Modifier.height(SpacingTokens.xs))
+                        Surface(shape = ShapeTokens.smallShape, color = WarningColor.copy(alpha = 0.12f)) {
                             Text(
                                 quote.category,
-                                fontSize = 10.sp,
-                                color = Color(0xFFF57C00),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = WarningColor,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                             )
                         }
                     }
@@ -2033,20 +2087,20 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
 @Composable
 private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.ActionItem>) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = ShapeTokens.smallShape,
         color = themeActionItemBg(),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.TaskAlt, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("待办事项", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = themeTextDark())
+                Icon(Icons.Default.TaskAlt, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text("待办事项", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = themeTextDark())
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             items.forEach { item ->
                 Row(
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    modifier = Modifier.padding(vertical = SpacingTokens.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(
@@ -2057,16 +2111,16 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.Person,
-                                contentDescription = null,
+                                contentDescription = null, // 装饰性图标，文本已说明
                                 tint = AccentBlue,
                                 modifier = Modifier.size(12.dp),
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = item.assignee, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AccentBlue)
-                    Spacer(Modifier.width(6.dp))
-                    Text(text = item.task, fontSize = 12.sp, color = themeTextDark(), modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(SpacingTokens.sm))
+                    Text(text = item.assignee, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = AccentBlue)
+                    Spacer(Modifier.width(SpacingTokens.sm))
+                    Text(text = item.task, style = MaterialTheme.typography.bodySmall, color = themeTextDark(), modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -2078,13 +2132,13 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
     Column {
         Text(
             text = "拍摄的照片 (${photos.size}张)",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
             modifier = Modifier.fillMaxWidth(),
         ) {
             photos.forEach { photo ->
@@ -2095,16 +2149,16 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
                             contentDescription = "照片",
                             modifier = Modifier
                                 .size(80.dp)
-                                .clip(RoundedCornerShape(8.dp)),
+                                .clip(ShapeTokens.smallShape),
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SpacingTokens.xs))
                     val totalSeconds = photo.recordingTimeMs / 1000
                     val minutes = totalSeconds / 60
                     val seconds = totalSeconds % 60
                     Text(
                         text = "拍摄于 %02d:%02d".format(minutes, seconds),
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = themeTextGrey(),
                     )
                 }

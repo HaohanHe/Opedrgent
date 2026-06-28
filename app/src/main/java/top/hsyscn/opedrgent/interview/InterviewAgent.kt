@@ -6,6 +6,7 @@ import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 面试 Agent — 核心驱动引擎（LLM 自主决策架构）。
@@ -41,7 +42,7 @@ object InterviewAgent {
      *
      * 支持多个面试会话同时运行，每个会话有独立的海马体实例。
      */
-    private val activeHippocampus = mutableMapOf<String, HippocampusMemory>()
+    private val activeHippocampus = ConcurrentHashMap<String, HippocampusMemory>()
 
     /**
      * 创建带海马体保护的面试会话。
@@ -88,7 +89,7 @@ object InterviewAgent {
      * @param config 面试配置（提取类型/岗位/公司等元信息）
      * @return 漂移报告；会话不存在则返回 null
      */
-    fun closeSessionAndPersist(
+    suspend fun closeSessionAndPersist(
         sessionId: String,
         context: android.content.Context,
         config: InterviewConfig,
@@ -185,7 +186,7 @@ object InterviewAgent {
         if (config.position.isNotBlank()) {
             contextParts.add("岗位/主题：${config.position}")
         }
-        contextParts.add("参考难度：${config.difficulty.label} (${config.difficulty.level}/10)")
+        contextParts.add("参考难度：${config.difficulty.label} (${config.customDifficultyLevel ?: config.difficulty.level}/10)")
         contextParts.add("预期问题数：约 ${config.questionCount} 个（可根据实际情况调整）")
         contextParts.add("时间限制：约 ${config.durationMinutes} 分钟")
 
@@ -560,7 +561,7 @@ object InterviewAgent {
         val isLastQuestion = currentQuestionIndex >= config.questionCount - 1
 
         // 1. 海马体准备注意力上下文
-        val lastAiResponse = history.lastOrNull { it.role == "assistant" || it.role == "ai" }?.content ?: currentQuestion.content
+        val lastAiResponse = history.lastOrNull { it.role == "interviewer" }?.content ?: currentQuestion.content
         val attentionContext = hippo.prepareTurnContext(
             turnIndex = currentQuestionIndex,
             userMessage = answer,
@@ -607,11 +608,7 @@ object InterviewAgent {
             messages = messages,
         )
 
-        // 5. 海马体记录本轮结果（用于漂移追踪）
-        val aiContent = extractContentFromJsonResponse(response)
-        hippo.detectDrift(currentQuestionIndex, answer, aiContent)
-
-        // 6. 定期更新关键信息快照
+        // 5. 定期更新关键信息快照
         if (currentQuestionIndex > 0 && currentQuestionIndex % HippocampusMemory.SNAPSHOT_INTERVAL == 0) {
             hippo.updateCriticalSnapshot(currentQuestionIndex, "第${currentQuestionIndex + 1}轮对话完成")
         }

@@ -6,6 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -136,6 +138,8 @@ class VoiceConversationEngine(
      */
     private var ttsJob: Job? = null
 
+    private var engineScope = CoroutineScope(SupervisorJob())
+
     // ==================== 当前轮次状态 ====================
 
     /**
@@ -143,11 +147,6 @@ class VoiceConversationEngine(
      */
     @Volatile
     private var latestUserText: String = ""
-
-    /**
-     * 等待用户输入完成的信号。
-     */
-    private var waitingForUserInput = false
 
     /**
      * 当前对话轮次计数器（用于海马体漂移检测）。
@@ -217,20 +216,25 @@ class VoiceConversationEngine(
             return
         }
 
+        if (!engineScope.isActive) {
+            engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
+
         DebugLog.i(TAG, "开始全双工语音对话 [场景：${scenario.label}]")
 
         // 初始化海马体（如果提供了配置或实例）
         this@VoiceConversationEngine.hippo = hippo
+        val sid = "voice_${System.currentTimeMillis()}"
         if (this@VoiceConversationEngine.hippo == null && interviewConfig != null) {
             DebugLog.i(TAG, "自动创建海马体实例")
             this@VoiceConversationEngine.hippo = InterviewAgent.createSession(
-                sessionId = "voice_${System.currentTimeMillis()}",
+                sessionId = sid,
                 config = interviewConfig,
             )
         }
 
         // 记录会话元信息（用于结束时持久化）
-        currentSessionId = "voice_${System.currentTimeMillis()}"
+        currentSessionId = sid
         currentInterviewConfig = interviewConfig
 
         // 重置轮次计数器
@@ -326,30 +330,32 @@ class VoiceConversationEngine(
             val sid = currentSessionId
             val cfg = currentInterviewConfig
             if (sid != null && cfg != null) {
-                try {
-                    val snapshot = h.exportSessionSnapshot()
-                    if (snapshot != null) {
-                        val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(context)
-                        store.save(
-                            sessionId = sid,
-                            config = cfg,
-                            goalAnchor = snapshot.goalAnchor,
-                            report = snapshot.driftReport,
-                            startedAt = snapshot.startedAt,
-                        )
-                        // 同时写入轻量索引，让会话出现在海马体主界面
-                        val index = top.hsyscn.opedrgent.storage.HippocampusIndex(context)
-                        val title = buildInterviewTitle(cfg)
-                        index.upsertInterview(
-                            sessionId = sid,
-                            title = title,
-                            goalSummary = snapshot.goalAnchor.primaryGoal,
-                            driftSummary = report.summary,
-                        )
-                        DebugLog.i(TAG, "海马体会话已持久化: $sid")
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val snapshot = h.exportSessionSnapshot()
+                        if (snapshot != null) {
+                            val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(context)
+                            store.save(
+                                sessionId = sid,
+                                config = cfg,
+                                goalAnchor = snapshot.goalAnchor,
+                                report = snapshot.driftReport,
+                                startedAt = snapshot.startedAt,
+                            )
+                            // 同时写入轻量索引，让会话出现在海马体主界面
+                            val index = top.hsyscn.opedrgent.storage.HippocampusIndex(context)
+                            val title = buildInterviewTitle(cfg)
+                            index.upsertInterview(
+                                sessionId = sid,
+                                title = title,
+                                goalSummary = snapshot.goalAnchor.primaryGoal,
+                                driftSummary = report.summary,
+                            )
+                            DebugLog.i(TAG, "海马体会话已持久化: $sid")
+                        }
+                    } catch (e: Exception) {
+                        DebugLog.e(TAG, "持久化海马体会话失败: ${e.message}", e)
                     }
-                } catch (e: Exception) {
-                    DebugLog.e(TAG, "持久化海马体会话失败: ${e.message}", e)
                 }
             }
         }
@@ -376,8 +382,9 @@ class VoiceConversationEngine(
         // 断开全双工引擎
         duplexEngine.disconnect()
 
+        engineScope.cancel()
+
         isProcessing.set(false)
-        waitingForUserInput = false
     }
 
     // ==================== 公开 API：兼容旧接口 ====================
@@ -576,7 +583,7 @@ class VoiceConversationEngine(
         onLegacyStateChange(ConversationState.PROCESSING)
 
         // 启动 ASR 识别协程
-        asrProcessingJob = CoroutineScope(Dispatchers.IO).launch {
+        asrProcessingJob = engineScope.launch(Dispatchers.IO) {
             try {
                 // 使用流式 ASR 识别
                 val recognizedText = recognizePcmData(pcmData, onPartialUserText)
@@ -594,7 +601,6 @@ class VoiceConversationEngine(
                 // 通知 UI：用户说的话
                 onUserSpeak(recognizedText)
                 latestUserText = recognizedText
-                waitingForUserInput = false
 
                 // 在 LLM 调用前注入海马体注意力上下文
                 val h = this@VoiceConversationEngine.hippo
@@ -711,7 +717,7 @@ class VoiceConversationEngine(
     ): String {
         var finalResult = ""
 
-        asrJob = CoroutineScope(Dispatchers.IO).launch {
+        asrJob = engineScope.launch(Dispatchers.IO) {
             val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
             flow
                 .catch { e ->
@@ -829,7 +835,7 @@ class VoiceConversationEngine(
 
         DebugLog.i(TAG, "开始旧版 ASR 监听模式")
 
-        asrJob = CoroutineScope(Dispatchers.IO).launch {
+        asrJob = engineScope.launch(Dispatchers.IO) {
             try {
                 val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
                 flow
@@ -919,7 +925,7 @@ class VoiceConversationEngine(
         voiceId: String,
         scenario: TtsScenario,
     ) {
-        ttsJob = CoroutineScope(Dispatchers.Main).launch {
+        ttsJob = engineScope.launch(Dispatchers.Main) {
             try {
                 DebugLog.i(TAG, "AI 说话 [${scenario.label}]: '${text.take(50)}...' (voice=$voiceId)")
 
@@ -937,6 +943,7 @@ class VoiceConversationEngine(
                     pitch = scenario.defaultPitch,
                     mimoVoice = voiceId,
                     forceLocal = true,
+                    style = style,
                 )
 
                 DebugLog.d(TAG, "AI 说话完成")

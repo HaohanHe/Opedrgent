@@ -48,12 +48,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.themeDividerColor
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 
 private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
 
@@ -144,10 +144,12 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
         Text(
             text = show,
             style = MaterialTheme.typography.bodyMedium,
-            color = themeTextDark(),
+            color = MaterialTheme.colorScheme.onSurface,
         )
         return
     }
+
+    val accentColor = MaterialTheme.customColors.accentBlue
 
     val isCodeBlock = { line: String -> line.startsWith("```") }
     val isHeading = { line: String -> line.startsWith("#") }
@@ -156,7 +158,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
     val isTableRow = { line: String -> TABLE_LINE_PATTERN.matches(line.trim()) }
     val isBlockquote = { line: String -> line.trimStart().startsWith("> ") }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = modifier) {
         val lines = parsedContent!!.lines
         var inCodeBlock = false
         var codeBlockLang = ""
@@ -172,7 +174,7 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
             if (isCodeBlock(line)) {
                 if (inCodeBlock) {
                     val code = codeBlockLines.joinToString("\n")
-                    RenderCodeBlock(code, codeBlockLang)
+                    CodeBlock(code = code, language = codeBlockLang)
                     codeBlockLines.clear()
                     codeBlockLang = ""
                     inCodeBlock = false
@@ -196,13 +198,13 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                     tableLines.add(lines[i])
                     i++
                 }
-                MarkdownTable(tableLines)
+                MarkdownTable(tableLines, accentColor)
                 continue
             }
 
             val trimmed = line.trim()
             if (trimmed.isEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 i++
                 continue
             }
@@ -216,19 +218,19 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                         2 -> MaterialTheme.typography.titleMedium
                         else -> MaterialTheme.typography.titleSmall
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(text = headingText, fontWeight = FontWeight.Bold, style = style, color = themeTextDark())
+                    Spacer(modifier = Modifier.height(SpacingTokens.sm))
+                    Text(text = headingText, fontWeight = FontWeight.Bold, style = style, color = MaterialTheme.colorScheme.onSurface)
                 }
                 isOrderedBullet(trimmed) -> {
                     Text(buildAnnotatedString {
-                        appendMarkdownInline(trimmed, themeTextGrey(), MaterialTheme.colorScheme.surfaceContainerHigh)
+                        appendMarkdownInline(trimmed, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize)
                     })
                 }
                 isBullet(trimmed) -> {
                     val bulletText = trimmed.removePrefix("- ").removePrefix("* ").trim()
                     Text(buildAnnotatedString {
                         append("• ")
-                        appendMarkdownInline(bulletText, themeTextGrey(), MaterialTheme.colorScheme.surfaceContainerHigh)
+                        appendMarkdownInline(bulletText, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize)
                     })
                 }
                 isBlockquote(trimmed) -> {
@@ -236,104 +238,70 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Spacer(
                             modifier = Modifier
-                                .width(3.dp)
+                                .width(SpacingTokens.xxs)
                                 .height(20.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(AccentBlue.copy(alpha = 0.4f))
+                                .clip(ShapeTokens.extraSmallShape)
+                                .background(accentColor.copy(alpha = 0.4f))
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.sm))
                         Text(
-                            text = buildAnnotatedString { appendMarkdownInline(quoteText, themeTextGrey(), MaterialTheme.colorScheme.surfaceContainerHigh) },
+                            text = buildAnnotatedString { appendMarkdownInline(quoteText, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize) },
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                            color = themeTextGrey(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
                 trimmed.startsWith("[S") && trimmed.length < 10 -> {
-                    Text(
-                        text = trimmed,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AccentBlue,
-                    )
+                    CitationPill(text = trimmed)
                 }
                 else -> {
-                    Text(buildAnnotatedString { appendMarkdownInline(trimmed, themeTextGrey(), MaterialTheme.colorScheme.surfaceContainerHigh) })
+                    Text(buildAnnotatedString { appendMarkdownInline(trimmed, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize) })
                 }
             }
             i++
         }
         if (inCodeBlock && codeBlockLines.isNotEmpty()) {
             val code = codeBlockLines.joinToString("\n")
-            RenderCodeBlock(code, codeBlockLang)
+            CodeBlock(code = code, language = codeBlockLang)
         }
         if (truncated) {
             Text(
                 text = "... (内容过长，已截断显示)",
                 style = MaterialTheme.typography.bodySmall,
-                color = themeTextGrey(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (t.length > maxChars) {
             TextButton(onClick = { expanded = !expanded }) {
-                Text(if (expanded) "收起" else "展开", color = AccentBlue)
+                Text(if (expanded) "收起" else "展开", color = accentColor)
             }
         }
     }
 }
 
 @Composable
-private fun RenderCodeBlock(code: String, lang: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-        Column {
-            if (lang.isNotEmpty()) {
-                Text(
-                    text = lang,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = themeTextGrey(),
-                    fontFamily = FontFamily.Monospace,
-                )
-            }
-            Text(
-                text = code,
-                modifier = Modifier.padding(8.dp),
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-@Composable
-fun MarkdownTable(tableLines: List<String>) {
+fun MarkdownTable(tableLines: List<String>, accentColor: Color) {
     val cleanLines = tableLines.filter { it.trim().startsWith("|") }.map { it.trim() }
 
     if (cleanLines.isEmpty()) return
 
     if (cleanLines.size == 1) {
         val cells = parseTableRow(cleanLines[0])
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xs)) {
             cells.forEach { cell ->
                 Card(
-                    shape = RoundedCornerShape(4.dp),
-                    colors = CardDefaults.cardColors(containerColor = AccentBlue.copy(alpha = 0.08f))
+                    shape = ShapeTokens.extraSmallShape,
+                    colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.08f))
                 ) {
                     Text(
                         text = cell.trim(),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                         style = MaterialTheme.typography.bodySmall,
-                        color = AccentBlue,
+                        color = accentColor,
                     )
                 }
-                if (cell != cells.last()) Spacer(Modifier.width(6.dp))
+                if (cell != cells.last()) Spacer(Modifier.width(SpacingTokens.xs))
             }
         }
         return
@@ -366,26 +334,31 @@ fun MarkdownTable(tableLines: List<String>) {
     }.map { parseTableRow(it) }
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(11.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xs),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            MarkdownTableRow(headers, aligns, isHeader = true)
+        Column(modifier = Modifier.padding(SpacingTokens.sm)) {
+            MarkdownTableRow(headers, aligns, isHeader = true, accentColor = accentColor)
             if (dataRows.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = themeDividerColor())
+                HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs), color = MaterialTheme.colorScheme.outlineVariant)
             }
             dataRows.forEach { cells ->
-                MarkdownTableRow(cells, aligns, isHeader = false)
+                MarkdownTableRow(cells, aligns, isHeader = false, accentColor = accentColor)
             }
         }
     }
 }
 
 @Composable
-private fun MarkdownTableRow(cells: List<String>, aligns: List<String>, isHeader: Boolean) {
+private fun MarkdownTableRow(
+    cells: List<String>,
+    aligns: List<String>,
+    isHeader: Boolean,
+    accentColor: Color,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 24.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = SpacingTokens.xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         cells.forEachIndexed { idx, cell ->
@@ -397,16 +370,16 @@ private fun MarkdownTableRow(cells: List<String>, aligns: List<String>, isHeader
             }
             Text(
                 text = cell.trim(),
-                modifier = Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 3.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                 style = if (isHeader) MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 else MaterialTheme.typography.bodySmall,
                 textAlign = textAlign,
-                color = if (isHeader) AccentBlue else themeTextDark(),
+                color = if (isHeader) accentColor else MaterialTheme.colorScheme.onSurface,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
             if (idx < cells.lastIndex) {
-                Spacer(modifier = Modifier.width(1.dp).height(16.dp).background(themeDividerColor()))
+                Spacer(modifier = Modifier.width(1.dp).height(SpacingTokens.lg).background(MaterialTheme.colorScheme.outlineVariant))
             }
         }
     }
@@ -429,8 +402,10 @@ private fun parseAlignments(sepLine: String): List<String> {
 
 fun AnnotatedString.Builder.appendMarkdownInline(
     text: String,
-    strikeColor: Color = Color(0xFF999999),
-    inlineCodeBackground: Color = Color(0xFF2A2D33),
+    strikeColor: Color,
+    inlineCodeBackground: Color,
+    accentColor: Color,
+    inlineCodeFontSize: TextUnit,
 ) {
     val boldPattern = MD_BOLD_PATTERN
     val italicPattern = MD_ITALIC_PATTERN
@@ -477,7 +452,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(
                 remaining = remaining.substring(first.range.last + 1)
             }
             firstStrike -> {
-                withStyle(SpanStyle(fontSize = 12.sp, color = strikeColor)) {
+                withStyle(SpanStyle(fontSize = inlineCodeFontSize, color = strikeColor)) {
                     append(first.groupValues[1])
                 }
                 remaining = remaining.substring(first.range.last + 1)
@@ -485,8 +460,8 @@ fun AnnotatedString.Builder.appendMarkdownInline(
             firstCode -> {
                 withStyle(SpanStyle(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = AccentBlue,
+                    fontSize = inlineCodeFontSize,
+                    color = accentColor,
                     background = inlineCodeBackground,
                 )) {
                     append(first.groupValues[1])
@@ -495,7 +470,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(
             }
             firstLink -> {
                 withStyle(SpanStyle(
-                    color = AccentBlue,
+                    color = accentColor,
                     fontWeight = FontWeight.Medium,
                 )) {
                     append(first.groupValues[1])
@@ -503,7 +478,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(
                 remaining = remaining.substring(first.range.last + 1)
             }
             firstCitation -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = AccentBlue)) {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = accentColor)) {
                     append(first.value)
                 }
                 remaining = remaining.substring(first.range.last + 1)
@@ -512,7 +487,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(
                 append(first.groupValues[1])
                 append(". ")
                 withStyle(SpanStyle()) {
-                    appendMarkdownInline(first.groupValues[2], strikeColor, inlineCodeBackground)
+                    appendMarkdownInline(first.groupValues[2], strikeColor, inlineCodeBackground, accentColor, inlineCodeFontSize)
                 }
                 remaining = remaining.substring(first.range.last + 1)
             }

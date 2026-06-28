@@ -143,6 +143,16 @@ class NoteDao(private val db: NoteDatabase) {
         count
     }
 
+    /** 指定时间后创建的笔记数（含等于） */
+    suspend fun countCreatedAfter(timestamp: Long): Long = withContext(Dispatchers.IO) {
+        var count = 0L
+        db.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM ${NoteDatabase.TABLE_NOTES} WHERE ${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_CREATED_AT} >= ?",
+            arrayOf(timestamp.toString())
+        ).use { if (it.moveToFirst()) count = it.getLong(0) }
+        count
+    }
+
     /** 插入或更新 */
     suspend fun insertOrUpdate(note: Note): Long = withContext(Dispatchers.IO) {
         val values = noteToContentValues(note)
