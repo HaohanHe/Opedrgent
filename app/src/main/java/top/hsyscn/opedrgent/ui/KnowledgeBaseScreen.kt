@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,10 +62,12 @@ import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -76,7 +80,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,7 +91,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -112,7 +120,10 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeBorderLight
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.*
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
+
+private val doubaoRadius = 16.dp
 
 // ============================================================
 // 排序方式
@@ -232,7 +243,7 @@ fun KnowledgeBaseScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = if (selectedKbId != null) {
@@ -240,7 +251,9 @@ fun KnowledgeBaseScreen(
                         } else {
                             stringResource(R.string.kb_title)
                         },
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        color = themeForeground(),
                     )
                 },
                 navigationIcon = {
@@ -252,26 +265,18 @@ fun KnowledgeBaseScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = themeForeground())
                     }
                 },
                 actions = {
                     if (selectedKbId == null && knowledgeBases.isNotEmpty()) {
-                        val (totalDocs, totalSize) = knowledgeBase.getGlobalStats()
-                        Text(
-                            text = "$totalDocs 篇 · ${formatFileSize(totalSize)}",
-                            color = themeTextGrey(),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(end = SpacingTokens.sm),
-                        )
-                        // 增量同步按钮: 扫描源文件变更 + 云端向量存储同步
+                        // 增量同步按钮
                         IconButton(
                             onClick = {
                                 if (isSyncing) return@IconButton
                                 isSyncing = true
                                 scope.launch {
                                     vm.syncKnowledgeBase()
-                                    // 同步完成后刷新列表
                                     knowledgeBases = withContext(Dispatchers.IO) {
                                         knowledgeBase.getAllKnowledgeBases()
                                     }
@@ -280,21 +285,32 @@ fun KnowledgeBaseScreen(
                                 }
                             },
                             enabled = !isSyncing,
+                            modifier = Modifier.size(32.dp),
                         ) {
                             if (isSyncing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
-                                    color = themeTextGrey(),
+                                    color = themePrimary(),
                                 )
                             } else {
-                                Icon(Icons.Default.Sync, contentDescription = "增量同步", tint = themeTextGrey())
+                                Icon(Icons.Default.Sync, contentDescription = "同步", tint = themeForegroundMuted(), modifier = Modifier.size(20.dp))
                             }
                         }
+                        Spacer(Modifier.width(SpacingTokens.sm))
+                        // 新建知识库按钮（圆形主色）
+                        FilledIconButton(
+                            onClick = { showCreateKbDialog = true },
+                            modifier = Modifier.size(32.dp),
+                            shape = CircleShape,
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "新建知识库", modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(SpacingTokens.sm))
                     }
                     if (selectedKbId != null) {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "排序", tint = themeTextGrey())
+                            Icon(Icons.Default.Sort, contentDescription = "排序", tint = themeForegroundMuted())
                         }
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             SortBy.entries.forEach { sort ->
@@ -306,10 +322,14 @@ fun KnowledgeBaseScreen(
                         }
                     }
                 },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = themeBackgroundSecondary(),
+                    scrolledContainerColor = themeBackgroundSecondary(),
+                ),
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) },
-        containerColor = themeBgGray(),
+        containerColor = themeBackgroundSecondary(),
         floatingActionButton = {
             if (selectedKbId != null) {
                 FloatingActionButton(
@@ -322,7 +342,8 @@ fun KnowledgeBaseScreen(
                             "image/*",
                         ))
                     },
-                    containerColor = AccentBlue,
+                    containerColor = themePrimary(),
+                    shape = CircleShape,
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "添加文件", tint = MaterialTheme.colorScheme.onPrimary)
                 }
@@ -355,6 +376,15 @@ fun KnowledgeBaseScreen(
                 filterType = filterType,
                 onFilterChange = { filterType = it },
                 isLoading = isLoading,
+                onImport = {
+                    filePicker.launch(arrayOf(
+                        "application/pdf",
+                        "text/plain",
+                        "text/markdown",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "image/*",
+                    ))
+                },
                 onDelete = { docId ->
                     scope.launch {
                         knowledgeBase.deleteDocument(docId)
@@ -377,7 +407,7 @@ fun KnowledgeBaseScreen(
         var newName by remember { mutableStateOf("") }
         var newDesc by remember { mutableStateOf("") }
         var newVisibility by remember { mutableStateOf(Visibility.PRIVATE) }
-        val colors = listOf("#4A90D9", "#43A047", "#E53935", "#FB8C00", "#8E24AA", "#00ACC1")
+        val colors = listOf("#0065FD", "#22C55E", "#EF4444", "#F59E0B", "#8E24AA", "#00ACC1")
         var selectedColor by remember { mutableStateOf(colors.random()) }
 
         AlertDialog(
@@ -423,16 +453,16 @@ fun KnowledgeBaseScreen(
                             )
                         }
                     }
-                    Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                    Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = themeForegroundMuted())
                     Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         colors.forEach { color ->
                             Surface(
-                                shape = ShapeTokens.smallShape,
+                                shape = CircleShape,
                                 color = Color(android.graphics.Color.parseColor(color)),
                                 modifier = Modifier
                                     .size(32.dp)
                                     .then(if (selectedColor == color) Modifier.padding(SpacingTokens.xxs) else Modifier)
-                                    .clip(ShapeTokens.smallShape)
+                                    .clip(CircleShape)
                                     .clickable { selectedColor = color },
                             ) {}
                         }
@@ -557,26 +587,32 @@ private fun KbGridView(
     onCreateKb: () -> Unit,
     onKbLongClick: (KnowledgeBaseInfo) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(SpacingTokens.lg)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("搜索知识库...", color = themeTextGrey()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
+            placeholder = { Text("搜索知识库...", color = themeForegroundMuted()) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
-            shape = ShapeTokens.mediumShape,
+            shape = RoundedCornerShape(percent = 50),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = themeBackgroundMuted(),
+                unfocusedContainerColor = themeBackgroundMuted(),
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+            ),
         )
 
-        Spacer(Modifier.height(SpacingTokens.lg))
+        Spacer(Modifier.height(12.dp))
 
         val filteredKbs = if (searchQuery.isBlank()) {
             knowledgeBases
@@ -587,13 +623,22 @@ private fun KbGridView(
             }
         }
 
+        // 统计信息
+        val totalDocs = filteredKbs.sumOf { it.documentCount }
+        Text(
+            text = "共 ${filteredKbs.size} 个知识库，$totalDocs 篇文档",
+            fontSize = 13.sp,
+            color = themeForegroundMuted(),
+            modifier = Modifier.padding(bottom = 16.dp),
+        )
+
         if (filteredKbs.isEmpty() && !searchQuery.isNotBlank()) {
             EmptyStateView(
                 icon = {
                     Icon(
                         Icons.Default.FolderSpecial,
                         contentDescription = null,
-                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        tint = themeForegroundMuted().copy(alpha = 0.4f),
                         modifier = Modifier.size(64.dp),
                     )
                 },
@@ -609,7 +654,7 @@ private fun KbGridView(
                     Icon(
                         Icons.Default.Search,
                         contentDescription = null,
-                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        tint = themeForegroundMuted().copy(alpha = 0.4f),
                         modifier = Modifier.size(64.dp),
                     )
                 },
@@ -619,8 +664,8 @@ private fun KbGridView(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
-                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(filteredKbs, key = { it.id }) { kb ->
@@ -632,26 +677,7 @@ private fun KbGridView(
                 }
                 // 新建按钮卡片
                 item {
-                    Card(
-                        shape = ShapeTokens.largeShape,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, themeBorderLight().copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .height(140.dp)
-                            .clickable(onClick = onCreateKb),
-                    ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Surface(shape = CircleShape, color = themeBgGray(), modifier = Modifier.size(44.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Add, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(24.dp))
-                                    }
-                                }
-                                Spacer(Modifier.height(SpacingTokens.sm))
-                                Text(stringResource(R.string.kb_new), color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
+                    NewKbCard(onClick = onCreateKb)
                 }
             }
         }
@@ -669,7 +695,7 @@ private fun KbCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val coverColor = try { Color(android.graphics.Color.parseColor(info.coverColor)) } catch (_: Exception) { AccentBlue }
+    val coverColor = try { Color(android.graphics.Color.parseColor(info.coverColor)) } catch (_: Exception) { themePrimary() }
 
     val visibilityIcon: ImageVector = when (info.visibility) {
         Visibility.PRIVATE -> Icons.Default.Lock
@@ -678,54 +704,129 @@ private fun KbCard(
     }
 
     Card(
-        shape = ShapeTokens.largeShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(doubaoRadius),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
-            .height(140.dp)
+            .height(132.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
     ) {
-        Column(Modifier.fillMaxSize().padding(SpacingTokens.md)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // 彩色竖条 + 圆角色块
-                Surface(
-                    shape = ShapeTokens.smallShape,
-                    color = coverColor.copy(alpha = 0.15f),
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Article, contentDescription = "图标", tint = coverColor, modifier = Modifier.size(20.dp))
+        Row(Modifier.fillMaxSize()) {
+            // 左侧 4dp 色条
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(coverColor),
+            )
+            Box(Modifier.weight(1f)) {
+                Column(Modifier.fillMaxSize().padding(12.dp)) {
+                    // 彩色圆角图标背景
+                    Surface(
+                        shape = CircleShape,
+                        color = coverColor.copy(alpha = 0.12f),
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Article, contentDescription = "图标", tint = coverColor, modifier = Modifier.size(16.dp))
+                        }
                     }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        info.name,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = themeForeground(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${info.documentCount} 篇文档" + if (info.totalSizeBytes > 0) " · ${formatFileSize(info.totalSizeBytes)}" else "",
+                        fontSize = 12.sp,
+                        color = themeForegroundMuted(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
-                Spacer(Modifier.width(SpacingTokens.md))
-                Column(Modifier.weight(1f)) {
-                    Text(info.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge, color = themeTextDark(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(visibilityIcon, contentDescription = info.visibility.label, tint = themeTextGrey().copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(SpacingTokens.xxs))
-                        Text(info.visibility.label, color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+                // 可见性图标右上角
+                Icon(
+                    visibilityIcon,
+                    contentDescription = info.visibility.label,
+                    tint = themeForegroundMuted(),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(14.dp),
+                )
             }
+        }
+    }
+}
 
-            Spacer(Modifier.weight(1f))
+// ============================================================
+// 新建知识库卡片（虚线边框）
+// ============================================================
 
-            Column {
-                if (info.description.isNotBlank()) {
-                    Text(info.description, color = themeTextGrey(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(SpacingTokens.xs))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${info.documentCount} 篇", color = themeTextGrey(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-                    if (info.totalSizeBytes > 0) {
-                        Text(" · ", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
-                        Text(formatFileSize(info.totalSizeBytes), color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+@Composable
+private fun NewKbCard(
+    onClick: () -> Unit,
+) {
+    val borderColor = themeBorder()
+    val mutedColor = themeForegroundMuted()
+    Box(
+        modifier = Modifier
+            .height(132.dp)
+            .clip(RoundedCornerShape(doubaoRadius))
+            .background(themeCardWhite())
+            .drawBehind {
+                drawRoundRect(
+                    color = borderColor,
+                    style = Stroke(
+                        width = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
+                    ),
+                    cornerRadius = CornerRadius(doubaoRadius.toPx()),
+                )
             }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier.size(40.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                // 虚线圆环
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBehind {
+                            drawCircle(
+                                color = mutedColor,
+                                style = Stroke(
+                                    width = 1.5.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 3f), 0f),
+                                ),
+                            )
+                        },
+                )
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "新建",
+                    tint = themeForegroundMuted(),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "新建知识库",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = themeForegroundMuted(),
+            )
         }
     }
 }
@@ -745,26 +846,33 @@ private fun DocumentListView(
     filterType: String?,
     onFilterChange: (String?) -> Unit,
     isLoading: Boolean,
+    onImport: () -> Unit,
     onDelete: (String) -> Unit,
     onDocClick: (KbDocument) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(SpacingTokens.lg)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeTextGrey()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeTextGrey(), modifier = Modifier.size(20.dp)) },
+            placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeForegroundMuted()) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
-            shape = ShapeTokens.mediumShape,
+            shape = RoundedCornerShape(percent = 50),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = themeBackgroundMuted(),
+                unfocusedContainerColor = themeBackgroundMuted(),
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+            ),
         )
 
         Spacer(Modifier.height(SpacingTokens.md))
@@ -784,7 +892,7 @@ private fun DocumentListView(
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("${documents.size}/${allCount}", color = themeTextGrey().copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+            Text("${documents.size}/$allCount", color = themeForegroundMuted().copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
         }
 
         Spacer(Modifier.height(SpacingTokens.md))
@@ -792,9 +900,9 @@ private fun DocumentListView(
         // Loading
         AnimatedVisibility(visible = isLoading) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.sm)) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = themePrimary())
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("正在导入...", color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium)
+                Text("正在导入...", color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
@@ -805,16 +913,18 @@ private fun DocumentListView(
                     Icon(
                         Icons.Default.Article,
                         contentDescription = null,
-                        tint = themeTextGrey().copy(alpha = 0.4f),
+                        tint = themeForegroundMuted().copy(alpha = 0.4f),
                         modifier = Modifier.size(64.dp),
                     )
                 },
                 title = stringResource(R.string.kb_no_documents),
                 subtitle = if (allCount == 0) stringResource(R.string.kb_add_file_hint) else "",
+                actionLabel = if (allCount == 0) "添加文件" else null,
+                onAction = if (allCount == 0) onImport else null,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(documents, key = { it.id }) { doc ->
                     Column(modifier = Modifier.animateItem()) {
                         DocumentCard(document = doc, onClick = { onDocClick(doc) }, onDelete = { onDelete(doc.id) })
@@ -845,27 +955,27 @@ private fun DocumentCard(
     val iconTint = when (document.fileType) {
         "pdf" -> DangerRed
         "jpg", "jpeg", "png", "bmp", "webp" -> SuccessGreen
-        "docx", "doc" -> AccentBlue
-        else -> AccentBlue
+        "docx", "doc" -> themePrimary()
+        else -> themePrimary()
     }
 
     val dateStr = remember(document.addedAtMs) {
-        SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(document.addedAtMs))
+        SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(document.addedAtMs))
     }
 
     Card(
-        shape = ShapeTokens.mediumShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(doubaoRadius),
+        colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.padding(SpacingTokens.md).fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = ShapeTokens.smallShape,
+                shape = RoundedCornerShape(10.dp),
                 color = iconTint.copy(alpha = 0.1f),
                 modifier = Modifier.size(44.dp),
             ) {
@@ -874,50 +984,37 @@ private fun DocumentCard(
                 }
             }
 
-            Spacer(Modifier.width(SpacingTokens.md))
+            Spacer(Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     document.title,
                     fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = themeTextDark(),
+                    fontSize = 15.sp,
+                    color = themeForeground(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
 
                 Text(
-                    "${document.fileType.uppercase()} · ${formatFileSize(document.fileSizeBytes)} · $dateStr",
-                    color = themeTextGrey(),
-                    style = MaterialTheme.typography.labelSmall,
+                    "${document.fileType.uppercase()} · ${formatFileSize(document.fileSizeBytes)}",
+                    color = themeForegroundMuted(),
+                    fontSize = 13.sp,
                     maxLines = 1,
                 )
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${document.contentLength} 字", color = themeTextGrey().copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
-
-                    // 标签显示
-                    if (document.tags.isNotEmpty()) {
-                        Spacer(Modifier.width(SpacingTokens.sm))
-                        document.tags.take(3).forEach { tag ->
-                            Surface(
-                                shape = ShapeTokens.extraSmallShape,
-                                color = AccentBlue.copy(alpha = 0.08f),
-                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
-                            ) {
-                                Text(tag, color = AccentBlue, style = MaterialTheme.typography.labelSmall)
-                            }
-                            Spacer(Modifier.width(SpacingTokens.xxs))
-                        }
-                        if (document.tags.size > 3) {
-                            Text("+${document.tags.size - 3}", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
+                Text(
+                    "来源: ${document.fileName} · $dateStr",
+                    color = themeForegroundMuted().copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
 
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, contentDescription = "删除", tint = themeTextGrey(), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, contentDescription = "删除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
             }
         }
     }

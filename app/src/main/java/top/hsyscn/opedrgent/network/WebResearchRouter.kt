@@ -31,6 +31,7 @@ data class WebResearchOutcome(
 class WebResearchRouter(
     private val searcher: WebSearcher,
     private val fetcher: SourceFetcher,
+    private val ranker: SearchResultRanker = SearchResultRanker(),
 ) {
     suspend fun run(req: WebResearchRequest): WebResearchOutcome {
         val query = req.query.trim()
@@ -87,7 +88,10 @@ class WebResearchRouter(
     private suspend fun runProvider(req: WebResearchRequest): WebResearchOutcome {
         val maxResults = req.maxResults.coerceIn(1, 10)
         val maxFetch = req.maxFetch.coerceIn(1, 5)
-        val results = searcher.search(req.query, limit = maxResults)
+        val searchResults = searcher.search(req.query, limit = maxResults)
+        ranker.initialize(req.query)
+        val rankedResults = ranker.rank(searchResults, limit = maxResults)
+        val results = rankedResults
             .map { WebResearchHit(title = it.title, url = it.url, snippet = it.snippet) }
 
         val filtered = results.filter { hit ->

@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.SourceFetcher
@@ -20,6 +22,26 @@ class ReadUrlTool(
 
     private suspend fun getWebViewAgent(): WebViewAgent {
         return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
+    }
+
+    private fun buildPartialTimeoutResult(
+        tp: ToolPart,
+        url: String,
+        maxChars: Int,
+        reason: String,
+    ): ToolResult {
+        val output = buildString {
+            appendLine("[PARTIAL_TIMEOUT: read_url 超过 15 秒，仅获取到部分内容]")
+            appendLine("页面标题：无标题")
+            appendLine("URL：$url")
+            appendLine("已获取内容：")
+            appendLine("(未获取到片段)")
+        }
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+            status = ToolStateType.PARTIAL_TIMEOUT,
+            output = output.take(maxChars),
+            error = reason,
+            endTime = System.currentTimeMillis())))
     }
 
     @Tool("read_url")
@@ -42,7 +64,17 @@ class ReadUrlTool(
             top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
         )
 
-        val fetched = try { fetcher.fetchUrl(url) } catch (e: Exception) { null }
+        var sourceError: String? = null
+        val fetched = try {
+            withTimeout(15_000) { fetcher.fetchUrl(url) }
+        } catch (e: TimeoutCancellationException) {
+            DebugLog.w("read_url: SourceFetcher timeout for $url")
+            return buildPartialTimeoutResult(tp, url, maxChars, "SourceFetcher 超过 15 秒")
+        } catch (e: Exception) {
+            DebugLog.w("read_url: SourceFetcher failed: ${e.message}")
+            sourceError = e.message
+            null
+        }
         if (fetched != null) {
             val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = url)
             val title = fetched.title?.takeIf { it.isNotBlank() } ?: "无标题"
@@ -56,7 +88,15 @@ class ReadUrlTool(
         }
 
         DebugLog.w("read_url: SourceFetcher failed, trying WebView fallback")
-        val wvFetched = runCatching { getWebViewAgent().fetchUrl(url) }.getOrNull()
+        val wvFetched = try {
+            withTimeout(15_000) { getWebViewAgent().fetchUrl(url) }
+        } catch (e: TimeoutCancellationException) {
+            DebugLog.w("read_url: WebView timeout for $url")
+            return buildPartialTimeoutResult(tp, url, maxChars, "WebView 超过 15 秒")
+        } catch (e: Exception) {
+            DebugLog.w("read_url: WebView failed: ${e.message}")
+            null
+        }
         if (wvFetched != null) {
             val sanitized = PromptSafety.sanitizeForPrompt(wvFetched.text, sourceLabel = url)
             val output = buildString {
@@ -70,9 +110,10 @@ class ReadUrlTool(
         }
 
         // ★ BUG-03 修复：失败时使用 ERROR 状态，让 Guardrail 能检测到
+        val reason = sourceError ?: "SourceFetcher 和 WebView 均失败"
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(
             status = ToolStateType.ERROR,
-            error = "读取失败：$url（SourceFetcher 和 WebView 均失败，请尝试其他来源或搜索关键词）",
+            error = "读取失败：$url（$reason，请尝试其他来源或搜索关键词）",
             endTime = System.currentTimeMillis())))
     }
 

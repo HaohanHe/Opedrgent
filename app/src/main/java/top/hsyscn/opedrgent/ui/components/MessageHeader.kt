@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,7 +64,7 @@ fun MessageHeader(
                 Text(
                     text = timestamp,
                     style = MaterialTheme.typography.labelSmall,
-                    color = themeTextGrey(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

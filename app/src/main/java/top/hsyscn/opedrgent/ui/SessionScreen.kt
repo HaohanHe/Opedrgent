@@ -60,6 +60,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -85,6 +86,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +103,7 @@ import top.hsyscn.opedrgent.automation.AutomationKind
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.Role
@@ -131,6 +134,7 @@ import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -153,6 +157,9 @@ fun SessionScreen(
     var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
+    var scrollAnchor by remember(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
+    var lastBottomMessageId by remember(state.current?.id) { mutableStateOf<String?>(null) }
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -289,17 +296,61 @@ fun SessionScreen(
                 Text("选择一个会话开始对话", color = themeTextGrey())
             }
         } else {
-            val msgCount = session.messages.size + if (state.isStreaming) 1 else 0
-            LaunchedEffect(msgCount, state.streamingText.length) {
-                if (msgCount > 0) {
-                    kotlinx.coroutines.delay(100)
-                    listState.animateScrollToItem(msgCount - 1)
-                }
-            }
-
             // 发芽结果视图 - 自然显示在聊天中
             val sproutResult by vm.sproutResult.collectAsStateCompat()
             val sproutingState by vm.sproutingState.collectAsStateCompat()
+
+            val totalListItems = 1 + session.messages.size +
+                (if (state.isStreaming && state.streamingSessionId == session.id) 1 else 0) +
+                (if (state.activeQuestion != null) 1 else 0) +
+                (if (sproutResult != null || sproutingState != SproutingState.IDLE) 1 else 0)
+
+            LaunchedEffect(totalListItems, state.streamingText.length) {
+                val currentLastMessageId = session.messages.lastOrNull()?.id
+                val shouldScroll = (state.isStreaming && state.streamingSessionId == session.id) ||
+                    currentLastMessageId != lastBottomMessageId
+                if (shouldScroll && totalListItems > 0) {
+                    lastBottomMessageId = currentLastMessageId
+                    kotlinx.coroutines.delay(100)
+                    listState.animateScrollToItem(totalListItems - 1)
+                }
+            }
+
+            // 到达顶部自动加载更早消息
+            LaunchedEffect(session.id, listState) {
+                snapshotFlow { listState.firstVisibleItemIndex }
+                    .distinctUntilChanged()
+                    .collect { index ->
+                        if (index == 0) {
+                            if (!reachedTop && vm.state.value.hasMoreOlderRounds && !vm.state.value.isLoadingOlderRounds) {
+                                reachedTop = true
+                                vm.loadMoreRounds(session.id)
+                            }
+                        } else {
+                            reachedTop = false
+                        }
+                    }
+            }
+
+            // 加载旧消息后恢复滚动锚点，避免列表跳动
+            LaunchedEffect(state.isLoadingOlderRounds, session.id) {
+                if (state.isLoadingOlderRounds) {
+                    val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                    if (first != null && first.key != "_loading_header") {
+                        scrollAnchor = (first.key as String) to listState.firstVisibleItemScrollOffset
+                    }
+                } else {
+                    val anchor = scrollAnchor
+                    val messages = session.messages
+                    if (anchor != null) {
+                        val newIndex = 1 + messages.indexOfFirst { it.id == anchor.first }
+                        if (newIndex > 0) {
+                            listState.scrollToItem(newIndex, anchor.second)
+                        }
+                    }
+                    scrollAnchor = null
+                }
+            }
 
             // Messages
             LazyColumn(
@@ -310,6 +361,30 @@ fun SessionScreen(
                     .padding(horizontal = SpacingTokens.md),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
+                item(key = "_loading_header") {
+                    if (state.isLoadingOlderRounds || !state.hasMoreOlderRounds) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = SpacingTokens.md),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (state.isLoadingOlderRounds) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(SizeTokens.iconMd),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else if (!state.hasMoreOlderRounds) {
+                                Text(
+                                    text = stringResource(R.string.chat_history_all_loaded),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = themeTextGrey(),
+                                )
+                            }
+                        }
+                    }
+                }
+
                 items(session.messages, key = { it.id }) { msg ->
                     Column(modifier = Modifier.animateItem()) {
                         when (msg.role) {

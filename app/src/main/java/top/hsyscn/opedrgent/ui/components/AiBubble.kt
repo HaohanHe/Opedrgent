@@ -37,7 +37,6 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
-import top.hsyscn.opedrgent.ui.theme.themeCardWhite
 
 /**
  * AI 消息气泡（左对齐）。
@@ -79,9 +78,9 @@ fun AIMessageCard(
                         onClick = {},
                         onLongClick = { showMenu = true },
                     ),
-                shape = ShapeTokens.mediumShape,
-                colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = ShapeTokens.largeShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
                 Column(
                     modifier = Modifier.padding(SpacingTokens.md),
@@ -117,7 +116,10 @@ fun AIMessageCard(
 
                     if (message.textContent.isNotBlank()) {
                         // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
-                        MarkdownText(text = message.textContent, maxChars = Int.MAX_VALUE)
+                        // 使用 foreground-secondary 作为消息正文色
+                        MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(onSurface = MaterialTheme.colorScheme.secondary)) {
+                            MarkdownText(text = message.textContent, maxChars = Int.MAX_VALUE)
+                        }
                     }
 
                     val sources = extractSources(message.textContent)
