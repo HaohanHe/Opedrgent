@@ -85,6 +85,7 @@ import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptCache
+import top.hsyscn.opedrgent.utils.ModelLimits
 import top.hsyscn.opedrgent.intelligence.TokenBudgetMonitor
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
@@ -2471,7 +2472,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         retryCount = 0
         lastError = null
 
-        val state = ResearchState(maxRounds = 10)
+        val maxRounds = ModelLimits.maxAgentRounds(ctx.maxContextTokens)
+        val state = ResearchState(maxRounds = maxRounds)
         val budgetTracker = TokenBudgetMonitor.createTracker()
         // ★ BUG-01 修复：Guardrail 在 runLoop 级别创建，跨轮累积历史
         val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
@@ -2612,6 +2614,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             DebugLog.d("executeOneRound: auto-continue injected after compaction")
         }
 
+        // 软提醒：接近最大轮次时提示模型收尾，避免硬截断后无正文
+        val remainingRounds = state.maxRounds - state.roundsUsed
+        if (remainingRounds in 1..6) {
+            val nudge = when {
+                remainingRounds <= 2 -> "[system nudge] 你已达到思考轮次上限，请立即基于已收集的信息给出完整、最终的中文回答，不要再调用任何工具。"
+                remainingRounds <= 4 -> "[system nudge] 你接近最大思考轮次，请尽快整合已有信息并给出最终回答，避免继续调用工具。"
+                else -> "[system nudge] 思考轮次已过半，如果已有足够信息，请直接给出最终回答。"
+            }
+            messages = messages + ChatMessage(
+                role = Role.SYSTEM,
+                content = nudge,
+                parts = listOf(MessagePart.Text(content = nudge)),
+            )
+            DebugLog.d("executeOneRound: round-limit nudge injected, remaining=$remainingRounds")
+        }
+
         DebugLog.d("executeOneRound: round ${state.roundsUsed}, messages=${messages.size}, tokens=${compressed.tokenCount}")
 
         state.advanceTo(ResearchPhase(
@@ -2646,14 +2664,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // 若已接近最大轮次，强制最终回答：不传入任何工具，避免模型继续调用工具导致硬截断
+        val forceFinalAnswer = (state.maxRounds - state.roundsUsed) <= 2
+        val effectiveTools = if (forceFinalAnswer) {
+            DebugLog.w("executeOneRound: forcing final answer for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds}")
+            emptyList()
+        } else agentTools
+
         val result = if (allImages.isNotEmpty()) {
             _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
             withContext(Dispatchers.IO) {
-                streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
             }
         } else {
             withContext(Dispatchers.IO) {
-                streamLlm(ctx.config, compressedSystem, messages, tools = agentTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, priorText = ctx.accumulatedText, priorReasoning = ctx.accumulatedReasoning)
+                streamLlm(ctx.config, compressedSystem, messages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, priorText = ctx.accumulatedText, priorReasoning = ctx.accumulatedReasoning)
             }
         }
 
