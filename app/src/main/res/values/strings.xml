@@ -272,6 +272,9 @@
     <string name="language_japanese">日本語</string>
     <string name="settings_chinese">中文</string>
     <string name="settings_english">英文</string>
+    <string name="settings_voice_memo">语音备忘</string>
+    <string name="settings_meeting">会议</string>
+    <string name="settings_classroom">课堂录音</string>
     <string name="about_version">版本 %1$s</string>
     <string name="about_visit_website">访问 hsyscn.top</string>
     <string name="about_visit_project">访问项目首页</string>
