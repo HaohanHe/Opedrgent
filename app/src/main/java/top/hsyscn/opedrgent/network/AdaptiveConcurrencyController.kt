@@ -42,8 +42,6 @@ data class SuspendedRequest(
 class AdaptiveConcurrencyController(
     private val config: ConcurrencyConfig = ConcurrencyConfig()
 ) {
-    private val globalSemaphore = Semaphore(config.globalMaxConcurrent)
-    private val globalPermits = AtomicLong(config.globalMaxConcurrent.toLong())
     private val engineSemaphores = ConcurrentHashMap<String, Semaphore>()
     private val engineMaxPermits = ConcurrentHashMap<String, AtomicInteger>()
     private val engineUsedPermits = ConcurrentHashMap<String, AtomicInteger>()
@@ -65,10 +63,15 @@ class AdaptiveConcurrencyController(
         DebugLog.d(TAG, "AdaptiveConcurrencyController initialized with config: $config")
     }
 
-    suspend fun <T> withGlobalAccess(
+    suspend fun <T> withEngineAccess(
+        engineName: String,
         priority: Priority = Priority.NORMAL,
         block: suspend () -> T
     ): T? {
+        val engineSemaphore = getEngineSemaphore(engineName)
+        val engineMax = engineMaxPermits[engineName]!!
+        val engineUsed = engineUsedPermits[engineName]!!
+
         val timeoutMs = when (priority) {
             Priority.HIGH -> config.highPriorityWaitTimeoutMs
             Priority.NORMAL -> config.normalWaitTimeoutMs
@@ -76,10 +79,18 @@ class AdaptiveConcurrencyController(
             Priority.BACKGROUND -> config.backgroundWaitTimeoutMs
         }
 
-        val acquired = acquireWithPriority(globalSemaphore, priority, timeoutMs, "global")
+        val acquired = acquireWithPriority(engineSemaphore, priority, timeoutMs, engineName)
         if (!acquired) {
             stats["rejected"]?.incrementAndGet()
-            DebugLog.w(TAG, "Global access rejected for priority=$priority, timeout=${timeoutMs}ms")
+            DebugLog.w(TAG, "Engine[$engineName] access rejected for priority=$priority, timeout=${timeoutMs}ms")
+            return null
+        }
+
+        if (engineUsed.incrementAndGet() > engineMax.get()) {
+            engineUsed.decrementAndGet()
+            engineSemaphore.release()
+            stats["rejected"]?.incrementAndGet()
+            DebugLog.w(TAG, "Engine[$engineName] access rejected due to dynamic limit=${engineMax.get()}")
             return null
         }
 
@@ -92,72 +103,18 @@ class AdaptiveConcurrencyController(
             result
         } catch (e: Exception) {
             recordRequest(false)
-            DebugLog.e(TAG, "Global access execution error: ${e.message}", e)
+            DebugLog.e(TAG, "Engine[$engineName] execution error: ${e.message}", e)
             throw e
         } finally {
             activeRequests.decrementAndGet()
-            globalSemaphore.release()
-            globalPermits.incrementAndGet()
+            engineUsed.decrementAndGet()
+            engineSemaphore.release()
             val count = requestCountSinceAdjustment.incrementAndGet()
             if (count >= config.adjustmentInterval) {
                 adjustEngineLimits()
                 requestCountSinceAdjustment.set(0)
             }
         }
-    }
-
-    suspend fun <T> withEngineAccess(
-        engineName: String,
-        priority: Priority = Priority.NORMAL,
-        block: suspend () -> T
-    ): T? {
-        val engineSemaphore = getEngineSemaphore(engineName)
-        val engineMax = engineMaxPermits[engineName]!!
-        val engineUsed = engineUsedPermits[engineName]!!
-
-        val globalResult = withGlobalAccess(priority) {
-            val engineTimeoutMs = when (priority) {
-                Priority.HIGH -> config.highPriorityWaitTimeoutMs
-                Priority.NORMAL -> config.normalWaitTimeoutMs
-                Priority.LOW -> config.lowWaitTimeoutMs
-                Priority.BACKGROUND -> config.backgroundWaitTimeoutMs
-            }
-
-            val engineAcquired = acquireWithPriority(engineSemaphore, priority, engineTimeoutMs, engineName)
-            if (!engineAcquired) {
-                stats["rejected"]?.incrementAndGet()
-                DebugLog.w(TAG, "Engine[$engineName] access rejected for priority=$priority")
-                return@withGlobalAccess null as T?
-            }
-
-            if (engineUsed.incrementAndGet() > engineMax.get()) {
-                engineUsed.decrementAndGet()
-                engineSemaphore.release()
-                stats["rejected"]?.incrementAndGet()
-                DebugLog.w(TAG, "Engine[$engineName] access rejected due to dynamic limit=${engineMax.get()}")
-                return@withGlobalAccess null as T?
-            }
-
-            try {
-                val result = block()
-                recordRequest(true)
-                result
-            } catch (e: Exception) {
-                recordRequest(false)
-                DebugLog.e(TAG, "Engine[$engineName] execution error: ${e.message}", e)
-                throw e
-            } finally {
-                engineUsed.decrementAndGet()
-                engineSemaphore.release()
-            }
-        }
-
-        if (globalResult == null) {
-            return null
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        return globalResult as T?
     }
 
     fun getEngineSemaphore(engineName: String): Semaphore {
@@ -200,7 +157,6 @@ class AdaptiveConcurrencyController(
     fun getStats(): Map<String, Any> {
         return mapOf(
             "activeRequests" to activeRequests.get(),
-            "globalAvailablePermits" to globalPermits.get(),
             "totalProcessed" to (stats["processed"]?.get() ?: 0L) as Any,
             "totalRejected" to (stats["rejected"]?.get() ?: 0L) as Any,
             "successRate" to calculateSuccessRate(),

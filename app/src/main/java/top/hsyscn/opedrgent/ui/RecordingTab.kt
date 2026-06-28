@@ -20,6 +20,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -175,7 +176,7 @@ data class CapturedPhoto(
 )
 
 /**
- * 录音 Tab —— 得到大脑风格重新设计。
+ * 录音 Tab —— opedrgent风格重新设计。
  *
  * 功能：
  * - 4 种录音模式选择（2x2 网格）
@@ -330,6 +331,7 @@ fun RecordingTab(
     }
 
     var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+    var showBackConfirmDialog by remember { mutableStateOf(false) }
     var recordingState by remember { mutableStateOf<RecordingState?>(null) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var amplitude by remember { mutableFloatStateOf(0f) }
@@ -339,6 +341,11 @@ fun RecordingTab(
     var savedToNote by remember { mutableStateOf(false) }
     var autoSaved by remember { mutableStateOf(false) }
     var autoSavedNoteId by remember { mutableStateOf(0L) }
+
+    // 录音进行中按返回键先弹确认，避免误触直接退出
+    BackHandler(enabled = recordingState == RecordingState.RECORDING || recordingState == RecordingState.PAUSED) {
+        showBackConfirmDialog = true
+    }
 
     // 录音完成后用于回放的音频文件路径
     var playbackAudioUri by remember { mutableStateOf<String?>(null) }
@@ -724,6 +731,45 @@ fun RecordingTab(
             },
             dismissButton = {
                 TextButton(onClick = { showOverlayPermissionDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
+    // 录音中返回确认对话框
+    if (showBackConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackConfirmDialog = false },
+            title = { Text(stringResource(R.string.recording_stop_confirm_title)) },
+            text = { Text(stringResource(R.string.recording_stop_confirm_desc)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBackConfirmDialog = false
+                        recordingState = null
+                        RecordingForegroundService.stop(context)
+                        try {
+                            audioRecord.value?.stop()
+                            audioRecord.value?.release()
+                            audioRecord.value = null
+                        } catch (_: Exception) {}
+                        try {
+                            systemAudioRecorder?.stopRecording()
+                            systemAudioRecorder = null
+                        } catch (_: Exception) {}
+                        vm.asrManager.stopStreaming()
+                        tempFilePath.value?.let { File(it).delete() }
+                        streamingText = ""
+                        capturedPhotos.forEach { photo ->
+                            try { File(photo.filePath).delete() } catch (_: Exception) {}
+                        }
+                        capturedPhotos = emptyList()
+                    },
+                ) { Text(stringResource(R.string.action_stop)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackConfirmDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -1855,7 +1901,7 @@ private fun TranscriptResultCard(
 }
 
 /**
- * 智能总结内容展示 — 对齐得到大脑「智能总结」Tab 的 5 层结构。
+ * 智能总结内容展示 — 对齐opedrgent「智能总结」Tab 的 5 层结构。
  */
 @Composable
 private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) {

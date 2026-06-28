@@ -223,7 +223,7 @@ fun NoteEditorScreen(
 
     if (forceReadOnly) {
         // ════════════════════════════════════════
-        // 阅读模式（只读展示）— Dedao Brain 风格 Tab + 浮动底栏
+        // 阅读模式（只读展示）— opedrgent 风格 Tab + 浮动底栏
         // ════════════════════════════════════════
         val tabTitles = listOf("原文", "笔记内容", "发芽", "追加笔记")
 

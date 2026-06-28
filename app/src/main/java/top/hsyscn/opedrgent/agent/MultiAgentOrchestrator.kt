@@ -255,14 +255,16 @@ class MultiAgentOrchestrator(
                 // Record result with guardrail and check for halt/block
                 val action = guardrail.record(tc.name, tc.arguments, toolResult, !toolResult.startsWith("工具执行失败"))
                 when (action) {
-                    ToolCallGuardrail.Action.HALT, ToolCallGuardrail.Action.BLOCK -> {
+                    ToolCallGuardrail.GuardrailAction.SESSION_HALT,
+                    ToolCallGuardrail.GuardrailAction.AGENT_HALT,
+                    ToolCallGuardrail.GuardrailAction.TOOL_BLOCK -> {
                         DebugLog.w(TAG, "Guardrail $action for ${tc.name}: tool loop halted")
                         guardrailBlocked = true
                     }
-                    ToolCallGuardrail.Action.WARN -> {
-                        DebugLog.w(TAG, "Guardrail WARN for ${tc.name}")
+                    ToolCallGuardrail.GuardrailAction.PARTIAL_ERROR -> {
+                        DebugLog.w(TAG, "Guardrail PARTIAL_ERROR for ${tc.name}: continuing with partial results")
                     }
-                    ToolCallGuardrail.Action.ALLOW -> { /* continue */ }
+                    ToolCallGuardrail.GuardrailAction.ALLOW -> { /* continue */ }
                 }
 
                 // 将工具结果加入消息历史

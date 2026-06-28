@@ -339,15 +339,16 @@ $toolDesc
                     success = !toolResult.startsWith("工具执行失败"),
                 )
                 when (action) {
-                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT,
-                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.SESSION_HALT,
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.AGENT_HALT,
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.TOOL_BLOCK -> {
                         DebugLog.w("AgentSwarm: guardrail ${action.name} for Agent [${agent.name}], tool=${tc.name}")
                         guardrailBlocked = true
                     }
-                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
-                        DebugLog.w("AgentSwarm: guardrail WARN for Agent [${agent.name}], tool=${tc.name}")
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.PARTIAL_ERROR -> {
+                        DebugLog.w("AgentSwarm: guardrail PARTIAL_ERROR for Agent [${agent.name}], tool=${tc.name}")
                     }
-                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.ALLOW -> {}
+                    top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.ALLOW -> {}
                 }
             }
             if (guardrailBlocked) {

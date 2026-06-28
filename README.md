@@ -453,3 +453,11 @@ assets/skills/
 └── multi-agent-collaboration.md # Text Skill: Multi-agent collaboration / 多智能体协作
 ```
 
+## Documentation / 文档
+
+- [使用说明书 / User Manual](docs/wiki/User-Manual.md) — 面向最终用户的完整使用指南
+- [常见问题 / FAQ](docs/wiki/FAQ.md) — 安装、使用、构建过程中的常见问题解答
+- [Wiki 首页](docs/wiki/Home.md) — 技术架构与模块导航
+- [构建指南](docs/wiki/Building.md) — 环境要求与编译步骤
+
+

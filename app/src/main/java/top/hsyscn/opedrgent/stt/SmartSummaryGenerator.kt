@@ -13,7 +13,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 /**
  * 智能总结生成器 — 将会议转录文本通过 LLM 生成结构化智能总结。
  *
- * 输出格式对齐得到大脑「智能总结」Tab 的 5 层结构:
+ * 输出格式对齐opedrgent「智能总结」Tab 的 5 层结构:
  *   1. 录音信息 (MetaInfo) — 时长/参与人数/内容类型
  *   2. 录音总结 (SummarySection) — 多级标题 + 段落列表
  *   3. 章节概要 (ChapterItem) — 时间戳链接 + 章节摘要

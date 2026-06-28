@@ -6,24 +6,31 @@ import org.json.JSONObject
 import top.hsyscn.opedrgent.model.Artifact
 import top.hsyscn.opedrgent.model.ArtifactKind
 import top.hsyscn.opedrgent.model.ChatMessage
+import top.hsyscn.opedrgent.model.GuardrailSnapshot
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.QuestionOption
 import top.hsyscn.opedrgent.model.QuestionPart
 import top.hsyscn.opedrgent.model.ReasoningPart
+import top.hsyscn.opedrgent.model.ResearchCheckpoint
 import top.hsyscn.opedrgent.model.ResearchSession
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.SessionSummary
 import top.hsyscn.opedrgent.model.Source
 import top.hsyscn.opedrgent.model.SourceType
+import top.hsyscn.opedrgent.model.ToolCallRecord
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.network.ToolExecutionStatus
 import java.io.File
 
 class ResearchStore(context: Context) {
     private val file = File(context.filesDir, "research_store.json")
+    private val checkpointDir = File(context.filesDir, "research_checkpoints").apply { mkdirs() }
     private val lock = Any()
     private var sessions: List<ResearchSession>? = null
+
+    private fun checkpointFile(sessionId: String): File = File(checkpointDir, "$sessionId.json")
 
     private fun ensureLoaded(): List<ResearchSession> {
         val cached = sessions
@@ -72,6 +79,7 @@ class ResearchStore(context: Context) {
             all.removeAt(idx)
             saveAllInternal(all)
             sessions = all
+            deleteCheckpoint(sessionId)
             return true
         }
     }
@@ -140,6 +148,7 @@ class ResearchStore(context: Context) {
             if (idx < 0) return null
             val session = all[idx]
             val now = System.currentTimeMillis()
+            val roundIndex = calculateRoundIndex(session, role, toolCallId = null)
             val message = ChatMessage(
                 role = role,
                 content = content,
@@ -149,6 +158,7 @@ class ResearchStore(context: Context) {
                 questionPart = questionPart,
                 parts = parts,
                 isUserAction = isUserAction,
+                roundIndex = roundIndex,
             )
             val next = session.copy(
                 updatedAt = now,
@@ -158,6 +168,41 @@ class ResearchStore(context: Context) {
             all[idx] = next
             sessions = all
             return next
+        }
+    }
+
+    /**
+     * 按轮次范围查询会话消息（含边界）。
+     *
+     * @param sessionId 会话 ID
+     * @param startRound 起始轮次（包含）
+     * @param endRound 结束轮次（包含）
+     */
+    fun getMessagesByRounds(
+        sessionId: String,
+        startRound: Int,
+        endRound: Int,
+    ): List<ChatMessage> {
+        val session = getSession(sessionId) ?: return emptyList()
+        return session.messages.filter { it.roundIndex in startRound..endRound }
+    }
+
+    /**
+     * 计算新消息应写入的 roundIndex。
+     * 规则：user 消息（且非工具结果）开始新一轮；其余消息继承最后一个 user 轮的 roundIndex。
+     */
+    private fun calculateRoundIndex(
+        session: ResearchSession,
+        role: Role,
+        toolCallId: String?,
+    ): Int {
+        val lastBoundaryRound = session.messages
+            .lastOrNull { it.role == Role.USER && it.toolCallId == null }
+            ?.roundIndex
+        return when {
+            role == Role.USER && toolCallId == null -> (lastBoundaryRound ?: -1) + 1
+            lastBoundaryRound != null -> lastBoundaryRound
+            else -> 0
         }
     }
 
@@ -244,6 +289,32 @@ class ResearchStore(context: Context) {
     fun updateSession(session: ResearchSession) {
         synchronized(lock) {
             updateSessionInternal(session)
+        }
+    }
+
+    // ==================== Agent 循环检查点 ====================
+
+    fun saveCheckpoint(checkpoint: ResearchCheckpoint) {
+        val file = checkpointFile(checkpoint.sessionId)
+        synchronized(lock) {
+            file.writeText(serializeCheckpoint(checkpoint).toString(), Charsets.UTF_8)
+        }
+    }
+
+    fun loadCheckpoint(sessionId: String): ResearchCheckpoint? {
+        val file = checkpointFile(sessionId)
+        synchronized(lock) {
+            if (!file.exists()) return null
+            val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return null
+            val obj = runCatching { JSONObject(text) }.getOrNull() ?: return null
+            return parseCheckpoint(obj)
+        }
+    }
+
+    fun deleteCheckpoint(sessionId: String): Boolean {
+        val file = checkpointFile(sessionId)
+        synchronized(lock) {
+            return file.exists() && file.delete()
         }
     }
 
@@ -447,6 +518,7 @@ class ResearchStore(context: Context) {
                 apiToolCallsJson = o.optString("apiToolCallsJson").ifBlank { null },
                 parts = parseParts(o.optJSONArray("parts")),
                 isUserAction = o.optBoolean("isUserAction", false),
+                roundIndex = o.optInt("roundIndex", 0),
             )
         }
     }
@@ -498,6 +570,7 @@ class ResearchStore(context: Context) {
         obj.put("role", msg.role.name)
         obj.put("content", msg.content)
         obj.put("createdAt", msg.createdAt)
+        obj.put("roundIndex", msg.roundIndex)
         obj.put("toolCallId", msg.toolCallId ?: JSONObject.NULL)
         obj.put("apiToolCallsJson", msg.apiToolCallsJson ?: JSONObject.NULL)
         if (msg.reasoningParts.isNotEmpty()) {
@@ -578,6 +651,107 @@ class ResearchStore(context: Context) {
         obj.put("content", artifact.content)
         obj.put("createdAt", artifact.createdAt)
         return obj
+    }
+
+    // ==================== Agent 检查点序列化 ====================
+
+    private fun serializeCheckpoint(checkpoint: ResearchCheckpoint): JSONObject {
+        val obj = JSONObject()
+        obj.put("sessionId", checkpoint.sessionId)
+        obj.put("round", checkpoint.round)
+        obj.put("accumulatedText", checkpoint.accumulatedText)
+        obj.put("accumulatedReasoning", checkpoint.accumulatedReasoning)
+        obj.put("toolMessages", JSONArray().apply {
+            checkpoint.toolMessages.forEach { put(serializeMessage(it)) }
+        })
+        obj.put("sources", JSONArray().apply {
+            checkpoint.sources.forEach { put(serializeSource(it)) }
+        })
+        obj.put("guardrailSnapshot", serializeGuardrailSnapshot(checkpoint.guardrailSnapshot))
+        obj.put("haltReason", checkpoint.haltReason ?: JSONObject.NULL)
+        obj.put("timestamp", checkpoint.timestamp)
+        return obj
+    }
+
+    private fun parseCheckpoint(obj: JSONObject): ResearchCheckpoint? {
+        val sessionId = obj.optString("sessionId").takeIf { it.isNotBlank() } ?: return null
+        val round = obj.optInt("round", 0)
+        val accumulatedText = obj.optString("accumulatedText", "")
+        val accumulatedReasoning = obj.optString("accumulatedReasoning", "")
+        val toolMessages = parseMessages(obj.optJSONArray("toolMessages"))
+        val sources = parseSources(obj.optJSONArray("sources"))
+        val guardrailSnapshot = obj.optJSONObject("guardrailSnapshot")?.let { parseGuardrailSnapshot(it) }
+            ?: GuardrailSnapshot(0, emptyMap(), emptyList())
+        val haltReason = obj.optString("haltReason").takeIf { it.isNotBlank() }
+        val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+        return ResearchCheckpoint(
+            sessionId = sessionId,
+            round = round,
+            accumulatedText = accumulatedText,
+            accumulatedReasoning = accumulatedReasoning,
+            toolMessages = toolMessages,
+            sources = sources,
+            guardrailSnapshot = guardrailSnapshot,
+            haltReason = haltReason,
+            timestamp = timestamp,
+        )
+    }
+
+    private fun serializeGuardrailSnapshot(snapshot: GuardrailSnapshot): JSONObject {
+        val obj = JSONObject()
+        obj.put("consecutiveFailures", snapshot.consecutiveFailures)
+        obj.put("toolFailureCounts", JSONObject().apply {
+            snapshot.toolFailureCounts.forEach { (tool, count) -> put(tool, count) }
+        })
+        obj.put("recentToolCalls", JSONArray().apply {
+            snapshot.recentToolCalls.forEach { put(serializeToolCallRecord(it)) }
+        })
+        return obj
+    }
+
+    private fun parseGuardrailSnapshot(obj: JSONObject): GuardrailSnapshot {
+        val consecutiveFailures = obj.optInt("consecutiveFailures", 0)
+        val toolFailureCounts = mutableMapOf<String, Int>()
+        obj.optJSONObject("toolFailureCounts")?.let { counts ->
+            counts.keys().forEach { key ->
+                toolFailureCounts[key] = counts.optInt(key, 0)
+            }
+        }
+        val recentToolCalls = obj.optJSONArray("recentToolCalls")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { parseToolCallRecord(it) }
+            }
+        } ?: emptyList()
+        return GuardrailSnapshot(
+            consecutiveFailures = consecutiveFailures,
+            toolFailureCounts = toolFailureCounts,
+            recentToolCalls = recentToolCalls,
+        )
+    }
+
+    private fun serializeToolCallRecord(record: ToolCallRecord): JSONObject {
+        val obj = JSONObject()
+        obj.put("toolName", record.toolName)
+        obj.put("normalizedArgs", record.normalizedArgs)
+        obj.put("argsHash", record.argsHash)
+        obj.put("resultHash", record.resultHash)
+        obj.put("status", record.status.name)
+        obj.put("timestampMs", record.timestampMs)
+        return obj
+    }
+
+    private fun parseToolCallRecord(obj: JSONObject): ToolCallRecord {
+        val status = runCatching {
+            ToolExecutionStatus.valueOf(obj.optString("status"))
+        }.getOrDefault(ToolExecutionStatus.SUCCESS)
+        return ToolCallRecord(
+            toolName = obj.optString("toolName"),
+            normalizedArgs = obj.optString("normalizedArgs"),
+            argsHash = obj.optString("argsHash"),
+            resultHash = obj.optString("resultHash"),
+            status = status,
+            timestampMs = obj.optLong("timestampMs", System.currentTimeMillis()),
+        )
     }
 
     // ==================== MessagePart 序列化 ====================

@@ -112,6 +112,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -210,19 +211,6 @@ fun AppRoot(
         vm.refreshPendingCounts()
     }
 
-    if (subScreen != null) {
-        BackHandler {
-            subScreen = when {
-                subScreen?.startsWith("noteEditor_") == true -> "notes"
-                subScreen?.startsWith("noteReader_") == true -> "notes"
-                subScreen?.startsWith("noteShare_") == true -> "notes"
-                subScreen?.startsWith("noteSprout_") == true -> "notes"
-                subScreen == "noteGraph" -> "notes"
-                else -> null
-            }
-        }
-    }
-
     val state by vm.state.collectAsStateCompat()
 
     LaunchedEffect(initialShareText) {
@@ -277,6 +265,35 @@ fun AppRoot(
     val scope = rememberCoroutineScope()
     val feedbackController = remember(snackbarHostState, scope) {
         FeedbackController(snackbarHostState, scope)
+    }
+
+    // 全局返回键处理：子页面 -> 返回上一层；非首页 Tab -> 回到首页；首页 -> 双击退出
+    var lastBackPressedTime by remember { mutableLongStateOf(0L) }
+    BackHandler {
+        when {
+            subScreen != null -> {
+                subScreen = when {
+                    subScreen?.startsWith("noteEditor_") == true -> "notes"
+                    subScreen?.startsWith("noteReader_") == true -> "notes"
+                    subScreen?.startsWith("noteShare_") == true -> "notes"
+                    subScreen?.startsWith("noteSprout_") == true -> "notes"
+                    subScreen == "noteGraph" -> "notes"
+                    else -> null
+                }
+            }
+            selectedTab != MainTab.HOME -> {
+                selectedTab = MainTab.HOME
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressedTime > 2000L) {
+                    lastBackPressedTime = now
+                    scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.exit_press_again)) }
+                } else {
+                    (context as? Activity)?.finish()
+                }
+            }
+        }
     }
 
     // 观察 ViewModel 的通用反馈消息，统一以 Snackbar 展示（替代 ViewModel 内 Toast）
@@ -573,6 +590,7 @@ fun AppRoot(
                             onNavigateToInterview = {
                                 subScreen = "interview"
                             },
+                            onNavigateToSearch = { selectedTab = MainTab.NOTES },
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
@@ -632,6 +650,7 @@ fun AppRoot(
                             toNotes = { subScreen = "notes" },
                             toHippocampus = { subScreen = "hippocampus" },
                             toVoiceprint = { subScreen = "voiceprint" },
+                            toExport = { subScreen = "export" },
                             hippocampus = hippocampus,
                             showBackButton = false,
                             toOpenSource = { subScreen = "opensource" },

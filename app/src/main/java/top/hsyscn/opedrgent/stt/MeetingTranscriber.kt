@@ -20,7 +20,7 @@ import kotlin.math.sqrt
  * 2. 能量+静音检测的简易说话人分离（无需额外模型，基于音频特征）
  * 3. 纯 ASR 模式（所有段落标记为 Speaker_0）
  *
- * 借鉴得到大脑的会议录音模式：区分 3-5 个发言人、自动生成纪要。
+ * 借鉴opedrgent的会议录音模式：区分 3-5 个发言人、自动生成纪要。
  */
 class MeetingTranscriber(
     private val context: Context,

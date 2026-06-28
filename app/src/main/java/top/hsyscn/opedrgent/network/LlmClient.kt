@@ -201,6 +201,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         system: String,
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
+        toolChoice: String? = null,
         thinkingEnabled: Boolean = false,
         jsonMode: Boolean = false,  // JSON Mode: 强制模型返回合法 JSON
         maxOutputTokens: Int = 0,
@@ -298,11 +299,19 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 }
             }
             if (tools.isNotEmpty()) {
-                put("tools", JSONArray().apply {
-                    tools.forEach { put(toolToJson(it)) }
-                })
-                if (!isDS) {
-                    put("tool_choice", "auto")
+                val isReflection = toolChoice == "none"
+                if (isReflection && isDS) {
+                    // DeepSeek 等模型不支持 tool_choice，通过不提供 tools 强制无工具调用
+                    DebugLog.d("streamChatCompletions: reflection mode for DeepSeek/unsupported model, omitting tools")
+                } else {
+                    put("tools", JSONArray().apply {
+                        tools.forEach { put(toolToJson(it)) }
+                    })
+                    if (toolChoice != null) {
+                        put("tool_choice", toolChoice)
+                    } else if (!isDS) {
+                        put("tool_choice", "auto")
+                    }
                 }
             }
             // JSON Mode: 强制模型返回合法 JSON（适用于结构化数据提取场景）

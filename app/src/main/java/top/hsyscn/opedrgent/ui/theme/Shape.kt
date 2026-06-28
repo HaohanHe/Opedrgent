@@ -15,17 +15,25 @@ import androidx.compose.ui.unit.dp
  * - extraLarge: 全屏底部弹窗、大模态框
  */
 object ShapeTokens {
-    val extraSmall = 4.dp
-    val small = 8.dp
-    val medium = 12.dp
-    val large = 16.dp
-    val extraLarge = 24.dp
+    val extraSmall = 6.dp
+    val small = 12.dp
+    val medium = 16.dp
+    val large = 20.dp
+    val extraLarge = 28.dp
+
+    // 特殊用途
+    val tag = 4.dp
+    val icon = 8.dp
+    val pill = 9999.dp
 
     val extraSmallShape = RoundedCornerShape(extraSmall)
     val smallShape = RoundedCornerShape(small)
     val mediumShape = RoundedCornerShape(medium)
     val largeShape = RoundedCornerShape(large)
     val extraLargeShape = RoundedCornerShape(extraLarge)
+    val tagShape = RoundedCornerShape(tag)
+    val iconShape = RoundedCornerShape(icon)
+    val pillShape = RoundedCornerShape(pill)
 }
 
 /**

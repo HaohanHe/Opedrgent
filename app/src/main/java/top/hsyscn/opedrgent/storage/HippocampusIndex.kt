@@ -68,18 +68,38 @@ class HippocampusIndex(context: Context) {
     }
 
     private suspend fun insert(item: IndexedItem) = withContext(Dispatchers.IO) {
-        val cv = ContentValues().apply {
-            put(HippocampusDatabase.COL_ID, item.id)
-            put(HippocampusDatabase.COL_SOURCE_TYPE, item.sourceType.name)
-            put(HippocampusDatabase.COL_SOURCE_ID, item.sourceId)
-            put(HippocampusDatabase.COL_SCOPE, item.scope.name)
-            put(HippocampusDatabase.COL_TITLE, item.title)
-            put(HippocampusDatabase.COL_SUMMARY, item.summary)
-            put(HippocampusDatabase.COL_KEYWORDS, item.keywords)
-            put(HippocampusDatabase.COL_CREATED_AT, item.createdAt)
-            put(HippocampusDatabase.COL_UPDATED_AT, item.updatedAt)
+        db.insert(HippocampusDatabase.TABLE, null, item.toContentValues())
+    }
+
+    /**
+     * 批量插入索引条目。
+     *
+     * 使用 SQLite 事务包裹所有插入，避免逐条写入时的多次 fsync，
+     * 适用于笔记批量导入、同步等一次性写入大量条目的场景。
+     */
+    suspend fun insertBatch(entries: List<IndexedItem>) = withContext(Dispatchers.IO) {
+        if (entries.isEmpty()) return@withContext
+        db.beginTransaction()
+        try {
+            for (item in entries) {
+                db.insert(HippocampusDatabase.TABLE, null, item.toContentValues())
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
-        db.insert(HippocampusDatabase.TABLE, null, cv)
+    }
+
+    private fun IndexedItem.toContentValues(): ContentValues = ContentValues().apply {
+        put(HippocampusDatabase.COL_ID, id)
+        put(HippocampusDatabase.COL_SOURCE_TYPE, sourceType.name)
+        put(HippocampusDatabase.COL_SOURCE_ID, sourceId)
+        put(HippocampusDatabase.COL_SCOPE, scope.name)
+        put(HippocampusDatabase.COL_TITLE, title)
+        put(HippocampusDatabase.COL_SUMMARY, summary)
+        put(HippocampusDatabase.COL_KEYWORDS, keywords)
+        put(HippocampusDatabase.COL_CREATED_AT, createdAt)
+        put(HippocampusDatabase.COL_UPDATED_AT, updatedAt)
     }
 
     private suspend fun update(item: IndexedItem) = withContext(Dispatchers.IO) {
@@ -242,7 +262,8 @@ class HippocampusIndex(context: Context) {
         ))
     }
 
-    private fun extractKeywords(title: String, content: String): String {
+    /** 为索引条目提取关键词（供批量索引复用） */
+    internal fun extractKeywords(title: String, content: String): String {
         val text = "$title $content"
         val punctuation = Regex("[\\s,，.。、;；:：!！?？\u201C\u201D\u2018\u2019\\[\\]【】《》（）()\n\r]+")
         // 1) 按标点分割，取长度 >= 2 的词

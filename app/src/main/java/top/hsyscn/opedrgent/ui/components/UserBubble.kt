@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -25,15 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
-import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
-import top.hsyscn.opedrgent.ui.theme.customColors
-import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * 用户消息气泡（右对齐）。
@@ -74,17 +73,16 @@ fun UserBubble(
                         .widthIn(max = maxBubbleWidth) // 自适应宽度：内容自适应，上限为父容器 75%
                         .wrapContentWidth(Alignment.End),
                 ) {
+                    val bubbleShape = RoundedCornerShape(
+                        topStart = 16.dp,
+                        topEnd = 8.dp,
+                        bottomStart = 16.dp,
+                        bottomEnd = 16.dp,
+                    )
                     Box(
                         modifier = Modifier
-                            .clip(ShapeTokens.mediumShape)
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        MaterialTheme.customColors.userBubbleStart,
-                                        MaterialTheme.customColors.userBubbleEnd,
-                                    ),
-                                ),
-                            )
+                            .clip(bubbleShape)
+                            .background(MaterialTheme.colorScheme.primary)
                             .combinedClickable(
                                 onClick = {},
                                 onLongClick = { showMenu = true },

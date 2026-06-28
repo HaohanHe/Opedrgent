@@ -54,7 +54,7 @@ data class CustomColors(
 val LightCustomColors = CustomColors()
 
 val DarkCustomColors = CustomColors(
-    accentBlue = Blue80,
+    accentBlue = PrimaryBrand,
     accentOrange = AccentOrange,
     successGreen = SuccessGreen,
     dangerRed = DangerRed,

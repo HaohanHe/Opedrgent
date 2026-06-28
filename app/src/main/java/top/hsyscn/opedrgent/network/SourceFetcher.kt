@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.network
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -67,28 +69,30 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
             }
         }
 
-        var lastException: Exception? = null
+        return withContext(Dispatchers.IO) {
+            var lastException: Exception? = null
 
-        for (attempt in 0..NetworkConfig.RETRY_COUNT) {
-            try {
-                val result = fetchUrlInternal(url)
-                // 写入缓存
-                synchronized(cache) {
-                    if (cache.size >= MAX_CACHE_SIZE) {
-                        val oldest = cache.entries.first()
-                        cache.remove(oldest.key)
+            for (attempt in 0..NetworkConfig.RETRY_COUNT) {
+                try {
+                    val result = fetchUrlInternal(url)
+                    // 写入缓存
+                    synchronized(cache) {
+                        if (cache.size >= MAX_CACHE_SIZE) {
+                            val oldest = cache.entries.first()
+                            cache.remove(oldest.key)
+                        }
+                        cache[url] = System.currentTimeMillis() to result
                     }
-                    cache[url] = System.currentTimeMillis() to result
-                }
-                return result
-            } catch (e: Exception) {
-                lastException = e
-                if (attempt < NetworkConfig.RETRY_COUNT && isRetryable(e)) {
-                    delay(RETRY_DELAY_MS * (attempt + 1))
+                    return@withContext result
+                } catch (e: Exception) {
+                    lastException = e
+                    if (attempt < NetworkConfig.RETRY_COUNT && isRetryable(e)) {
+                        delay(RETRY_DELAY_MS * (attempt + 1))
+                    }
                 }
             }
+            throw lastException ?: IllegalStateException("抓取失败: 未知错误")
         }
-        throw lastException ?: IllegalStateException("抓取失败: 未知错误")
     }
 
     private fun fetchUrlInternal(url: String): FetchedSource {
