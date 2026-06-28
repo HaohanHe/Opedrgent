@@ -52,6 +52,22 @@ object HealthConnectHelper {
     }
 
     /**
+     * 检查是否已授予全部所需的 Health Connect 权限。
+     */
+    suspend fun hasAllPermissions(context: Context): Boolean {
+        if (getAvailability(context) != HealthConnectAvailability.Available) return false
+        return try {
+            HealthConnectClient.getOrCreate(context)
+                .permissionController
+                .getGrantedPermissions()
+                .containsAll(PERMISSIONS)
+        } catch (e: Exception) {
+            DebugLog.e("HealthConnectHelper: check permissions failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * 打开 Health Connect 应用设置页（用于授权或安装）。
      */
     fun openHealthConnectSettings(context: Context) {

@@ -84,8 +84,7 @@ class HybridRankingEngine(
         DebugLog.d("[$TAG] sorted by hybridScore, top3=[${sortedByScore.take(3).joinToString { "%.3f".format(it.hybridScore) }}]")
 
         val finalResults = if (config.useMMR && sortedByScore.size > 1) {
-            val mmrCandidates = sortedByScore.take(config.mmrTopK)
-            rerankWithMMR(mmrCandidates, limit)
+            rerankWithMMR(sortedByScore, limit, config.mmrTopK)
         } else {
             sortedByScore.take(limit)
         }
@@ -94,11 +93,16 @@ class HybridRankingEngine(
         return finalResults
     }
 
-    fun rerankWithMMR(rankedResults: List<RankedResult>, limit: Int = 10): List<RankedResult> {
+    fun rerankWithMMR(
+        rankedResults: List<RankedResult>,
+        limit: Int = 10,
+        topK: Int = config.mmrTopK
+    ): List<RankedResult> {
         if (rankedResults.size <= 1) return rankedResults.take(limit)
 
+        val candidates = rankedResults.take(topK.coerceAtLeast(1))
         val selected = mutableListOf<RankedResult>()
-        val remaining = rankedResults.toMutableList()
+        val remaining = candidates.toMutableList()
 
         selected.add(remaining.removeAt(0))
 

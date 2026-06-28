@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.model
 
+import top.hsyscn.opedrgent.network.ToolExecutionStatus
 import java.util.UUID
 
 enum class SourceType {
@@ -50,6 +51,8 @@ data class ChatMessage(
     val apiToolCallsJson: String? = null,
     val parts: List<MessagePart> = emptyList(),
     val isUserAction: Boolean = false,
+    /** 消息所属轮次。user 消息（非工具结果）开始新一轮，后续 assistant/system 消息继承该轮次。 */
+    val roundIndex: Int = 0,
 ) {
     /** 从 parts 自动提取文本内容（向后兼容） */
     val textContent: String
@@ -190,7 +193,7 @@ enum class AudioFormat(val mimeType: String, val extension: String) {
     AAC("audio/aac", ".aac"),
 }
 
-enum class ToolStateType { PENDING, RUNNING, COMPLETED, ERROR, SOURCE_ADDED }
+enum class ToolStateType { PENDING, RUNNING, COMPLETED, ERROR, SOURCE_ADDED, PARTIAL_TIMEOUT }
 
 data class ToolState(
     val status: ToolStateType,
@@ -226,6 +229,42 @@ data class ReasoningPart(
     val text: String,
     val startTime: Long = System.currentTimeMillis(),
     val endTime: Long = 0L,
+)
+
+/**
+ * Agent 循环工具调用记录（用于 guardrail 快照与恢复）
+ */
+data class ToolCallRecord(
+    val toolName: String,
+    val normalizedArgs: String,
+    val argsHash: String,
+    val resultHash: String,
+    val status: ToolExecutionStatus,
+    val timestampMs: Long = System.currentTimeMillis(),
+)
+
+/**
+ * Agent 循环 Guardrail 快照，支持中断后恢复状态。
+ */
+data class GuardrailSnapshot(
+    val consecutiveFailures: Int,
+    val toolFailureCounts: Map<String, Int>,
+    val recentToolCalls: List<ToolCallRecord>,
+)
+
+/**
+ * Agent 循环检查点，用于在 MAX_ROUNDS、guardrail、取消或进程死亡后恢复研究。
+ */
+data class ResearchCheckpoint(
+    val sessionId: String,
+    val round: Int,
+    val accumulatedText: String,
+    val accumulatedReasoning: String,
+    val toolMessages: List<ChatMessage>,
+    val sources: List<Source>,
+    val guardrailSnapshot: GuardrailSnapshot,
+    val haltReason: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 enum class MediaType { IMAGE, AUDIO, VIDEO }

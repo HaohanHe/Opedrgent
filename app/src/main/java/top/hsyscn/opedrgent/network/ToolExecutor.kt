@@ -2,7 +2,12 @@ package top.hsyscn.opedrgent.network
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -45,6 +50,30 @@ data class ToolResult(
 
 fun emptyResult(tp: ToolPart, msg: String): ToolResult {
     return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
+}
+
+enum class ToolExecutionStatus {
+    SUCCESS,
+    PARTIAL_TIMEOUT,
+    TIMEOUT,
+    RATE_LIMIT,
+    FATAL_ERROR
+}
+
+data class ToolExecutionResult(
+    val status: ToolExecutionStatus,
+    val content: String,
+    val partialData: String? = null,
+    val errorDetail: String? = null,
+)
+
+object ToolConfig {
+    /** 单个工具调用默认超时（毫秒）。可在调用点覆盖。 */
+    const val DEFAULT_TOOL_TIMEOUT_MS: Long = 30_000L
+
+    /** 结构化错误前缀，便于 LLM/调用方识别错误类型。 */
+    const val ERROR_PREFIX_TIMEOUT = "[PARTIAL_TIMEOUT]"
+    const val ERROR_PREFIX_TOOL_ERROR = "[TOOL_ERROR]"
 }
 
 class ToolExecutor(
@@ -115,10 +144,51 @@ class ToolExecutor(
         )
         DebugLog.i("ToolExecutor.execute: ${started.tool} with ${started.state.input}")
 
+        try {
+            withTimeout(ToolConfig.DEFAULT_TOOL_TIMEOUT_MS) {
+                executeBody(started, config, systemPrompt, useProviderSearch)
+            }
+        } catch (e: TimeoutCancellationException) {
+            DebugLog.w("Tool '${started.tool}' timed out after ${ToolConfig.DEFAULT_TOOL_TIMEOUT_MS}ms")
+            buildTimeoutResult(started)
+        } catch (e: Exception) {
+            DebugLog.e("ToolExecutor error for ${started.tool}: ${e.message}", e)
+            buildToolErrorResult(started, e)
+        }
+    }
+
+    /**
+     * 并发执行多个 tool_call。每个工具在独立的 [Dispatchers.IO] 协程中运行，
+     * 并受 [ToolConfig.DEFAULT_TOOL_TIMEOUT_MS] 独立超时保护。
+     * 单个工具失败不会影响其他工具，失败结果以结构化错误形式返回。
+     */
+    suspend fun executeAll(
+        toolParts: List<ToolPart>,
+        config: ApiConfig,
+        systemPrompt: String,
+        useProviderSearch: Boolean = true,
+    ): List<ToolResult> = coroutineScope {
+        toolParts.map { part ->
+            async(Dispatchers.IO) {
+                runCatching {
+                    execute(part, config, systemPrompt, useProviderSearch)
+                }.getOrElse { e ->
+                    buildToolErrorResult(part, e)
+                }
+            }
+        }.awaitAll()
+    }
+
+    private suspend fun executeBody(
+        started: ToolPart,
+        config: ApiConfig,
+        systemPrompt: String,
+        useProviderSearch: Boolean,
+    ): ToolResult {
         // 联网查询总开关守卫：关闭后所有搜索类工具直接返回
         if (!apiSettings.isWebSearchEnabled() && (started.tool == "web_search" || started.tool == "deep_research")) {
             DebugLog.i("ToolExecutor: ${started.tool} blocked by webSearchEnabled=false")
-            return@withContext ToolResult(
+            return ToolResult(
                 toolPart = started.copy(
                     state = started.state.copy(
                         status = ToolStateType.COMPLETED,
@@ -140,60 +210,71 @@ class ToolExecutor(
             useProviderSearch
         }
 
-        try {
-            // ★ MCP 工具路由
-            if (mcpManager.isMcpTool(started.tool)) {
-                val args = org.json.JSONObject()
-                started.state.input.forEach { (k, v) -> args.put(k, v) }
-                val mcpResult = mcpManager.callTool(started.tool, args)
-                return@withContext ToolResult(
-                    toolPart = started.copy(
-                        state = started.state.copy(
-                            status = if (mcpResult.isError) ToolStateType.ERROR else ToolStateType.COMPLETED,
-                            output = mcpResult.content,
-                            error = if (mcpResult.isError) mcpResult.content else null,
-                            endTime = System.currentTimeMillis(),
-                        ),
-                    ),
-                )
-            }
-
-            // ★ load_skill 工具：按需加载 Skill 完整内容
-            if (started.tool == "load_skill") {
-                val skillName = started.state.input["name"] ?: ""
-                val result = executeLoadSkill(skillName)
-                return@withContext ToolResult(
-                    toolPart = started.copy(
-                        state = started.state.copy(
-                            status = if (result.startsWith("错误")) ToolStateType.ERROR else ToolStateType.COMPLETED,
-                            output = result,
-                            error = if (result.startsWith("错误")) result else null,
-                            endTime = System.currentTimeMillis(),
-                        ),
-                    ),
-                )
-            }
-
-            // ★ @Tool注解驱动的注册表路由（替代巨型when分支）
-            val result = toolRegistry.invoke(started.tool, started, config, systemPrompt, effectiveUseProvider)
-            if (result != null) {
-                return@withContext result
-            }
-
-            // Fallback: 未注册的工具
-            unknownTool(started)
-        } catch (e: Exception) {
-            DebugLog.e("ToolExecutor error for ${started.tool}: ${e.message}", e)
-            ToolResult(
+        // ★ MCP 工具路由
+        if (mcpManager.isMcpTool(started.tool)) {
+            val args = org.json.JSONObject()
+            started.state.input.forEach { (k, v) -> args.put(k, v) }
+            val mcpResult = mcpManager.callTool(started.tool, args)
+            return ToolResult(
                 toolPart = started.copy(
                     state = started.state.copy(
-                        status = ToolStateType.ERROR,
-                        error = e.message ?: "Tool execution failed",
+                        status = if (mcpResult.isError) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                        output = mcpResult.content,
+                        error = if (mcpResult.isError) mcpResult.content else null,
                         endTime = System.currentTimeMillis(),
                     ),
                 ),
             )
         }
+
+        // ★ load_skill 工具：按需加载 Skill 完整内容
+        if (started.tool == "load_skill") {
+            val skillName = started.state.input["name"] ?: ""
+            val result = executeLoadSkill(skillName)
+            return ToolResult(
+                toolPart = started.copy(
+                    state = started.state.copy(
+                        status = if (result.startsWith("错误")) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                        output = result,
+                        error = if (result.startsWith("错误")) result else null,
+                        endTime = System.currentTimeMillis(),
+                    ),
+                ),
+            )
+        }
+
+        // ★ @Tool注解驱动的注册表路由（替代巨型when分支）
+        val result = toolRegistry.invoke(started.tool, started, config, systemPrompt, effectiveUseProvider)
+        if (result != null) {
+            return result
+        }
+
+        // Fallback: 未注册的工具
+        return unknownTool(started)
+    }
+
+    private fun buildTimeoutResult(started: ToolPart): ToolResult {
+        return ToolResult(
+            toolPart = started.copy(
+                state = started.state.copy(
+                    status = ToolStateType.PARTIAL_TIMEOUT,
+                    error = "${ToolConfig.ERROR_PREFIX_TIMEOUT} 工具 '${started.tool}' 执行超时（${ToolConfig.DEFAULT_TOOL_TIMEOUT_MS / 1000} 秒），已返回部分/空结果。该失败不影响其他工具。",
+                    endTime = System.currentTimeMillis(),
+                ),
+            ),
+        )
+    }
+
+    private fun buildToolErrorResult(started: ToolPart, e: Throwable): ToolResult {
+        return ToolResult(
+            toolPart = started.copy(
+                state = started.state.copy(
+                    status = ToolStateType.ERROR,
+                    error = "${ToolConfig.ERROR_PREFIX_TOOL_ERROR} 工具 '${started.tool}' 执行失败: ${e.message ?: "未知错误"}",
+                    endTime = System.currentTimeMillis(),
+                ),
+            ),
+        )
     }
 
     fun destroy() {
@@ -212,13 +293,31 @@ class ToolExecutor(
     fun getResearchToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "web_search",
-            description = "搜索互联网获取最新信息。输入查询关键词，返回搜索结果列表（标题、摘要、URL）。",
+            description = "搜索互联网获取最新信息。默认 scan 阶段返回 30-50 条标题/摘要/URL 列表；deep 阶段深入抓取指定 URL 正文。",
             parameters = org.json.JSONObject().apply {
                 put("type", "object")
                 put("properties", org.json.JSONObject().apply {
                     put("query", org.json.JSONObject().apply {
                         put("type", "string")
                         put("description", "搜索关键词")
+                    })
+                    put("method", org.json.JSONObject().apply {
+                        put("type", "string")
+                        put("enum", org.json.JSONArray().apply { put("ddg"); put("webview"); put("provider_native"); put("mcp"); put("multimodal") })
+                        put("description", "搜索方法，默认 ddg。特殊模式保留")
+                    })
+                    put("phase", org.json.JSONObject().apply {
+                        put("type", "string")
+                        put("enum", org.json.JSONArray().apply { put("scan"); put("deep") })
+                        put("description", "搜索阶段：scan（默认）仅返回列表，deep 抓取 urls 指定网页正文")
+                    })
+                    put("urls", org.json.JSONObject().apply {
+                        put("type", "string")
+                        put("description", "deep 阶段要抓取的 URL，多个用 | 分隔")
+                    })
+                    put("max_fetch", org.json.JSONObject().apply {
+                        put("type", "integer")
+                        put("description", "deep 阶段最多抓取的 URL 数量，默认 5，最大 10")
                     })
                 })
                 put("required", org.json.JSONArray().apply { put("query") })
@@ -328,6 +427,146 @@ class ToolExecutor(
         return result.toolPart.state.output
             ?: result.toolPart.state.error
             ?: "工具执行完成但无输出"
+    }
+
+    /**
+     * 按工具名执行，返回结构化结果。供 AgentService 调用。
+     *
+     * 将底层 ToolResult 的异常/状态语义映射为 LLM 可理解的执行状态，
+     * 使 Agent 循环能够区分暂时性失败（超时/限流/部分结果）与致命错误。
+     */
+    suspend fun executeToolByNameStructured(
+        toolName: String,
+        args: Map<String, String>,
+        config: ApiConfig,
+        systemPrompt: String = "",
+    ): ToolExecutionResult {
+        val invocationPart = ToolPart(
+            tool = toolName,
+            state = ToolState(
+                status = ToolStateType.RUNNING,
+                input = args,
+                startTime = System.currentTimeMillis(),
+            ),
+        )
+
+        return try {
+            val result = execute(invocationPart, config, systemPrompt)
+            mapToolResultToStructured(result)
+        } catch (e: SecurityException) {
+            ToolExecutionResult(
+                status = ToolExecutionStatus.FATAL_ERROR,
+                content = "工具执行失败: 安全权限错误 (${e.message})",
+                errorDetail = e.message,
+            )
+        } catch (e: Exception) {
+            ToolExecutionResult(
+                status = ToolExecutionStatus.FATAL_ERROR,
+                content = "工具执行失败: ${e.message}",
+                errorDetail = e.message,
+            )
+        }
+    }
+
+    private fun mapToolResultToStructured(result: ToolResult): ToolExecutionResult {
+        val state = result.toolPart.state
+        val output = state.output ?: ""
+        val error = state.error
+
+        return when (state.status) {
+            ToolStateType.COMPLETED, ToolStateType.SOURCE_ADDED -> {
+                ToolExecutionResult(
+                    status = ToolExecutionStatus.SUCCESS,
+                    content = output,
+                )
+            }
+            ToolStateType.PARTIAL_TIMEOUT -> {
+                val content = buildString {
+                    if (output.isNotBlank()) append(output)
+                    if (error != null) {
+                        if (output.isNotBlank()) append("\n\n")
+                        append("[部分超时: $error]")
+                    }
+                }.ifBlank { "工具执行部分超时" }
+                ToolExecutionResult(
+                    status = ToolExecutionStatus.PARTIAL_TIMEOUT,
+                    content = content,
+                    partialData = output,
+                    errorDetail = error,
+                )
+            }
+            ToolStateType.RUNNING, ToolStateType.PENDING -> {
+                ToolExecutionResult(
+                    status = ToolExecutionStatus.FATAL_ERROR,
+                    content = "工具未正常结束",
+                    errorDetail = error,
+                )
+            }
+            ToolStateType.ERROR -> classifyToolError(error, output)
+        }
+    }
+
+    private fun classifyToolError(error: String?, output: String?): ToolExecutionResult {
+        val errorText = error ?: ""
+        val lower = errorText.lowercase()
+        val httpCode = extractHttpCode(errorText)
+
+        // 404 / 资源确实不存在 -> 以 SUCCESS 返回，让 LLM 知道不可用后继续
+        if (httpCode == 404 || lower.contains("not found") || lower.contains("找不到")) {
+            return ToolExecutionResult(
+                status = ToolExecutionStatus.SUCCESS,
+                content = "该资源不可用",
+                errorDetail = errorText,
+            )
+        }
+
+        // 安全/权限/SSL 类错误视为致命
+        if (lower.contains("securityexception") || lower.contains("security exception") ||
+            lower.contains("权限") || lower.contains("permission denied") ||
+            lower.contains("ssl") || lower.contains("certificate") || lower.contains("handshake")
+        ) {
+            return ToolExecutionResult(
+                status = ToolExecutionStatus.FATAL_ERROR,
+                content = "工具执行失败: $errorText",
+                errorDetail = errorText,
+            )
+        }
+
+        val classified = try {
+            ErrorClassifier.classify(Exception(errorText), httpCode, errorText)
+        } catch (_: Exception) {
+            null
+        }
+
+        return when (classified?.type) {
+            ClassifiedErrorType.TIMEOUT,
+            ClassifiedErrorType.NETWORK_ERROR,
+            ClassifiedErrorType.SERVER_ERROR,
+            ClassifiedErrorType.DNS_ERROR -> ToolExecutionResult(
+                status = ToolExecutionStatus.TIMEOUT,
+                content = "工具执行超时或网络暂不可用: $errorText",
+                errorDetail = errorText,
+            )
+            ClassifiedErrorType.RATE_LIMIT,
+            ClassifiedErrorType.CAPTCHA,
+            ClassifiedErrorType.FORBIDDEN,
+            ClassifiedErrorType.AUTH_ERROR -> ToolExecutionResult(
+                status = ToolExecutionStatus.RATE_LIMIT,
+                content = "工具执行遇到限流或访问限制: $errorText",
+                errorDetail = errorText,
+            )
+            else -> ToolExecutionResult(
+                status = ToolExecutionStatus.FATAL_ERROR,
+                content = "工具执行失败: $errorText",
+                errorDetail = errorText,
+            )
+        }
+    }
+
+    private fun extractHttpCode(message: String?): Int? {
+        if (message.isNullOrBlank()) return null
+        val regex = Regex("""\b([1-5]\d{2})\b""")
+        return regex.find(message)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     @Deprecated("内部辅助方法，已迁移到ToolSet")

@@ -24,6 +24,14 @@ data class ToolCallBlock(
 
 object ToolCallParser {
 
+    /** 解析失败时返回的占位工具名，便于下游识别并生成结构化错误。 */
+    const val PARSE_ERROR_TOOL_NAME = "parse_error"
+
+    /** 解析失败原因对应的参数键。 */
+    private const val PARAM_ERROR_TYPE = "error_type"
+    private const val PARAM_ERROR_REASON = "error_reason"
+    private const val PARAM_RAW = "raw"
+
     private val REASONING_TAGS = listOf(
         "thinking", "reasoning", "thought", "scratchpad", "plan",
     )
@@ -93,7 +101,7 @@ object ToolCallParser {
         )
     }
 
-    fun parseToolCall(text: String): ToolCallBlock? {
+    fun parseToolCall(text: String): ToolCallBlock {
         val decodedText = decodeHtmlEntities(text)
         val cleanedText = cleanReasoningTags(decodedText)
 
@@ -111,7 +119,21 @@ object ToolCallParser {
         }
 
         DebugLog.w("ToolCallParser: all parsing strategies failed, text preview: ${decodedText.take(100)}")
-        return null
+        return createParseErrorBlock(decodedText, "无法从文本中解析出有效的 tool_call 结构")
+    }
+
+    /**
+     * 构造解析失败的结构化占位块，避免返回 null 导致调用方丢失错误上下文。
+     */
+    private fun createParseErrorBlock(raw: String, reason: String): ToolCallBlock {
+        return ToolCallBlock(
+            toolName = PARSE_ERROR_TOOL_NAME,
+            params = mapOf(
+                PARAM_ERROR_TYPE to "PARSE_ERROR",
+                PARAM_ERROR_REASON to reason,
+                PARAM_RAW to raw,
+            ),
+        )
     }
 
     /**
@@ -364,9 +386,32 @@ object ToolCallParser {
             val block = parseToolCallBlock(match.value, match.groupValues[1].trim())
             if (block != null) {
                 parts.add(block)
+            } else {
+                // 单个 tool_call 标签解析失败时，返回结构化错误 ToolPart，不丢弃错误上下文。
+                parts.add(createParseErrorToolPart(match.value))
             }
         }
         return parts
+    }
+
+    /**
+     * 构造解析失败的结构化 [ToolPart]，使下游能按错误结果处理而非静默忽略。
+     */
+    private fun createParseErrorToolPart(raw: String): ToolPart {
+        return ToolPart(
+            tool = PARSE_ERROR_TOOL_NAME,
+            state = ToolState(
+                status = ToolStateType.ERROR,
+                input = mapOf(
+                    PARAM_ERROR_TYPE to "PARSE_ERROR",
+                    PARAM_ERROR_REASON to "无法解析 tool_call 标签内容",
+                    PARAM_RAW to raw,
+                ),
+                error = "[PARSE_ERROR] 无法解析 tool_call 标签内容",
+                startTime = System.currentTimeMillis(),
+                endTime = System.currentTimeMillis(),
+            ),
+        )
     }
 
     private fun parseToolCallBlock(fullTag: String, body: String): ToolPart? {

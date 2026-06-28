@@ -139,7 +139,7 @@ import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-/** Tab 类型定义（参考得到大脑 4-Tab 系统） */
+/** Tab 类型定义（参考opedrgent 4-Tab 系统） */
 enum class TranscriptTab(val displayName: String) {
     SMART_SUMMARY("智能总结"),
     TEXT_RECORD("文字记录"),
@@ -173,7 +173,7 @@ fun MeetingRecordScreen(
     var transcriptResult by remember { mutableStateOf<MeetingTranscriptResult?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // 当前选中的 Tab（参考得到大脑 tab-bar）
+    // 当前选中的 Tab（参考opedrgent tab-bar）
     var activeTab by remember { mutableStateOf(TranscriptTab.TEXT_RECORD) }
 
     // 音频播放器状态
@@ -486,7 +486,7 @@ fun MeetingRecordScreen(
                             HorizontalDivider()
                             Spacer(Modifier.height(SpacingTokens.md))
 
-                            // === Sticky Audio Player（参考得到大脑 note-header-audio-player）===
+                            // === Sticky Audio Player（参考opedrgent note-header-audio-player）===
                             val audioPath = result.audioFilePath
                             if (audioPath != null && File(audioPath).exists()) {
                                 AudioPlayerBar(
@@ -528,7 +528,7 @@ fun MeetingRecordScreen(
                                 Spacer(Modifier.height(SpacingTokens.md))
                             }
 
-                            // === Tab Bar（参考得到大脑 note-tabs）===
+                            // === Tab Bar（参考opedrgent note-tabs）===
                             TranscriptTabBar(
                                 activeTab = activeTab,
                                 onTabChange = { activeTab = it },
@@ -657,7 +657,7 @@ fun MeetingRecordScreen(
 }
 
 // ================================================================
-// Tab Bar（参考得到大脑 note-tab-pill 样式）
+// Tab Bar（参考opedrgent note-tab-pill 样式）
 // ================================================================
 
 @Composable
@@ -697,7 +697,7 @@ private fun TranscriptTabBar(
 }
 
 // ================================================================
-// Sticky Audio Player（参考得到大脑 note-header-audio-player 样式）
+// Sticky Audio Player（参考opedrgent note-header-audio-player 样式）
 // ================================================================
 
 @Composable
@@ -741,7 +741,7 @@ private fun AudioPlayerBar(
                 }
             }
 
-            // 播放/暂停按钮（圆形深色背景，参考得到大脑）
+            // 播放/暂停按钮（圆形深色背景，参考opedrgent）
             Surface(
                 shape = CircleShape,
                 color = TextPrimary,
@@ -856,7 +856,7 @@ private fun AudioPlayerBar(
 }
 
 // ================================================================
-// 文字记录内容 — Sentence-Item 列表（参考得到大脑 sentence-item 样式）
+// 文字记录内容 — Sentence-Item 列表（参考opedrgent sentence-item 样式）
 // ================================================================
 
 @Composable
@@ -875,12 +875,12 @@ private fun TranscriptTextContent(
                 isPlaying = (index == currentPlayingIndex),
                 onClick = { onSegmentClick(index) },
             )
-            // 句子间距 12dp（参考得到大脑 sentence-item:not(:last-child) margin-bottom: 12px）
+            // 句子间距 12dp（参考opedrgent sentence-item:not(:last-child) margin-bottom: 12px）
             if (index < segments.lastIndex) {
                 Spacer(Modifier.height(SpacingTokens.md))
             }
         }
-        // 底部留白（参考得到大脑 note-padding 80px）
+        // 底部留白（参考opedrgent note-padding 80px）
         item {
             Spacer(Modifier.height(SpacingTokens.xxl * 2 + SpacingTokens.xl))
         }
@@ -888,7 +888,7 @@ private fun TranscriptTextContent(
 }
 
 /**
- * 单个句子条目 — 完全对齐得到大脑的 DOM 结构:
+ * 单个句子条目 — 完全对齐opedrgent的 DOM 结构:
  *
  * <div class="sentence-item sentence-item--clickable">
  *   <div class="flex items-center gap-[10px]">
@@ -912,7 +912,7 @@ private fun SentenceItem(
     isPlaying: Boolean,
     onClick: () -> Unit,
 ) {
-    val playingColor = AccentPurple // 得到大脑高亮色
+    val playingColor = AccentPurple // opedrgent高亮色
     val normalTextColor = TextPrimary
     val normalMetaColor = TextSecondary
 
@@ -927,7 +927,7 @@ private fun SentenceItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
-            // sentence-index: 圆形彩色 badge（参考得到大脑 22x22 circle）
+            // sentence-index: 圆形彩色 badge（参考opedrgent 22x22 circle）
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -943,7 +943,7 @@ private fun SentenceItem(
                 )
             }
 
-            // sentence-speaker: 圆角 pill badge（参考得到大脑 rounded 8px, bg #f5f7fa）
+            // sentence-speaker: 圆角 pill badge（参考opedrgent rounded 8px, bg #f5f7fa）
             Surface(
                 shape = ShapeTokens.smallShape,
                 color = themeCardBackground(),
@@ -958,7 +958,7 @@ private fun SentenceItem(
                 )
             }
 
-            // sentence-starttime + 播放跳转按钮（参考得到大脑：时间码右侧有 ▶ 可点击跳转）
+            // sentence-starttime + 播放跳转按钮（参考opedrgent：时间码右侧有 ▶ 可点击跳转）
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 Text(
                     text = TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs),
@@ -982,7 +982,7 @@ private fun SentenceItem(
             }
         }
 
-        // sentence-content: 左缩进对齐到内容区（参考得到大脑 padding-left: calc(22px+10px)）
+        // sentence-content: 左缩进对齐到内容区（参考opedrgent padding-left: calc(22px+10px)）
         Text(
             text = segment.text,
             color = if (isPlaying) playingColor else normalTextColor,
@@ -994,7 +994,7 @@ private fun SentenceItem(
 }
 
 // ================================================================
-// 智能总结内容（参考得到大脑 智能总结 Tab 结构）
+// 智能总结内容（参考opedrgent 智能总结 Tab 结构）
 // ================================================================
 
 @Composable
@@ -1062,7 +1062,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             }
             items(summary.chapters) { chapter ->
                 Spacer(Modifier.height(SpacingTokens.sm))
-                // 可点击的时间戳链接（模拟得到大脑 getnotes.seek 协议）
+                // 可点击的时间戳链接（模拟opedrgent getnotes.seek 协议）
                 Surface(shape = ShapeTokens.smallShape, color = Color.Transparent) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { }) {
                         Text(
@@ -1138,7 +1138,7 @@ private fun summaryInfoLine(label: String, value: String) {
 }
 
 // ================================================================
-// 追加笔记 — 数据模型 + 完整 UI（参考得到大脑追加笔记 Tab）
+// 追加笔记 — 数据模型 + 完整 UI（参考opedrgent追加笔记 Tab）
 // ================================================================
 
 /**
@@ -1273,7 +1273,7 @@ private fun AdditionalNotesContent(
  * 单条笔记卡片。
  *
  * 显示：序号 | 内容 | 时间戳链接（可点击跳转） | 编辑/删除按钮
- * 样式参考得到大脑 sentence-item 的视觉语言。
+ * 样式参考opedrgent sentence-item 的视觉语言。
  */
 @Composable
 private fun NoteItemCard(

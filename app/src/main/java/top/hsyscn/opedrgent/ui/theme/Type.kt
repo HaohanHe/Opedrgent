@@ -6,12 +6,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// 得到大脑风格字体排版
+// opedrgent风格字体排版
 val Typography = Typography(
     // 标题大号 - 页面标题、模态框标题
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,  // 得到大脑更多使用Medium
+        fontWeight = FontWeight.Medium,  // opedrgent更多使用Medium
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
@@ -37,7 +37,7 @@ val Typography = Typography(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
-        lineHeight = 27.sp,  // 170%行高，得到大脑风格
+        lineHeight = 27.sp,  // 170%行高，opedrgent风格
         letterSpacing = 0.sp
     ),
     // 正文中号 - 描述、次要内容

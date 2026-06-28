@@ -65,9 +65,7 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_UPDATED_AT INTEGER NOT NULL
             )
         """)
-        db.execSQL("CREATE INDEX idx_source ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)")
-        db.execSQL("CREATE INDEX idx_title ON $TABLE($COL_TITLE)")
-        db.execSQL("CREATE INDEX idx_scope ON $TABLE($COL_SCOPE)")
+        createItemIndexes(db)
         createSessionsTable(db)
     }
 
@@ -75,12 +73,19 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         if (oldVersion < 2) {
             // v1 -> v2: 新增 scope 列，旧数据默认为 project
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_SCOPE TEXT NOT NULL DEFAULT 'project'")
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_scope ON $TABLE($COL_SCOPE)")
+            createItemIndexes(db)
         }
         if (oldVersion < 3) {
             // v2 -> v3: 新增面试会话表，持久化 HippocampusMemory 数据
             createSessionsTable(db)
         }
+    }
+
+    /** 创建 indexed_items 表的高频查询索引（source_type/source_id/scope/title） */
+    private fun createItemIndexes(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_source ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_title ON $TABLE($COL_TITLE)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_scope ON $TABLE($COL_SCOPE)")
     }
 
     private fun createSessionsTable(db: SQLiteDatabase) {

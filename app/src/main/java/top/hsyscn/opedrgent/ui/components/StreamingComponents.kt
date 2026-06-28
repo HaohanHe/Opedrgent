@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -379,6 +380,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
         ToolStateType.COMPLETED -> Icons.Default.CheckCircle
         ToolStateType.ERROR -> Icons.Default.Cancel
         ToolStateType.SOURCE_ADDED -> Icons.Default.Bookmark
+        ToolStateType.PARTIAL_TIMEOUT -> Icons.Default.Error
     }
     val statusText = when (toolPart.state.status) {
         ToolStateType.PENDING -> "等待执行..."
@@ -403,6 +405,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
         }
         ToolStateType.ERROR -> "错误: ${toolPart.state.error?.take(30) ?: "未知"}"
         ToolStateType.SOURCE_ADDED -> "已添加来源"
+        ToolStateType.PARTIAL_TIMEOUT -> "部分超时: ${toolPart.state.error?.take(30) ?: "获取超时"}"
     }
 
     Row(
@@ -418,6 +421,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
                 ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
                 ToolStateType.ERROR -> MaterialTheme.colorScheme.error
                 ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.primary
+                ToolStateType.PARTIAL_TIMEOUT -> MaterialTheme.colorScheme.error
                 else -> themeTextGrey()
             },
         )
@@ -724,6 +728,7 @@ fun ToolCard(toolPart: ToolPart) {
         ToolStateType.COMPLETED -> Icons.Default.CheckCircle
         ToolStateType.ERROR -> Icons.Default.Cancel
         ToolStateType.SOURCE_ADDED -> Icons.Default.Link
+        ToolStateType.PARTIAL_TIMEOUT -> Icons.Default.Error
     }
     val statusColor = when (toolPart.state.status) {
         ToolStateType.PENDING -> themeTextGrey()
@@ -731,6 +736,7 @@ fun ToolCard(toolPart: ToolPart) {
         ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
         ToolStateType.ERROR -> MaterialTheme.colorScheme.error
         ToolStateType.SOURCE_ADDED -> MaterialTheme.colorScheme.primary
+        ToolStateType.PARTIAL_TIMEOUT -> MaterialTheme.colorScheme.error
     }
 
     Card(
