@@ -32,12 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBorderLight
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
@@ -68,41 +68,40 @@ fun EditorAdditionalNotesTab() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 40.dp),
+                    .padding(vertical = SpacingTokens.xxl),
             ) {
                 Text(
                     "暂无追加笔记",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
                 )
                 Text(
                     "在此处添加对笔记内容的补充和批注",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = SpacingTokens.xs),
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(SpacingTokens.lg))
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     color = themeSurfaceLight(),
                     onClick = { isEditing = true },
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     ) {
                         Icon(
                             Icons.Default.Add,
-                            null,
+                            contentDescription = "添加笔记",
                             tint = AccentPurple,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(SpacingTokens.md)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Text(
                             "添加笔记",
                             color = AccentPurple,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
+                            style = MaterialTheme.typography.labelLarge,
                         )
                     }
                 }
@@ -110,7 +109,7 @@ fun EditorAdditionalNotesTab() {
         } else {
             // 笔记列表
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
@@ -128,7 +127,7 @@ fun EditorAdditionalNotesTab() {
                         onDelete = { notes = notes.filter { it.id != note.id } },
                     )
                 }
-                item { Spacer(Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(SpacingTokens.xxl)) }
             }
         }
 
@@ -136,18 +135,17 @@ fun EditorAdditionalNotesTab() {
         if (isEditing) {
             HorizontalDivider()
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
                 color = themeSurfaceElevated(),
                 modifier = Modifier
-                    .padding(12.dp)
+                    .padding(SpacingTokens.md)
                     .fillMaxWidth(),
             ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (editingId != null) "编辑笔记" else "新建笔记",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.weight(1f),
                         )
                         IconButton(
@@ -156,17 +154,17 @@ fun EditorAdditionalNotesTab() {
                                 inputText = ""
                                 editingId = null
                             },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(SpacingTokens.xl)
                         ) {
                             Icon(
                                 Icons.Default.Close,
-                                "关闭",
+                                contentDescription = "关闭",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(SpacingTokens.lg)
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
@@ -183,13 +181,13 @@ fun EditorAdditionalNotesTab() {
                             focusedBorderColor = AccentPurple,
                             unfocusedBorderColor = themeBorderLight(),
                         ),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = ShapeTokens.smallShape,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(SpacingTokens.sm))
                     Row(horizontalArrangement = Arrangement.End) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color.Transparent,
+                            shape = ShapeTokens.smallShape,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                             onClick = {
                                 isEditing = false
                                 inputText = ""
@@ -198,14 +196,14 @@ fun EditorAdditionalNotesTab() {
                         ) {
                             Text(
                                 "取消",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = ShapeTokens.smallShape,
                             color = if (inputText.isNotBlank()) AccentPurple else DisabledColor,
                             onClick = {
                                 if (inputText.isNotBlank()) {
@@ -227,10 +225,9 @@ fun EditorAdditionalNotesTab() {
                         ) {
                             Text(
                                 text = if (editingId != null) "保存" else "添加",
-                                color = Color.White,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                             )
                         }
                     }
@@ -239,28 +236,28 @@ fun EditorAdditionalNotesTab() {
         } else if (notes.isNotEmpty()) {
             // 浮动添加按钮
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
                 border = BorderStroke(1.dp, themeBorderLight()),
                 onClick = { isEditing = true },
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
                     .fillMaxWidth(),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        null,
+                        contentDescription = "添加笔记",
                         tint = AccentPurple,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(SpacingTokens.lg)
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         "追加笔记...",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
                     )
                 }
             }

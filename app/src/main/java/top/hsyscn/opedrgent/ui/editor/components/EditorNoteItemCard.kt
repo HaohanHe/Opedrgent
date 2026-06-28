@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -26,15 +25,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
-import top.hsyscn.opedrgent.ui.theme.DeleteConfirmRed
-import top.hsyscn.opedrgent.ui.theme.DangerRed
-import top.hsyscn.opedrgent.ui.theme.ErrorBackground
-import top.hsyscn.opedrgent.ui.theme.ErrorBorder
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.editor.utils.EditorUtils
 
 /**
@@ -51,91 +47,89 @@ fun EditorNoteItemCard(
     var showConfirm by remember { mutableStateOf(false) }
 
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = ShapeTokens.smallShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = CircleShape,
-                    color = AccentPurple,
-                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(SpacingTokens.lg),
                 ) {}
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
                     EditorUtils.formatTimeAgo(createdAtMs),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    fontSize = 12.sp
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(SpacingTokens.xl)) {
                     Icon(
                         Icons.Default.Edit,
-                        "编辑",
+                        contentDescription = "编辑",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(SpacingTokens.sm)
                     )
                 }
-                IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(SpacingTokens.xl)) {
                     Icon(
                         Icons.Default.Delete,
-                        "删除",
-                        tint = DangerRed,
-                        modifier = Modifier.size(14.dp)
+                        contentDescription = "删除",
+                        tint = MaterialTheme.customColors.dangerRed,
+                        modifier = Modifier.size(SpacingTokens.sm)
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Text(
                 content,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             if (showConfirm) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = ErrorBackground,
-                    border = BorderStroke(1.dp, ErrorBorder),
+                    shape = ShapeTokens.smallShape,
+                    color = MaterialTheme.customColors.errorBackground,
+                    border = BorderStroke(1.dp, MaterialTheme.customColors.errorBorder),
                     modifier = Modifier
-                        .padding(top = 6.dp)
+                        .padding(top = SpacingTokens.sm)
                         .fillMaxWidth(),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
                     ) {
                         Text(
                             "删除这条笔记?",
-                            color = DeleteConfirmRed,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.customColors.deleteConfirmRed,
                             modifier = Modifier.weight(1f)
                         )
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color.Transparent,
+                            shape = ShapeTokens.extraSmallShape,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                             onClick = { showConfirm = false }
                         ) {
                             Text(
                                 "取消",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs)
                             )
                         }
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = DeleteConfirmRed,
+                            shape = ShapeTokens.extraSmallShape,
+                            color = MaterialTheme.customColors.deleteConfirmRed,
                             onClick = { onDelete(); showConfirm = false }
                         ) {
                             Text(
                                 "删除",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onError,
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs)
                             )
                         }
                     }

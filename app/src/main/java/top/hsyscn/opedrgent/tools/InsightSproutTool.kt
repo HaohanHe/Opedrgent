@@ -7,6 +7,7 @@ import top.hsyscn.opedrgent.insight.SproutOutputLength
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 
@@ -29,10 +30,6 @@ class InsightSproutTool(
         val qualityScore: Float,
         val timestamp: Long,
     )
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())))
-    }
 
     @Tool("insight_sprout")
     @ToolDescription("知识发芽：对输入文本进行深度多维度分析，发芽衍生出结构化的洞察报告。参数中 text 为必填，length/domains/use_context 为可选。")
@@ -297,7 +294,7 @@ class InsightSproutTool(
         }
 
         if (result.insights.isNotEmpty()) {
-            sb.appendLine("## Aha 洞察")
+            sb.appendLine("## 震惊瞬间洞察")
             sb.appendLine()
             result.insights.forEach { insight ->
                 sb.appendLine("> 「${insight.content}」")

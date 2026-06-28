@@ -32,14 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import top.hsyscn.opedrgent.ui.theme.TextDark
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -58,7 +57,7 @@ fun MessageBodyError(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(ShapeTokens.mediumShape)
             .background(MaterialTheme.colorScheme.errorContainer)
             .combinedClickable(
                 onClick = { },
@@ -72,19 +71,19 @@ fun MessageBodyError(
                     }
                 },
             )
-            .padding(12.dp),
+            .padding(SpacingTokens.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = Icons.Default.Error,
-            contentDescription = null,
+            contentDescription = "错误",
             modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.error,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(SpacingTokens.sm))
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
         ) {
             Text(
                 text = if (expanded || !shouldShowExpandButton) {
@@ -92,22 +91,19 @@ fun MessageBodyError(
                 } else {
                     errorText.lines().take(5).joinToString("\n")
                 },
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
                 maxLines = if (expanded) Int.MAX_VALUE else maxLines.intValue,
             )
             if (shouldShowExpandButton && !expanded) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(SpacingTokens.xs))
                 Text(
                     text = "查看全部",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.error),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(ShapeTokens.extraSmallShape)
                         .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs)
                         .clickable { expanded = true },
                 )
             }

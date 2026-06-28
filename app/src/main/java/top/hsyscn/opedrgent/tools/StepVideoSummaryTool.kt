@@ -14,6 +14,7 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -325,10 +326,6 @@ class StepVideoSummaryTool(
 
     private fun successResult(tp: ToolPart, text: String): ToolResult = ToolResult(
         toolPart = tp.copy(state = tp.state.copy(status = top.hsyscn.opedrgent.model.ToolStateType.COMPLETED, output = text, endTime = System.currentTimeMillis())),
-    )
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult = ToolResult(
-        toolPart = tp.copy(state = tp.state.copy(status = top.hsyscn.opedrgent.model.ToolStateType.ERROR, error = msg, endTime = System.currentTimeMillis())),
     )
 
     private data class SummaryResult(

@@ -193,10 +193,12 @@ class CuratorService(
     }
 
     private fun markSkillStale(skillName: String) {
-        // 记录 stale 标记到 usage records 的 metadata 中
         val existing = usageRecords[skillName]
-        if (existing != null) {
-            usageRecords[skillName] = existing.copy(lastUsedAt = System.currentTimeMillis())
+        if (existing == null) {
+            usageRecords[skillName] = SkillUsageRecord(
+                skillName = skillName,
+                lastUsedAt = 0L,
+            )
             saveUsageRecords()
         }
         DebugLog.d("$TAG: marked skill $skillName as stale")

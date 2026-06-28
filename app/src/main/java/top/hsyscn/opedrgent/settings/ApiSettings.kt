@@ -17,6 +17,8 @@ data class ProviderPreset(
     val models: List<String>,
 )
 
+const val MIMO_API_URL = "https://api.xiaomimimo.com/v1/chat/completions"
+
 val PROVIDER_PRESETS = listOf(
     ProviderPreset("Google Gemma 4 (AI Studio)", "https://generativelanguage.googleapis.com/v1beta/openai", listOf("gemma-4-31b-it", "gemma-4-12b-it", "gemma-4-4b-it")),
     ProviderPreset("Google Gemini", "https://generativelanguage.googleapis.com/v1beta", listOf("gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash")),
@@ -277,6 +279,14 @@ class ApiSettings(private val context: Context) {
     fun getThemeMode(): String = prefs.getString("themeMode", "system") ?: "system"
     fun saveThemeMode(mode: String) {
         prefs.edit().putString("themeMode", mode).apply()
+    }
+
+    /**
+     * 动态主题: 使用系统壁纸取色（Material You）。默认关闭以保持品牌色。
+     */
+    fun isDynamicColorEnabled(): Boolean = prefs.getBoolean("dynamicColor", false)
+    fun saveDynamicColorEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("dynamicColor", enabled).apply()
     }
 
     fun isDeepResearch(): Boolean = prefs.getBoolean("deepResearch", false)

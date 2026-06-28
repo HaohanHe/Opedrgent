@@ -1,5 +1,14 @@
 package top.hsyscn.opedrgent.ui
 
+import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.InterviewPurple
+import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
+import top.hsyscn.opedrgent.ui.theme.WarningColor
+import top.hsyscn.opedrgent.ui.theme.SuccessGreen
+import top.hsyscn.opedrgent.ui.theme.AccentOrange
+import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -130,7 +139,7 @@ import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-/** Tab 类型定义（参考得到大脑 4-Tab 系统） */
+/** Tab 类型定义（参考opedrgent 4-Tab 系统） */
 enum class TranscriptTab(val displayName: String) {
     SMART_SUMMARY("智能总结"),
     TEXT_RECORD("文字记录"),
@@ -164,7 +173,7 @@ fun MeetingRecordScreen(
     var transcriptResult by remember { mutableStateOf<MeetingTranscriptResult?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // 当前选中的 Tab（参考得到大脑 tab-bar）
+    // 当前选中的 Tab（参考opedrgent tab-bar）
     var activeTab by remember { mutableStateOf(TranscriptTab.TEXT_RECORD) }
 
     // 音频播放器状态
@@ -343,7 +352,7 @@ fun MeetingRecordScreen(
                                         }
                                     }
                                 },
-                                leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Default.Download, contentDescription = null /* 装饰性图标，文本已说明 */) },
                             )
                         }
                     }
@@ -358,7 +367,7 @@ fun MeetingRecordScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(SpacingTokens.lg),
         ) {
             // Recording card
             RecordingCard(
@@ -433,7 +442,7 @@ fun MeetingRecordScreen(
                 },
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(SpacingTokens.lg))
 
             // 转录结果区域（带 Tab 系统 + Audio Player）
             AnimatedVisibility(
@@ -444,40 +453,40 @@ fun MeetingRecordScreen(
             ) {
                 transcriptResult?.let { result ->
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                             // === 头部信息栏 ===
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
+                                    contentDescription = null, // 装饰性图标，文本已说明
                                     tint = AccentPurple,
                                     modifier = Modifier.size(20.dp),
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(SpacingTokens.sm))
                                 Text(
                                     text = "转录完成",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
+                                    style = MaterialTheme.typography.titleMedium,
                                     color = TextPrimary,
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
                                     text = "${result.segments.size} 段 · ${result.speakers.size} 人 · ${TranscriptTimeFormatter.formatDuration(result.durationMs)}",
                                     color = themeTextGrey(),
-                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.bodySmall,
                                 )
                             }
 
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(SpacingTokens.md))
                             HorizontalDivider()
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(SpacingTokens.md))
 
-                            // === Sticky Audio Player（参考得到大脑 note-header-audio-player）===
+                            // === Sticky Audio Player（参考opedrgent note-header-audio-player）===
                             val audioPath = result.audioFilePath
                             if (audioPath != null && File(audioPath).exists()) {
                                 AudioPlayerBar(
@@ -514,19 +523,19 @@ fun MeetingRecordScreen(
                                         }
                                     },
                                 )
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(SpacingTokens.md))
                                 HorizontalDivider()
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(SpacingTokens.md))
                             }
 
-                            // === Tab Bar（参考得到大脑 note-tabs）===
+                            // === Tab Bar（参考opedrgent note-tabs）===
                             TranscriptTabBar(
                                 activeTab = activeTab,
                                 onTabChange = { activeTab = it },
                                 hasSmartSummary = result.smartSummary != null,
                             )
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(SpacingTokens.xs))
 
                             // === Tab 内容区域 ===
                             when (activeTab) {
@@ -593,12 +602,12 @@ fun MeetingRecordScreen(
                                 )
                             }
 
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(SpacingTokens.md))
                             HorizontalDivider()
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(SpacingTokens.md))
 
                             // === 底部操作按钮 ===
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                                 // 下载录音文件
                                 OutlinedButton(
                                     onClick = {
@@ -609,11 +618,11 @@ fun MeetingRecordScreen(
                                             }
                                         }
                                     },
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = ShapeTokens.mediumShape,
                                     modifier = Modifier.height(44.dp),
                                 ) {
-                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.Default.Download, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(SpacingTokens.sm))
                                     Text(stringResource(R.string.action_download), fontWeight = FontWeight.Medium)
                                 }
                                 // 复制全文
@@ -621,21 +630,21 @@ fun MeetingRecordScreen(
                                     onClick = {
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(result.fullText))
                                     },
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = ShapeTokens.mediumShape,
                                     modifier = Modifier.weight(1f).height(44.dp),
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(SpacingTokens.sm))
                                     Text("复制", fontWeight = FontWeight.Medium)
                                 }
                                 Button(
                                     onClick = { onSendToChat(result.fullText) },
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = ShapeTokens.mediumShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
                                     modifier = Modifier.weight(1f).height(44.dp),
                                 ) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(SpacingTokens.sm))
                                     Text("AI 总结", fontWeight = FontWeight.Medium)
                                 }
                             }
@@ -648,7 +657,7 @@ fun MeetingRecordScreen(
 }
 
 // ================================================================
-// Tab Bar（参考得到大脑 note-tab-pill 样式）
+// Tab Bar（参考opedrgent note-tab-pill 样式）
 // ================================================================
 
 @Composable
@@ -671,16 +680,16 @@ private fun TranscriptTabBar(
             if (tab == TranscriptTab.SMART_SUMMARY && !hasSmartSummary) return@forEach
 
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = ShapeTokens.largeShape,
                 color = if (activeTab == tab) TextPrimary else Color.Transparent,
                 onClick = { onTabChange(tab) },
             ) {
                 Text(
                     text = tab.displayName,
-                    color = if (activeTab == tab) Color.White else TextSecondary,
+                    color = if (activeTab == tab) MaterialTheme.colorScheme.onPrimary else TextSecondary,
                     fontWeight = if (activeTab == tab) FontWeight.Medium else FontWeight.Normal,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
             }
         }
@@ -688,7 +697,7 @@ private fun TranscriptTabBar(
 }
 
 // ================================================================
-// Sticky Audio Player（参考得到大脑 note-header-audio-player 样式）
+// Sticky Audio Player（参考opedrgent note-header-audio-player 样式）
 // ================================================================
 
 @Composable
@@ -713,26 +722,26 @@ private fun AudioPlayerBar(
         // 控制行: -15s | ▶/⏸ | +15s | 时间 | 进度条 | 时长 | 倍速
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(ShapeTokens.mediumShape)
                 .background(themeSurfaceLight())
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
         ) {
             // -15s 按钮
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = ShapeTokens.smallShape,
                 color = Color.Transparent,
                 onClick = onSeekBackward15s,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
-                    Text(text = "\u21BA", fontSize = 14.sp, color = TextTertiary) // ↶
-                    Text(text = "15", fontSize = 10.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(SpacingTokens.xs)) {
+                    Text(text = "\u21BA", style = MaterialTheme.typography.bodyLarge, color = TextTertiary) // ↶
+                    Text(text = "15", style = MaterialTheme.typography.labelSmall, color = TextTertiary, fontWeight = FontWeight.Medium)
                 }
             }
 
-            // 播放/暂停按钮（圆形深色背景，参考得到大脑）
+            // 播放/暂停按钮（圆形深色背景，参考opedrgent）
             Surface(
                 shape = CircleShape,
                 color = TextPrimary,
@@ -745,7 +754,7 @@ private fun AudioPlayerBar(
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "暂停" else "播放",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -753,33 +762,33 @@ private fun AudioPlayerBar(
 
             // +15s 按钮
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = ShapeTokens.smallShape,
                 color = Color.Transparent,
                 onClick = onSeekForward15s,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
-                    Text(text = "15", fontSize = 10.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
-                    Text(text = "\u21BB", fontSize = 14.sp, color = TextTertiary) // ↷
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(SpacingTokens.xs)) {
+                    Text(text = "15", style = MaterialTheme.typography.labelSmall, color = TextTertiary, fontWeight = FontWeight.Medium)
+                    Text(text = "\u21BB", style = MaterialTheme.typography.bodyLarge, color = TextTertiary) // ↷
                 }
             }
 
             // 当前时间
             Text(
                 text = currentPositionFormatted,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
 
             // 进度条
             Surface(
-                shape = RoundedCornerShape(2.dp),
+                shape = ShapeTokens.extraSmallShape,
                 color = TextSecondary.copy(alpha = 0.08f),
                 onClick = { /* 点击进度条可扩展 */ },
                 modifier = Modifier
                     .weight(1f)
-                    .height(24.dp)
-                    .padding(vertical = 8.dp),
+                    .height(SpacingTokens.xl)
+                    .padding(vertical = SpacingTokens.sm),
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     LinearProgressIndicator(
@@ -788,8 +797,8 @@ private fun AudioPlayerBar(
                         trackColor = TextPrimary.copy(alpha = 0.03f),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
+                            .height(SpacingTokens.xs)
+                            .clip(ShapeTokens.extraSmallShape),
                     )
                 }
             }
@@ -797,7 +806,7 @@ private fun AudioPlayerBar(
             // 总时长
             Text(
                 text = durationFormatted,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
@@ -807,16 +816,16 @@ private fun AudioPlayerBar(
             val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
             Box {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = ShapeTokens.smallShape,
                     color = Color.Transparent,
                     onClick = { showSpeedMenu = true },
                 ) {
                     Text(
                         text = "${playbackSpeed}x",
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextTertiary,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(6.dp),
+                        modifier = Modifier.padding(SpacingTokens.sm),
                     )
                 }
                 DropdownMenu(
@@ -847,7 +856,7 @@ private fun AudioPlayerBar(
 }
 
 // ================================================================
-// 文字记录内容 — Sentence-Item 列表（参考得到大脑 sentence-item 样式）
+// 文字记录内容 — Sentence-Item 列表（参考opedrgent sentence-item 样式）
 // ================================================================
 
 @Composable
@@ -866,20 +875,20 @@ private fun TranscriptTextContent(
                 isPlaying = (index == currentPlayingIndex),
                 onClick = { onSegmentClick(index) },
             )
-            // 句子间距 12dp（参考得到大脑 sentence-item:not(:last-child) margin-bottom: 12px）
+            // 句子间距 12dp（参考opedrgent sentence-item:not(:last-child) margin-bottom: 12px）
             if (index < segments.lastIndex) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
             }
         }
-        // 底部留白（参考得到大脑 note-padding 80px）
+        // 底部留白（参考opedrgent note-padding 80px）
         item {
-            Spacer(Modifier.height(80.dp))
+            Spacer(Modifier.height(SpacingTokens.xxl * 2 + SpacingTokens.xl))
         }
     }
 }
 
 /**
- * 单个句子条目 — 完全对齐得到大脑的 DOM 结构:
+ * 单个句子条目 — 完全对齐opedrgent的 DOM 结构:
  *
  * <div class="sentence-item sentence-item--clickable">
  *   <div class="flex items-center gap-[10px]">
@@ -903,7 +912,7 @@ private fun SentenceItem(
     isPlaying: Boolean,
     onClick: () -> Unit,
 ) {
-    val playingColor = AccentPurple // 得到大脑高亮色
+    val playingColor = AccentPurple // opedrgent高亮色
     val normalTextColor = TextPrimary
     val normalMetaColor = TextSecondary
 
@@ -911,14 +920,14 @@ private fun SentenceItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
+            .padding(vertical = SpacingTokens.xs),
     ) {
         // 第一行: [圆形索引] [说话人标签] [时间戳]
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
-            // sentence-index: 圆形彩色 badge（参考得到大脑 22x22 circle）
+            // sentence-index: 圆形彩色 badge（参考opedrgent 22x22 circle）
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -928,33 +937,33 @@ private fun SentenceItem(
             ) {
                 Text(
                     text = "${segment.speakerIndex}",
-                    color = Color.White,
-                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )
             }
 
-            // sentence-speaker: 圆角 pill badge（参考得到大脑 rounded 8px, bg #f5f7fa）
+            // sentence-speaker: 圆角 pill badge（参考opedrgent rounded 8px, bg #f5f7fa）
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = ShapeTokens.smallShape,
                 color = themeCardBackground(),
             ) {
                 Text(
                     text = SpeakerColorPalette.formatSpeakerName(segment.speakerLabel),
                     color = normalMetaColor,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     lineHeight = 18.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                 )
             }
 
-            // sentence-starttime + 播放跳转按钮（参考得到大脑：时间码右侧有 ▶ 可点击跳转）
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // sentence-starttime + 播放跳转按钮（参考opedrgent：时间码右侧有 ▶ 可点击跳转）
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 Text(
                     text = TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs),
                     color = if (isPlaying) playingColor else normalMetaColor,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                 )
                 // ▶ 播放跳转按钮 — 点击跳转到该段起始位置并播放
@@ -967,17 +976,17 @@ private fun SentenceItem(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "跳转到 ${TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs)}",
                         tint = if (isPlaying) playingColor else normalMetaColor.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp).padding(2.dp),
+                        modifier = Modifier.size(20.dp).padding(SpacingTokens.xxs),
                     )
                 }
             }
         }
 
-        // sentence-content: 左缩进对齐到内容区（参考得到大脑 padding-left: calc(22px+10px)）
+        // sentence-content: 左缩进对齐到内容区（参考opedrgent padding-left: calc(22px+10px)）
         Text(
             text = segment.text,
             color = if (isPlaying) playingColor else normalTextColor,
-            fontSize = 17.sp,
+            style = MaterialTheme.typography.titleSmall,
             lineHeight = 26.sp,
             modifier = Modifier.padding(start = 32.dp).fillMaxWidth(),
         )
@@ -985,7 +994,7 @@ private fun SentenceItem(
 }
 
 // ================================================================
-// 智能总结内容（参考得到大脑 智能总结 Tab 结构）
+// 智能总结内容（参考opedrgent 智能总结 Tab 结构）
 // ================================================================
 
 @Composable
@@ -1002,30 +1011,30 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             Text(
                 text = "暂无智能总结",
                 color = themeTextGrey(),
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
             )
             Text(
                 text = "切换到「文字记录」查看完整转录文本",
                 color = themeTextGrey().copy(alpha = 0.6f),
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = SpacingTokens.xs),
             )
         }
         return
     }
 
     LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
         modifier = Modifier.fillMaxSize(),
     ) {
         // 📑 录音信息
         item {
-            Text(text = "\uD83D\uDCD1 智能总结", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(text = "\uD83D\uDCD1 智能总结", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         item {
-            Text(text = "录音信息", fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text = "录音信息", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(SpacingTokens.sm))
+            Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 summaryInfoLine("时长", summary.metaInfo.duration)
                 summaryInfoLine("参与人数", "${summary.metaInfo.participantCount} 人")
                 summaryInfoLine("内容类型", summary.metaInfo.contentType)
@@ -1034,48 +1043,48 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
 
         // 录音总结段落
         item {
-            Spacer(Modifier.height(8.dp))
-            Text(text = "录音总结", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(SpacingTokens.sm))
+            Text(text = "录音总结", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
         }
         items(summary.summarySections, key = { it.title + "_" + it.content.hashCode() }) { section ->
-            Spacer(Modifier.height(8.dp))
-            Text(text = section.title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Spacer(Modifier.height(SpacingTokens.sm))
+            Text(text = section.title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
             section.content.forEach { para ->
-                Text(text = para, fontSize = 14.sp, color = themeTextDark(), lineHeight = 22.sp)
+                Text(text = para, style = MaterialTheme.typography.bodyLarge, color = themeTextDark(), lineHeight = 22.sp)
             }
         }
 
         // 📅 章节概要
         if (summary.chapters.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(12.dp))
-                Text(text = "\uD83D\uDCC5 章节概要", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "\uD83D\uDCC5 章节概要", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.chapters) { chapter ->
-                Spacer(Modifier.height(8.dp))
-                // 可点击的时间戳链接（模拟得到大脑 getnotes.seek 协议）
-                Surface(shape = RoundedCornerShape(6.dp), color = Color.Transparent) {
+                Spacer(Modifier.height(SpacingTokens.sm))
+                // 可点击的时间戳链接（模拟opedrgent getnotes.seek 协议）
+                Surface(shape = ShapeTokens.smallShape, color = Color.Transparent) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { }) {
                         Text(
                             text = chapter.timestampFormatted,
                             color = AccentPurple,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
                         Text(
                             text = chapter.title,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyLarge,
                         )
                     }
                 }
                 Text(
                     text = chapter.summary,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                     lineHeight = 22.sp,
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier.padding(start = SpacingTokens.xs),
                 )
             }
         }
@@ -1083,20 +1092,20 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         // ✨ 金句精选
         if (summary.quotes.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(12.dp))
-                Text(text = "\u2728 金句精选", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "\u2728 金句精选", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.quotes, key = { it.text + "_" + it.category }) { quote ->
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Row {
-                    Text(text = "\u201C ", color = Color.Gray)
+                    Text(text = "\u201C ", color = themeTextGrey())
                     Text(
                         text = quote.text,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         lineHeight = 22.sp,
                         modifier = Modifier.weight(1f),
                     )
-                    Text(text = " \u201D (${quote.category})", color = themeTextGrey(), fontSize = 12.sp)
+                    Text(text = " \u201D (${quote.category})", color = themeTextGrey(), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -1104,14 +1113,14 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         // 📋 待办事项
         if (summary.actionItems.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(12.dp))
-                Text(text = "\uD83D\uDCCB 待办事项", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "\uD83D\uDCCB 待办事项", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.actionItems) { item ->
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
                     text = "\u2022 ${item.assignee}: ${item.task}",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     lineHeight = 22.sp,
                 )
             }
@@ -1123,13 +1132,13 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
 private fun summaryInfoLine(label: String, value: String) {
     Text(
         text = "$label: $value",
-        fontSize = 14.sp,
+        style = MaterialTheme.typography.bodyLarge,
         color = themeTextDark(),
     )
 }
 
 // ================================================================
-// 追加笔记 — 数据模型 + 完整 UI（参考得到大脑追加笔记 Tab）
+// 追加笔记 — 数据模型 + 完整 UI（参考opedrgent追加笔记 Tab）
 // ================================================================
 
 /**
@@ -1173,34 +1182,34 @@ private fun AdditionalNotesContent(
                     .fillMaxWidth()
                     .padding(vertical = 40.dp),
             ) {
-                Text(text = "暂无追加的笔记", color = themeTextGrey(), fontSize = 14.sp)
+                Text(text = "暂无追加的笔记", color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = "在此处添加您对录音内容的补充笔记和想法",
                     color = themeTextGrey().copy(alpha = 0.6f),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = SpacingTokens.xs),
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(SpacingTokens.lg))
                 // 添加按钮（空状态时突出显示）
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ShapeTokens.mediumShape,
                     color = themeSurfaceLight(),
                     onClick = { onToggleAdding(true) },
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.xl, vertical = SpacingTokens.md),
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("添加笔记", color = AccentPurple, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(SpacingTokens.sm))
+                        Text("添加笔记", color = AccentPurple, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
         } else {
             // 笔记列表 + 输入区
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 // 已有笔记条目
@@ -1215,15 +1224,15 @@ private fun AdditionalNotesContent(
                 }
 
                 // 底部留白
-                item { Spacer(Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(SpacingTokens.xxl * 2 + SpacingTokens.xl)) }
             }
         }
 
         // 输入区域（始终固定在底部）
         if (isAddingNote) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
             HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
             NoteInputArea(
                 inputText = noteInputText,
                 isEditing = editingNoteId != null,
@@ -1240,20 +1249,20 @@ private fun AdditionalNotesContent(
             )
         } else if (notes.isNotEmpty()) {
             // 非编辑状态下的浮动添加按钮
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = ShapeTokens.mediumShape,
                 color = Color.Transparent,
                 border = BorderStroke(1.dp, themeBorderLight()),
                 onClick = { onToggleAdding(true) },
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md).fillMaxWidth(),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("追加笔记...", color = themeTextGrey(), fontSize = 14.sp)
+                    Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
+                    Text("追加笔记...", color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
@@ -1264,7 +1273,7 @@ private fun AdditionalNotesContent(
  * 单条笔记卡片。
  *
  * 显示：序号 | 内容 | 时间戳链接（可点击跳转） | 编辑/删除按钮
- * 样式参考得到大脑 sentence-item 的视觉语言。
+ * 样式参考opedrgent sentence-item 的视觉语言。
  */
 @Composable
 private fun NoteItemCard(
@@ -1277,11 +1286,11 @@ private fun NoteItemCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         color = themeSurfaceElevated(),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.md)) {
             // 头部：序号 + 时间戳 + 操作按钮
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 序号圆圈（复用 sentence-index 样式）
@@ -1292,22 +1301,22 @@ private fun NoteItemCard(
                         .clip(CircleShape)
                         .background(AccentPurple),
                 ) {
-                    Text(text = "$index", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(text = "$index", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(SpacingTokens.md))
 
                 // 时间戳链接（如果关联了特定段落）
                 if (note.linkedSegmentIndex != null && note.linkedTimestampMs > 0) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = ShapeTokens.smallShape,
                         color = Color.Transparent,
                         onClick = { onSeekToTimestamp(note.linkedTimestampMs) },
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = SpacingTokens.xs)) {
                             Text(
                                 text = TranscriptTimeFormatter.formatMsToHMS(note.linkedTimestampMs),
                                 color = AccentPurple,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                             )
                             Icon(
@@ -1318,14 +1327,14 @@ private fun NoteItemCard(
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
                 }
 
                 // 创建时间
                 Text(
                     text = formatNoteTimestamp(note.createdAtMs),
                     color = themeTextGrey().copy(alpha = 0.7f),
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
 
                 Spacer(Modifier.weight(1f))
@@ -1341,10 +1350,10 @@ private fun NoteItemCard(
             }
 
             // 笔记内容
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Text(
                 text = note.content,
-                fontSize = 15.sp,
+                style = MaterialTheme.typography.titleSmall,
                 lineHeight = 22.sp,
                 color = TextPrimary,
             )
@@ -1352,21 +1361,21 @@ private fun NoteItemCard(
             // 删除确认弹窗
             if (showDeleteConfirm) {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = ShapeTokens.smallShape,
                     color = ErrorBackground,
                     border = BorderStroke(1.dp, ErrorBorder),
-                    modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(top = SpacingTokens.sm).fillMaxWidth(),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                     ) {
-                        Text("确定删除这条笔记？", color = DeleteConfirmRed, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Surface(shape = RoundedCornerShape(6.dp), color = Color.Transparent, onClick = { showDeleteConfirm = false }) {
-                            Text(stringResource(R.string.action_cancel), color = themeTextGrey(), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text("确定删除这条笔记？", color = DeleteConfirmRed, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Surface(shape = ShapeTokens.smallShape, color = Color.Transparent, onClick = { showDeleteConfirm = false }) {
+                            Text(stringResource(R.string.action_cancel), color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
                         }
-                        Surface(shape = RoundedCornerShape(6.dp), color = DeleteConfirmRed, onClick = { onDelete(); showDeleteConfirm = false }) {
-                            Text(stringResource(R.string.action_delete), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Surface(shape = ShapeTokens.smallShape, color = DeleteConfirmRed, onClick = { onDelete(); showDeleteConfirm = false }) {
+                            Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
                         }
                     }
                 }
@@ -1394,16 +1403,16 @@ private fun NoteInputArea(
         Text(
             text = if (isEditing) "编辑笔记" else "新建笔记",
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.titleSmall,
             color = TextPrimary,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SpacingTokens.sm))
 
         // 文本输入框
         OutlinedTextField(
             value = inputText,
             onValueChange = onInputChange,
-            placeholder = { Text("记录你的想法、要点或待办事项...", color = themeTextGrey().copy(alpha = 0.5f), fontSize = 14.sp) },
+            placeholder = { Text("记录你的想法、要点或待办事项...", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.bodyLarge) },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 80.dp, max = 160.dp),
@@ -1412,18 +1421,18 @@ private fun NoteInputArea(
                 unfocusedBorderColor = themeBorderLight(),
                 cursorColor = AccentPurple,
             ),
-            shape = RoundedCornerShape(10.dp),
+            shape = ShapeTokens.smallShape,
         )
 
         // 关联段落选择（可选）
         if (segments.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Text(
                 text = "关联到录音位置（可选，点击选择）",
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(SpacingTokens.xs))
             // 简化的段落选择：显示前 6 个段落供快速选择
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1431,16 +1440,16 @@ private fun NoteInputArea(
                 itemsIndexed(segments.take(6)) { idx, seg ->
                     val isSelected = selectedSegmentIndex == idx
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = ShapeTokens.smallShape,
                         color = if (isSelected) AccentPurple else themeCardBackground(),
                         onClick = { selectedSegmentIndex = if (isSelected) null else idx },
                     ) {
                         Text(
                             text = "${TranscriptTimeFormatter.formatMsToHMS(seg.startTimeMs)} ${seg.text.take(12)}...",
-                            color = if (isSelected) Color.White else themeTextGrey(),
-                            fontSize = 11.sp,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else themeTextGrey(),
+                            style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                         )
                     }
                 }
@@ -1448,25 +1457,25 @@ private fun NoteInputArea(
         }
 
         // 操作按钮行
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
         Row(horizontalArrangement = Arrangement.End) {
             // 取消
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = ShapeTokens.smallShape,
                 color = Color.Transparent,
                 onClick = onCancel,
             ) {
                 Text(
                     text = "取消",
                     color = themeTextGrey(),
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                 )
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(SpacingTokens.sm))
             // 提交
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = ShapeTokens.smallShape,
                 color = if (inputText.isNotBlank()) AccentPurple else DisabledColor,
                 onClick = {
                     if (inputText.isNotBlank()) {
@@ -1476,10 +1485,10 @@ private fun NoteInputArea(
             ) {
                 Text(
                     text = if (isEditing) "保存修改" else "保存笔记",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
             }
         }

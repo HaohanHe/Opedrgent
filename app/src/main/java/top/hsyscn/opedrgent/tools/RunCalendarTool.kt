@@ -9,6 +9,7 @@ import top.hsyscn.opedrgent.calendar.CalendarHelper
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
+import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -35,6 +36,13 @@ import java.util.TimeZone
 class RunCalendarTool(
     private val context: Context,
 ) : ToolSet {
+
+    companion object {
+        private const val DEFAULT_EVENT_DURATION_MS = 3600_000L
+        private const val MIN_EVENT_DURATION_MS = 60_000L
+        private const val ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000L
+        private const val MAX_DESCRIPTION_PREVIEW_LENGTH = 50
+    }
 
     override fun getTools(): Map<String, ToolBinding> = mapOf(
         "run_calendar" to ToolBinding(
@@ -127,11 +135,10 @@ class RunCalendarTool(
         val endMs = if (endTimeStr.isNotBlank()) {
             parseTimeToEpoch(endTimeStr, startMs)
         } else {
-            startMs + 3600_000L
+            startMs + DEFAULT_EVENT_DURATION_MS
         }
 
-        // 结束时间不能早于开始时间
-        val finalEndMs = maxOf(endMs, startMs + 60_000L)
+        val finalEndMs = maxOf(endMs, startMs + MIN_EVENT_DURATION_MS)
 
         val draft = CalendarEventDraft(
             title = title,
@@ -171,7 +178,7 @@ class RunCalendarTool(
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
         val weekStart = cal.timeInMillis
-        val weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000L
+        val weekEnd = weekStart + ONE_WEEK_MS
 
         val events = CalendarHelper.queryEvents(context, weekStart, weekEnd)
         return formatEventList(events, "本周")
@@ -201,7 +208,7 @@ class RunCalendarTool(
         } else {
             existing.endMs
         }
-        val finalEndMs = maxOf(endMs, startMs + 60_000L)
+        val finalEndMs = maxOf(endMs, startMs + MIN_EVENT_DURATION_MS)
 
         val draft = CalendarEventDraft(
             title = title,
@@ -252,7 +259,7 @@ class RunCalendarTool(
                 sb.append("\n   地点: ${event.location}")
             }
             if (!event.description.isNullOrBlank()) {
-                sb.append("\n   备注: ${event.description.take(50)}${if (event.description.length > 50) "..." else ""}")
+                sb.append("\n   备注: ${event.description.take(MAX_DESCRIPTION_PREVIEW_LENGTH)}${if (event.description.length > MAX_DESCRIPTION_PREVIEW_LENGTH) "..." else ""}")
             }
             if (!event.calendarName.isNullOrBlank()) {
                 sb.append("\n   日历: ${event.calendarName}")
@@ -352,17 +359,5 @@ class RunCalendarTool(
             baseCal.set(Calendar.MILLISECOND, 0)
         }
         return baseCal.timeInMillis
-    }
-
-    private fun emptyResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(
-            toolPart = tp.copy(
-                state = tp.state.copy(
-                    status = ToolStateType.ERROR,
-                    error = msg,
-                    endTime = System.currentTimeMillis(),
-                ),
-            ),
-        )
     }
 }

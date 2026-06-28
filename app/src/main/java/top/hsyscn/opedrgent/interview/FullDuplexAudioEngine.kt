@@ -12,10 +12,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
@@ -149,12 +152,14 @@ class FullDuplexAudioEngine(
     private val isRecording = AtomicBoolean(false)
 
     // VAD 相关状态
+    @Volatile
     private var vadSilenceStartMs = 0L       // 静音开始时间
+    @Volatile
     private var vadIsSpeechActive = false     // 当前是否在说话
     private var currentSpeechBuffer = ByteArrayOutputStream()  // 当前话语的 PCM 数据
+    @Volatile
     private var leadingSilenceFrameCount = 0  // 前导静音帧计数器
     private val speechListeners = mutableListOf<(ByteArray) -> Unit>()  // 话语回调
-    private val partialTextListeners = mutableListOf<(String) -> Unit>() // ASR partial 文本回调
 
     // ==================== 播放（下行）====================
 
@@ -270,6 +275,7 @@ class FullDuplexAudioEngine(
 
         stop()
         releaseResources()
+        engineScope.cancel()
         changeState(DuplexState.IDLE)
     }
 
@@ -391,7 +397,7 @@ class FullDuplexAudioEngine(
         try {
             // 注意：这里使用同步方式等待 TTS 合成完成
             // 实际项目中可以使用流式 TTS API 实现更低的延迟
-            withContextCompat(Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 ttsPlayer.speak(
                     text = text,
                     localeTag = "zh-CN",
@@ -505,17 +511,6 @@ class FullDuplexAudioEngine(
     }
 
     /**
-     * 注册 ASR 实时文本监听器（partial 结果）。
-     *
-     * @param listener 回调，参数为实时识别的文字片段
-     */
-    fun onPartialAsrText(listener: (String) -> Unit) {
-        synchronized(partialTextListeners) {
-            partialTextListeners.add(listener)
-        }
-    }
-
-    /**
      * 注册插话事件监听器。
      *
      * 当用户在 AI 说话时开口触发。
@@ -556,8 +551,10 @@ class FullDuplexAudioEngine(
                 }
 
                 vadIsSpeechActive = true
-                currentSpeechBuffer.reset()
-                currentSpeechBuffer.write(audioData, 0, size)
+                synchronized(this) {
+                    currentSpeechBuffer.reset()
+                    currentSpeechBuffer.write(audioData, 0, size)
+                }
                 vadSilenceStartMs = 0
 
                 DebugLog.d(TAG, "VAD: 开始检测到语音 (energy=$energy)")
@@ -572,7 +569,9 @@ class FullDuplexAudioEngine(
 
             // 语音继续
             vadIsSpeechActive && energy > VAD_ENERGY_THRESHOLD -> {
-                currentSpeechBuffer.write(audioData, 0, size)
+                synchronized(this) {
+                    currentSpeechBuffer.write(audioData, 0, size)
+                }
             }
 
             // 从语音切换到静音候选
@@ -583,12 +582,17 @@ class FullDuplexAudioEngine(
 
                 // 还没超时，继续积累（可能只是短暂停顿）
                 if (System.currentTimeMillis() - vadSilenceStartMs < VAD_SILENCE_TIMEOUT_MS) {
-                    currentSpeechBuffer.write(audioData, 0, size)
+                    synchronized(this) {
+                        currentSpeechBuffer.write(audioData, 0, size)
+                    }
                 } else {
                     // 超时了！判定为一句话结束
                     vadIsSpeechActive = false
-                    val speechData = currentSpeechBuffer.toByteArray()
-                    currentSpeechBuffer.reset()
+                    val speechData = synchronized(this) {
+                        val data = currentSpeechBuffer.toByteArray()
+                        currentSpeechBuffer.reset()
+                        data
+                    }
                     vadSilenceStartMs = 0
 
                     DebugLog.i(TAG, "VAD: 检测到一段语音结束 (${speechData.size} bytes)")
@@ -800,7 +804,9 @@ class FullDuplexAudioEngine(
         vadIsSpeechActive = false
         vadSilenceStartMs = 0
         leadingSilenceFrameCount = 0
-        currentSpeechBuffer.reset()
+        synchronized(this) {
+            currentSpeechBuffer.reset()
+        }
         bargeInDetected = false
     }
 
@@ -816,12 +822,4 @@ class FullDuplexAudioEngine(
 
         playQueue.clear()
     }
-
-    /**
-     * 兼容不同 Kotlin 版本的 withContext。
-     */
-    private suspend fun <T> withContextCompat(
-        dispatcher: kotlinx.coroutines.CoroutineDispatcher,
-        block: suspend kotlinx.coroutines.CoroutineScope.() -> T,
-    ): T = kotlinx.coroutines.withContext(dispatcher, block)
 }

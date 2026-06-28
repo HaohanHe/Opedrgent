@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,23 +16,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.*
 import top.hsyscn.opedrgent.service.ModelDownloadService
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
 fun ModelSelectorDialog(
@@ -57,13 +51,13 @@ fun ModelSelectorDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            shape = RoundedCornerShape(20.dp),
+                .padding(horizontal = SpacingTokens.xl),
+            shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(SpacingTokens.xl),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -71,33 +65,31 @@ fun ModelSelectorDialog(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Download,
-                        contentDescription = null,
-                        tint = BubbleBlue,
-                        modifier = Modifier.size(24.dp),
+                        contentDescription = "下载模型",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(SpacingTokens.xl),
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.md))
                     Text(
                         text = "本地模型管理",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeTextDark(),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = themeTextGrey())
+                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
                     text = "选择要下载和使用的 Gemma 4 本地模型。模型将在设备上完全离线运行。",
-                    color = themeTextGrey(),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 val listState = rememberLazyListState()
                 LazyColumn(
@@ -130,20 +122,20 @@ fun ModelSelectorDialog(
 
                         if (modelInfo != AvailableLocalModels.MODELS.last()) {
                             HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 8.dp),
+                                modifier = Modifier.padding(vertical = SpacingTokens.sm),
                                 color = MaterialTheme.colorScheme.outlineVariant,
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
 
                 val usedSpace = remember { downloadManager.getTotalUsedSpaceMb() }
                 Text(
                     text = "已使用空间: ${usedSpace} MB | 数据存储于应用私有目录",
-                    color = themeTextGrey().copy(alpha = 0.7f),
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
 
                 if (showFullDownloadDialog && downloadingModel != null) {
@@ -227,14 +219,14 @@ private fun ModelCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, BubbleBlue, RoundedCornerShape(12.dp))
-                else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, ShapeTokens.mediumShape)
+                else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, ShapeTokens.mediumShape)
             ),
-        shape = RoundedCornerShape(12.dp),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(SpacingTokens.md),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -242,83 +234,81 @@ private fun ModelCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = modelInfo.displayName,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = themeTextDark(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(SpacingTokens.xxs))
                     Text(
                         text = modelInfo.description,
-                        fontSize = 12.sp,
-                        color = themeTextGrey(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(SpacingTokens.sm))
 
                 StatusBadge(isDownloaded.value, isLoaded.value, throttledProgress?.status)
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.md))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    Icons.Default.Storage,
-                    contentDescription = null,
-                    tint = themeTextGrey(),
-                    modifier = Modifier.size(14.dp),
-                )
+                        Icons.Default.Storage,
+                        contentDescription = "模型大小",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(SpacingTokens.md),
+                    )
                 Text(
                     text = "${modelInfo.sizeMb} MB",
-                    fontSize = 12.sp,
-                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(SpacingTokens.md))
 
                 if (modelInfo.supportsFunctionCalling) {
                     Surface(
                         shape = CircleShape,
-                        color = BubbleBlue.copy(alpha = 0.1f),
+                        color = MaterialTheme.colorScheme.primaryContainer,
                     ) {
                         Text(
                             text = "FC",
-                            fontSize = 10.sp,
-                            color = BubbleBlue,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.sm))
                 }
 
                 if (modelInfo.preferGpu) {
                     CapabilityBadge("GPU", MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
                 if (modelInfo.supportsImage) {
                     CapabilityBadge("IMG", MaterialTheme.colorScheme.tertiary)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
                 if (modelInfo.supportsAudio) {
                     CapabilityBadge("AUD", MaterialTheme.colorScheme.secondary)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
                 if (modelInfo.supportsThinking) {
                     CapabilityBadge("THK", MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
                 if (modelInfo.supportsSpecDec) {
-                    CapabilityBadge("SD", AccentBlue)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    CapabilityBadge("SD", MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -337,30 +327,30 @@ private fun ModelCard(
             }
 
             if (throttledProgress?.status == DownloadStatus.DOWNLOADING) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.md))
                 LinearProgressIndicator(
                     progress = { throttledProgress!!.progressPercent / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = BubbleBlue,
-                    trackColor = BubbleBlue.copy(alpha = 0.15f),
+                        .height(SpacingTokens.xxs)
+                        .clip(ShapeTokens.extraSmallShape),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(SpacingTokens.xs))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
                         text = "${throttledProgress!!.downloadedMb.toInt()} MB / ${throttledProgress!!.totalMb.toInt()} MB",
-                        fontSize = 10.sp,
-                        color = themeTextGrey(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text = formatSpeed(throttledProgress!!.speedBytesPerSec),
-                        fontSize = 10.sp,
-                        color = themeTextGrey(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -375,38 +365,36 @@ private fun StatusBadge(
     status: DownloadStatus?
 ) {
     val (text, containerColor, contentColor) = when {
-        isLoaded -> Triple("运行中", BubbleBlue, Color.White)
-        isDownloaded -> Triple("已下载", MaterialTheme.colorScheme.primary, Color.White)
-        status == DownloadStatus.DOWNLOADING -> Triple("下载中", MaterialTheme.colorScheme.tertiary, Color.White)
-        status == DownloadStatus.QUEUED -> Triple("排队中", themeTextGrey().copy(alpha = 0.8f), Color.White)
-        status == DownloadStatus.PAUSED -> Triple("已暂停", themeTextGrey(), Color.White)
-        status == DownloadStatus.CANCELLED -> Triple("已取消", themeTextGrey().copy(alpha = 0.6f), Color.White)
-        status == DownloadStatus.FAILED -> Triple("失败", MaterialTheme.colorScheme.error, Color.White)
-        else -> Triple(null, Color.Transparent, themeTextGrey())
+        isLoaded -> Triple("运行中", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+        isDownloaded -> Triple("已下载", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+        status == DownloadStatus.DOWNLOADING -> Triple("下载中", MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
+        status == DownloadStatus.QUEUED -> Triple("排队中", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.PAUSED -> Triple("已暂停", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.CANCELLED -> Triple("已取消", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.FAILED -> Triple("失败", MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
+        else -> Triple(null, MaterialTheme.colorScheme.surface.copy(alpha = 0f), MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
     if (text != null) {
-        Surface(shape = RoundedCornerShape(6.dp), color = containerColor) {
+        Surface(shape = ShapeTokens.smallShape, color = containerColor) {
             Text(
                 text = text,
-                fontSize = 10.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xxs),
             )
         }
     }
 }
 
 @Composable
-private fun CapabilityBadge(label: String, color: Color) {
-    Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.1f)) {
+private fun CapabilityBadge(label: String, color: androidx.compose.ui.graphics.Color) {
+    Surface(shape = ShapeTokens.extraSmallShape, color = color.copy(alpha = 0.1f)) {
         Text(
             text = label,
-            fontSize = 9.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = color,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
         )
     }
 }
@@ -427,27 +415,26 @@ private fun ActionButton(
     when {
         isLoaded -> {
             Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = BubbleBlue,
+                shape = ShapeTokens.smallShape,
+                color = MaterialTheme.colorScheme.primary,
             ) {
                 Row(
                     modifier = Modifier
                         .clickable { /* 可选: 停止 */ }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp),
+                        contentDescription = "正在使用",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(SpacingTokens.md),
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(
                         text = "使用中",
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
             }
@@ -456,17 +443,17 @@ private fun ActionButton(
         isDownloaded -> {
             OutlinedButton(
                 onClick = onLoadAndSelect,
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                shape = ShapeTokens.smallShape,
+                contentPadding = PaddingValues(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
             ) {
                 Icon(
                     Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = BubbleBlue,
-                    modifier = Modifier.size(14.dp),
+                    contentDescription = "加载",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(SpacingTokens.md),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "加载", fontSize = 12.sp, color = BubbleBlue)
+                Spacer(modifier = Modifier.width(SpacingTokens.xs))
+                Text(text = "加载", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -474,7 +461,7 @@ private fun ActionButton(
             TextButton(
                 onClick = { scope.launch { downloadManager.cancelDownload(modelInfo.id) } },
             ) {
-                Text(text = "取消", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                Text(text = "取消", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
             }
         }
 
@@ -482,9 +469,9 @@ private fun ActionButton(
             TextButton(
                 onClick = { downloadManager.startDownload(modelInfo) },
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "重试", fontSize = 12.sp, color = BubbleBlue)
+                Icon(Icons.Default.Refresh, contentDescription = "重试", modifier = Modifier.size(SpacingTokens.md))
+                Spacer(modifier = Modifier.width(SpacingTokens.xs))
+                Text(text = "重试", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -494,18 +481,18 @@ private fun ActionButton(
                     downloadManager.startDownload(modelInfo)
                     onShowDownloadDialog(modelInfo)
                 },
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BubbleBlue),
+                shape = ShapeTokens.smallShape,
+                contentPadding = PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             ) {
                 Icon(
                     Icons.Default.Download,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp),
+                    contentDescription = "下载",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(SpacingTokens.md),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "下载", fontSize = 12.sp, color = Color.White)
+                Spacer(modifier = Modifier.width(SpacingTokens.xs))
+                Text(text = "下载", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }

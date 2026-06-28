@@ -37,9 +37,13 @@ class KnowledgeGraph(private val context: Context) {
     // 笔记ID → 关联的笔记ID列表
     private val links = ConcurrentHashMap<String, MutableSet<String>>()
     // 词汇表：word → index
-    private var vocabulary = mutableMapOf<String, Int>()
+    private val vocabulary = ConcurrentHashMap<String, Int>()
     // IDF 权重
     private var idf = floatArrayOf()
+    // 词 → 包含该词的文档数（用于计算 IDF）
+    private val termDocFrequency = ConcurrentHashMap<String, Int>()
+    // 笔记ID → 该笔记包含的词集合（用于增量更新文档频率）
+    private val noteWordSets = ConcurrentHashMap<String, Set<String>>()
 
     private val graphFile = File(context.filesDir, GRAPH_FILE)
 
@@ -62,34 +66,36 @@ class KnowledgeGraph(private val context: Context) {
 
         val tf = computeTf(words)
 
-        // 更新词汇表和 IDF
-        updateVocabulary(words)
+        synchronized(this) {
+            // 更新词汇表和 IDF
+            updateVocabulary(noteId, words)
 
-        // 计算 TF-IDF 向量
-        val embedding = computeTfIdf(tf)
-        embeddings[noteId] = embedding
+            // 计算 TF-IDF 向量
+            val embedding = computeTfIdf(tf)
+            embeddings[noteId] = embedding
 
-        // 与所有已有笔记计算相似度
-        val newLinks = mutableListOf<String>()
-        for ((otherId, otherEmbedding) in embeddings) {
-            if (otherId == noteId) continue
-            if (otherId in links.getOrDefault(noteId, emptySet())) continue
+            // 与所有已有笔记计算相似度
+            val newLinks = mutableListOf<String>()
+            for ((otherId, otherEmbedding) in embeddings) {
+                if (otherId == noteId) continue
+                if (otherId in links.getOrDefault(noteId, emptySet())) continue
 
-            val similarity = cosineSimilarity(embedding, otherEmbedding)
-            if (similarity >= SIMILARITY_THRESHOLD) {
-                addLink(noteId, otherId)
-                newLinks.add(otherId)
-                DebugLog.d(TAG, "自动关联: $noteId ↔ $otherId (相似度=${String.format("%.3f", similarity)})")
+                val similarity = cosineSimilarity(embedding, otherEmbedding)
+                if (similarity >= SIMILARITY_THRESHOLD) {
+                    addLink(noteId, otherId)
+                    newLinks.add(otherId)
+                    DebugLog.d(TAG, "自动关联: $noteId ↔ $otherId (相似度=${String.format("%.3f", similarity)})")
+                }
             }
+
+            // 限制每个笔记的关联数
+            trimLinks(noteId)
+
+            // 持久化
+            saveGraph()
+
+            return newLinks
         }
-
-        // 限制每个笔记的关联数
-        trimLinks(noteId)
-
-        // 持久化
-        saveGraph()
-
-        return newLinks
     }
 
     /**
@@ -148,27 +154,37 @@ class KnowledgeGraph(private val context: Context) {
         if (queryWords.isEmpty()) return emptyList()
 
         val queryTf = computeTf(queryWords)
-        updateVocabulary(queryWords)
-        val queryEmbedding = computeTfIdf(queryTf)
+        synchronized(this) {
+            updateVocabulary("_query_", queryWords)
+            val queryEmbedding = computeTfIdf(queryTf)
 
-        return embeddings.map { (noteId, embedding) ->
-            noteId to cosineSimilarity(queryEmbedding, embedding)
+            return embeddings.map { (noteId, embedding) ->
+                noteId to cosineSimilarity(queryEmbedding, embedding)
+            }
+                .filter { it.second > 0.05 }
+                .sortedByDescending { it.second }
+                .take(maxResults)
         }
-            .filter { it.second > 0.05 }
-            .sortedByDescending { it.second }
-            .take(maxResults)
     }
 
     /**
      * 删除笔记的所有关联
      */
     fun removeNote(noteId: String) {
-        val linkedIds = links.remove(noteId) ?: emptySet()
-        for (linkedId in linkedIds) {
-            links[linkedId]?.remove(noteId)
+        synchronized(this) {
+            val linkedIds = links.remove(noteId) ?: emptySet()
+            for (linkedId in linkedIds) {
+                links[linkedId]?.remove(noteId)
+            }
+            embeddings.remove(noteId)
+            val wordSet = noteWordSets.remove(noteId)
+            if (wordSet != null) {
+                for (word in wordSet) {
+                    termDocFrequency[word] = ((termDocFrequency[word] ?: 1) - 1).coerceAtLeast(0)
+                }
+            }
+            saveGraph()
         }
-        embeddings.remove(noteId)
-        saveGraph()
     }
 
     // ==================== 内部实现 ====================
@@ -201,15 +217,35 @@ class KnowledgeGraph(private val context: Context) {
         return words.groupingBy { it }.eachCount()
     }
 
-    private fun updateVocabulary(words: List<String>) {
-        for (word in words) {
-            if (word !in vocabulary) {
-                vocabulary[word] = vocabulary.size
+    private fun updateVocabulary(noteId: String, words: List<String>) {
+        synchronized(this) {
+            val wordSet = words.toSet()
+            val oldWordSet = noteWordSets[noteId]
+
+            if (oldWordSet != null) {
+                for (word in oldWordSet) {
+                    if (word !in wordSet) {
+                        termDocFrequency[word] = ((termDocFrequency[word] ?: 1) - 1).coerceAtLeast(0)
+                    }
+                }
+            }
+            for (word in wordSet) {
+                if (!vocabulary.containsKey(word)) {
+                    vocabulary[word] = vocabulary.size
+                }
+                if (oldWordSet == null || word !in oldWordSet) {
+                    termDocFrequency[word] = (termDocFrequency[word] ?: 0) + 1
+                }
+            }
+            noteWordSets[noteId] = wordSet
+
+            val totalDocs = noteWordSets.size.coerceAtLeast(1)
+            idf = FloatArray(vocabulary.size) { idx ->
+                val word = vocabulary.entries.find { it.value == idx }?.key
+                val df = word?.let { termDocFrequency[it] } ?: 1
+                kotlin.math.ln(totalDocs.toDouble() / df.coerceAtLeast(1)).toFloat().coerceAtLeast(0f)
             }
         }
-        // 重新计算 IDF（简化版：包含该词的文档数）
-        // 这里用 embedding 中的出现情况近似
-        idf = FloatArray(vocabulary.size) { 1f }
     }
 
     private fun computeTfIdf(tf: Map<String, Int>): FloatArray {
@@ -217,9 +253,10 @@ class KnowledgeGraph(private val context: Context) {
         val maxTf = tf.values.maxOrNull() ?: 1
         for ((word, count) in tf) {
             val idx = vocabulary[word] ?: continue
-            vec[idx] = count.toFloat() / maxTf  // TF 归一化
+            val tfNorm = count.toFloat() / maxTf
+            val idfWeight = if (idx < idf.size) idf[idx] else 1f
+            vec[idx] = tfNorm * idfWeight
         }
-        // 归一化为单位向量
         val norm = sqrt(vec.sumOf { (it * it).toDouble() }).toFloat()
         if (norm > 0f) {
             for (i in vec.indices) vec[i] /= norm

@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
@@ -73,6 +72,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.hsyscn.opedrgent.ui.SproutingState
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 private val PHASE_LABELS = mapOf(
     SproutingState.PHASE1 to ("提取种子" to "正在提取关键信息..."),
@@ -95,18 +96,18 @@ fun SproutResultView(
     if (markdownReport.isEmpty() && sproutingState == SproutingState.IDLE) return
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = "发芽报告视图" }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             SproutTitleBar(sproutingState = sproutingState, qualityScore = qualityScore, onDismiss = onDismiss)
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             AnimatedContent(
                 targetState = sproutingState,
@@ -129,9 +130,9 @@ fun SproutResultView(
             }
 
             if (sproutingState == SproutingState.DONE && markdownReport.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(SpacingTokens.md))
                 DoneActionButtons(
                     onCopy = onCopy,
                     onContinueChat = onContinueChat,
@@ -153,7 +154,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
             },
             style = MaterialTheme.typography.headlineSmall,
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(SpacingTokens.sm))
         Text(
             text = when (sproutingState) {
                 SproutingState.IDLE -> "发芽报告"
@@ -170,7 +171,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
 
         if (sproutingState == SproutingState.DONE && qualityScore != null) {
             QualityScoreBadge(score = qualityScore)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(SpacingTokens.sm))
         }
 
         IconButton(
@@ -179,6 +180,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
                 .size(36.dp)
                 .semantics { contentDescription = "关闭发芽报告" },
         ) {
+            // 装饰性关闭图标，外层 IconButton 已提供“关闭发芽报告”语义
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = null,
@@ -205,7 +207,7 @@ private fun QualityScoreBadge(score: Int) {
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
         ) {
             Text(
                 text = "$score",
@@ -213,7 +215,7 @@ private fun QualityScoreBadge(score: Int) {
                 fontWeight = FontWeight.Bold,
                 color = badgeColor,
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
@@ -253,11 +255,11 @@ private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             SproutGrowingAnimation(progress = growProgress)
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(SpacingTokens.lg))
 
             PhaseIndicatorDots(currentPhase = currentPhase)
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(SpacingTokens.md))
 
             Text(
                 text = formatElapsedTime(elapsedSeconds),
@@ -265,7 +267,7 @@ private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
 
             TextButton(
                 onClick = onCancel,
@@ -344,7 +346,7 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
     val currentIndex = phases.indexOf(currentPhase).coerceAtLeast(0)
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         phases.forEachIndexed { index, phase ->
@@ -378,17 +380,17 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
                     modifier = Modifier.size((12 * pulseScale).dp),
                 ) {
                     if (isCompleted) {
-                        Text("[OK]", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("[OK]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     } else {
                         Canvas(modifier = Modifier.size((10 * pulseScale).dp)) {
                             drawCircle(color = dotColor)
                         }
                     }
                 }
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(SpacingTokens.xxs))
                 Text(
                     text = listOf("1", "2", "3", "4")[index],
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
@@ -449,31 +451,31 @@ private fun ErrorPhase(onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp)
+            .padding(vertical = SpacingTokens.xl)
             .semantics { contentDescription = "发芽处理出错" },
     ) {
         Text(text = "错误", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.error)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
         Text(
             text = "发芽过程中出现错误",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.error,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             text = "请检查网络连接或稍后重试",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         Button(
             onClick = onRetry,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = "重试", modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text("重试", fontWeight = FontWeight.Medium)
         }
     }
@@ -485,24 +487,24 @@ private fun CancelledPhase(onRestart: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp)
+            .padding(vertical = SpacingTokens.xl)
             .semantics { contentDescription = "发芽已取消" },
     ) {
         Text(text = "已取消", style = MaterialTheme.typography.displaySmall)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
         Text(
             text = "已取消",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SpacingTokens.lg))
         OutlinedButton(
             onClick = onRestart,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = "重新开始", modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text("重新开始", fontWeight = FontWeight.Medium)
         }
     }
@@ -513,7 +515,7 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
     var copyFeedbackShown by remember { mutableStateOf(false) }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedButton(
@@ -521,7 +523,7 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
                 onCopy()
                 copyFeedbackShown = true
             },
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
@@ -530,26 +532,26 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
             if (copyFeedbackShown) {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = null,
+                    contentDescription = "已复制",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text("已复制", fontWeight = FontWeight.Medium)
             } else {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = null,
+                    contentDescription = "复制全文",
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(SpacingTokens.xs))
                 Text("复制全文", fontWeight = FontWeight.Medium)
             }
         }
 
         Button(
             onClick = onContinueChat,
-            shape = RoundedCornerShape(12.dp),
+            shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier
                 .weight(1f)
@@ -558,10 +560,10 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Default.Chat,
-                contentDescription = null,
+                contentDescription = "继续追问",
                 modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(SpacingTokens.xs))
             Text("继续追问", fontWeight = FontWeight.Medium)
         }
     }

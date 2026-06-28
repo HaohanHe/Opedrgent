@@ -105,6 +105,7 @@ import top.hsyscn.opedrgent.interview.AnalysisResult
 import top.hsyscn.opedrgent.interview.NextAction
 import top.hsyscn.opedrgent.interview.MaterialEntry
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
 import org.json.JSONArray
@@ -117,6 +118,7 @@ import android.content.ClipboardManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.sync.NoteSyncService
 import top.hsyscn.opedrgent.sync.WebDavConfig
@@ -127,6 +129,8 @@ import top.hsyscn.opedrgent.stt.SpeechEngine
 import top.hsyscn.opedrgent.stt.SherpaOnnxEngine
 import top.hsyscn.opedrgent.stt.MimoAsrEngine
 import top.hsyscn.opedrgent.stt.AndroidSpeechRecognizer
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttConfig
@@ -170,6 +174,9 @@ data class UiState(
     val aiSearchResults: List<AiSearchResult> = emptyList(),
     val isAiSearching: Boolean = false,
     val messageSearchResults: List<MessageSearchResult> = emptyList(),
+    val visibleRounds: Int = 10,
+    val hasMoreOlderRounds: Boolean = true,
+    val isLoadingOlderRounds: Boolean = false,
 )
 
 data class EvolutionSuggestion(
@@ -262,6 +269,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveEditorMode(mode: String) = apiSettings.saveEditorMode(mode)
     fun getThemeMode(): String = apiSettings.getThemeMode()
     fun saveThemeMode(mode: String) = apiSettings.saveThemeMode(mode)
+
+    fun isDynamicColorEnabled(): Boolean = apiSettings.isDynamicColorEnabled()
+    fun saveDynamicColorEnabled(enabled: Boolean) = apiSettings.saveDynamicColorEnabled(enabled)
     fun getSelectedLocalModel(): String = apiSettings.getSelectedLocalModel()
     fun saveSelectedLocalModel(model: String) = apiSettings.saveSelectedLocalModel(model)
     private val localEngine by lazy { LocalLlmEngine.getInstance(app) }
@@ -338,6 +348,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** AI 对话会话总数（供首页统计卡片使用） */
     val sessionCount: Int get() = _state.value.sessions.size
+
+    /** 今日新增笔记数（供首页统计卡片使用） */
+    val todayNoteCount: kotlinx.coroutines.flow.Flow<Int> = noteRepository.countToday().map { it.toInt() }
+
+    /** 知识库文档总数（供首页统计卡片使用） */
+    val kbDocumentCount: Int get() = knowledgeBase.getGlobalStats().first
 
     private val _questionRequest = MutableStateFlow<QuestionRequest?>(null)
     val questionRequest: StateFlow<QuestionRequest?> = _questionRequest
@@ -467,6 +483,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** 清除点评状态，供 UI 层在展示后调用 */
     fun clearWarmFeedback() { _warmFeedbackState.value = null }
+
+    // ==================== 通用反馈消息（替代 ViewModel 内 Toast） ====================
+
+    private val _feedbackMessage = MutableStateFlow<String?>(null)
+    val feedbackMessage: StateFlow<String?> = _feedbackMessage.asStateFlow()
+
+    /** 清除反馈消息，供 UI 层在展示 Snackbar 后调用 */
+    fun consumeFeedback() { _feedbackMessage.value = null }
 
     private var currentCall: Call? = null
     private var currentRunJob: Job? = null
@@ -650,7 +674,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         val last = apiSettings.getLastSessionId()
         if (!last.isNullOrBlank()) {
-            _state.value = _state.value.copy(current = store.getSession(last))
+            openSession(last)
         }
     }
 
@@ -763,7 +787,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         hippocampus?.let { hip ->
             val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
                 .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
-            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+            val item = top.hsyscn.opedrgent.storage.IndexedItem(
                 id = "memory_${entry.id}",
                 sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
                 sourceId = entry.id,
@@ -773,7 +797,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
                 createdAt = entry.createdAt,
                 updatedAt = entry.updatedAt,
-            ))
+            )
+            viewModelScope.launch { hip.upsert(item) }
         }
         refreshMemories()
     }
@@ -784,7 +809,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         hippocampus?.let { hip ->
             val kw = (title + " " + content).split(Regex("[\\s,;.!?，。；！？、]+"))
                 .filter { it.length in 2..10 }.distinct().take(10).joinToString(",")
-            hip.upsert(top.hsyscn.opedrgent.storage.IndexedItem(
+            val item = top.hsyscn.opedrgent.storage.IndexedItem(
                 id = "memory_$id",
                 sourceType = top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY,
                 sourceId = id,
@@ -794,7 +819,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 scope = top.hsyscn.opedrgent.storage.MemoryScope.GLOBAL,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis(),
-            ))
+            )
+            viewModelScope.launch { hip.upsert(item) }
         }
         refreshMemories()
     }
@@ -802,7 +828,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun deleteMemory(id: String) {
         memoryStore.delete(id)
         // 同步删除海马体索引
-        hippocampus?.deleteBySource(top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY, id)
+        hippocampus?.let { hip ->
+            viewModelScope.launch {
+                hip.deleteBySource(top.hsyscn.opedrgent.storage.SourceType.USER_MEMORY, id)
+            }
+        }
         refreshMemories()
     }
 
@@ -853,13 +883,108 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 loading = false,
             )
         }
-        _state.value = _state.value.copy(current = store.getSession(id), error = null)
+        val full = store.getSession(id)
+        val maxRound = full?.messages?.maxOfOrNull { it.roundIndex } ?: -1
+        val visible = if (maxRound < 0) 10 else min(10, maxRound + 1)
+        val oldestRound = max(0, maxRound - visible + 1)
+        val pagedMessages = if (full == null) emptyList() else {
+            store.getMessagesByRounds(id, oldestRound, maxRound)
+        }
+        _state.value = _state.value.copy(
+            current = full?.copy(messages = pagedMessages),
+            error = null,
+            visibleRounds = visible,
+            hasMoreOlderRounds = oldestRound > 0,
+            isLoadingOlderRounds = false,
+        )
         apiSettings.setLastSessionId(id)
     }
 
     fun closeSession() {
-        _state.value = _state.value.copy(current = null, error = null)
+        _state.value = _state.value.copy(
+            current = null,
+            error = null,
+            visibleRounds = 10,
+            hasMoreOlderRounds = true,
+            isLoadingOlderRounds = false,
+        )
         refreshSessions()
+    }
+
+    /** 计算消息列表中的最大轮次，空列表返回 -1 */
+    private fun maxRoundOf(messages: List<ChatMessage>): Int =
+        messages.maxOfOrNull { it.roundIndex } ?: -1
+
+    /** 重新加载当前会话的已加载轮次范围，并在检测到新轮次时自动扩展可见范围 */
+    private fun refreshCurrentSession(sessionId: String) {
+        val full = store.getSession(sessionId) ?: return
+        val newMax = maxRoundOf(full.messages)
+        if (newMax < 0) {
+            _state.value = _state.value.copy(
+                current = full,
+                hasMoreOlderRounds = false,
+            )
+            return
+        }
+        val oldMax = _state.value.current?.messages?.let { maxRoundOf(it) } ?: -1
+        var visible = _state.value.visibleRounds
+        if (newMax > oldMax && visible < newMax + 1) {
+            visible += 1
+        }
+        val oldestRound = max(0, newMax - visible + 1)
+        val pagedMessages = store.getMessagesByRounds(sessionId, oldestRound, newMax)
+        _state.value = _state.value.copy(
+            current = full.copy(messages = pagedMessages),
+            visibleRounds = visible,
+            hasMoreOlderRounds = oldestRound > 0,
+            isLoadingOlderRounds = false,
+        )
+    }
+
+    /**
+     * 加载更早的轮次消息并合并到当前会话前面。
+     *
+     * @param sessionId 目标会话 ID
+     * @param count 每次加载的轮次数
+     */
+    fun loadMoreRounds(sessionId: String, count: Int = 10) {
+        if (_state.value.isLoadingOlderRounds) return
+        val currentSession = _state.value.current ?: return
+        if (currentSession.id != sessionId) return
+        _state.value = _state.value.copy(isLoadingOlderRounds = true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val full = store.getSession(sessionId)
+            val maxRound = full?.messages?.let { maxRoundOf(it) } ?: -1
+            if (maxRound < 0) {
+                _state.value = _state.value.copy(
+                    isLoadingOlderRounds = false,
+                    hasMoreOlderRounds = false,
+                )
+                return@launch
+            }
+            val currentOldestRound = max(0, maxRound - _state.value.visibleRounds + 1)
+            if (currentOldestRound == 0) {
+                _state.value = _state.value.copy(
+                    isLoadingOlderRounds = false,
+                    hasMoreOlderRounds = false,
+                )
+                return@launch
+            }
+            val newOldestRound = max(0, currentOldestRound - count)
+            val olderMessages = store.getMessagesByRounds(
+                sessionId,
+                newOldestRound,
+                currentOldestRound - 1,
+            ).sortedWith(compareBy({ it.roundIndex }, { it.createdAt }))
+            val mergedMessages = olderMessages + currentSession.messages
+            val addedRounds = currentOldestRound - newOldestRound
+            _state.value = _state.value.copy(
+                current = currentSession.copy(messages = mergedMessages),
+                visibleRounds = _state.value.visibleRounds + addedRounds,
+                hasMoreOlderRounds = newOldestRound > 0,
+                isLoadingOlderRounds = false,
+            )
+        }
     }
 
     fun deleteSession(sessionId: String) {
@@ -878,10 +1003,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (store.renameSession(sessionId, newTitle)) {
             // 如果重命名的是当前打开的会话，更新 UI
             if (_state.value.current?.id == sessionId) {
-                val updated = store.getSession(sessionId)
-                if (updated != null) {
-                    _state.value = _state.value.copy(current = updated)
-                }
+                refreshCurrentSession(sessionId)
             }
             refreshSessions()
         }
@@ -956,7 +1078,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     url = url,
                     content = content,
                 )
-                _state.value = _state.value.copy(current = next)
+                refreshCurrentSession(sessionId)
                 refreshSessions()
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message ?: "抓取失败", openWebUrl = url)
@@ -976,7 +1098,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             url = null,
             content = sanitized.content,
         )
-        _state.value = _state.value.copy(current = next)
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -1027,7 +1149,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         store.addMessage(sessionId, Role.USER, finalText)
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
 
         if (_state.value.deepResearchEnabled) {
@@ -1081,7 +1203,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 // 重写为搜索提示，走正常 LLM 流程（LLM 会调用 web_search 工具）
                 store.addMessage(sessionId, Role.USER, "/search $args")
                 store.addMessage(sessionId, Role.SYSTEM, "用户通过快捷指令触发搜索，请使用 web_search 工具搜索：$args")
-                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshCurrentSession(sessionId)
                 refreshSessions()
                 runModel(sessionId)
             }
@@ -1092,7 +1214,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 store.addMessage(sessionId, Role.USER, "/rag $args")
                 store.addMessage(sessionId, Role.SYSTEM, "用户通过快捷指令触发知识库检索，请使用 step_rag 工具检索：$args")
-                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshCurrentSession(sessionId)
                 refreshSessions()
                 runModel(sessionId)
             }
@@ -1108,7 +1230,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     return
                 }
                 store.addMessage(sessionId, Role.USER, "/orchestrate $args")
-                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshCurrentSession(sessionId)
                 refreshSessions()
                 runOrchestration(sessionId, args)
             }
@@ -1145,7 +1267,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val helpText = top.hsyscn.opedrgent.utils.SlashCommands.helpText()
                 store.addMessage(sessionId, Role.USER, "/help")
                 store.addMessage(sessionId, Role.ASSISTANT, helpText)
-                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshCurrentSession(sessionId)
                 refreshSessions()
             }
         }
@@ -1154,7 +1276,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 添加系统消息并刷新 UI */
     private fun addSystemMessage(sessionId: String, content: String) {
         store.addMessage(sessionId, Role.SYSTEM, content)
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -1173,9 +1295,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val dataUrl = uriToBase64DataUrl(imageUri)
             if (dataUrl == null) {
                 DebugLog.w("sendUserMessageWithImage: 图片转换失败: $imageUri")
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(app, "图片加载失败", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                _feedbackMessage.value = "图片加载失败"
                 return@launch
             }
             pendingImage = dataUrl
@@ -1288,8 +1408,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     hippocampus?.upsertConversation(idxSession.id, idxSession.title, lastMsg)
                 }
 
+                refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
-                    current = store.getSession(sessionId),
                     isStreaming = false,
                     streamingText = "",
                 )
@@ -1297,8 +1417,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 DebugLog.e("runSwarm", "AgentSwarm 失败: ${e.message}", e)
                 store.addMessage(sessionId, Role.ASSISTANT, "多Agent执行失败: ${e.message}")
+                refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
-                    current = store.getSession(sessionId),
                     isStreaming = false,
                     streamingText = "",
                 )
@@ -1338,7 +1458,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             content = contentText,
             parts = listOf(audioPart),
         )
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId)
 
@@ -1371,7 +1491,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             // 发送视频摘要请求消息
             val message = "请分析这个视频的内容并生成摘要。视频文件路径：$filePath"
             store.addMessage(sessionId, Role.USER, message)
-            _state.value = _state.value.copy(current = store.getSession(sessionId))
+            refreshCurrentSession(sessionId)
             refreshSessions()
 
             // 触发 LLM 处理（会自动调用 step_video_summary 工具）
@@ -1476,7 +1596,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             )
             withContext(Dispatchers.Main) {
                 val message = if (result.success) "已添加到知识库" else "添加到知识库失败: ${result.error}"
-                android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_SHORT).show()
+                _feedbackMessage.value = message
             }
         }
     }
@@ -1512,7 +1632,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     if (!summary.hasChanges) append(" (无变更)")
                 }
-                android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
+                _feedbackMessage.value = msg
             }
         }
     }
@@ -1628,7 +1748,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val sessionId = _state.value.current?.id ?: return
         val skill = _state.value.skills.firstOrNull { it.id == skillId } ?: return
         store.addMessage(sessionId, Role.USER, skill.prompt.trim())
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId)
     }
@@ -1640,7 +1760,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             return
         }
         store.addMessage(sessionId, Role.USER, skill.prompt.trim())
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId)
     }
@@ -1744,7 +1864,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
         store.addMessage(sessionId, Role.USER, instructionMessage.trim())
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId)
     }
@@ -1775,14 +1895,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             skills.joinToString(separator = "\n") { "- ${it.name}" }
         }
         store.addMessage(sessionId, Role.ASSISTANT, text)
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
     fun generateSummary() {
         val sessionId = _state.value.current?.id ?: return
         store.addMessage(sessionId, Role.USER, "基于当前来源与对话，生成一份简洁摘要，并用 [S1]/[S2] 形式标注引用。")
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId, artifactKind = ArtifactKind.SUMMARY)
     }
@@ -1790,7 +1910,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun generateReport() {
         val sessionId = _state.value.current?.id ?: return
         store.addMessage(sessionId, Role.USER, "基于当前来源与对话，生成一份 Markdown 研究报告（含要点、结论、引用），并用 [S1]/[S2] 形式标注引用。")
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
         runModel(sessionId, artifactKind = ArtifactKind.REPORT)
     }
@@ -1817,10 +1937,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val clean = response.trim()
         if (clean.isNotEmpty()) {
             store.addArtifact(sessionId, kind, clean)
-            val updated = store.getSession(sessionId)
-            if (updated != null) {
-                _state.value = _state.value.copy(current = updated)
-            }
+            refreshCurrentSession(sessionId)
         }
     }
 
@@ -1953,7 +2070,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 description = """搜索互联网获取最新信息。当用户询问需要网络查询才能回答的问题时必须使用此工具。
 
 【重要】：如果用户已经提供了具体的 URL（http:// 或 https:// 开头），请使用 read_url 工具直接访问，不要用此工具搜索。
-此工具仅用于：用户提出问题但未给出具体网址时，需要你主动搜索相关信息。""",
+此工具仅用于：用户提出问题但未给出具体网址时，需要你主动搜索相关信息。
+
+工作方式：
+- 默认 phase=scan：返回 30-50 条搜索结果的标题、摘要、URL 列表，不抓取正文。
+- phase=deep：根据你选择的 urls（用 | 分隔）深入抓取网页正文。
+- 选择 5-10 个相关结果后，调用 web_search?phase=deep&urls=<url1>|<url2>|...""",
                 parameters = org.json.JSONObject().apply {
                     put("type", "object")
                     put("properties", org.json.JSONObject().apply {
@@ -1963,8 +2085,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         })
                         put("method", org.json.JSONObject().apply {
                             put("type", "string")
-                            put("enum", org.json.JSONArray().apply { put("ddg"); put("webview") })
-                            put("description", "搜索方法，默认 ddg")
+                            put("enum", org.json.JSONArray().apply { put("ddg"); put("webview"); put("provider_native"); put("mcp"); put("multimodal") })
+                            put("description", "搜索方法，默认 ddg（多引擎聚合）。特殊模式：webview 内置浏览器、provider_native 厂商原生联网、mcp JS 注入、multimodal 多模态点击")
+                        })
+                        put("phase", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("enum", org.json.JSONArray().apply { put("scan"); put("deep") })
+                            put("description", "搜索阶段：scan 仅扫描列表（默认），deep 深入抓取指定 URL")
+                        })
+                        put("urls", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "deep 阶段要抓取的 URL，多个用 | 分隔")
+                        })
+                        put("max_fetch", org.json.JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "deep 阶段最多抓取的 URL 数量，默认 5，最大 10")
                         })
                     })
                     put("required", org.json.JSONArray().apply { put("query") })
@@ -2247,8 +2382,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     store.addArtifact(sessionId, artifactKind, displayContent)
                 }
 
+                refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
-                    current = store.getSession(sessionId),
                     error = null,
                     isStreaming = false,
                     streamingText = "",
@@ -2875,8 +3010,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     // ToolCallGuardrail: 检查是否陷入死循环
                     val lastRecord = guardrail.getHistory().lastOrNull()
-                    if (lastRecord != null && lastRecord.toolName == tp.tool && !lastRecord.success) {
-                        val consecutiveFails = guardrail.getHistory().takeLastWhile { it.toolName == tp.tool && !it.success }.size
+                    if (lastRecord != null && lastRecord.toolName == tp.tool && lastRecord.status != top.hsyscn.opedrgent.network.ToolExecutionStatus.SUCCESS) {
+                        val consecutiveFails = guardrail.getHistory().takeLastWhile { it.toolName == tp.tool && it.status != top.hsyscn.opedrgent.network.ToolExecutionStatus.SUCCESS }.size
                         if (consecutiveFails >= 3) {
                             DebugLog.w("ToolCallGuardrail: 工具 '${tp.tool}' 连续失败 ${consecutiveFails} 次，跳过执行")
                             val blockedTp = tp.copy(state = tp.state.copy(
@@ -2912,31 +3047,46 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     // 缓存执行结果，稍后按正确顺序统一添加到 toolMessages
                     ctx.toolExecCache[tc.id] = execResult
 
-                    // ToolCallGuardrail: 记录调用结果
+                    // ToolCallGuardrail: 记录调用结果（区分超时/致命失败）
+                    val guardrailStatus = when (execResult.toolPart.state.status) {
+                        ToolStateType.COMPLETED, ToolStateType.SOURCE_ADDED ->
+                            top.hsyscn.opedrgent.network.ToolExecutionStatus.SUCCESS
+                        ToolStateType.PARTIAL_TIMEOUT ->
+                            top.hsyscn.opedrgent.network.ToolExecutionStatus.TIMEOUT
+                        ToolStateType.RUNNING, ToolStateType.PENDING ->
+                            top.hsyscn.opedrgent.network.ToolExecutionStatus.FATAL_ERROR
+                        ToolStateType.ERROR ->
+                            top.hsyscn.opedrgent.network.ToolExecutionStatus.FATAL_ERROR
+                    }
                     val action = guardrail.record(
                         toolName = tp.tool,
                         args = tp.state.input.toString(),
                         result = execResult.toolPart.state.output ?: "",
-                        success = execResult.toolPart.state.status != ToolStateType.ERROR,
+                        status = guardrailStatus,
                     )
                     when (action) {
-                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.HALT -> {
-                            DebugLog.w("ToolCallGuardrail: HALT — 工具调用死循环检测，终止 Agent 循环")
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.SESSION_HALT -> {
+                            DebugLog.w("ToolCallGuardrail: SESSION_HALT — 严重问题，终止 Agent 循环")
                             guardrailHalted = true
-                            lastError = "工具调用保护: 检测到重复失败，已自动停止"
+                            lastError = "工具调用保护: 检测到严重问题，已自动停止"
                             _state.value = _state.value.copy(
-                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到重复失败，已自动停止。",
+                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
                             )
                         }
-                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.BLOCK -> {
-                            DebugLog.w("ToolCallGuardrail: BLOCK — 工具调用无进展或doom loop")
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.AGENT_HALT,
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.TOOL_BLOCK -> {
+                            DebugLog.w("ToolCallGuardrail: ${action.name} — 工具调用无进展或doom loop")
                             guardrailHalted = true
                             lastError = "工具调用保护: 工具调用无进展，已自动停止"
                         }
-                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.WARN -> {
-                            DebugLog.w("ToolCallGuardrail: WARN — 工具 '${tp.tool}' 连续失败")
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.PARTIAL_ERROR -> {
+                            DebugLog.w("ToolCallGuardrail: PARTIAL_ERROR — 部分工具失败，继续返回可用结果")
+                            // 不终止会话，仅记录警告；后续循环仍可使用已成功工具结果。
+                            _state.value = _state.value.copy(
+                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 部分工具失败，将基于已成功结果继续。",
+                            )
                         }
-                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.Action.ALLOW -> { }
+                        top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.ALLOW -> { }
                     }
 
                     val doneTp = execResult.toolPart
@@ -3709,7 +3859,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 // Index conversation into hippocampus
                 val session = store.getSession(sessionId)
                 if (session != null && session.messages.size >= 2) {
-                    hippocampus?.upsertConversation(session.id, session.title, accumulatedText)
+                    viewModelScope.launch {
+                        hippocampus?.upsertConversation(session.id, session.title, accumulatedText)
+                    }
                 }
 
                 if (compressed.needsCompression && !preCheck.isCritical) {
@@ -3773,7 +3925,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun removeSource(sourceId: String) {
         val sessionId = _state.value.current?.id ?: return
         val next = store.removeSource(sessionId, sourceId) ?: return
-        _state.value = _state.value.copy(current = next)
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -3787,7 +3939,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun getDebugDump(): String {
+    suspend fun getDebugDump(): String {
         val session = _state.value.current ?: return "（无当前会话）"
         val app = getApplication<Application>()
         val includeLoc = apiSettings.isLocationEnabled()
@@ -3980,7 +4132,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             reasoningParts = reasoningParts,
             parts = messageParts,
         )
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -3991,7 +4143,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val updatedMessages = session.messages.filter { it.id != messageId }
         val updatedSession = session.copy(messages = updatedMessages, updatedAt = System.currentTimeMillis())
         store.updateSession(updatedSession)
-        _state.value = _state.value.copy(current = updatedSession)
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -4005,7 +4157,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             appendLine("回答：$answer")
         }
         store.addMessage(sessionId, Role.USER, qContent)
-        _state.value = _state.value.copy(current = store.getSession(sessionId))
+        refreshCurrentSession(sessionId)
         runModel(sessionId)
     }
 
@@ -4210,7 +4362,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }.trim()
                 store.setNotes(sessionId, assistant)
                 store.addArtifact(sessionId, ArtifactKind.NOTES, assistant)
-                _state.value = _state.value.copy(current = store.getSession(sessionId), error = null)
+                refreshCurrentSession(sessionId)
+        _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message ?: "整理失败")
@@ -4223,14 +4376,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun setSourceIncluded(sourceId: String, included: Boolean) {
         val sessionId = _state.value.current?.id ?: return
         val next = store.setSourceIncluded(sessionId, sourceId, included) ?: return
-        _state.value = _state.value.copy(current = next)
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
     fun updateNotesManually(notes: String) {
         val sessionId = _state.value.current?.id ?: return
         val next = store.setNotes(sessionId, notes) ?: return
-        _state.value = _state.value.copy(current = next)
+        refreshCurrentSession(sessionId)
         refreshSessions()
     }
 
@@ -4563,7 +4716,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return when {
             // DeepSeek V4 系列（1M，含 Pro 和 Flash）
             m.contains("deepseek-v4") || m.contains("deepseek-r1") -> 1_000_000
-            top.hsyscn.opedrgent.network.LlmClient.isDeepSeekV4(m) ->
+            top.hsyscn.opedrgent.network.LlmClient.isDeepSeek(m) ->
                 top.hsyscn.opedrgent.network.LlmClient.getDeepSeekMaxContext()
             m.contains("deepseek-v3") -> 128_000
 
@@ -4906,7 +5059,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 store.addMessage(sessionId, Role.USER, "请基于新增来源回答：$q。结论尽量标注引用 [S1]/[S2]。")
-                _state.value = _state.value.copy(current = store.getSession(sessionId))
+                refreshCurrentSession(sessionId)
                 refreshSessions()
                 val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
                 val system = buildSystemPrompt(session)
@@ -4926,7 +5079,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     hippocampus?.upsertConversation(idxSession.id, idxSession.title, assistant)
                 }
 
-                _state.value = _state.value.copy(current = store.getSession(sessionId), error = null)
+                refreshCurrentSession(sessionId)
+        _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message ?: "联网查询失败")
@@ -4999,7 +5153,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 store.addMessage(sessionId, Role.USER, "解析 PDF：$name")
                 store.addMessage(sessionId, Role.ASSISTANT, assistant)
                 store.addArtifact(sessionId, ArtifactKind.REPORT, assistant)
-                _state.value = _state.value.copy(current = store.getSession(sessionId), error = null)
+                refreshCurrentSession(sessionId)
+        _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message ?: "PDF 多模态失败")
@@ -5479,7 +5634,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         store.addMessage(currentSessionId, Role.USER, prompt.trim())
-        _state.value = _state.value.copy(current = store.getSession(currentSessionId))
+        refreshCurrentSession(currentSessionId)
         refreshSessions()
         runModel(currentSessionId)
 
@@ -5626,7 +5781,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val phaseOrder = listOf(
                     top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION,
                     top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN,
-                    top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT,
+                    top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT,
                     top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE,
                 )
                 var currentPhaseIndex = 0
@@ -5653,7 +5808,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
                         top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
                         top.hsyscn.opedrgent.insight.SproutPhase.WEB_ENHANCE -> _sproutingState.value = SproutingState.PHASE2
-                        top.hsyscn.opedrgent.insight.SproutPhase.AHA_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
+                        top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
                         top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
                     }
                 }
@@ -5816,7 +5971,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var interviewStartTime: Long = 0L
 
     /** 面试对话历史 */
-    private val interviewTranscript = mutableListOf<DialogueTurn>()
+    private val interviewTranscript: MutableList<DialogueTurn> = Collections.synchronizedList(mutableListOf())
 
     /** 当前问题索引 */
     private var currentQuestionIdx = 0
@@ -6046,13 +6201,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 // 恢复正常状态
-                _interviewState.value = InterviewUiState(
+                _interviewState.value = _interviewState.value.copy(
                     phase = InterviewPhase.IN_PROGRESS,
                     config = currentState.config,
                     messages = interviewTranscript.toList(),
                     questionCount = interviewTranscript.count { it.role == "interviewer" },
                     elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
-                    coachFeedback = _interviewState.value.coachFeedback,
                 )
 
             } catch (e: Exception) {
@@ -6102,15 +6256,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
                 report = report,
             )
-
-            // 停止语音引擎
-            voiceEngine?.stopConversation()
         } catch (e: Exception) {
             DebugLog.e("Interview", "生成报告失败: ${e.message}", e)
             _interviewState.value = _interviewState.value.copy(
                 phase = InterviewPhase.COMPLETED,
                 error = "报告生成失败: ${e.message}",
             )
+        } finally {
+            voiceEngine?.stopConversation()
         }
     }
 
@@ -6419,8 +6572,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                 }
 
+                refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
-                    current = store.getSession(sessionId),
                     isStreaming = false,
                     streamingText = "",
                 )
@@ -6428,8 +6581,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 DebugLog.e("Orchestration", "Orchestrator 失败: ${e.message}", e)
                 store.addMessage(sessionId, Role.ASSISTANT, "专家协作执行失败: ${e.message}")
+                refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
-                    current = store.getSession(sessionId),
                     isStreaming = false,
                     streamingText = "",
                 )
