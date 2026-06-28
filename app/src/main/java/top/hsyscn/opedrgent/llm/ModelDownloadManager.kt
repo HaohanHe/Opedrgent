@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okio.appendingSink
 import okio.buffer
 import okio.sink
 import top.hsyscn.opedrgent.network.HttpClients
@@ -97,9 +98,8 @@ class ModelDownloadManager(private val context: Context) {
                             status = DownloadStatus.DOWNLOADING,
                             error = "主源失败，正在切换备用源..."
                         ))
-                        // 切换源时清除之前的临时文件，避免断点续传范围不一致
-                        val tempFile = File(modelDir, "${modelInfo.fileName}.tmp")
-                        if (tempFile.exists()) tempFile.delete()
+                        // 不主动删除临时文件，交给 doDownload 根据响应码决定：
+                        // 若 fallback 支持 206 断点续传则追加；返回 200 则自动清空重下
                         delay(1000)
                     }
 
@@ -253,9 +253,32 @@ class ModelDownloadManager(private val context: Context) {
 
             val body = response.body ?: throw Exception("Empty response body")
             val contentLength = body.contentLength()
-            val totalBytes = if (contentLength > 0) existingLength + contentLength else modelInfo.sizeMb * 1024 * 1024
 
-            tempFile.sink().buffer().use { sink ->
+            // 206 表示服务器支持断点续传；200 等表示返回完整内容，需要从头开始
+            val supportsResume = response.code == 206
+            val startBytes = if (supportsResume) {
+                existingLength
+            } else {
+                if (tempFile.exists()) tempFile.delete()
+                0L
+            }
+            val totalBytes = if (contentLength > 0) {
+                if (supportsResume) existingLength + contentLength else contentLength
+            } else {
+                modelInfo.sizeMb * 1024 * 1024
+            }
+
+            downloadedSoFar = startBytes
+
+            emitProgress(flow, modelInfo.id, DownloadProgress(
+                modelId = modelInfo.id,
+                status = DownloadStatus.DOWNLOADING,
+                downloadedBytes = downloadedSoFar,
+                totalBytes = totalBytes,
+            ))
+
+            val sink = if (supportsResume) tempFile.appendingSink().buffer() else tempFile.sink().buffer()
+            sink.use {
                 val source = body.source()
                 val buffer = ByteArray(8192)
                 var lastEmitTime = 0L
@@ -266,11 +289,11 @@ class ModelDownloadManager(private val context: Context) {
                     val read = source.read(buffer)
                     if (read == -1) break
 
-                    sink.write(buffer, 0, read)
+                    it.write(buffer, 0, read)
                     downloadedSoFar += read
 
                     val now = System.currentTimeMillis()
-                    if (now - lastEmitTime >= 300 || downloadedSoFar == totalBytes.toLong()) {
+                    if (now - lastEmitTime >= 300 || downloadedSoFar == totalBytes) {
                         val speed = if (now - lastEmitTime > 0) {
                             (downloadedSoFar - lastEmittedBytes) * 1000 / (now - lastEmitTime)
                         } else 0
@@ -300,6 +323,7 @@ class ModelDownloadManager(private val context: Context) {
                 }
             }
 
+            if (outputFile.exists()) outputFile.delete()
             tempFile.renameTo(outputFile)
 
             emitProgress(flow, modelInfo.id, DownloadProgress(
