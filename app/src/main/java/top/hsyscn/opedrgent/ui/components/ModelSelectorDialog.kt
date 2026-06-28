@@ -157,7 +157,7 @@ fun ModelSelectorDialog(
                         },
                         onPause = {
                             isDownloadPaused = true
-                            downloadManager.cancelDownload(model.id)
+                            downloadManager.pauseDownload(model.id)
                             ModelDownloadService.setPaused(true)
                         },
                         onResume = {
