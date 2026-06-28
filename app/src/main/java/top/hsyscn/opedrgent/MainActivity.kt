@@ -71,9 +71,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun extractAction(intent: Intent?): String? {
-        return when (intent?.action) {
-            "top.hsyscn.opedrgent.ACTION_RECORD" -> "recording"
-            "top.hsyscn.opedrgent.ACTION_NEW_CHAT" -> "new_chat"
+        return when {
+            intent?.action == "top.hsyscn.opedrgent.ACTION_RECORD" -> "recording"
+            intent?.action == "top.hsyscn.opedrgent.ACTION_NEW_CHAT" -> "new_chat"
+            intent?.getBooleanExtra("start_recording", false) == true -> "recording"
             else -> null
         }
     }

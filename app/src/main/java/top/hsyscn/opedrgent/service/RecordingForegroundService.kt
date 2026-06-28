@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.service
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -41,11 +43,31 @@ class RecordingForegroundService : Service() {
                 action = ACTION_START
                 putExtra(EXTRA_MODE, mode)
             }
+
+            // Android 14+ 限制：从后台启动 microphone 类型前台服务会被系统拒绝。
+            // 如果检测到应用不在前台，先通过 Intent 拉起 MainActivity，再由其启动服务。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !isAppInForeground(context)) {
+                DebugLog.w(TAG, "App is not in foreground; launching MainActivity before starting recording service")
+                val launchIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("start_recording", true)
+                    putExtra("recording_mode", mode)
+                }
+                context.startActivity(launchIntent)
+                return
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+        }
+
+        private fun isAppInForeground(context: Context): Boolean {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val tasks = am.getRunningTasks(1)
+            return tasks.firstOrNull()?.topActivity?.packageName == context.packageName
         }
 
         fun updateTimer(context: Context, timerText: String) {
@@ -112,7 +134,23 @@ class RecordingForegroundService : Service() {
 
         currentMode = intent?.getStringExtra(EXTRA_MODE) ?: "录音"
         acquireWakeLock(this)
-        startForeground(NOTIFICATION_ID, buildNotification())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    buildNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification())
+            }
+        } catch (e: SecurityException) {
+            DebugLog.e(TAG, "Failed to start foreground recording service", e)
+            showErrorNotification("录音启动失败，请从应用内重新开始录音")
+            releaseWakeLock()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return START_STICKY
     }
 
@@ -164,5 +202,24 @@ class RecordingForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
+    }
+
+    private fun showErrorNotification(message: String) {
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("录音服务异常")
+            .setContentText(message)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID + 1, notification)
     }
 }
