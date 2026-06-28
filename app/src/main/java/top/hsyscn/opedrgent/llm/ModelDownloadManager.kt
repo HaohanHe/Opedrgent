@@ -11,9 +11,13 @@ import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.service.ModelDownloadService
 import java.io.File
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
+
+private const val MAX_DOWNLOAD_RETRIES = 3
 
 enum class DownloadStatus {
     IDLE,
@@ -82,7 +86,35 @@ class ModelDownloadManager(private val context: Context) {
             ))
 
             runCatching {
-                doDownload(modelInfo, flow)
+                var lastError: Throwable? = null
+                repeat(MAX_DOWNLOAD_RETRIES) { attempt ->
+                    if (attempt > 0) {
+                        DebugLog.w("ModelDownloadManager", "Retrying download ${modelInfo.id} (attempt ${attempt + 1}/$MAX_DOWNLOAD_RETRIES)")
+                        emitProgress(flow, modelInfo.id, DownloadProgress(
+                            modelId = modelInfo.id,
+                            status = DownloadStatus.DOWNLOADING,
+                            error = "网络波动，正在重试 (${attempt + 1}/$MAX_DOWNLOAD_RETRIES)"
+                        ))
+                        delay((attempt * 2000L).coerceAtMost(5000L))
+                    }
+
+                    runCatching {
+                        doDownload(modelInfo, flow)
+                        return@launch
+                    }.onFailure { e ->
+                        lastError = e
+                        if (e is CancellationException) {
+                            throw e
+                        }
+                        if (e is IOException || e is SocketTimeoutException) {
+                            DebugLog.w("ModelDownloadManager", "Download attempt ${attempt + 1} failed for ${modelInfo.id}: ${e.message}")
+                        } else {
+                            // 非网络类错误（如 HTTP 4xx、文件校验失败）不重试
+                            throw e
+                        }
+                    }
+                }
+                lastError?.let { throw it }
             }.onFailure { e ->
                 if (e is CancellationException) {
                     emitProgress(flow, modelInfo.id, DownloadProgress(

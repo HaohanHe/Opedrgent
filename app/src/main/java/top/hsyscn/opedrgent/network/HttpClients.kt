@@ -131,13 +131,16 @@ object HttpClients {
 
     /**
      * 下载客户端（用于大文件下载）
+     *
+     * 注意：模型文件可达数 GB，在移动网络/慢速连接上可能需要数小时，
+     * 因此不设置总调用超时，读取超时也放宽到 30 分钟，避免大模型下载被中途掐断。
      */
     val download: OkHttpClient by lazy {
         default.newBuilder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.MINUTES)      // 10分钟读取超时
+            .readTimeout(30, TimeUnit.MINUTES)      // 30分钟读取超时，容忍长时间无数据
             .writeTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(30, TimeUnit.MINUTES)      // 30分钟总超时
+            // 不设置 callTimeout，允许数小时的大文件下载
             .build()
     }
 
