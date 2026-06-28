@@ -27,8 +27,9 @@ object AvailableLocalModels {
             displayName = "Gemma 4 E2B (2B)",
             description = "轻量高效，适合日常对话和简单工具调用。支持GPU加速、SpecDec",
             sizeMb = 2583,
-            downloadUrl = "https://www.modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/gemma-4-E2B-it.litertlm",
-            fallbackUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            // HuggingFace CDN 支持 HTTP Range 断点续传，优先使用；ModelScope 速度更快但不支持 Range，仅作 fallback
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            fallbackUrl = "https://www.modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/gemma-4-E2B-it.litertlm",
             fileName = "gemma-4-E2B-it.litertlm",
             supportsFunctionCalling = true,
             maxTokens = 2048,
@@ -46,8 +47,9 @@ object AvailableLocalModels {
             displayName = "Gemma 4 E4B (4B)",
             description = "更强能力，支持复杂推理和多步工具调用。支持GPU加速、SpecDec",
             sizeMb = 3654,
-            downloadUrl = "https://www.modelscope.cn/models/litert-community/gemma-4-E4B-it-litert-lm/resolve/master/gemma-4-E4B-it.litertlm",
-            fallbackUrl = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+            // HuggingFace CDN 支持 HTTP Range 断点续传，优先使用；ModelScope 速度更快但不支持 Range，仅作 fallback
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+            fallbackUrl = "https://www.modelscope.cn/models/litert-community/gemma-4-E4B-it-litert-lm/resolve/master/gemma-4-E4B-it.litertlm",
             fileName = "gemma-4-E4B-it.litertlm",
             supportsFunctionCalling = true,
             maxTokens = 4096,
