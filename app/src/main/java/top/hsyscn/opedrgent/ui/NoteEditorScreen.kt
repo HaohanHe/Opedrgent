@@ -166,7 +166,7 @@ fun NoteEditorScreen(
             onSaved(id)
             // 手动保存时显示知识图谱关联信息
             if (showGraphInfo && id > 0) {
-                val newLinkCount = repository.knowledgeGraph.getLinkCount(id.toString())
+                val newLinkCount = repository.getLinkCount(id)
                 snackbarHostState.showSnackbar(
                     message = if (newLinkCount > 0) "已保存并发现 $newLinkCount 个关联" else "笔记已保存",
                     duration = SnackbarDuration.Short

@@ -110,6 +110,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -303,7 +308,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconMd))
+                            Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconMd))
                             Spacer(Modifier.width(SpacingTokens.sm))
                             Column {
                                 Text(stringResource(R.string.msg_local_mode_running), style = MaterialTheme.typography.titleSmall, color = BubbleBlue)
@@ -344,6 +349,16 @@ fun SettingsScreen(
                             label = { Text("Base URL") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            isError = baseUrl.isNotBlank() && !baseUrl.startsWith("http"),
+                            supportingText = {
+                                if (baseUrl.isNotBlank() && !baseUrl.startsWith("http")) {
+                                    Text(
+                                        text = "URL 需以 http:// 或 https:// 开头",
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                                    )
+                                }
+                            },
                         )
 
                         Box {
@@ -457,7 +472,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.DeveloperBoard, contentDescription = "图标", tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconLg))
+                        Icon(Icons.Default.DeveloperBoard, contentDescription = null, tint = BubbleBlue, modifier = Modifier.size(SizeTokens.iconLg))
                         Spacer(Modifier.width(SpacingTokens.md))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.settings_local_model_title), style = MaterialTheme.typography.titleSmall, color = themeTextDark())
@@ -534,7 +549,7 @@ fun SettingsScreen(
                         shape = ShapeTokens.smallShape,
                         contentPadding = PaddingValues(horizontal = SizeTokens.buttonHorizontalMd, vertical = SizeTokens.compactSpacing),
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SpacingTokens.lg), tint = BubbleBlue)
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(SpacingTokens.lg), tint = BubbleBlue)
                         Spacer(Modifier.width(SpacingTokens.sm))
                         Text(stringResource(R.string.settings_select_model), style = MaterialTheme.typography.bodySmall, color = BubbleBlue)
                     }
@@ -608,7 +623,7 @@ fun SettingsScreen(
                             shape = ShapeTokens.smallShape,
                             contentPadding = PaddingValues(horizontal = SizeTokens.buttonHorizontalSm, vertical = SpacingTokens.xs),
                         ) {
-                            Icon(Icons.Default.Save, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs), tint = BubbleBlue)
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(SizeTokens.iconXs), tint = BubbleBlue)
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text(stringResource(R.string.msg_save_params), style = MaterialTheme.typography.labelSmall, color = BubbleBlue)
                         }
@@ -1016,7 +1031,7 @@ fun SettingsScreen(
                                                 }
                                             },
                                         ) {
-                                            Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs))
+                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(SizeTokens.iconXs))
                                             Spacer(Modifier.width(SpacingTokens.xs))
                                             Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                                         }
@@ -1194,7 +1209,7 @@ fun SettingsScreen(
                                         text = if (currentHours.value == 0) "无限制" else "${currentHours.value}小时",
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconMd))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
                                 }
                                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                                     hoursOptions.forEachIndexed { index, h ->
@@ -1306,7 +1321,7 @@ fun SettingsScreen(
                                 label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
                                 leadingIcon = {
                                     themeIcons[value]?.let {
-                                        Icon(it, contentDescription = "图标", modifier = Modifier.size(SpacingTokens.lg))
+                                        Icon(it, contentDescription = null, modifier = Modifier.size(SpacingTokens.lg))
                                     }
                                 },
                             )
@@ -1635,7 +1650,7 @@ fun SettingsScreen(
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = "图标", modifier = Modifier.size(SizeTokens.iconXs))
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(SizeTokens.iconXs))
                                 Spacer(Modifier.width(SpacingTokens.xs))
                                 Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                             }
@@ -1809,7 +1824,7 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                            contentDescription = "图标",
+                            contentDescription = null,
                             modifier = Modifier.size(SizeTokens.sectionIcon),
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.md))
@@ -1826,21 +1841,21 @@ fun SettingsScreen(
                     Text(
                         text = "hsyscn.top",
                         color = BubbleBlue,
-                        modifier = Modifier.clickable {
+                        modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_open_link)) {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://hsyscn.top")))
                         }
                     )
                     Text(
                         text = "BI4MIB.CN",
                         color = BubbleBlue,
-                        modifier = Modifier.clickable {
+                        modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_open_link)) {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bi4mib.cn")))
                         }
                     )
                     Text(
                         text = stringResource(R.string.about_visit_project),
                         color = BubbleBlue,
-                        modifier = Modifier.clickable {
+                        modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_open_link)) {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/HaohanHe/Opedrgent")))
                         }
                     )
@@ -2003,7 +2018,9 @@ private fun SettingGroup(
             text = title,
             color = themeForegroundMuted(),
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(start = SpacingTokens.xs, bottom = SpacingTokens.sm),
+            modifier = Modifier
+                .padding(start = SpacingTokens.xs, bottom = SpacingTokens.sm)
+                .semantics { heading() },
         )
         Card(
             modifier = Modifier.fillMaxWidth(),

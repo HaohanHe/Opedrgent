@@ -159,6 +159,7 @@ sealed class MessagePart {
     data class Compaction(
         val summary: String,
         val auto: Boolean = true,
+        val tailStartId: String? = null,  // 标记 tail 起点（对标 KiloCode tail_start_id）
     ) : MessagePart()
 
     /** 错误信息 */

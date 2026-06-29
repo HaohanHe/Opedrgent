@@ -23,6 +23,13 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.Call
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
+import top.hsyscn.opedrgent.agent.AgentStorage
+import top.hsyscn.opedrgent.transaction.CheckpointManager
+import top.hsyscn.opedrgent.transaction.InMemoryCheckpointStorage
+import top.hsyscn.opedrgent.transaction.RollbackExecutor
+import top.hsyscn.opedrgent.transaction.RollbackStrategy
+import top.hsyscn.opedrgent.transaction.RollbackToolRegistry
+import top.hsyscn.opedrgent.transaction.ToolCallRecord
 import top.hsyscn.opedrgent.note.AiSearchEngine
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -60,6 +67,7 @@ import top.hsyscn.opedrgent.network.WebResearchMode
 import top.hsyscn.opedrgent.network.WebResearchRequest
 import top.hsyscn.opedrgent.network.WebResearchRouter
 import top.hsyscn.opedrgent.network.MapTileFetcher
+import top.hsyscn.opedrgent.network.PromptCacheBreakDetection
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
@@ -68,6 +76,7 @@ import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
 import top.hsyscn.opedrgent.calendar.CalendarEventDraft
 import top.hsyscn.opedrgent.calendar.IcsWriter
+import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.ui.invisiblePartnerDataStore
 import top.hsyscn.opedrgent.storage.MemoryStore
@@ -83,6 +92,8 @@ import top.hsyscn.opedrgent.utils.ModelInfo
 import top.hsyscn.opedrgent.utils.PlatformContext
 import top.hsyscn.opedrgent.utils.Platform
 import top.hsyscn.opedrgent.utils.ContextCompressor
+import top.hsyscn.opedrgent.utils.ContentReplacement
+import top.hsyscn.opedrgent.utils.ContentReplacementState
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptCache
 import top.hsyscn.opedrgent.utils.ModelLimits
@@ -217,6 +228,7 @@ private data class StreamResult(
     val reasoning: String = "",
     val toolCalls: List<top.hsyscn.opedrgent.network.CompletedToolCall> = emptyList(),
     val error: String? = null,
+    val finishReason: String? = null,
 )
 
 sealed class SttUiState {
@@ -289,7 +301,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val speakerEmbeddingExtractor by lazy { top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor(app) }
     private val tts by lazy { TtsPlayer(app, apiSettings) }
     private val automationStore = AutomationStore(app)
-    val noteRepository = NoteRepository(app, memoryStore)
+    val noteRepository = NoteRepository(app, memoryStore, apiSettings)
     val folderRepository = FolderRepository(app)
     private val noteDao = NoteDao(NoteDatabase.getInstance(app))
     private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings)
@@ -316,6 +328,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 缓存的技能名称列表，用于注入系统 Prompt（避免 suspend 调用） */
     @Volatile
     private var cachedSkillNames: List<Pair<String, String>> = emptyList()
+
+    /** 已启用且带 triggers 的 skill 缓存（Hermes 风格声明式前缀激活，零延迟匹配用） */
+    @Volatile
+    private var cachedTriggerSkills: List<top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition> = emptyList()
+
+    /** ContentReplacement 跨轮状态 — 三态压缩（mustReapply/frozen/fresh），lazy 初始化 */
+    @Volatile
+    private var contentReplacementState: ContentReplacementState? = null
     private val insightSproutEngine = InsightSproutEngine(
         llmCall = { prompt: String ->
             val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
@@ -327,9 +347,28 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         },
     )
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
-    private val agentSwarm by lazy { top.hsyscn.opedrgent.agent.AgentSwarm(llm, toolExecutor) }
+    // ★ 事务回滚（Koog 风格）：检查点 + 补偿执行器，主 LLM 循环与 AgentSwarm 共用
+    private val checkpointStorage by lazy { InMemoryCheckpointStorage() }
+    private val checkpointManager by lazy { CheckpointManager(checkpointStorage) }
+    private val rollbackExecutor by lazy {
+        RollbackToolRegistry.registerDefaults()
+        RollbackExecutor(checkpointManager, RollbackToolRegistry, toolExecutor)
+    }
+    private val agentSwarm by lazy {
+        top.hsyscn.opedrgent.agent.AgentSwarm(
+            llm,
+            toolExecutor,
+            checkpointManager = checkpointManager,
+            rollbackStrategy = RollbackStrategy.DEFAULT,
+        )
+    }
     private val noteSyncService by lazy { NoteSyncService(app, noteRepository) }
     private val curatorService by lazy { CuratorService(skillLoader, app) }
+
+    /** Hermes 风格 Skill trigger 拦截器：声明式前缀匹配，跳过 load_skill round-trip */
+    private val skillTriggerInterceptor by lazy {
+        top.hsyscn.opedrgent.mcp.skills.SkillTriggerInterceptor(skillLoader)
+    }
 
     // ★ AgentService：独立的 Agent 后台服务（渐进式迁移）
     private val agentService by lazy {
@@ -606,6 +645,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // 知识图谱启动时一致性校验：检测 v1 格式或数据损坏，自动重建
+        viewModelScope.launch(Dispatchers.IO) {
+            noteRepository.checkAndRebuildGraphIfNeeded()
+        }
+
         _state.value = _state.value.copy(
             deepThinkingEnabled = apiSettings.isDeepThinking(),
             deepResearchEnabled = apiSettings.isDeepResearch(),
@@ -866,6 +910,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun openSession(id: String) {
+        // P2-1 修复：切换会话前清理旧 session 的 prompt cache 检测状态。
+        // PromptCacheBreakDetection 是全局单例，sessionStates/sessionBaselines 只通过
+        // notifyCacheDeletion/notifyCompaction 移除；切换会话若不清理旧 session 状态，长期运行会内存泄漏。
+        _state.value.current?.id?.let { oldSessionId ->
+            if (oldSessionId != id) {
+                PromptCacheBreakDetection.notifyCacheDeletion(oldSessionId)
+            }
+        }
+        // P0 修复：切换会话前重置 ContentReplacement 跨轮状态，避免上一会话的
+        // seenIds/replacements 污染新会话的三态决策（createSession/createSessionAndNavigate/forkSession 均委托本方法）。
+        contentReplacementState = null
         // 切换会话时，如果正在生成回复，先取消并保存部分内容
         if (_state.value.isStreaming) {
             cancelled.set(true)
@@ -1150,6 +1205,28 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         store.addMessage(sessionId, Role.USER, finalText)
+
+        // ★ Hermes 风格 Skill trigger 拦截（声明式前缀匹配，零 token、零延迟）
+        // 命中时直接注入 skill instructions 作为 SYSTEM 消息，跳过 load_skill round-trip。
+        // 无 trigger 的 skill 仍走原有 LLM 决策路径，此处对未命中完全透明。
+        val triggerResult = skillTriggerInterceptor.checkAgainst(finalText, cachedTriggerSkills)
+        if (triggerResult.matched) {
+            val skillSystemMsg = buildString {
+                appendLine("[Skill Trigger 自动激活: ${triggerResult.skillName}]")
+                appendLine("用户输入命中声明式前缀触发器，已跳过 load_skill 决策环节。")
+                appendLine("用户实际请求（已剥离 trigger 前缀）: ${triggerResult.strippedInput}")
+                appendLine()
+                appendLine("<skill_content name=\"${triggerResult.skillName}\">")
+                appendLine(triggerResult.skillInstructions)
+                if (triggerResult.localScriptsPath != null) {
+                    appendLine("脚本路径: ${triggerResult.localScriptsPath}")
+                }
+                appendLine("</skill_content>")
+            }
+            store.addMessage(sessionId, Role.SYSTEM, skillSystemMsg)
+            DebugLog.i("Trigger 命中: skill=${triggerResult.skillName}, 跳过 load_skill round-trip")
+        }
+
         refreshCurrentSession(sessionId)
         refreshSessions()
 
@@ -1809,9 +1886,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     suspend fun refreshGallerySkills() {
         gallerySkills = skillLoader.loadAllSkills()
-        // 缓存技能名称列表供系统 Prompt 注入
-        cachedSkillNames = skillLoader.getEnabledSkills()
-            .filter { !it.metadata.requireSecret }
+        val enabled = skillLoader.getEnabledSkills()
+        // 缓存带 triggers 的已启用 skill，供 SkillTriggerInterceptor 零延迟前缀匹配
+        cachedTriggerSkills = enabled.filter { it.metadata.triggers.isNotEmpty() }
+        // 系统 Prompt 仅列出无 triggers 的 skill：带 triggers 的 skill 通过声明式前缀直接激活，
+        // 不再占用 LLM token 也不走 load_skill 决策，从而降低每轮 token 税
+        cachedSkillNames = enabled
+            .filter { !it.metadata.requireSecret && it.metadata.triggers.isEmpty() }
             .map { it.metadata.name to it.metadata.description }
     }
 
@@ -2577,13 +2658,46 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /**
+     * 为 ContextCompressor 提供 LLM 摘要生成函数。
+     * generateFn 签名：(prompt: String, messages: List<ChatMessage>) -> String
+     * ContextCompressor.generateTldr 会传入 TLDR 提示词 + 空消息列表，这里直接调 LlmClient.chatCompletions
+     */
+    private suspend fun makeSummaryGenerateFn(apiConfig: ApiConfig): suspend (String, List<ChatMessage>) -> String {
+        return { prompt, _ ->
+            withContext(Dispatchers.IO) {
+                llm.chatCompletions(
+                    config = apiConfig,
+                    system = "你是专业的对话摘要生成器，只输出 JSON，不要解释。",
+                    messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
+                )
+            }
+        }
+    }
+
     /** 执行单轮 LLM 调用 + 工具执行 */
     private suspend fun executeOneRound(ctx: LoopContext, state: ResearchState, guardrail: top.hsyscn.opedrgent.utils.ToolCallGuardrail): LoopOutcome {
         val session = store.getSession(ctx.sessionId) ?: throw IllegalStateException("会话不存在")
         val system = buildSystemPrompt(session)
 
         val allMessages = session.messages + ctx.toolMessages
-        val compressed = ContextCompressor.compress(allMessages, system, ctx.maxContextTokens)
+        val apiConfig = apiSettings.getApiConfig()
+        val generateFn = if (apiConfig != null) makeSummaryGenerateFn(apiConfig) else null
+        // ★ ContentReplacement enforcement（在压缩之前，保证 prompt cache 稳定性）
+        // P2-2 修复：传入 cacheDir 以扫描磁盘 tool-results/*.txt 重建 replacements Map，
+        // 避免跨进程重启后 mustReapply 三态退化为 frozen。
+        val crState = contentReplacementState ?: ContentReplacement.reconstructContentReplacementState(
+            messages = allMessages,
+            cacheDir = getApplication<Application>().cacheDir,
+        ).also {
+            contentReplacementState = it
+        }
+        val messagesAfterBudget = ContentReplacement.enforceToolResultBudget(
+            messages = allMessages,
+            state = crState,
+            cacheDir = getApplication<Application>().cacheDir,
+        )
+        val compressed = ContextCompressor.compressWithChunkedFallback(messagesAfterBudget.messages, system, ctx.maxContextTokens, generateFn = generateFn, sessionId = ctx.sessionId)
         // ★ P2-4 修复：将压缩摘要持久化到 session，使下次 compress 的 findPreviousSummary 能找到锚点
         if (compressed.summary != null) {
             store.addMessage(
@@ -2674,11 +2788,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val result = if (allImages.isNotEmpty()) {
             _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
             withContext(Dispatchers.IO) {
-                streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled)
+                streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, sessionId = ctx.sessionId)
             }
         } else {
             withContext(Dispatchers.IO) {
-                streamLlm(ctx.config, compressedSystem, messages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, priorText = ctx.accumulatedText, priorReasoning = ctx.accumulatedReasoning)
+                streamLlm(ctx.config, compressedSystem, messages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, priorText = ctx.accumulatedText, priorReasoning = ctx.accumulatedReasoning, sessionId = ctx.sessionId)
             }
         }
 
@@ -2806,9 +2920,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         ctx.allToolParts.addAll(pendingToolParts)
         _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
 
+        // ★ 事务检查点：仅当本轮包含副作用工具时创建，失败可回滚消息历史并补偿
+        val roundCheckpointId = createRoundCheckpointIfSideEffect(result.toolCalls, ctx.toolMessages)
+
         // ★ BUG-01 修复：使用 runLoop 级别的 guardrail，跨轮累积历史
         var guardrailHalted = false
 
+        // P1-a 修复：工具执行段（coroutineScope）及后处理外包 try-catch，非 guardrail 异常路径
+        // 也补偿已成功的副作用并回滚，避免 checkpoint 不打墓碑在 InMemoryCheckpointStorage 中泄漏。
+        // 模式参考 AgentSwarm.runSingleAgent 的 rollbackOnFailure：CancellationException 立即传播，其余异常回滚后 rethrow。
+        try {
         coroutineScope {
             result.toolCalls.forEachIndexed { idx, tc ->
 
@@ -3156,6 +3277,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // ★ 事务记录：本轮工具执行完毕，将调用记录写入检查点（LIFO 补偿依据）
+        populateRoundToolCalls(roundCheckpointId, result.toolCalls, pendingToolParts, ctx.toolExecCache)
+
         // 关键：必须先添加 assistant 消息（带 tool_calls），再添加 tool result 消息
         // LLM API 要求的消息顺序：[assistant(tool_calls), tool(result), assistant(tool_calls), ...]
         if (result.content.isNotEmpty() || result.toolCalls.isNotEmpty()) {
@@ -3227,13 +3351,113 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ))
         }
         _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
+        } catch (e: CancellationException) {
+            // 协程取消：结构化并发要求立即传播，不触发回滚（取消不应执行更多副作用）
+            throw e
+        } catch (e: Exception) {
+            // P1-a 修复：非 guardrail 异常（工具执行/后处理期间）也需补偿已成功的副作用，
+            // 否则 checkpoint 不打墓碑，在 InMemoryCheckpointStorage 中泄漏。
+            if (roundCheckpointId != null) {
+                rollbackRound(roundCheckpointId, ctx.toolMessages, ctx.config)
+            }
+            throw e
+        }
 
         // ★ BUG-02 修复：Guardrail HALT/BLOCK 实际终止循环
         if (guardrailHalted) {
+            // ★ 事务回滚：guardrail 判定无法恢复，回滚本轮副作用并移除新增消息
+            rollbackRound(roundCheckpointId, ctx.toolMessages, ctx.config)
             return LoopOutcome.Break
         }
 
+        // ★ 事务成功：标记墓碑，禁止后续回滚
+        markRoundTombstone(roundCheckpointId)
         return LoopOutcome.Continue
+    }
+
+    // ==================== 事务回滚辅助（Koog 风格 checkpoint + saga 补偿） ====================
+
+    /** 仅当本轮含副作用工具时创建检查点，快照当前消息历史。 */
+    private suspend fun createRoundCheckpointIfSideEffect(
+        toolCalls: List<top.hsyscn.opedrgent.network.CompletedToolCall>,
+        toolMessages: List<ChatMessage>,
+    ): String? {
+        val hasSideEffect = toolCalls.any { RollbackToolRegistry.lookup(it.name) != null }
+        if (!hasSideEffect) return null
+        return try {
+            checkpointManager.createCheckpoint("main_loop", toolMessages.toList(), AgentStorage())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.w("TransactionRollback", "createCheckpoint failed: ${e.message}")
+            null
+        }
+    }
+
+    /** 本轮工具执行完毕后，将调用记录整批写入检查点（补偿依据）。 */
+    private suspend fun populateRoundToolCalls(
+        checkpointId: String?,
+        toolCalls: List<top.hsyscn.opedrgent.network.CompletedToolCall>,
+        pendingToolParts: List<ToolPart>,
+        toolExecCache: Map<String, top.hsyscn.opedrgent.network.ToolResult>,
+    ) {
+        val cpId = checkpointId ?: return
+        val records = toolCalls.mapIndexed { idx, tc ->
+            val tp = pendingToolParts.getOrNull(idx)
+            val execResult = toolExecCache[tc.id]
+            val succeeded = execResult != null && (
+                execResult.toolPart.state.status == ToolStateType.COMPLETED ||
+                    execResult.toolPart.state.status == ToolStateType.SOURCE_ADDED
+            )
+            ToolCallRecord(
+                toolName = tc.name,
+                input = tp?.state?.input ?: emptyMap(),
+                output = execResult?.toolPart?.state?.output ?: execResult?.toolPart?.state?.error,
+                toolUseId = tc.id,
+                succeeded = succeeded,
+            )
+        }
+        try {
+            checkpointManager.replaceToolCalls(cpId, records)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.w("TransactionRollback", "populateToolCalls failed: ${e.message}")
+        }
+    }
+
+    /** 事务成功：标记墓碑。 */
+    private suspend fun markRoundTombstone(checkpointId: String?) {
+        val cpId = checkpointId ?: return
+        try {
+            checkpointManager.markTombstone(cpId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.w("TransactionRollback", "markTombstone failed: ${e.message}")
+        }
+    }
+
+    /** 事务失败：执行补偿回滚并移除本轮新增消息（尽力而为，不抛异常）。 */
+    private suspend fun rollbackRound(
+        checkpointId: String?,
+        toolMessages: List<ChatMessage>,
+        config: top.hsyscn.opedrgent.settings.ApiConfig,
+    ) {
+        val cpId = checkpointId ?: return
+        try {
+            val result = rollbackExecutor.rollback(
+                checkpointId = cpId,
+                currentMessages = toolMessages.toList(),
+                strategy = RollbackStrategy.DEFAULT,
+                apiConfig = config,
+            )
+            DebugLog.w("TransactionRollback", "main loop rollback: ${result.reason}, compensations=${result.compensationResults.size}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.e("TransactionRollback", "main loop rollback failed: ${e.message}", e)
+        }
     }
 
     /** 处理轮次异常，返回 Retry 或 Error */
@@ -3346,6 +3570,149 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         deepThinkingEnabled: Boolean = false,
         priorText: String = "",
         priorReasoning: String = "",
+        sessionId: String? = null,
+    ): StreamResult = withContext(Dispatchers.IO) {
+        val initialMaxOutputTokens = getMaxOutputTokens()
+        var finalResult = performLlmCall(
+            config = config,
+            system = system,
+            messages = messages,
+            tools = tools,
+            deepThinkingEnabled = deepThinkingEnabled,
+            priorText = priorText,
+            priorReasoning = priorReasoning,
+            maxOutputTokens = initialMaxOutputTokens,
+            sessionId = sessionId,
+        )
+        var currentMaxOutputTokens = initialMaxOutputTokens
+
+        // ===== 输出截断自动续写（对标 Claude Code max_output_tokens 恢复） =====
+        val isLengthTruncated = finalResult.finishReason.equals("length", ignoreCase = true) &&
+                finalResult.content.isNotEmpty() &&
+                finalResult.error == null
+        val defaultMaxOutput = ModelLimits.maxOutputTokens(config.model).first
+        val canEscalate = currentMaxOutputTokens == defaultMaxOutput
+
+        // 第一层：cap 升级重试（one-shot）——用相同 messages 重试，不注入 meta 消息
+        if (isLengthTruncated && canEscalate) {
+            val escalated = ModelLimits.escalatedMaxOutputTokens(config.model)
+            DebugLog.i("streamLlm: length 截断检测，cap 升级 $currentMaxOutputTokens → $escalated")
+            currentMaxOutputTokens = escalated
+            finalResult = performLlmCall(
+                config = config,
+                system = system,
+                messages = messages,
+                tools = tools,
+                deepThinkingEnabled = deepThinkingEnabled,
+                priorText = priorText,
+                priorReasoning = priorReasoning,
+                maxOutputTokens = escalated,
+                sessionId = sessionId,
+            )
+        }
+
+        // 第二层：多轮恢复循环（最多 3 次）
+        if (finalResult.finishReason.equals("length", ignoreCase = true) &&
+            finalResult.content.isNotEmpty() &&
+            finalResult.error == null) {
+            val maxAttempts = ModelLimits.maxContinuationAttempts()
+            // 续写期间 UI 显示需保留入参 priorText，保证流式显示无感
+            val displayPrefix = if (priorText.isNotEmpty()) priorText + "\n\n" else ""
+            val reasonPrefix = if (priorReasoning.isNotEmpty()) priorReasoning + "\n" else ""
+            var accContent = finalResult.content
+            var accReasoning = finalResult.reasoning
+            var consecutiveSmall = 0
+            val combinedToolCalls = finalResult.toolCalls.toMutableList()
+
+            for (attempt in 1..maxAttempts) {
+                // 收益递减检测：连续 2 次续写新增 < 阈值则停止
+                if (consecutiveSmall >= 2) {
+                    DebugLog.w("streamLlm: 收益递减，停止续写（连续 2 次 < ${ModelLimits.DIMINISHING_RETURN_CHARS} 字符）")
+                    break
+                }
+
+                DebugLog.i("streamLlm: 续写第 $attempt/$maxAttempts 轮，已有 ${accContent.length} 字符")
+
+                // 注入 continuation user message，让模型从断开处接着写
+                val continuationMsg = ChatMessage(
+                    role = Role.USER,
+                    content = "继续，不要总结，从你刚才断开的地方接着写。如有剩余工作，分小段完成。",
+                )
+                val assistantPartial = ChatMessage(role = Role.ASSISTANT, content = accContent)
+                val messagesWithContinuation = messages + assistantPartial + continuationMsg
+
+                val recoveryResult = performLlmCall(
+                    config = config,
+                    system = system,
+                    messages = messagesWithContinuation,
+                    tools = tools,
+                    deepThinkingEnabled = deepThinkingEnabled,
+                    priorText = displayPrefix + accContent,
+                    priorReasoning = reasonPrefix + accReasoning,
+                    maxOutputTokens = currentMaxOutputTokens,
+                    sessionId = sessionId,
+                )
+
+                // API error 跳过恢复避免死亡螺旋
+                if (recoveryResult.error != null) {
+                    DebugLog.w("streamLlm: 续写遇到 API error，跳过恢复避免死亡螺旋: ${recoveryResult.error}")
+                    break
+                }
+
+                val newContent = recoveryResult.content
+                val newChars = newContent.length
+                if (newChars < ModelLimits.DIMINISHING_RETURN_CHARS) {
+                    consecutiveSmall++
+                } else {
+                    consecutiveSmall = 0
+                }
+
+                accContent += newContent
+                accReasoning += recoveryResult.reasoning
+                combinedToolCalls.addAll(recoveryResult.toolCalls)
+
+                // 续写后非 length 则正常结束
+                if (!recoveryResult.finishReason.equals("length", ignoreCase = true)) {
+                    DebugLog.i("streamLlm: 续写完成，共 ${accContent.length} 字符，finishReason=${recoveryResult.finishReason}")
+                    finalResult = StreamResult(
+                        content = accContent,
+                        reasoning = accReasoning,
+                        toolCalls = combinedToolCalls.toList(),
+                        finishReason = recoveryResult.finishReason,
+                    )
+                    break
+                }
+
+                // 最后一轮还是 length，也结束
+                if (attempt == maxAttempts) {
+                    DebugLog.w("streamLlm: 续写已达上限 $maxAttempts 轮，仍有 length 截断")
+                    finalResult = StreamResult(
+                        content = accContent,
+                        reasoning = accReasoning,
+                        toolCalls = combinedToolCalls.toList(),
+                        finishReason = "length",
+                    )
+                }
+            }
+        }
+
+        finalResult
+    }
+
+    /**
+     * 单次 LLM 流式调用（续写循环的原子单元）。
+     * 从 streamLlm 提取，便于输出截断恢复时复用。maxOutputTokens 由调用方决定。
+     */
+    private suspend fun performLlmCall(
+        config: top.hsyscn.opedrgent.settings.ApiConfig,
+        system: String,
+        messages: List<ChatMessage>,
+        tools: List<top.hsyscn.opedrgent.network.ToolDefinition>,
+        deepThinkingEnabled: Boolean,
+        priorText: String,
+        priorReasoning: String,
+        maxOutputTokens: Int,
+        sessionId: String? = null,
     ): StreamResult = withContext(Dispatchers.IO) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
@@ -3369,7 +3736,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             messages = messages,
                             tools = tools,
                             thinkingEnabled = deepThinkingEnabled,
-                            maxOutputTokens = getMaxOutputTokens(),
+                            maxOutputTokens = maxOutputTokens,
+                            sessionId = sessionId,
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
@@ -3437,6 +3805,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         content = result.content,
                                         reasoning = result.reasoning,
                                         toolCalls = result.toolCalls,
+                                        finishReason = result.finishReason,
                                     )))
                                 }
                             },
@@ -3447,7 +3816,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                     val partial = contentBuilder.toString().trim()
                                     if (partial.isNotEmpty()) {
                                         // ★ BUG-06 修复：部分响应也要标记错误，让调用方知道不完整
-                                        DebugLog.w("streamLlm: partial response (${partial.length} chars) due to error: $err")
+                                        DebugLog.w("performLlmCall: partial response (${partial.length} chars) due to error: $err")
                                         continuation.resumeWith(Result.success(StreamResult(
                                             content = partial + "\n\n[回答因网络中断而不完整]",
                                             reasoning = reasoningBuilder.toString(),
@@ -3459,7 +3828,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         val classified = top.hsyscn.opedrgent.network.ErrorClassifier.classify(
                                             java.lang.Exception(err), httpCode, null
                                         )
-                                        DebugLog.e("streamLlm error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
+                                        DebugLog.e("performLlmCall error classified: ${top.hsyscn.opedrgent.network.ErrorClassifier.formatForLog(classified)}")
                                         val enhancedError = when (classified.type) {
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.AUTH_ERROR -> "$err (API Key 无效或已过期，请在设置中检查)"
                                             top.hsyscn.opedrgent.network.ClassifiedErrorType.BALANCE -> "$err (账户余额不足，请及时充值)"
@@ -3507,6 +3876,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         mapImages: List<String>,
         tools: List<top.hsyscn.opedrgent.network.ToolDefinition> = emptyList(),
         deepThinkingEnabled: Boolean = false,
+        sessionId: String? = null,
     ): StreamResult = withContext(Dispatchers.IO) {
         val contentBuilder = StringBuilder()
         val reasoningBuilder = StringBuilder()
@@ -3531,6 +3901,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             extraImages = mapImages,
                             tools = tools,
                             thinkingEnabled = deepThinkingEnabled,
+                            sessionId = sessionId,
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
@@ -3775,7 +4146,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val allMessages = session.messages
 
-        val preCheck = top.hsyscn.opedrgent.utils.ContextCompressor.compress(allMessages, system, maxCtx)
+        val preCheck = top.hsyscn.opedrgent.utils.ContextCompressor.compressWithChunkedFallback(allMessages, system, maxCtx, generateFn = null)
 
         if (preCheck.isCritical) {
             DebugLog.w("runLocalModel: 上下文使用 ${String.format("%.0f%%", preCheck.usageRatio * 100)} ≥ 95%，强制压缩")
@@ -3783,7 +4154,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         val compressed = if (preCheck.isCritical || preCheck.needsCompression) {
-            top.hsyscn.opedrgent.utils.ContextCompressor.compress(allMessages, system, maxCtx, keepRecent = 3)
+            top.hsyscn.opedrgent.utils.ContextCompressor.compressWithChunkedFallback(allMessages, system, maxCtx, keepRecent = 3, generateFn = null)
         } else {
             preCheck
         }
@@ -3941,7 +4312,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getLocalTemperature(): Float = apiSettings.getLocalTemperature()
     fun getLocalTopK(): Int = apiSettings.getLocalTopK()
     fun getLocalTopP(): Float = apiSettings.getLocalTopP()
-    fun getMaxOutputTokens(): Int = apiSettings.getMaxOutputTokens()
+    fun getMaxOutputTokens(): Int {
+        val userConfigured = apiSettings.getMaxOutputTokens()
+        if (userConfigured > 0) return userConfigured  // 用户显式配置优先
+        // 未配置时，按模型名取默认值（对标 Claude Code getModelMaxOutputTokens）
+        return ModelLimits.maxOutputTokens(apiSettings.getModel()).first
+    }
 
     fun saveLocalParams(temperature: Float, topK: Int, topP: Float, maxTokens: Int) {
         apiSettings.saveLocalParams(temperature, topK, topP, maxTokens)
@@ -3959,7 +4335,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val system = buildSystemPrompt(session)
             val allMessages = session.messages
-            val compressed = ContextCompressor.compress(allMessages, system, 16000)
+            val compressed = ContextCompressor.compressWithChunkedFallback(allMessages, system, 16000, generateFn = null)
             _state.value = _state.value.copy(contextTokenCount = compressed.tokenCount)
         }
     }

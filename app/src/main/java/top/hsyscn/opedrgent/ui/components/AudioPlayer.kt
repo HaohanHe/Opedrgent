@@ -41,6 +41,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
@@ -48,6 +54,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -111,6 +118,8 @@ fun AudioPlayer(
 
     val displayPosition = if (isDragging) dragPosition else currentPosition
     val progress = if (duration > 0) displayPosition.toFloat() / duration.toFloat() else 0f
+    val statePlayingLabel = stringResource(R.string.state_playing)
+    val statePausedLabel = stringResource(R.string.state_paused)
 
     Column(
         modifier = modifier
@@ -185,12 +194,16 @@ fun AudioPlayer(
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                    .clickable {
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_play)) {
                         if (isPlaying) {
                             exoPlayer.pause()
                         } else {
                             exoPlayer.play()
                         }
+                    }
+                    .semantics(mergeDescendants = true) {
+                        stateDescription = if (isPlaying) statePlayingLabel else statePausedLabel
+                        liveRegion = LiveRegionMode.Polite
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -219,7 +232,7 @@ fun AudioPlayer(
                     .size(36.dp)
                     .clip(CircleShape)
                     .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
-                    .clickable { showSpeedSheet = true },
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select)) { showSpeedSheet = true },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -347,7 +360,7 @@ private fun SkipButton(
             .size(36.dp)
             .clip(CircleShape)
             .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select), onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.size(28.dp)) {

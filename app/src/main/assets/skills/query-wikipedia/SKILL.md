@@ -1,6 +1,7 @@
 ---
 name: query-wikipedia
 description: Query summary from Wikipedia for a given topic.
+triggers: ["/wiki", "维基百科", "查百科"]
 ---
 
 # Query Wiki

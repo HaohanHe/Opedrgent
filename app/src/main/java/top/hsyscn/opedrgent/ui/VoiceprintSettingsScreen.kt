@@ -183,7 +183,7 @@ private fun SpeakerCard(
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = "图标",
+                contentDescription = null,
                 tint = if (isSherpa) SherpaGreen else AccentBlue,
                 modifier = Modifier.size(28.dp),
             )
@@ -233,7 +233,7 @@ private fun EmptySpeakerList() {
     ) {
         Icon(
             imageVector = Icons.Default.Person,
-            contentDescription = "图标",
+            contentDescription = null,
             tint = themeTextGrey().copy(alpha = 0.4f),
             modifier = Modifier.size(64.dp),
         )

@@ -152,6 +152,7 @@ import top.hsyscn.opedrgent.ui.components.UserBubble
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role as SemanticsRole
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.components.InputMode
 import top.hsyscn.opedrgent.ui.components.InputModeBar
@@ -803,7 +804,7 @@ fun SessionsScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "new")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_new))
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -1424,7 +1425,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     vm.addOrUpdateSkill(id = editingId, name = name, prompt = prompt)
                     editorOpen = false
                 }) {
-                    Icon(Icons.Default.Save, contentDescription = "save")
+                    Icon(Icons.Default.Save, contentDescription = stringResource(R.string.cd_save))
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(stringResource(R.string.action_save))
                 }
@@ -1497,7 +1498,7 @@ private fun ImportFabOption(icon: androidx.compose.ui.graphics.vector.ImageVecto
         modifier = Modifier
             .clip(ShapeTokens.extraLargeShape)
             .background(MaterialTheme.customColors.accentBlue.copy(alpha = 0.9f))
-            .clickable(onClick = onClick)
+            .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick)
             .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(SpacingTokens.md)) // decorative, label describes action

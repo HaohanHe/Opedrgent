@@ -1,6 +1,7 @@
 ---
 name: mood-tracker-lite
 description: A lightweight mood tracking skill that stores and visualizes your daily emotional state. Log moods, view history, and see trend analysis with an interactive dashboard.
+triggers: ["/mood", "心情记录", "情绪追踪"]
 metadata:
   homepage: https://github.com/google-ai-edge/gallery/tree/main/skills/built-in/mood-tracker
 ---

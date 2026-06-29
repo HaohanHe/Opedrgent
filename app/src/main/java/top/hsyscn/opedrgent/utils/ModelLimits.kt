@@ -90,6 +90,46 @@ object ModelLimits {
         else if (maxTokens >= 128_000) 16   // 约 8 轮
         else 12                             // 约 6 轮
 
+    // ==================== 输出 Token 限制 ====================
+
+    /** Slot 预留优化默认值（对标 Claude Code CAPPED_DEFAULT_MAX_TOKENS） */
+    private const val CAPPED_DEFAULT_MAX_TOKENS = 8_192
+
+    /** 普通模型默认 max_output_tokens */
+    private const val NORMAL_DEFAULT_MAX_TOKENS = 4_096
+
+    /** 大上下文模型 cap 升级值（对标 Claude Code ESCALATED_MAX_TOKENS） */
+    private const val ESCALATED_MAX_TOKENS_LARGE = 32_768
+
+    /** 普通模型 cap 升级值 */
+    private const val ESCALATED_MAX_TOKENS_NORMAL = 16_384
+
+    /** 输出截断多轮恢复最大次数（对标 Claude Code MAX_OUTPUT_TOKENS_RECOVERY_LIMIT） */
+    const val MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3
+
+    /** 收益递减检测阈值：连续 2 次续写新增 < 此值则停止 */
+    const val DIMINISHING_RETURN_CHARS = 100
+
+    /**
+     * 根据模型名返回 (default, upperLimit) max_output_tokens。
+     * 大上下文（>=128K）→ (8192, 32768)；普通 → (4096, 16384)。
+     * 对标 Claude Code getModelMaxOutputTokens 分层设计。
+     */
+    fun maxOutputTokens(modelName: String): Pair<Int, Int> {
+        val maxContext = inferMaxContextTokens(modelName)
+        return if (maxContext >= 128_000) {
+            CAPPED_DEFAULT_MAX_TOKENS to ESCALATED_MAX_TOKENS_LARGE
+        } else {
+            NORMAL_DEFAULT_MAX_TOKENS to ESCALATED_MAX_TOKENS_NORMAL
+        }
+    }
+
+    /** cap 升级值：截断时 one-shot 重试使用的 max_output_tokens */
+    fun escalatedMaxOutputTokens(modelName: String): Int = maxOutputTokens(modelName).second
+
+    /** 多轮恢复最大次数 */
+    fun maxContinuationAttempts(): Int = MAX_OUTPUT_TOKENS_RECOVERY_LIMIT
+
     // ==================== 海马体 / 记忆查询 ====================
 
     /** 海马体关键词最大数量 */

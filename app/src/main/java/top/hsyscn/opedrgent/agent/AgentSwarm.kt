@@ -10,6 +10,11 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.network.ToolExecutor
 import top.hsyscn.opedrgent.settings.ApiConfig
+import top.hsyscn.opedrgent.transaction.CheckpointManager
+import top.hsyscn.opedrgent.transaction.RollbackExecutor
+import top.hsyscn.opedrgent.transaction.RollbackStrategy
+import top.hsyscn.opedrgent.transaction.RollbackToolRegistry
+import top.hsyscn.opedrgent.transaction.ToolCallRecord
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -26,9 +31,22 @@ class AgentSwarm(
     private val llmClient: LlmClient,
     private val toolExecutor: ToolExecutor,
     private val maxAgents: Int = 8,
+    private val checkpointManager: CheckpointManager? = null,
+    private val rollbackStrategy: RollbackStrategy? = null,
 ) {
     companion object {
         private const val TAG = "AgentSwarm"
+    }
+
+    /**
+     * 事务回滚执行器（懒加载）。仅当 [checkpointManager] 非空时启用。
+     * 启用时自动注册内置补偿映射（run_calendar create->delete 等）。
+     */
+    private val rollbackExecutor: RollbackExecutor? by lazy {
+        checkpointManager?.let { mgr ->
+            RollbackToolRegistry.registerDefaults()
+            RollbackExecutor(mgr, RollbackToolRegistry, toolExecutor)
+        }
     }
 
     /**
@@ -72,7 +90,8 @@ class AgentSwarm(
 
             // Phase 3: 整合结果
             onProgress("正在整合结果...")
-            val finalAnswer = synthesize(request, agentOutputs, apiConfig)
+            val mergeStrategy = plan.agents.firstOrNull()?.mergeStrategy ?: MergeStrategy.MERGE_LLM
+            val finalAnswer = synthesize(request, agentOutputs, apiConfig, mergeStrategy)
 
             return SwarmResult(
                 success = true,
@@ -112,6 +131,11 @@ $toolDesc
 4. 并行(parallel): 各 Agent 独立工作，互不依赖
 5. 你可以定义最多 $maxAgents 个 Agent
 6. 每个 Agent 需要明确的 system_prompt（定义人格和任务）和 instruction（具体指令）
+7. mergeStrategy 决定多 Agent 输出的合并方式：
+   - CONCAT: 保留所有 agent 完整输出（适合需要完整记录的场景）
+   - MERGE_LLM: 调用 LLM 整合为结构化回答（默认，适合大多数场景）
+   - VOTE: 取最长的输出作为代表（适合多 agent 探索同一问题的场景）
+   - REDUCE: 按 length+lineCount 打分取最高（适合择优场景）
 
 用JSON回复：
 {
@@ -123,7 +147,8 @@ $toolDesc
       "name": "Agent名称",
       "systemPrompt": "你是一个...的人，你的任务是...",
       "instruction": "具体要做什么",
-      "dependsOn": []
+      "dependsOn": [],
+      "mergeStrategy": "MERGE_LLM"  // 可选：CONCAT(顺序拼接) | MERGE_LLM(LLM整合,默认) | VOTE(取最长) | REDUCE(打分择优)
     }
   ]
 }"""
@@ -132,6 +157,7 @@ $toolDesc
             config = apiConfig,
             system = "你是任务调度大脑，擅长分析任务并分配子Agent。只输出JSON，不要解释。",
             messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
+            sessionId = "swarm_plan",
         )
 
         return parsePlan(result.content, request)
@@ -154,6 +180,9 @@ $toolDesc
 
         for ((waveIdx, wave) in waves.withIndex()) {
             onProgress("执行第 ${waveIdx + 1}/${waves.size} 波（${wave.joinToString { it.name }}）...")
+
+            // ★ Phase 3 P1: 每个 agent 使用 sharedStorage.copy() 作为 fork 副本，避免并行写竞争
+            val forkedStorages = mutableListOf<AgentStorage>()
             val waveResults = wave.map { agent ->
                 async {
                     val depOutputs = if (agent.dependsOn.isNotEmpty()) {
@@ -161,11 +190,23 @@ $toolDesc
                     } else {
                         emptyList()
                     }
-                    val output = runSingleAgent(agent, depOutputs, apiConfig, sharedStorage)
+                    // fork: 每个 agent 拿到 storage 副本，写操作互不干扰
+                    val forkedStorage = sharedStorage.copy()
+                    synchronized(forkedStorages) {
+                        forkedStorages.add(forkedStorage)
+                    }
+                    val output = runSingleAgent(agent, depOutputs, apiConfig, forkedStorage)
                     DebugLog.i(TAG, "Agent [${agent.name}] 完成, output=${output.content.take(100)}")
                     output
                 }
             }.awaitAll()
+
+            // ★ Phase 3 P1: wave 结束后将各 fork 副本的关键输出 merge 回主 storage
+            // mergeFrom 不覆盖已存在的 key，但 agent_output:* 是每个 agent 独有的 key，不会冲突
+            for (forked in forkedStorages) {
+                sharedStorage.mergeFrom(forked)
+            }
+
             allResults.addAll(waveResults)
         }
 
@@ -237,6 +278,10 @@ $toolDesc
     ): AgentOutput {
         val messages = mutableListOf<ChatMessage>()
 
+        // 事务检查点：快照消息历史与共享存储，失败时据此回滚（Koog 风格）
+        val checkpointId = checkpointManager?.createCheckpoint(agent.name, messages, sharedStorage)
+
+        try {
         // 构建输入：instruction + 前面 Agent 的输出 + storage 摘要
         val inputBuilder = StringBuilder()
         inputBuilder.appendLine(agent.instruction)
@@ -282,6 +327,7 @@ $toolDesc
                 system = agent.systemPrompt,
                 messages = messages,
                 tools = toolDefs,
+                sessionId = "swarm_${agent.name}",
             )
 
             if (result.toolCalls.isEmpty()) {
@@ -318,11 +364,21 @@ $toolDesc
             var guardrailBlocked = false
             for (tc in result.toolCalls) {
                 DebugLog.d(TAG, "Agent [${agent.name}] 调用工具: ${tc.name}")
+                val argsMap = parseArgsToMap(tc.arguments)
                 val toolResult = try {
-                    val argsMap = parseArgsToMap(tc.arguments)
                     toolExecutor.executeToolByName(tc.name, argsMap, apiConfig)
                 } catch (e: Exception) {
                     "工具执行失败: ${e.message}"
+                }
+                // 事务记录：累积补偿依据（仅成功调用有副作用需撤销）
+                checkpointId?.let { cpId ->
+                    checkpointManager.appendToolCall(cpId, ToolCallRecord(
+                        toolName = tc.name,
+                        input = argsMap,
+                        output = toolResult,
+                        toolUseId = tc.id,
+                        succeeded = !toolResult.startsWith("工具执行失败"),
+                    ))
                 }
                 messages.add(ChatMessage(
                     role = Role.USER,
@@ -366,37 +422,109 @@ $toolDesc
         sharedStorage.set(StorageKey("agent_output:${agent.name}"), output.content)
         DebugLog.d(TAG, "Storage 写入: agent_output:${agent.name} (${output.content.length} chars)")
 
+        // 事务成功：标记墓碑，禁止后续回滚
+        checkpointId?.let { checkpointManager.markTombstone(it) }
         return output
+        } catch (e: Exception) {
+            // 协程取消不触发回滚（结构化并发：取消应立即传播）
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // 事务失败：执行补偿回滚（尽力而为，不掩盖原始异常）
+            rollbackOnFailure(checkpointId, agent.name, messages, apiConfig)
+            throw e
+        }
+    }
+
+    /**
+     * 失败时执行事务回滚。仅当 checkpointManager 与 rollbackStrategy 均配置时启用。
+     * 回滚自身的异常被吞掉并记录，确保不掩盖导致失败的原始异常。
+     */
+    private suspend fun rollbackOnFailure(
+        checkpointId: String?,
+        agentName: String,
+        messages: List<ChatMessage>,
+        apiConfig: ApiConfig,
+    ) {
+        val cpId = checkpointId ?: return
+        val mgr = checkpointManager ?: return
+        val exec = rollbackExecutor ?: return
+        val strategy = rollbackStrategy ?: return
+        try {
+            val result = exec.rollback(cpId, messages.toList(), strategy, apiConfig)
+            DebugLog.w(TAG, "Agent [$agentName] 事务回滚完成: ${result.reason}, compensations=${result.compensationResults.size}")
+        } catch (re: Exception) {
+            DebugLog.e(TAG, "Agent [$agentName] 事务回滚异常: ${re.message}", re)
+        }
     }
 
     // ==================== Phase 3: 整合结果 ====================
 
-    private suspend fun synthesize(request: String, outputs: List<AgentOutput>, apiConfig: ApiConfig): String {
+    private suspend fun synthesize(
+        request: String,
+        outputs: List<AgentOutput>,
+        apiConfig: ApiConfig,
+        mergeStrategy: MergeStrategy = MergeStrategy.MERGE_LLM,
+    ): String {
         if (outputs.size == 1) return outputs.first().content
 
-        val synthesis = buildString {
-            appendLine("以下多个 Agent 完成了各自的任务，请将它们的输出整合为一个高质量的回答。")
-            appendLine()
-            appendLine("【原始问题】")
-            appendLine(request)
-            appendLine()
-            for (output in outputs) {
-                appendLine("── ${output.agentName} ──")
-                appendLine(output.content.take(3000))
-                appendLine()
+        // ★ Phase 3 P1: 按 mergeStrategy 分支处理
+        return when (mergeStrategy) {
+            MergeStrategy.CONCAT -> {
+                // 顺序拼接，不调用 LLM
+                DebugLog.d(TAG, "synthesize: CONCAT strategy, ${outputs.size} outputs")
+                outputs.joinToString("\n\n---\n\n") { "[${it.agentName}]\n${it.content}" }
             }
-            appendLine("请整合以上内容，输出最终回答。去掉重复部分，保留最有价值的信息，结构化组织。")
-        }
 
-        return try {
-            llmClient.chatCompletions(
-                config = apiConfig,
-                system = "你是结果整合专家。将多个Agent的输出整合为一个高质量、结构化的最终回答。",
-                messages = listOf(ChatMessage(role = Role.USER, content = synthesis, createdAt = System.currentTimeMillis())),
-            )
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "结果整合失败: ${e.message}")
-            outputs.joinToString("\n\n---\n\n") { "[${it.agentName}]\n${it.content}" }
+            MergeStrategy.VOTE -> {
+                // 多数表决：取最长的 agent 输出作为代表
+                DebugLog.d(TAG, "synthesize: VOTE strategy, ${outputs.size} outputs")
+                val selected = outputs.maxWithOrNull(
+                    compareBy<AgentOutput> { it.content.length }
+                        .thenBy { it.agentName }
+                ) ?: outputs.first()
+                "[经多数表决选取: ${selected.agentName}]\n${selected.content}"
+            }
+
+            MergeStrategy.REDUCE -> {
+                // 按 length*0.5 + lineCount*10 打分取最高
+                DebugLog.d(TAG, "synthesize: REDUCE strategy, ${outputs.size} outputs")
+                val scored = outputs.map { output ->
+                    val lineCount = output.content.count { it == '\n' }
+                    val score = output.content.length * 0.5 + lineCount * 10
+                    output to score
+                }
+                val (selected, score) = scored.maxByOrNull { it.second } ?: (outputs.first() to 0.0)
+                DebugLog.d(TAG, "synthesize: REDUCE selected=${selected.agentName}, score=$score")
+                "[经打分择优: ${selected.agentName} (score=${"%.1f".format(score)})]\n${selected.content}"
+            }
+
+            MergeStrategy.MERGE_LLM -> {
+                // 默认：调用 LLM 整合（保持现有逻辑，向后兼容）
+                val synthesis = buildString {
+                    appendLine("以下多个 Agent 完成了各自的任务，请将它们的输出整合为一个高质量的回答。")
+                    appendLine()
+                    appendLine("【原始问题】")
+                    appendLine(request)
+                    appendLine()
+                    for (output in outputs) {
+                        appendLine("── ${output.agentName} ──")
+                        appendLine(output.content.take(3000))
+                        appendLine()
+                    }
+                    appendLine("请整合以上内容，输出最终回答。去掉重复部分，保留最有价值的信息，结构化组织。")
+                }
+
+                try {
+                    llmClient.chatCompletionsWithTools(
+                        config = apiConfig,
+                        system = "你是结果整合专家。将多个Agent的输出整合为一个高质量、结构化的最终回答。",
+                        messages = listOf(ChatMessage(role = Role.USER, content = synthesis, createdAt = System.currentTimeMillis())),
+                        sessionId = "swarm_synthesize",
+                    ).content
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "结果整合失败: ${e.message}")
+                    outputs.joinToString("\n\n---\n\n") { "[${it.agentName}]\n${it.content}" }
+                }
+            }
         }
     }
 
@@ -425,6 +553,12 @@ $toolDesc
             val agentsArray = json.optJSONArray("agents") ?: JSONArray()
             val agents = (0 until agentsArray.length()).take(maxAgents).mapNotNull { i ->
                 val agentJson = agentsArray.optJSONObject(i) ?: return@mapNotNull null
+                val strategy = when (agentJson.optString("mergeStrategy", "MERGE_LLM").uppercase()) {
+                    "CONCAT" -> MergeStrategy.CONCAT
+                    "VOTE" -> MergeStrategy.VOTE
+                    "REDUCE" -> MergeStrategy.REDUCE
+                    else -> MergeStrategy.MERGE_LLM
+                }
                 AgentDef(
                     name = agentJson.optString("name", "Agent-${i + 1}"),
                     systemPrompt = agentJson.optString("systemPrompt", "你是一个有帮助的助手。"),
@@ -432,6 +566,7 @@ $toolDesc
                     dependsOn = agentJson.optJSONArray("dependsOn")?.let { arr ->
                         (0 until arr.length()).mapNotNull { arr.optString(it) }
                     } ?: emptyList(),
+                    mergeStrategy = strategy,
                 )
             }
 
@@ -482,11 +617,21 @@ $toolDesc
 
 enum class ExecutionMode { SERIAL, PARALLEL }
 
+/**
+ * 多 Agent 输出合并策略（对标 Koog MergeStrategy）。
+ * - CONCAT: 各 agent 输出按顺序拼接，不调用 LLM（适合需要完整记录的场景）
+ * - MERGE_LLM: 调用 LLM 整合为结构化最终回答（默认，向后兼容）
+ * - VOTE: 多数表决，取最长的 agent 输出作为代表（避免短答案淹没）
+ * - REDUCE: 按 length*0.5 + lineCount*10 打分取最高（择优）
+ */
+enum class MergeStrategy { CONCAT, MERGE_LLM, VOTE, REDUCE }
+
 data class AgentDef(
     val name: String,
     val systemPrompt: String,
     val instruction: String,
     val dependsOn: List<String> = emptyList(),
+    val mergeStrategy: MergeStrategy = MergeStrategy.MERGE_LLM,
 )
 
 data class AgentOutput(

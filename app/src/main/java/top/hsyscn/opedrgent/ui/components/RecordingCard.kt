@@ -43,8 +43,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.material3.Text
@@ -68,11 +76,29 @@ fun RecordingCard(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val stateActive = stringResource(R.string.state_recording_active)
+    val statePaused = stringResource(R.string.state_recording_paused)
+    val stateProc = stringResource(R.string.state_processing)
+    val stateDone = stringResource(R.string.state_completed)
+    val stopLabel = stringResource(R.string.cd_stop)
+
+    val stateDescriptionText = when (recordingState) {
+        RecordingState.RECORDING -> stateActive
+        RecordingState.PAUSED -> statePaused
+        RecordingState.PROCESSING -> stateProc
+        RecordingState.DONE -> stateDone
+    }
+
     Card(
         shape = ShapeTokens.extraLargeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                stateDescription = stateDescriptionText
+                liveRegion = LiveRegionMode.Polite
+            },
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -213,7 +239,10 @@ fun RecordingCard(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(56.dp),
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.clearAndSetSemantics { contentDescription = stopLabel },
+                        ) {
                             // 方块停止图标（比 MusicNote 更语义化）
                             Box(
                                 modifier = Modifier
@@ -249,7 +278,10 @@ fun RecordingCard(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(56.dp),
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.clearAndSetSemantics { contentDescription = stopLabel },
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)

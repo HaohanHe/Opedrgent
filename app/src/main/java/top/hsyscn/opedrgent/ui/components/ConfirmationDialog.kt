@@ -39,9 +39,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -163,9 +169,10 @@ fun ConfirmationDialog(
                 ) {
                     if (isExpired) {
                         Text(
-                            text = "超时",
+                            text = stringResource(R.string.state_timeout),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                         )
                     } else {
                         CountdownTimer(remainingSeconds = remainingSeconds)
@@ -202,6 +209,7 @@ private fun CountdownTimer(remainingSeconds: Int) {
         ),
         label = "pulse",
     )
+    val countdownLabel = stringResource(R.string.state_countdown_seconds, remainingSeconds)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +217,17 @@ private fun CountdownTimer(remainingSeconds: Int) {
         modifier = Modifier
             .clip(ShapeTokens.extraLargeShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
-            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs)
+            .then(
+                if (remainingSeconds <= 5) {
+                    Modifier.semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        stateDescription = countdownLabel
+                    }
+                } else {
+                    Modifier
+                }
+            ),
     ) {
         Box(
             modifier = Modifier
