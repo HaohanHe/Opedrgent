@@ -37,7 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBarBg
@@ -117,7 +120,7 @@ fun TextAndVoiceInput(
                             .padding(SpacingTokens.xs)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
-                            .clickable(enabled = enabled && text.isNotBlank()) { if (text.isNotBlank()) onSend(text) },
+                            .clickable(enabled = enabled && text.isNotBlank(), onClickLabel = stringResource(R.string.action_send), role = Role.Button) { if (text.isNotBlank()) onSend(text) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(

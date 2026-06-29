@@ -99,6 +99,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
@@ -409,13 +413,17 @@ fun KnowledgeBaseScreen(
         var newVisibility by remember { mutableStateOf(Visibility.PRIVATE) }
         val colors = listOf("#0065FD", "#22C55E", "#EF4444", "#F59E0B", "#8E24AA", "#00ACC1")
         var selectedColor by remember { mutableStateOf(colors.random()) }
+        var nameError by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { showCreateKbDialog = false },
             confirmButton = {
                 TextButton(onClick = {
                     val name = newName.trim()
-                    if (name.isEmpty()) return@TextButton
+                    if (name.isEmpty()) {
+                        nameError = true
+                        return@TextButton
+                    }
                     scope.launch {
                         knowledgeBase.createKnowledgeBase(name, newDesc, newVisibility, selectedColor)
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
@@ -432,9 +440,19 @@ fun KnowledgeBaseScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     OutlinedTextField(
                         value = newName,
-                        onValueChange = { newName = it },
+                        onValueChange = { newName = it; nameError = false },
                         label = { Text(stringResource(R.string.kb_name_label)) },
                         singleLine = true,
+                        isError = nameError,
+                        supportingText = {
+                            if (nameError) {
+                                Text(
+                                    text = "名称不能为空",
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
@@ -463,7 +481,7 @@ fun KnowledgeBaseScreen(
                                     .size(32.dp)
                                     .then(if (selectedColor == color) Modifier.padding(SpacingTokens.xxs) else Modifier)
                                     .clip(CircleShape)
-                                    .clickable { selectedColor = color },
+                                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select)) { selectedColor = color },
                             ) {}
                         }
                     }
@@ -545,7 +563,7 @@ fun KnowledgeBaseScreen(
         val kb = contextKb ?: return@DropdownMenu
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_edit)) },
-            leadingIcon = { Icon(Icons.Default.Create, contentDescription = "图标") },
+            leadingIcon = { Icon(Icons.Default.Create, contentDescription = null) },
             onClick = {
                 editingKb = kb
                 showEditKbDialog = true
@@ -554,7 +572,7 @@ fun KnowledgeBaseScreen(
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_share)) },
-            leadingIcon = { Icon(Icons.Default.Share, contentDescription = "图标") },
+            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
             onClick = {
                 scope.launch { snackbar.showSnackbar(context.getString(R.string.kb_share_developing)) }
                 showContextMenu = false
@@ -562,7 +580,7 @@ fun KnowledgeBaseScreen(
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.action_delete)) },
-            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = "图标") },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
             onClick = {
                 kbToDelete = kb
                 showDeleteKbConfirm = true
@@ -593,7 +611,7 @@ private fun KbGridView(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text("搜索知识库...", color = themeForegroundMuted()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
@@ -709,6 +727,7 @@ private fun KbCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
             .height(132.dp)
+            .semantics(mergeDescendants = true) {}
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -731,7 +750,7 @@ private fun KbCard(
                         modifier = Modifier.size(32.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Article, contentDescription = "图标", tint = coverColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -791,7 +810,7 @@ private fun NewKbCard(
                     cornerRadius = CornerRadius(doubaoRadius.toPx()),
                 )
             }
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_add), onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -856,7 +875,7 @@ private fun DocumentListView(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeForegroundMuted()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
@@ -967,7 +986,9 @@ private fun DocumentCard(
         shape = RoundedCornerShape(doubaoRadius),
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {},
         onClick = onClick,
     ) {
         Row(
@@ -980,7 +1001,7 @@ private fun DocumentCard(
                 modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = "图标", tint = iconTint, modifier = Modifier.size(22.dp))
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
                 }
             }
 

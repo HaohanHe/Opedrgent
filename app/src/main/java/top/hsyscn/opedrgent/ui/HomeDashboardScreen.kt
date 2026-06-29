@@ -53,8 +53,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -217,7 +222,7 @@ private fun GreetingHeader(onAvatarClick: () -> Unit) {
                 .size(SpacingTokens.xxl)
                 .clip(CircleShape)
                 .background(themePrimarySubtle())
-                .clickable(onClick = onAvatarClick),
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_settings), onClick = onAvatarClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -238,7 +243,7 @@ private fun SearchBar(onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(percent = 50))
             .background(themeBackgroundMuted())
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_search), onClick = onClick)
             .padding(horizontal = SpacingTokens.lg, vertical = SizeTokens.sectionGapSm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.sectionGapSm),
@@ -312,7 +317,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(percent = 50))
                         .background(themeBackgroundMuted())
-                        .clickable(onClick = onTap)
+                        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_start), onClick = onTap)
                         .padding(start = SpacingTokens.lg, end = SpacingTokens.md, top = SizeTokens.sectionGapSm, bottom = SizeTokens.sectionGapSm),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
@@ -329,7 +334,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                             .size(SpacingTokens.xxl)
                             .clip(CircleShape)
                             .background(themePrimary())
-                            .clickable(onClick = onTap),
+                            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_start), onClick = onTap),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -403,7 +408,7 @@ private fun StatCard(
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick),
     ) {
         Column(
             modifier = Modifier
@@ -453,7 +458,9 @@ private fun FeatureDiscoveryGrid(
             text = "发现新功能",
             style = MaterialTheme.typography.titleMedium,
             color = themeForeground(),
-            modifier = Modifier.padding(bottom = SpacingTokens.md),
+            modifier = Modifier
+                .padding(bottom = SpacingTokens.md)
+                .semantics { heading() },
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
@@ -510,7 +517,7 @@ private fun FeatureCard(
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick),
     ) {
         Row(
             modifier = Modifier
@@ -598,7 +605,7 @@ private fun QuickActionItem(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
     ) {
         Box(
             modifier = Modifier
@@ -640,12 +647,13 @@ private fun RecentNotesSection(
                 text = "最近笔记",
                 style = MaterialTheme.typography.titleMedium,
                 color = themeForeground(),
+                modifier = Modifier.semantics { heading() },
             )
             Text(
                 text = "查看全部",
                 style = MaterialTheme.typography.bodySmall,
                 color = themePrimary(),
-                modifier = Modifier.clickable(onClick = onViewAll),
+                modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onViewAll),
             )
         }
 
@@ -694,7 +702,8 @@ private fun RecentNoteRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) {}
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick)
             .padding(horizontal = SpacingTokens.lg, vertical = SizeTokens.contentPaddingMd),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.sectionGapSm),
@@ -767,7 +776,7 @@ private fun EmptyRecentNotes(
             colors = CardDefaults.cardColors(containerColor = themePrimarySubtle()),
             modifier = Modifier
                 .fillMaxWidth(0.85f)
-                .clickable { onNavigateToAi() },
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_start)) { onNavigateToAi() },
         ) {
             Row(
                 modifier = Modifier.padding(SpacingTokens.lg),

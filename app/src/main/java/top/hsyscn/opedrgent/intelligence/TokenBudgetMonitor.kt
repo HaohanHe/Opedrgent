@@ -51,7 +51,7 @@ object TokenBudgetMonitor {
 
         return if (!isDiminishing && currentTokens < (budget * COMPLETION_THRESHOLD).toInt()) {
             BudgetDecision.Continue(
-                nudgeMessage = "继续生成中... ($pct%/$budget tokens)",
+                nudgeMessage = "继续生成中... ($pct%/$budget tokens)。继续干活，不要总结。",
                 pct = pct,
                 turnTokens = currentTokens,
             )
@@ -77,5 +77,48 @@ object TokenBudgetMonitor {
             lastDeltaTokens = delta,
             lastGlobalTurnTokens = currentTokens,
         )
+    }
+
+    // ==================== 自然语言预算解析（对标 Claude Code parseTokenBudget） ====================
+
+    // 简写 +500k 锚定字符串开头
+    private val SHORTHAND_START_RE = Regex("""^\s*\+(\d+(?:\.\d+)?)\s*(k|m|b)\b""", RegexOption.IGNORE_CASE)
+
+    // 简写 +500k 锚定字符串结尾（兼容句末标点）
+    private val SHORTHAND_END_RE = Regex("""\s\+(\d+(?:\.\d+)?)\s*(k|m|b)\s*[.!?]?\s*$""", RegexOption.IGNORE_CASE)
+
+    // 完整短语 use 2M tokens / spend 500k tokens
+    private val VERBOSE_RE = Regex("""\b(?:use|spend)\s+(\d+(?:\.\d+)?)\s*(k|m|b)\s*tokens?\b""", RegexOption.IGNORE_CASE)
+
+    private val MULTIPLIERS = mapOf(
+        "k" to 1_000L,
+        "m" to 1_000_000L,
+        "b" to 1_000_000_000L,
+    )
+
+    /**
+     * 解析自然语言 token 预算声明。
+     * 支持格式：
+     *   - "+500k" / "+2m" / "+1b"（开头或结尾）
+     *   - "use 2M tokens" / "spend 500k tokens"
+     * 返回 null 表示无预算声明。
+     */
+    fun parseTokenBudget(input: String): Long? {
+        SHORTHAND_START_RE.find(input)?.let { m ->
+            val num = m.groupValues[1].toDouble()
+            val unit = m.groupValues[2].lowercase()
+            return (num * (MULTIPLIERS[unit] ?: 1_000L)).toLong()
+        }
+        SHORTHAND_END_RE.find(input)?.let { m ->
+            val num = m.groupValues[1].toDouble()
+            val unit = m.groupValues[2].lowercase()
+            return (num * (MULTIPLIERS[unit] ?: 1_000L)).toLong()
+        }
+        VERBOSE_RE.find(input)?.let { m ->
+            val num = m.groupValues[1].toDouble()
+            val unit = m.groupValues[2].lowercase()
+            return (num * (MULTIPLIERS[unit] ?: 1_000L)).toLong()
+        }
+        return null
     }
 }

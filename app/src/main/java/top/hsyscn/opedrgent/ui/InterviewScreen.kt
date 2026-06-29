@@ -402,7 +402,7 @@ private fun StepRecommendationBanner(
                         contentColor = InterviewTextMuted,
                     ),
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = "图标", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text("配置 API Key 并使用", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -534,7 +534,7 @@ private fun StepRecommendationBanner(
                         disabledContentColor = InterviewDisabledText,
                     ),
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = "图标", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = if (canStart) "使用 StepAudio 2.5 开始面试" else "请先输入 API Key",
@@ -590,7 +590,7 @@ private fun ModeSelectionCard(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "图标",
+                    contentDescription = null,
                     tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else AccentBlue,
                     modifier = Modifier.size(24.dp),
                 )
@@ -1581,7 +1581,7 @@ private fun InterviewReportScreen(
                         ) {
                             Icon(
                                 Icons.Default.Description,
-                                contentDescription = "图标",
+                                contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -1597,7 +1597,7 @@ private fun InterviewReportScreen(
                         ) {
                             Icon(
                                 Icons.Default.Refresh,
-                                contentDescription = "图标",
+                                contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(modifier = Modifier.width(6.dp))

@@ -119,6 +119,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1234,7 +1235,7 @@ private fun IdleModeSelection(
                     .size(80.dp)
                     .clip(CircleShape)
                     .background(CoralRed)
-                    .clickable { onStartRecording() },
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_start_recording)) { onStartRecording() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -1285,7 +1286,7 @@ private fun ModeCard(
         modifier = modifier
             .aspectRatio(1.25f)
             .border(2.dp, borderColor, ShapeTokens.largeShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select), onClick = onClick),
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp),
@@ -1474,7 +1475,7 @@ private fun RecordingScreen(
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(CoralRed)
-                    .clickable {
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_pause)) {
                         if (state == RecordingState.RECORDING) onPause() else onResume()
                     },
                 contentAlignment = Alignment.Center,
@@ -1548,7 +1549,7 @@ private fun RecordingScreen(
 private fun ToolIcon(icon: ImageVector, label: String, onClick: (() -> Unit)? = null) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+        modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick) else Modifier,
     ) {
         Icon(
             imageVector = icon,

@@ -98,6 +98,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
@@ -717,6 +722,8 @@ private fun AudioPlayerBar(
     val durationFormatted = TranscriptTimeFormatter.formatMsToHMS(durationMs)
     val currentPositionMs = (playbackPosition * durationMs).toLong()
     val currentPositionFormatted = TranscriptTimeFormatter.formatMsToHMS(currentPositionMs)
+    val statePlayingLabel = stringResource(R.string.state_playing)
+    val statePausedLabel = stringResource(R.string.state_paused)
 
     Column {
         // 控制行: -15s | ▶/⏸ | +15s | 时间 | 进度条 | 时长 | 倍速
@@ -746,6 +753,10 @@ private fun AudioPlayerBar(
                 shape = CircleShape,
                 color = TextPrimary,
                 onClick = onPlayPause,
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    stateDescription = if (isPlaying) statePlayingLabel else statePausedLabel
+                    liveRegion = LiveRegionMode.Polite
+                },
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -919,7 +930,7 @@ private fun SentenceItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick)
             .padding(vertical = SpacingTokens.xs),
     ) {
         // 第一行: [圆形索引] [说话人标签] [时间戳]

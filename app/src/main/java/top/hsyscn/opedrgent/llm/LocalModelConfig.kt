@@ -67,7 +67,9 @@ object AvailableLocalModels {
             displayName = "Gemma 3 1B (int4)",
             description = "超轻量级，低配设备可用。int4量化版，仅557MB",
             sizeMb = 557,
-            downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.litertlm",
+            // 国内优先走 ModelScope；HuggingFace 作为海外备用源
+            downloadUrl = "https://www.modelscope.cn/models/litert-community/Gemma3-1B-IT/resolve/master/gemma3-1b-it-int4.litertlm",
+            fallbackUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.litertlm",
             fileName = "gemma3-1b-it-int4.litertlm",
             supportsFunctionCalling = false,
             maxTokens = 2048,
@@ -78,7 +80,7 @@ object AvailableLocalModels {
         LocalModelInfo(
             id = "functiongemma-270m-it",
             displayName = "FunctionGemma 270m",
-            description = "专为Tool Calling优化的超轻量模型。速度极快，适合简单指令执行",
+            description = "专为Tool Calling优化的超轻量模型。速度极快，适合简单指令执行。国内网络可能需代理下载",
             sizeMb = 270,
             downloadUrl = "https://huggingface.co/litert-community/functiongemma-270m-it-litert/resolve/main/functiongemma-270m-it.litertlm",
             fileName = "functiongemma-270m-it.litertlm",
@@ -91,7 +93,7 @@ object AvailableLocalModels {
         LocalModelInfo(
             id = "gemma-sprint-2b-it",
             displayName = "GemmaSprint 2B",
-            description = "高效推理模型，支持多模态和SpecDec，GPU加速效果显著",
+            description = "高效推理模型，支持多模态和SpecDec，GPU加速效果显著。国内网络可能需代理下载",
             sizeMb = 2000,
             downloadUrl = "https://huggingface.co/litert-community/GemmaSprint-2B-it/resolve/main/GemmaSprint-2B-it.litertlm",
             fileName = "GemmaSprint-2B-it.litertlm",

@@ -34,6 +34,8 @@ data class SkillMetadata(
     val requireSecretDescription: String = "",  // Secret 用途说明，如 "需要 OpenAI API Key"
     val tags: List<String> = emptyList(),       // 分类标签
     val category: SkillCategory = SkillCategory.GENERAL,
+    val triggers: List<String> = emptyList(),   // 声明式前缀触发器（Hermes 风格，零 token、零延迟），如 ["/hash", "计算哈希", "sha256"]
+    val platforms: List<String> = listOf("all"),// 适用平台，默认 all
 )
 
 /**

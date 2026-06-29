@@ -1,6 +1,7 @@
 ---
 name: calculate-hash
 description: Calculate the hash (SHA-256, MD5) of a given text string. Useful for verifying data integrity, generating unique identifiers, or cryptographic demonstrations.
+triggers: ["/hash", "计算哈希", "sha256", "md5"]
 ---
 
 # Calculate Hash

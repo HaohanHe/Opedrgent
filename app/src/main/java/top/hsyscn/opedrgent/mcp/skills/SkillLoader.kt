@@ -540,6 +540,21 @@ class SkillLoader(private val context: Context) {
     }
 
     /**
+     * 解析 frontmatter 中的列表字段。
+     * 支持两种格式：
+     * - 内联格式：`triggers: [/hash, 计算哈希, sha256]`
+     * - 逗号分隔：`triggers: /hash, 计算哈希, sha256`
+     * 每个元素去除首尾空白与成对引号，空元素被丢弃。
+     */
+    private fun parseFrontmatterList(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val cleaned = raw.trim().removeSurrounding("[").removeSurrounding("]")
+        return cleaned.split(",")
+            .map { it.trim().removeSurrounding("\"").removeSurrounding("'").trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    /**
      * 解析 SKILL.md 格式的技能定义
      */
     private fun parseSkillMd(content: String, sourceType: SkillSourceType, sourcePath: String): StandardSkillDefinition? {
@@ -572,6 +587,8 @@ class SkillLoader(private val context: Context) {
             val category = frontmatter["category"]?.let { catName ->
                 SkillCategory.entries.find { it.name.equals(catName, ignoreCase = true) }
             } ?: SkillCategory.GENERAL
+            val triggers = parseFrontmatterList(frontmatter["triggers"])
+            val platforms = parseFrontmatterList(frontmatter["platforms"]).ifEmpty { listOf("all") }
 
             StandardSkillDefinition(
                 metadata = SkillMetadata(
@@ -583,6 +600,8 @@ class SkillLoader(private val context: Context) {
                     category = category,
                     requireSecret = frontmatter["require-secret"]?.toBooleanStrictOrNull() ?: false,
                     homepage = frontmatter["homepage"] ?: "",
+                    triggers = triggers,
+                    platforms = platforms,
                 ),
                 instructions = body,
                 sourceType = sourceType,
@@ -608,6 +627,12 @@ class SkillLoader(private val context: Context) {
             appendLine("category: ${definition.metadata.category.name.lowercase()}")
             if (definition.metadata.requireSecret) appendLine("require-secret: true")
             if (definition.metadata.homepage.isNotEmpty()) appendLine("homepage: ${definition.metadata.homepage}")
+            if (definition.metadata.triggers.isNotEmpty()) {
+                appendLine("triggers: [${definition.metadata.triggers.joinToString(", ")}]")
+            }
+            if (definition.metadata.platforms.isNotEmpty() && definition.metadata.platforms != listOf("all")) {
+                appendLine("platforms: [${definition.metadata.platforms.joinToString(", ")}]")
+            }
             appendLine("---")
             appendLine()
             append(definition.instructions)

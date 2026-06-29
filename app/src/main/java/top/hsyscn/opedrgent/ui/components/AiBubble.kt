@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -63,7 +64,11 @@ fun AIMessageCard(
     val timeText = remember(message.createdAt) { formatMessageTime(message.createdAt) }
 
     // AI 消息块整体占父容器 75%，左对齐；头像/名称头部置于卡片上方
-    Column(modifier = Modifier.fillMaxWidth(0.75f)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.75f)
+            .semantics(mergeDescendants = true) {},
+    ) {
         MessageHeader(
             avatar = Icons.Default.AutoAwesome,
             name = aiName,

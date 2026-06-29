@@ -96,6 +96,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role as SemanticsRole
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import top.hsyscn.opedrgent.R
@@ -746,7 +747,7 @@ fun SessionScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = SpacingTokens.xs)
-                                .clickable {
+                                .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.action_select)) {
                                     showMoreOptionsSheet = false
                                     filePicker.launch(arrayOf("image/*"))
                                 },
@@ -784,7 +785,7 @@ fun SessionScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = SpacingTokens.xs)
-                                .clickable {
+                                .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.cd_enter)) {
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("knowledge")
                                 },
@@ -822,7 +823,7 @@ fun SessionScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = SpacingTokens.xs)
-                                .clickable {
+                                .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.cd_enter)) {
                                     showMoreOptionsSheet = false
                                     onOpenSubScreen("editorTeam")
                                 },
@@ -879,7 +880,7 @@ fun SessionScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.action_select)) {
                                     vm.setSearchScope(scopeEntry)
                                     showScopeSheet = false
                                 }

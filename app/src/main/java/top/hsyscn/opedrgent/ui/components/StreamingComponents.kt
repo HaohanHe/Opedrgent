@@ -56,6 +56,12 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
@@ -69,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
@@ -163,6 +170,10 @@ fun StreamingCard(
 
     val showLoading = !hasText && !hasReasoning && !hasTools
 
+    val aiReplyingLabel = stringResource(R.string.cd_ai_replying)
+    val thinkingLabel = stringResource(R.string.cd_thinking)
+    val processingLabel = stringResource(R.string.state_processing)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.largeShape,
@@ -177,7 +188,13 @@ fun StreamingCard(
                 Text("助手", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), color = themeTextDark())
                 if (isToolRunning) {
                     CircularProgressIndicator(
-                        modifier = Modifier.height(16.dp).width(16.dp),
+                        modifier = Modifier
+                            .height(16.dp)
+                            .width(16.dp)
+                            .semantics {
+                                contentDescription = thinkingLabel
+                                stateDescription = processingLabel
+                            },
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -208,12 +225,23 @@ fun StreamingCard(
                     // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
                     StreamingMarkdownText(text = displayText, maxChars = Int.MAX_VALUE)
                 } else {
-                    Text(
-                        text = displayText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = themeTextDark(),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    // 流式文本容器：stateDescription + liveRegion 让 Talkback 在回复开始时播报，
+                    // 容器语义不随内部 Text 逐字增长而变化，避免频繁打断。
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                stateDescription = aiReplyingLabel
+                                liveRegion = LiveRegionMode.Polite
+                            }
+                    ) {
+                        Text(
+                            text = displayText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = themeTextDark(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -409,7 +437,11 @@ fun ToolStatusRow(toolPart: ToolPart) {
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                liveRegion = LiveRegionMode.Polite
+            },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
     ) {

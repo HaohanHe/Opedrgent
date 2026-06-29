@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
@@ -219,7 +221,13 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                         else -> MaterialTheme.typography.titleSmall
                     }
                     Spacer(modifier = Modifier.height(SpacingTokens.sm))
-                    Text(text = headingText, fontWeight = FontWeight.Bold, style = style, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = headingText,
+                        fontWeight = FontWeight.Bold,
+                        style = style,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.semantics { heading() },
+                    )
                 }
                 isOrderedBullet(trimmed) -> {
                     Text(buildAnnotatedString {

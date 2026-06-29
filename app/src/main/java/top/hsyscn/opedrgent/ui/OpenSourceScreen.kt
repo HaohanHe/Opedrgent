@@ -256,7 +256,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                         }
                         Icon(
                             Icons.Default.OpenInNew,
-                            contentDescription = "图标",
+                            contentDescription = stringResource(R.string.cd_open_link),
                             modifier = Modifier
                                 .size(18.dp)
                                 .clickable {

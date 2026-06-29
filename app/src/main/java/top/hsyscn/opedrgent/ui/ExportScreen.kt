@@ -293,7 +293,7 @@ private fun ExportOptionCard(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "图标",
+                    contentDescription = null,
                     tint = AccentBlue,
                     modifier = Modifier.size(20.dp).padding(SpacingTokens.md),
                 )

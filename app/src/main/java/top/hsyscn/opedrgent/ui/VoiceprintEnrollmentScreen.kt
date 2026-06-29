@@ -10,6 +10,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.R
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -77,6 +78,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -347,7 +352,7 @@ fun VoiceprintEnrollmentScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -482,7 +487,7 @@ private fun NameInputStep(
     ) {
         Icon(
             imageVector = Icons.Default.Person,
-            contentDescription = "图标",
+            contentDescription = null,
             tint = AccentBlue,
             modifier = Modifier.size(64.dp),
         )
@@ -510,7 +515,11 @@ private fun NameInputStep(
             isError = showError,
             supportingText = {
                 if (showError) {
-                    Text("请输入姓名", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = "请输入姓名",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                    )
                 }
             },
         )
@@ -659,14 +668,14 @@ private fun CompletionStep(
             if (isProcessing) {
                 Icon(
                     imageVector = Icons.Default.Mic,
-                    contentDescription = "图标",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "图标",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp),
                 )
