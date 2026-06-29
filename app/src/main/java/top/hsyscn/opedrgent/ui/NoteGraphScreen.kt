@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -302,12 +303,35 @@ fun NoteGraphScreen(
             } else {
                 when (viewMode) {
                     GraphViewMode.GRAPH -> {
-                        Box(
+                        BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .weight(1f)
                                 .transformable(state = transformableState),
                         ) {
+                            val canvasWidth = constraints.maxWidth.toFloat()
+                            val canvasHeight = constraints.maxHeight.toFloat()
+                            var initialFitDone by remember(nodes, allEdges) { mutableStateOf(false) }
+
+                            // 布局计算完成后，自动缩放使所有节点可见
+                            LaunchedEffect(layout, canvasWidth, canvasHeight) {
+                                if (!initialFitDone && layout.isNotEmpty() && canvasWidth > 0 && canvasHeight > 0) {
+                                    val bounds = computeLayoutBounds(layout)
+                                    val paddingPx = with(density) { 24.dp.toPx() }
+                                    val contentWidth = bounds.width() + paddingPx * 2
+                                    val contentHeight = bounds.height() + paddingPx * 2
+                                    val scaleX = canvasWidth / contentWidth
+                                    val scaleY = canvasHeight / contentHeight
+                                    val fitScale = kotlin.math.min(scaleX, scaleY).coerceIn(0.3f, 1.2f)
+                                    targetScale = fitScale
+                                    targetOffset = Offset(
+                                        -bounds.centerX() * fitScale,
+                                        -bounds.centerY() * fitScale,
+                                    )
+                                    initialFitDone = true
+                                }
+                            }
+
                             GraphCanvas(
                                 nodes = nodes,
                                 edgeDetails = visibleEdgeDetails,
@@ -505,8 +529,8 @@ private fun GraphCanvas(
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
-    val baseNodeSize = SizeTokens.iconSm
-    val maxExtraSize = SizeTokens.iconMd
+    val baseNodeSize = 8.dp
+    val maxExtraSize = 8.dp
     val edgeHitThreshold = SizeTokens.iconXs
     val edgeHitThresholdPx = with(density) { edgeHitThreshold.toPx() }
 
@@ -1069,8 +1093,8 @@ private fun computeForceLayout(
     val n = nodes.size
 
     // 节点半径（px），用于碰撞检测
-    val basePx = with(density) { SizeTokens.iconSm.toPx() }
-    val extraPx = with(density) { SizeTokens.iconMd.toPx() }
+    val basePx = with(density) { 8.dp.toPx() }
+    val extraPx = with(density) { 8.dp.toPx() }
     fun radiusOf(id: String): Float {
         val c = centrality[id]?.coerceIn(0f, 1f) ?: 0f
         return basePx + kotlin.math.sqrt(c) * extraPx
@@ -1078,7 +1102,7 @@ private fun computeForceLayout(
 
     // 1. 圆盘内随机初始化（避免花圈）
     val rng = kotlin.random.Random(0xACE)
-    val initRadius = kotlin.math.max(240f, kotlin.math.sqrt(n.toFloat()) * 100f)
+    val initRadius = kotlin.math.max(160f, kotlin.math.sqrt(n.toFloat()) * 45f)
     val positions = nodeIds.associateWith { id ->
         val r = kotlin.math.sqrt(rng.nextFloat()) * initRadius
         val theta = rng.nextFloat() * 2f * kotlin.math.PI
@@ -1097,10 +1121,10 @@ private fun computeForceLayout(
     val velocities = mutableMapOf<String, Offset>()
 
     val area = kotlin.math.PI * initRadius * initRadius
-    val repulsion = (area / n * 0.35f).toFloat().coerceIn(8_000f, 100_000f)
-    val springStrength = 0.015f
-    val idealLength = initRadius * 0.22f
-    val centerGravity = 0.03f
+    val repulsion = (area / n * 0.5f).toFloat().coerceIn(10_000f, 120_000f)
+    val springStrength = 0.02f
+    val idealLength = initRadius * 0.18f
+    val centerGravity = 0.04f
     val damping = 0.85f
     val timeStep = 0.45f
     val maxVelocity = 100f
@@ -1223,4 +1247,22 @@ private fun distanceToSegment(point: Offset, a: Offset, b: Offset): Float {
     val projection = Offset(a.x + t * ab.x, a.y + t * ab.y)
     val d = point - projection
     return sqrt(d.x * d.x + d.y * d.y)
+}
+
+/**
+ * 计算布局的包围盒（px）。
+ */
+private fun computeLayoutBounds(layout: Map<String, Offset>): android.graphics.RectF {
+    if (layout.isEmpty()) return android.graphics.RectF()
+    var minX = Float.MAX_VALUE
+    var minY = Float.MAX_VALUE
+    var maxX = -Float.MAX_VALUE
+    var maxY = -Float.MAX_VALUE
+    for ((_, pos) in layout) {
+        minX = kotlin.math.min(minX, pos.x)
+        minY = kotlin.math.min(minY, pos.y)
+        maxX = kotlin.math.max(maxX, pos.x)
+        maxY = kotlin.math.max(maxY, pos.y)
+    }
+    return android.graphics.RectF(minX, minY, maxX, maxY)
 }
