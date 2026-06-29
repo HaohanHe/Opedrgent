@@ -55,9 +55,15 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
@@ -336,13 +342,20 @@ private fun OptionRow(
     val textColor = if (selected) primaryColor else themeTextDark()
     val descColor = if (selected) primaryColor.copy(alpha = 0.8f) else themeTextGrey()
 
+    val stateSelectedLabel = stringResource(R.string.state_selected)
+    val stateNotSelectedLabel = stringResource(R.string.state_not_selected)
+
     Card(
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
         border = if (selected) androidx.compose.foundation.BorderStroke(1.5.dp, primaryColor) else null,
         modifier = Modifier
             .fillMaxWidth()
-            .onKeyEvent(onKeyEvent),
+            .onKeyEvent(onKeyEvent)
+            .semantics(mergeDescendants = true) {
+                role = if (multiple) Role.Checkbox else Role.RadioButton
+                stateDescription = if (selected) stateSelectedLabel else stateNotSelectedLabel
+            },
         onClick = onClick,
     ) {
         Row(
@@ -359,7 +372,7 @@ private fun OptionRow(
                 this@Row.AnimatedVisibility(visible = selected) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "已选中",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(if (multiple) SpacingTokens.sm else SpacingTokens.sm),
                     )

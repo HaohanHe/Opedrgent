@@ -38,6 +38,11 @@ data class StreamResult(
     val toolCalls: List<CompletedToolCall> = emptyList(),
     val finishReason: String? = null,
     val isSafetyFiltered: Boolean = false,
+    // Prompt cache usage (供 PromptCacheBreakDetection Phase 2 使用)
+    // DeepSeek: prompt_cache_hit_tokens / prompt_cache_creation_tokens
+    // Anthropic: cache_read_input_tokens / cache_creation_input_tokens
+    val cacheReadTokens: Int = 0,
+    val cacheCreationTokens: Int = 0,
 )
 
 data class CompletedToolCall(
@@ -205,6 +210,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         thinkingEnabled: Boolean = false,
         jsonMode: Boolean = false,  // JSON Mode: 强制模型返回合法 JSON
         maxOutputTokens: Int = 0,
+        sessionId: String? = null,
+        requestParams: Map<String, Any> = emptyMap(),
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -222,6 +229,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 put("max_tokens", maxOutputTokens)
             }
             put("stream", true)
+            // ★ Phase 3 P2: DeepSeek cache 轻量检测 — 请求末尾 usage chunk
+            // DeepSeek 在 stream 末尾发送一个含 usage 字段的 chunk，可用于观测 prompt cache 命中率
+            if (isDeepSeek(config.model)) {
+                put("stream_options", JSONObject().apply {
+                    put("include_usage", true)
+                })
+            }
             val nativeToolRole = supportsNativeToolRole(config.model, config.baseUrl)
             put(
                 "messages",
@@ -321,10 +335,57 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        // ★ Prompt Cache Break Detection Phase 1: pre-call 记录 prompt 指纹
+        var cacheState: PromptCacheState? = null
+        // P1-b 修复：仅对支持 cache 统计的模型记录指纹，避免不支持模型（cacheReadTokens 恒为 0）浪费内存且 Phase 2 沦为死代码
+        if (sessionId != null && PromptCacheBreakDetection.isModelSupported(config.model)) {
+            try {
+                val params = buildMap<String, Any> {
+                    if (maxOutputTokens > 0) put("max_tokens", maxOutputTokens)
+                    put("thinking_enabled", thinkingEnabled)
+                    put("tools_count", tools.size)
+                    if (toolChoice != null) put("tool_choice", toolChoice)
+                    put("json_mode", jsonMode)
+                    putAll(requestParams)
+                }
+                cacheState = PromptCacheBreakDetection.recordPromptState(
+                    sessionId = sessionId,
+                    messages = messages,
+                    systemPrompt = system,
+                    model = config.model,
+                    apiEndpoint = url,
+                    requestParams = params,
+                )
+            } catch (e: Exception) {
+                DebugLog.w("PromptCacheBreakDetection", "Phase1 recordPromptState failed: ${e.message}")
+            }
+        } else if (sessionId != null) {
+            DebugLog.d("PromptCacheBreakDetection", "模型 ${config.model} 不支持 cache 统计，检测跳过")
+        }
+
         val req = buildRequest(url, json.toString(), config.apiKey)
         val maskedBody = json.toString().replace(config.apiKey, "***")
         DebugLog.d("LlmClient REQUEST: model=${config.model} thinking=$thinkingEnabled body=$maskedBody")
         val call = http.newCall(req)
+
+        // ★ Prompt Cache Break Detection Phase 2: wrap onDone to verify cacheReadTokens after response
+        val phase1CacheState = cacheState
+        val phase1SessionId = sessionId
+        val wrappedOnDone: (StreamResult) -> Unit = { result ->
+            if (phase1SessionId != null && phase1CacheState != null && result.cacheReadTokens > 0) {
+                try {
+                    PromptCacheBreakDetection.checkResponseForCacheBreak(
+                        sessionId = phase1SessionId,
+                        currentState = phase1CacheState,
+                        cacheReadTokens = result.cacheReadTokens,
+                    )
+                } catch (e: Exception) {
+                    DebugLog.w("PromptCacheBreakDetection", "Phase2 checkResponseForCacheBreak failed: ${e.message}")
+                }
+            }
+            onDone(result)
+        }
+
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
                 DebugLog.e("streamChatCompletions FAILED: ${e.message}", e)
@@ -347,7 +408,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         return
                     }
 
-                    parseSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                    parseSseStream(response, onDelta, onToolCallDelta, wrappedOnDone, onError, config.model)
                 } catch (e: Exception) {
                     DebugLog.e("streamChatCompletions stream error: ${e.message}", e)
                     onError(e.message ?: "流读取失败")
@@ -365,6 +426,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
         onError: (String) -> Unit,
+        modelName: String = "",
     ) {
         val source = response.body?.source() ?: run {
             onError("响应体为空")
@@ -380,6 +442,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         var lastFinishReason: String? = null
         var totalChunks = 0
         var pendingBuffer = ""
+        // ★ Prompt Cache Break Detection: 捕获 usage chunk 中的 cache token 计数
+        var capturedCacheReadTokens = 0
+        var capturedCacheCreationTokens = 0
 
         while (!source.exhausted()) {
             val line = source.readUtf8Line() ?: continue
@@ -394,6 +459,24 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
             runCatching {
                 val root = JSONObject(data)
+                // ★ Phase 3 P2: DeepSeek cache 轻量检测 — 解析末尾 usage chunk
+                // DeepSeek 在 stream 末尾发送含 usage 字段的 chunk（通常无 choices），用于观测 prompt cache 命中率
+                val usage = root.optJSONObject("usage")
+                if (usage != null) {
+                    val promptTokens = usage.optInt("prompt_tokens", 0)
+                    val cacheHitTokens = usage.optInt("prompt_cache_hit_tokens", 0)
+                    val cacheCreationTokens = usage.optInt("prompt_cache_creation_tokens", 0)
+                    val completionTokens = usage.optInt("completion_tokens", 0)
+                    // 捕获到本地变量，供 StreamResult 携带（Phase 2 比对用）
+                    capturedCacheReadTokens = cacheHitTokens
+                    capturedCacheCreationTokens = cacheCreationTokens
+                    if (promptTokens > 0 || cacheHitTokens > 0) {
+                        val hitRate = if (promptTokens + cacheHitTokens > 0) {
+                            cacheHitTokens.toDouble() / (promptTokens + cacheHitTokens) * 100
+                        } else 0.0
+                        DebugLog.i("LlmClient.cache: model=$modelName prompt=$promptTokens cacheHit=$cacheHitTokens cacheCreation=$cacheCreationTokens completion=$completionTokens hitRate=${"%.1f".format(hitRate)}%")
+                    }
+                }
                 val choices = root.optJSONArray("choices") ?: return@runCatching
                 if (choices.length() == 0) return@runCatching
                 val choice = choices.getJSONObject(0)
@@ -558,6 +641,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             toolCalls = toolCalls,
             finishReason = lastFinishReason,
             isSafetyFiltered = lastFinishReason?.equals("SAFETY", ignoreCase = true) == true,
+            cacheReadTokens = capturedCacheReadTokens,
+            cacheCreationTokens = capturedCacheCreationTokens,
         ))
     }
 
@@ -568,6 +653,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         extraImages: List<String> = emptyList(),
         tools: List<ToolDefinition> = emptyList(),
         thinkingEnabled: Boolean = false,
+        sessionId: String? = null,
+        requestParams: Map<String, Any> = emptyMap(),
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -644,9 +731,54 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        // ★ Prompt Cache Break Detection Phase 1: pre-call 记录 prompt 指纹
+        var cacheState: PromptCacheState? = null
+        // P1-b 修复：仅对支持 cache 统计的模型记录指纹，避免不支持模型（cacheReadTokens 恒为 0）浪费内存且 Phase 2 沦为死代码
+        if (sessionId != null && PromptCacheBreakDetection.isModelSupported(config.model)) {
+            try {
+                val params = buildMap<String, Any> {
+                    put("thinking_enabled", thinkingEnabled)
+                    put("tools_count", tools.size)
+                    put("images_count", extraImages.size)
+                    putAll(requestParams)
+                }
+                cacheState = PromptCacheBreakDetection.recordPromptState(
+                    sessionId = sessionId,
+                    messages = messages,
+                    systemPrompt = system,
+                    model = config.model,
+                    apiEndpoint = url,
+                    requestParams = params,
+                )
+            } catch (e: Exception) {
+                DebugLog.w("PromptCacheBreakDetection", "Phase1 recordPromptState (multimodal) failed: ${e.message}")
+            }
+        } else if (sessionId != null) {
+            DebugLog.d("PromptCacheBreakDetection", "模型 ${config.model} 不支持 cache 统计，检测跳过")
+        }
+
         val req = buildRequest(url, json.toString(), config.apiKey)
         DebugLog.d("LlmClient streamMultimodal: model=${config.model} url=$url thinking=$thinkingEnabled images=${extraImages.size} tools=${tools.size}")
         val call = http.newCall(req)
+
+        // ★ Prompt Cache Break Detection Phase 2: wrap onDone to verify cacheReadTokens after response
+        val phase1CacheState = cacheState
+        val phase1SessionId = sessionId
+        val wrappedOnDone: (StreamResult) -> Unit = { result ->
+            if (phase1SessionId != null && phase1CacheState != null && result.cacheReadTokens > 0) {
+                try {
+                    PromptCacheBreakDetection.checkResponseForCacheBreak(
+                        sessionId = phase1SessionId,
+                        currentState = phase1CacheState,
+                        cacheReadTokens = result.cacheReadTokens,
+                    )
+                } catch (e: Exception) {
+                    DebugLog.w("PromptCacheBreakDetection", "Phase2 checkResponseForCacheBreak (multimodal) failed: ${e.message}")
+                }
+            }
+            onDone(result)
+        }
+
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
                 DebugLog.e("streamMultimodal FAILED: ${e.message}", e)
@@ -662,7 +794,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         return
                     }
 
-                    parseSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                    parseSseStream(response, onDelta, onToolCallDelta, wrappedOnDone, onError, config.model)
                 } catch (e: Exception) {
                     DebugLog.e("streamMultimodal parse error: ${e.message}", e)
                     onError(e.message ?: "解析失败")
@@ -742,12 +874,16 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
     /**
      * 非流式对话，返回完整结果（含 tool_calls）。
      * 供 MultiAgentOrchestrator 等需要工具调用循环的场景使用。
+     *
+     * P2-3 修复：增加 [sessionId] 参数，对支持 cache 统计的模型（DeepSeek/Claude）启用
+     * Phase 1/2 cache 破坏检测，使 AgentSwarm 等子 agent 调用也纳入监控（与流式路径一致）。
      */
     fun chatCompletionsWithTools(
         config: ApiConfig,
         system: String,
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
+        sessionId: String? = null,
     ): StreamResult {
         val url = buildUrl(config.baseUrl, "/chat/completions")
         DebugLog.i("chatCompletionsWithTools → $url model=${config.model} msgs=${messages.size} tools=${tools.size}")
@@ -784,6 +920,25 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        // ★ Prompt Cache Break Detection Phase 1: pre-call 记录 prompt 指纹
+        var cacheState: PromptCacheState? = null
+        if (sessionId != null && PromptCacheBreakDetection.isModelSupported(config.model)) {
+            try {
+                cacheState = PromptCacheBreakDetection.recordPromptState(
+                    sessionId = sessionId,
+                    messages = messages,
+                    systemPrompt = system,
+                    model = config.model,
+                    apiEndpoint = url,
+                    requestParams = mapOf(
+                        "tools_count" to tools.size,
+                    ),
+                )
+            } catch (e: Exception) {
+                DebugLog.w("PromptCacheBreakDetection", "Phase1 recordPromptState (withTools) failed: ${e.message}")
+            }
+        }
+
         val req = buildRequest(url, json.toString(), config.apiKey)
         http.newCall(req).execute().use { resp ->
             val raw = resp.body?.string().orEmpty()
@@ -810,11 +965,38 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     ))
                 }
             }
+            // ★ Prompt Cache Break Detection: 解析 usage 中的 cache token 计数
+            // DeepSeek: prompt_cache_hit_tokens / prompt_cache_creation_tokens
+            // Anthropic (OpenAI-compatible 端点): cache_read_input_tokens / cache_creation_input_tokens
+            var cacheReadTokens = 0
+            var cacheCreationTokens = 0
+            val usage = root.optJSONObject("usage")
+            if (usage != null) {
+                cacheReadTokens = usage.optInt("prompt_cache_hit_tokens", 0)
+                    .let { if (it > 0) it else usage.optInt("cache_read_input_tokens", 0) }
+                cacheCreationTokens = usage.optInt("prompt_cache_creation_tokens", 0)
+                    .let { if (it > 0) it else usage.optInt("cache_creation_input_tokens", 0) }
+            }
             val result = StreamResult(
                 content = content.trim(),
                 toolCalls = toolCalls,
                 finishReason = choice.optString("finish_reason", null),
+                cacheReadTokens = cacheReadTokens,
+                cacheCreationTokens = cacheCreationTokens,
             )
+            // ★ Prompt Cache Break Detection Phase 2: post-call 比对 cacheReadTokens
+            val phase1CacheState = cacheState
+            if (sessionId != null && phase1CacheState != null && cacheReadTokens > 0) {
+                try {
+                    PromptCacheBreakDetection.checkResponseForCacheBreak(
+                        sessionId = sessionId,
+                        currentState = phase1CacheState,
+                        cacheReadTokens = cacheReadTokens,
+                    )
+                } catch (e: Exception) {
+                    DebugLog.w("PromptCacheBreakDetection", "Phase2 checkResponseForCacheBreak (withTools) failed: ${e.message}")
+                }
+            }
             DebugLog.i("chatCompletionsWithTools ← content=${content.length} chars toolCalls=${toolCalls.size}")
             return result
         }
@@ -986,6 +1168,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
         thinkingEnabled: Boolean = false,
+        sessionId: String? = null,
+        requestParams: Map<String, Any> = emptyMap(),
         onDelta: (StreamDelta) -> Unit,
         onToolCallDelta: ((ToolCallDelta) -> Unit)? = null,
         onDone: (StreamResult) -> Unit,
@@ -1025,11 +1209,56 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
         }
 
+        // ★ Prompt Cache Break Detection Phase 1: pre-call 记录 prompt 指纹
+        var cacheState: PromptCacheState? = null
+        // P1-b 修复：仅对支持 cache 统计的模型记录指纹，避免不支持模型（cacheReadTokens 恒为 0）浪费内存且 Phase 2 沦为死代码
+        if (sessionId != null && PromptCacheBreakDetection.isModelSupported(config.model)) {
+            try {
+                val params = buildMap<String, Any> {
+                    put("thinking_enabled", thinkingEnabled)
+                    put("tools_count", tools.size)
+                    put("max_tokens", MESSAGES_API_MAX_OUTPUT_TOKENS)
+                    putAll(requestParams)
+                }
+                cacheState = PromptCacheBreakDetection.recordPromptState(
+                    sessionId = sessionId,
+                    messages = messages,
+                    systemPrompt = system,
+                    model = config.model,
+                    apiEndpoint = url,
+                    requestParams = params,
+                )
+            } catch (e: Exception) {
+                DebugLog.w("PromptCacheBreakDetection", "Phase1 recordPromptState (messages) failed: ${e.message}")
+            }
+        } else if (sessionId != null) {
+            DebugLog.d("PromptCacheBreakDetection", "模型 ${config.model} 不支持 cache 统计，检测跳过")
+        }
+
         val req = buildRequest(url, json.toString(), config.apiKey)
         val maskedBody = json.toString().replace(config.apiKey, "***")
         DebugLog.d("streamMessages REQUEST: model=${config.model} body=$maskedBody")
 
         val call = http.newCall(req)
+
+        // ★ Prompt Cache Break Detection Phase 2: wrap onDone to verify cacheReadTokens after response
+        val phase1CacheState = cacheState
+        val phase1SessionId = sessionId
+        val wrappedOnDone: (StreamResult) -> Unit = { result ->
+            if (phase1SessionId != null && phase1CacheState != null && result.cacheReadTokens > 0) {
+                try {
+                    PromptCacheBreakDetection.checkResponseForCacheBreak(
+                        sessionId = phase1SessionId,
+                        currentState = phase1CacheState,
+                        cacheReadTokens = result.cacheReadTokens,
+                    )
+                } catch (e: Exception) {
+                    DebugLog.w("PromptCacheBreakDetection", "Phase2 checkResponseForCacheBreak (messages) failed: ${e.message}")
+                }
+            }
+            onDone(result)
+        }
+
         call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
                 DebugLog.e("streamMessages FAILED: ${e.message}", e)
@@ -1048,7 +1277,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         return
                     }
 
-                    parseMessagesSseStream(response, onDelta, onToolCallDelta, onDone, onError)
+                    parseMessagesSseStream(response, onDelta, onToolCallDelta, wrappedOnDone, onError)
                 } catch (e: Exception) {
                     DebugLog.e("streamMessages parse error: ${e.message}", e)
                     onError(e.message ?: "解析失败")
@@ -1158,6 +1387,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 var currentToolInput = StringBuilder()
                 val toolCalls = mutableListOf<CompletedToolCall>()
                 var lastStopReason: String? = null
+                // ★ Prompt Cache Break Detection: 捕获 Anthropic message_start 中的 cache token 计数
+                var capturedCacheReadTokens = 0
+                var capturedCacheCreationTokens = 0
 
                 while (!source.exhausted()) {
                     val line = source.readUtf8Line() ?: break
@@ -1177,6 +1409,20 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     if (data.isEmpty()) continue
 
                     when (eventType) {
+                        "message_start" -> {
+                            val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                            val msg = obj.optJSONObject("message") ?: continue
+                            val usage = msg.optJSONObject("usage")
+                            if (usage != null) {
+                                // Anthropic 格式: cache_read_input_tokens / cache_creation_input_tokens
+                                capturedCacheReadTokens = usage.optInt("cache_read_input_tokens", 0)
+                                capturedCacheCreationTokens = usage.optInt("cache_creation_input_tokens", 0)
+                                if (capturedCacheReadTokens > 0 || capturedCacheCreationTokens > 0) {
+                                    DebugLog.i("LlmClient.cache: model=messages cacheRead=$capturedCacheReadTokens cacheCreation=$capturedCacheCreationTokens")
+                                }
+                            }
+                        }
+
                         "content_block_delta" -> {
                             val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
                             val delta = obj.optJSONObject("delta") ?: continue
@@ -1257,6 +1503,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     reasoning = finalReasoning,
                     toolCalls = toolCalls,
                     finishReason = lastStopReason,
+                    cacheReadTokens = capturedCacheReadTokens,
+                    cacheCreationTokens = capturedCacheCreationTokens,
                 ))
                 DebugLog.i("parseMessagesSse ← DONE, text=${finalContent.length} chars, reasoning=${finalReasoning.length} chars, tools=${toolCalls.size}")
 

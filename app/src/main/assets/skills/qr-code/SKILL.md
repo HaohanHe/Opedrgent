@@ -1,6 +1,7 @@
 ---
 name: qr-code
 description: Generates a QR code for the given url.
+triggers: ["/qr", "二维码", "生成二维码"]
 ---
 
 # Instructions

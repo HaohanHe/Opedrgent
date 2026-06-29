@@ -40,8 +40,18 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
@@ -59,6 +69,13 @@ fun HoldToDictate(
     var isRecording by remember { mutableStateOf(false) }
     var recordingStartTime by remember { mutableLongStateOf(0L) }
     var elapsedTime by remember { mutableLongStateOf(0L) }
+
+    val holdToSpeakLabel = stringResource(R.string.cd_hold_to_speak)
+    val recordingLabel = stringResource(R.string.cd_recording_in_progress)
+    val releaseToSendLabel = stringResource(R.string.cd_release_to_send)
+    val startRecordingLabel = stringResource(R.string.cd_start_recording)
+    val stateNotRecording = stringResource(R.string.state_not_recording)
+    val stateRecording = stringResource(R.string.state_recording)
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -119,6 +136,28 @@ fun HoldToDictate(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(56.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (isRecording) recordingLabel else holdToSpeakLabel
+                stateDescription = if (isRecording) stateRecording else stateNotRecording
+                role = Role.Button
+                liveRegion = LiveRegionMode.Polite
+                onClick(label = if (isRecording) releaseToSendLabel else startRecordingLabel) {
+                    if (isRecording) {
+                        val duration = System.currentTimeMillis() - recordingStartTime
+                        if (duration >= 500) {
+                            stopListening(speechRecognizer)
+                        } else {
+                            speechRecognizer?.cancel()
+                        }
+                        isRecording = false
+                    } else {
+                        isRecording = true
+                        recordingStartTime = System.currentTimeMillis()
+                        startListening(speechRecognizer, context)
+                    }
+                    true
+                }
+            }
             .pointerInput(enabled) {
                 detectTapGestures(
                     onPress = {
@@ -163,7 +202,7 @@ fun HoldToDictate(
         ) {
             Icon(
                 painter = painterResource(id = if (isRecording) android.R.drawable.ic_btn_speak_now else android.R.drawable.ic_btn_speak_now),
-                contentDescription = if (isRecording) "正在录音" else "按住说话",
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(24.dp)
             )

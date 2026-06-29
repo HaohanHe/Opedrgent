@@ -198,6 +198,39 @@
     <string name="cd_expand_model">展开模型</string>
     <string name="cd_enter">进入</string>
 
+    <!-- Accessibility: HoldToDictate -->
+    <string name="cd_hold_to_speak">按住说话</string>
+    <string name="cd_recording_in_progress">正在录音</string>
+    <string name="cd_release_to_send">松开发送</string>
+    <string name="state_not_recording">未录音</string>
+    <string name="state_recording">录音中</string>
+    <string name="state_recorded">已录音</string>
+
+    <!-- Accessibility: RecordingCard -->
+    <string name="state_recording_active">正在录音</string>
+    <string name="state_recording_paused">已暂停</string>
+    <string name="state_processing">处理中</string>
+    <string name="state_completed">已完成</string>
+
+    <!-- Accessibility: StreamingComponents -->
+    <string name="cd_ai_replying">AI 正在回复</string>
+    <string name="cd_thinking">正在思考</string>
+    <string name="cd_tool_running">正在执行工具</string>
+    <string name="cd_tool_done">工具执行完成</string>
+
+    <!-- Accessibility: AudioPlayer / MeetingRecord -->
+    <string name="state_playing">播放中</string>
+    <string name="state_paused">已暂停</string>
+
+    <!-- Accessibility: P1 - additional content descriptions -->
+    <string name="cd_open_link">打开链接</string>
+    <string name="cd_open_external">在外部打开</string>
+    <string name="cd_rebuild_graph">重建图谱</string>
+    <string name="state_countdown_seconds">剩余 %1$d 秒</string>
+    <string name="state_timeout">已超时</string>
+    <string name="state_selected">已选中</string>
+    <string name="state_not_selected">未选中</string>
+
     <!-- Memory Manager -->
     <string name="memory_empty">暂无记忆条目</string>
     <string name="memory_empty_hint">点击右上角 + 添加记忆，AI 会自动参考这些内容。</string>
@@ -429,4 +462,23 @@
 
     <!-- Accessibility Service -->
     <string name="accessibility_service_desc">Opedrgent 手机操作 Agent 执行底座。启用后允许 AI 通过无障碍服务执行屏幕点击、滑动、文字输入等自动化操作。仅在本 App 主动调用时工作，不监听也不存储其他应用的内容。</string>
+
+    <!-- Knowledge Graph Screen -->
+    <string name="graph_filter_all">全部</string>
+    <string name="graph_rel_semantic_similar">语义相似</string>
+    <string name="graph_rel_shared_keyword">共同关键词</string>
+    <string name="graph_rel_shared_entity">共同实体</string>
+    <string name="graph_rel_temporal_close">时间接近</string>
+    <string name="graph_rel_cites">引用</string>
+    <string name="graph_edge_detail_title">关联详情</string>
+    <string name="graph_edge_relation_type">关系类型：%1$s</string>
+    <string name="graph_edge_reason">关联原因：%1$s</string>
+    <string name="graph_edge_weight">权重：%1$.2f</string>
+    <string name="graph_search_hint">搜索相关笔记…</string>
+    <string name="graph_found_notes">找到 %1$d 个相关笔记</string>
+    <string name="graph_empty_title">知识图谱为空</string>
+    <string name="graph_empty_hint">创建更多笔记后，系统会自动建立关联</string>
+    <string name="graph_switch_to">切换到%1$s视图</string>
+    <string name="graph_view_graph">图谱</string>
+    <string name="graph_view_timeline">时间线</string>
 </resources>

@@ -74,12 +74,12 @@ fun AutomationsScreen(onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.title_automations)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { createOpen = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "add")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add))
                     }
                 },
             )

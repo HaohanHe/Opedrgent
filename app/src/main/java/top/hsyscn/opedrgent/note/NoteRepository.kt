@@ -13,11 +13,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.MemoryScope
 import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
+import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
  * 笔记仓库：统一数据访问层。
@@ -30,6 +32,7 @@ import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
 class NoteRepository(
     private val context: Context,
     private val memoryStore: MemoryStore? = null,
+    private val apiSettings: ApiSettings = ApiSettings(context),
 ) {
 
     private val database = NoteDatabase.getInstance(context)
@@ -39,7 +42,14 @@ class NoteRepository(
     var hippocampus: HippocampusIndex? = null
 
     /** 知识图谱引擎（懒加载，首次访问时初始化） */
-    val knowledgeGraph: KnowledgeGraph by lazy { KnowledgeGraph(context) }
+    val knowledgeGraph: KnowledgeGraph by lazy {
+        val graphStore = KnowledgeGraphStore(context)
+        KnowledgeGraph(
+            context,
+            graphStore,
+            EmbeddingProviderFactory.create(context, apiSettings, graphStore),
+        )
+    }
 
     private val graphScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var linkNoteJob: Job? = null
@@ -271,20 +281,34 @@ class NoteRepository(
         return knowledgeGraph.getAllLinks()
     }
 
+    /** 获取所有带类型/权重的关联关系（用于增强可视化） */
+    fun getAllGraphEdgeDetails(): List<KnowledgeGraph.GraphEdgeDetail> {
+        return knowledgeGraph.getAllEdgeDetails()
+    }
+
     /** 语义搜索笔记 */
     fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
         return knowledgeGraph.searchByRelevance(query, maxResults)
     }
 
-    /** 重建知识图谱（从所有笔记重新计算） */
+    /** 重建知识图谱（从所有笔记重新计算，批量高效） */
     suspend fun rebuildKnowledgeGraph() {
         val allNotes = dao.getAllNotes()
-        for (note in allNotes) {
+        val notes = allNotes.map { note ->
             val content = buildString {
                 if (note.title.isNotBlank()) append(note.title).append(" ")
                 append(note.content)
             }
-            knowledgeGraph.linkNote(note.id.toString(), content)
+            note.id.toString() to content
+        }
+        knowledgeGraph.rebuildFromNotes(notes)
+    }
+
+    /** 启动时一致性校验：检测 v1 格式或数据损坏，自动重建 */
+    suspend fun checkAndRebuildGraphIfNeeded() {
+        if (knowledgeGraph.needsRebuild()) {
+            DebugLog.w("NoteRepository", "知识图谱需要重建（v1格式或数据损坏），开始自动重建...")
+            rebuildKnowledgeGraph()
         }
     }
 

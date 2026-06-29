@@ -33,6 +33,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.note.Folder
@@ -835,7 +838,11 @@ private fun FolderDialog(
                     isError = isError,
                     supportingText = {
                         if (isError) {
-                            Text("名称不能为空且不能超过50个字符", color = MaterialTheme.colorScheme.error)
+                            Text(
+                                text = "名称不能为空且不能超过50个字符",
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                            )
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -977,6 +984,7 @@ private fun NoteCard(
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
             .then(
                 if (isPinnedSection) {
                     Modifier.drawBehind {

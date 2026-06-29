@@ -1,337 +1,441 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import top.hsyscn.opedrgent.note.graph.GraphEdgeEntity
+import top.hsyscn.opedrgent.note.graph.GraphEmbeddingEntity
+import top.hsyscn.opedrgent.note.graph.GraphEntity
+import top.hsyscn.opedrgent.note.graph.GraphNodeEntity
+import top.hsyscn.opedrgent.note.graph.GraphNodeEntityRelation
 import top.hsyscn.opedrgent.utils.DebugLog
-import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlin.math.sqrt
 
-/**
- * 知识图谱自动关联引擎 — 参考 Wisen/Sinapsus 的语义嵌入方案。
- *
- * 核心思路：
- * 1. 将每条笔记转换为 TF-IDF 向量（轻量级，无需神经网络）
- * 2. 使用余弦相似度计算笔记间的语义相关性
- * 3. 自动建立双向关联（类似 Obsidian 的 backlink）
- * 4. 相似度超过阈值时自动推荐关联
- *
- * 设计原则：
- * - 本地优先：所有计算在设备端完成，无需联网
- * - 零配置：不需要用户手动设置
- * - 增量计算：新笔记只与已有笔记比较，不重复计算
- */
-class KnowledgeGraph(private val context: Context) {
+class KnowledgeGraph(
+    private val context: Context,
+    private val store: KnowledgeGraphStore,
+    private val provider: EmbeddingProvider,
+) {
 
     companion object {
         private const val TAG = "KnowledgeGraph"
-        private const val SIMILARITY_THRESHOLD = 0.15  // 自动关联阈值
-        private const val MAX_LINKS_PER_NOTE = 10       // 每条笔记最多关联数
-        private const val MIN_COMMON_WORDS = 2          // 最少共同词数
-        private const val GRAPH_FILE = "knowledge_graph.json"
+
+        const val REL_SEMANTIC_SIMILAR = "SEMANTIC_SIMILAR"
+        const val REL_SHARED_KEYWORD = "SHARED_KEYWORD"
+        const val REL_SHARED_ENTITY = "SHARED_ENTITY"
+        const val REL_TEMPORAL_CLOSE = "TEMPORAL_CLOSE"
+        const val REL_CITES = "CITES"
+
+        const val SIMILARITY_THRESHOLD = 0.15f
+        const val MAX_LINKS_PER_NOTE = 10
+
+        private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000
     }
-
-    // 笔记ID → TF-IDF 向量
-    private val embeddings = ConcurrentHashMap<String, FloatArray>()
-    // 笔记ID → 关联的笔记ID列表
-    private val links = ConcurrentHashMap<String, MutableSet<String>>()
-    // 词汇表：word → index
-    private val vocabulary = ConcurrentHashMap<String, Int>()
-    // IDF 权重
-    private var idf = floatArrayOf()
-    // 词 → 包含该词的文档数（用于计算 IDF）
-    private val termDocFrequency = ConcurrentHashMap<String, Int>()
-    // 笔记ID → 该笔记包含的词集合（用于增量更新文档频率）
-    private val noteWordSets = ConcurrentHashMap<String, Set<String>>()
-
-    private val graphFile = File(context.filesDir, GRAPH_FILE)
 
     init {
-        loadGraph()
-    }
-
-    // ==================== 核心 API ====================
-
-    /**
-     * 为笔记建立关联。新笔记保存或编辑后调用。
-     * @return 新建立的关联笔记ID列表
-     */
-    fun linkNote(noteId: String, content: String): List<String> {
-        if (content.isBlank()) return emptyList()
-
-        // 提取关键词并计算 TF 向量
-        val words = extractWords(content)
-        if (words.isEmpty()) return emptyList()
-
-        val tf = computeTf(words)
-
-        synchronized(this) {
-            // 更新词汇表和 IDF
-            updateVocabulary(noteId, words)
-
-            // 计算 TF-IDF 向量
-            val embedding = computeTfIdf(tf)
-            embeddings[noteId] = embedding
-
-            // 与所有已有笔记计算相似度
-            val newLinks = mutableListOf<String>()
-            for ((otherId, otherEmbedding) in embeddings) {
-                if (otherId == noteId) continue
-                if (otherId in links.getOrDefault(noteId, emptySet())) continue
-
-                val similarity = cosineSimilarity(embedding, otherEmbedding)
-                if (similarity >= SIMILARITY_THRESHOLD) {
-                    addLink(noteId, otherId)
-                    newLinks.add(otherId)
-                    DebugLog.d(TAG, "自动关联: $noteId ↔ $otherId (相似度=${String.format("%.3f", similarity)})")
-                }
-            }
-
-            // 限制每个笔记的关联数
-            trimLinks(noteId)
-
-            // 持久化
-            saveGraph()
-
-            return newLinks
+        try {
+            KnowledgeGraphMigrator.migrateIfNeeded(context, store)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "migration failed: ${e.message}", e)
         }
     }
 
-    /**
-     * 获取笔记的所有关联笔记ID（按相关性排序）
-     */
-    fun getLinkedNotes(noteId: String): List<String> {
-        return links[noteId]?.toList() ?: emptyList()
+    fun linkNote(noteId: String, content: String): List<String> {
+        if (content.isBlank()) return emptyList()
+        return try {
+            doLinkNote(noteId, content)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "linkNote failed: ${e.message}", e)
+            emptyList()
+        }
     }
 
-    /**
-     * 获取笔记的关联数
-     */
-    fun getLinkCount(noteId: String): Int {
-        return links[noteId]?.size ?: 0
+    private fun doLinkNote(noteId: String, content: String): List<String> {
+        val embedding = runBlocking(Dispatchers.Default) { provider.embed(content) }
+        val title = content.take(100)
+        val summary = content.take(300)
+        val keywords = LocalEntityExtractor.extractKeywords(title = title, content = content)
+        val entities = LocalEntityExtractor.extractEntities(content)
+        val keywordSet = keywords.toSet()
+        val currentTime = System.currentTimeMillis()
+
+        store.upsertNode(
+            GraphNodeEntity(
+                id = noteId,
+                title = title,
+                summary = summary,
+                keywords = keywords.joinToString(","),
+                updatedAt = currentTime,
+                contentHash = content.hashCode().toString(),
+            )
+        )
+        store.saveEmbedding(
+            GraphEmbeddingEntity(
+                nodeId = noteId,
+                provider = provider.providerName(),
+                model = "",
+                dimension = provider.dimension(),
+                vector = embedding.toByteArray(),
+            )
+        )
+
+        val entityNameToId = mutableMapOf<String, Long>()
+        for (entity in entities) {
+            val entityId = store.upsertEntity(
+                GraphEntity(
+                    name = entity.name,
+                    entityType = entity.type.name,
+                    frequency = 1,
+                )
+            )
+            entityNameToId[entity.name] = entityId
+            store.upsertNodeEntityRelation(
+                GraphNodeEntityRelation(
+                    nodeId = noteId,
+                    entityId = entityId,
+                    weight = 1f,
+                )
+            )
+        }
+
+        val existingLinkedIds = store.getEdgesForNode(noteId)
+            .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
+            .toSet()
+
+        val newLinkedIds = mutableListOf<String>()
+        val allNodes = store.getAllNodes()
+        for (other in allNodes) {
+            val otherId = other.id
+            if (otherId == noteId) continue
+
+            val otherEmbedding = store.getEmbedding(otherId)?.vector?.toFloatArray()
+            val similarity = if (otherEmbedding != null) cosineSimilarity(embedding, otherEmbedding) else 0f
+
+            val otherKeywords = other.keywords.split(',')
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .toSet()
+            val sharedKeywords = keywordSet.intersect(otherKeywords)
+
+            val otherEntityNames = store.getEntitiesForNode(otherId).map { it.name }.toSet()
+            val sharedEntities = entityNameToId.keys.intersect(otherEntityNames)
+
+            val relationType: String
+            val weight: Float
+            val reason: String
+            when {
+                sharedEntities.isNotEmpty() -> {
+                    relationType = REL_SHARED_ENTITY
+                    weight = if (similarity > 0f) similarity else 0.9f
+                    reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
+                }
+
+                sharedKeywords.size >= 2 -> {
+                    relationType = REL_SHARED_KEYWORD
+                    weight = if (similarity > 0f) similarity else 0.8f
+                    reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
+                }
+
+                similarity >= SIMILARITY_THRESHOLD -> {
+                    relationType = REL_SEMANTIC_SIMILAR
+                    weight = similarity
+                    reason = "语义相似度：${String.format("%.2f", similarity)}"
+                }
+
+                abs(other.updatedAt - currentTime) < ONE_WEEK_MS -> {
+                    relationType = REL_TEMPORAL_CLOSE
+                    weight = if (similarity > 0f) similarity else 0.3f
+                    reason = "时间接近"
+                }
+
+                else -> continue
+            }
+
+            store.upsertEdge(
+                GraphEdgeEntity(
+                    sourceId = noteId,
+                    targetId = otherId,
+                    relationType = relationType,
+                    weight = weight,
+                    reason = reason,
+                    createdAt = currentTime,
+                )
+            )
+            if (otherId !in existingLinkedIds) {
+                newLinkedIds.add(otherId)
+            }
+        }
+
+        trimLinks(noteId)
+        return newLinkedIds
     }
 
-    /**
-     * 获取知识图谱的全局统计
-     */
-    fun getStats(): GraphStats {
-        val totalNotes = embeddings.size
-        val totalLinks = links.values.sumOf { it.size } / 2  // 双向链接除2
-        val isolatedNotes = embeddings.keys.count { (links[it]?.size ?: 0) == 0 }
+    private fun trimLinks(noteId: String) {
+        val edges = store.getEdgesForNode(noteId)
+        if (edges.size <= MAX_LINKS_PER_NOTE) return
+        val sorted = edges.sortedByDescending { it.weight }
+        val keep = sorted.take(MAX_LINKS_PER_NOTE).map { it.id }.toSet()
+        val toRemove = sorted.filter { it.id !in keep }
+        for (edge in toRemove) {
+            try {
+                store.deleteEdge(edge.id)
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "trimLinks deleteEdge failed: ${e.message}", e)
+            }
+        }
+    }
 
-        return GraphStats(
+    fun getLinkedNotes(noteId: String): List<String> = try {
+        store.getEdgesForNode(noteId)
+            .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
+            .distinct()
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getLinkedNotes failed: ${e.message}", e)
+        emptyList()
+    }
+
+    fun getLinkCount(noteId: String): Int = try {
+        store.getEdgesForNode(noteId).size
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getLinkCount failed: ${e.message}", e)
+        0
+    }
+
+    fun getStats(): GraphStats = try {
+        val nodes = store.getAllNodes()
+        val links = getAllLinks()
+        val totalNotes = nodes.size
+        val totalLinks = links.size
+        val isolatedNotes = nodes.count { store.getEdgesForNode(it.id).isEmpty() }
+        GraphStats(
             totalNotes = totalNotes,
             totalLinks = totalLinks,
             isolatedNotes = isolatedNotes,
             avgLinksPerNote = if (totalNotes > 0) totalLinks.toFloat() / totalNotes else 0f,
         )
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getStats failed: ${e.message}", e)
+        GraphStats(0, 0, 0, 0f)
     }
 
-    /**
-     * 获取所有关联关系（用于可视化）
-     */
-    fun getAllLinks(): List<GraphEdge> {
-        val edges = mutableSetOf<GraphEdge>()
-        for ((noteId, linkedIds) in links) {
-            for (linkedId in linkedIds) {
-                val edge = if (noteId < linkedId) {
-                    GraphEdge(noteId, linkedId)
-                } else {
-                    GraphEdge(linkedId, noteId)
-                }
-                edges.add(edge)
+    fun getAllLinks(): List<GraphEdge> = try {
+        store.getAllEdges()
+            .map {
+                val a = it.sourceId
+                val b = it.targetId
+                if (a < b) GraphEdge(a, b) else GraphEdge(b, a)
             }
-        }
-        return edges.toList()
+            .distinct()
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getAllLinks failed: ${e.message}", e)
+        emptyList()
     }
 
-    /**
-     * 搜索与查询文本最相关的笔记
-     */
     fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
-        val queryWords = extractWords(query)
-        if (queryWords.isEmpty()) return emptyList()
-
-        val queryTf = computeTf(queryWords)
-        synchronized(this) {
-            updateVocabulary("_query_", queryWords)
-            val queryEmbedding = computeTfIdf(queryTf)
-
-            return embeddings.map { (noteId, embedding) ->
-                noteId to cosineSimilarity(queryEmbedding, embedding)
-            }
-                .filter { it.second > 0.05 }
+        if (query.isBlank()) return emptyList()
+        return try {
+            val queryVector = runBlocking(Dispatchers.Default) { provider.embed(query) }
+            store.getAllNodes()
+                .mapNotNull { node ->
+                    val embedding = store.getEmbedding(node.id)?.vector?.toFloatArray()
+                        ?: return@mapNotNull null
+                    val similarity = cosineSimilarity(queryVector, embedding)
+                    if (similarity > 0.05f) node.id to similarity else null
+                }
                 .sortedByDescending { it.second }
                 .take(maxResults)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "searchByRelevance failed: ${e.message}", e)
+            emptyList()
         }
     }
 
-    /**
-     * 删除笔记的所有关联
-     */
     fun removeNote(noteId: String) {
-        synchronized(this) {
-            val linkedIds = links.remove(noteId) ?: emptySet()
-            for (linkedId in linkedIds) {
-                links[linkedId]?.remove(noteId)
+        try {
+            store.deleteNode(noteId)
+            store.deleteEmbedding(noteId)
+            store.deleteNodeEntityRelations(noteId)
+            val edges = store.getEdgesForNode(noteId)
+            for (edge in edges) {
+                store.deleteEdge(edge.id)
             }
-            embeddings.remove(noteId)
-            val wordSet = noteWordSets.remove(noteId)
-            if (wordSet != null) {
-                for (word in wordSet) {
-                    termDocFrequency[word] = ((termDocFrequency[word] ?: 1) - 1).coerceAtLeast(0)
-                }
-            }
-            saveGraph()
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "removeNote failed: ${e.message}", e)
         }
     }
 
-    // ==================== 内部实现 ====================
-
-    private fun extractWords(text: String): List<String> {
-        // 简单分词：按标点和空格分割，转小写，过滤停用词
-        val stopWords = setOf(
-            "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
-            "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好",
-            "自己", "这", "他", "她", "它", "们", "那", "这", "什么", "怎么", "如何", "可以",
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could",
-            "should", "may", "might", "can", "shall", "to", "of", "in", "for",
-            "on", "with", "at", "by", "from", "as", "into", "through", "during",
-            "before", "after", "above", "below", "between", "out", "off", "over",
-            "under", "again", "further", "then", "once", "here", "there", "when",
-            "where", "why", "how", "all", "each", "every", "both", "few", "more",
-            "most", "other", "some", "such", "no", "nor", "not", "only", "own",
-            "same", "so", "than", "too", "very", "just", "don", "now",
-        )
-
-        return text.lowercase()
-            .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")  // 保留字母和数字
-            .split(Regex("\\s+"))
-            .filter { it.length >= 2 && it !in stopWords }
-            .distinct()
+    fun clear() {
+        try {
+            store.clearAll()
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "clear failed: ${e.message}", e)
+        }
     }
 
-    private fun computeTf(words: List<String>): Map<String, Int> {
-        return words.groupingBy { it }.eachCount()
-    }
+    fun rebuildFromNotes(notes: List<Pair<String, String>>) {
+        try {
+            clear()
+            if (notes.isEmpty()) return
 
-    private fun updateVocabulary(noteId: String, words: List<String>) {
-        synchronized(this) {
-            val wordSet = words.toSet()
-            val oldWordSet = noteWordSets[noteId]
+            val currentTime = System.currentTimeMillis()
+            val nodes = mutableListOf<GraphNodeEntity>()
+            val embeddings = mutableListOf<GraphEmbeddingEntity>()
+            val entityRelations = mutableListOf<GraphNodeEntityRelation>()
+            val noteKeywords = mutableMapOf<String, Set<String>>()
+            val noteEntities = mutableMapOf<String, Set<String>>()
 
-            if (oldWordSet != null) {
-                for (word in oldWordSet) {
-                    if (word !in wordSet) {
-                        termDocFrequency[word] = ((termDocFrequency[word] ?: 1) - 1).coerceAtLeast(0)
+            for ((noteId, content) in notes) {
+                if (content.isBlank()) continue
+                val title = content.take(100)
+                val summary = content.take(300)
+                val keywords = LocalEntityExtractor.extractKeywords(title = title, content = content)
+                val entities = LocalEntityExtractor.extractEntities(content)
+                val keywordSet = keywords.toSet()
+                noteKeywords[noteId] = keywordSet
+                noteEntities[noteId] = entities.map { it.name }.toSet()
+
+                nodes.add(
+                    GraphNodeEntity(
+                        id = noteId,
+                        title = title,
+                        summary = summary,
+                        keywords = keywords.joinToString(","),
+                        updatedAt = currentTime,
+                        contentHash = content.hashCode().toString(),
+                    )
+                )
+
+                val embedding = runBlocking(Dispatchers.Default) { provider.embed(content) }
+                embeddings.add(
+                    GraphEmbeddingEntity(
+                        nodeId = noteId,
+                        provider = provider.providerName(),
+                        model = "",
+                        dimension = provider.dimension(),
+                        vector = embedding.toByteArray(),
+                    )
+                )
+
+                for (entity in entities) {
+                    val entityId = store.upsertEntity(
+                        GraphEntity(
+                            name = entity.name,
+                            entityType = entity.type.name,
+                            frequency = 1,
+                        )
+                    )
+                    entityRelations.add(
+                        GraphNodeEntityRelation(
+                            nodeId = noteId,
+                            entityId = entityId,
+                            weight = 1f,
+                        )
+                    )
+                }
+            }
+
+            store.upsertNodes(nodes)
+            store.saveEmbeddings(embeddings)
+            store.upsertNodeEntityRelations(entityRelations)
+
+            val nodeIds = nodes.map { it.id }
+            val edges = mutableListOf<GraphEdgeEntity>()
+            for (i in nodeIds.indices) {
+                val aId = nodeIds[i]
+                val embeddingA = store.getEmbedding(aId)?.vector?.toFloatArray() ?: continue
+                val keywordsA = noteKeywords[aId] ?: emptySet()
+                val entitiesA = noteEntities[aId] ?: emptySet()
+                for (j in i + 1 until nodeIds.size) {
+                    val bId = nodeIds[j]
+                    val embeddingB = store.getEmbedding(bId)?.vector?.toFloatArray() ?: continue
+                    val similarity = cosineSimilarity(embeddingA, embeddingB)
+                    val keywordsB = noteKeywords[bId] ?: emptySet()
+                    val entitiesB = noteEntities[bId] ?: emptySet()
+                    val sharedEntities = entitiesA.intersect(entitiesB)
+                    val sharedKeywords = keywordsA.intersect(keywordsB)
+
+                    val relationType: String
+                    val weight: Float
+                    val reason: String
+                    when {
+                        sharedEntities.isNotEmpty() -> {
+                            relationType = REL_SHARED_ENTITY
+                            weight = if (similarity > 0f) similarity else 0.9f
+                            reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
+                        }
+
+                        sharedKeywords.size >= 2 -> {
+                            relationType = REL_SHARED_KEYWORD
+                            weight = if (similarity > 0f) similarity else 0.8f
+                            reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
+                        }
+
+                        similarity >= SIMILARITY_THRESHOLD -> {
+                            relationType = REL_SEMANTIC_SIMILAR
+                            weight = similarity
+                            reason = "语义相似度：${String.format("%.2f", similarity)}"
+                        }
+
+                        else -> continue
                     }
-                }
-            }
-            for (word in wordSet) {
-                if (!vocabulary.containsKey(word)) {
-                    vocabulary[word] = vocabulary.size
-                }
-                if (oldWordSet == null || word !in oldWordSet) {
-                    termDocFrequency[word] = (termDocFrequency[word] ?: 0) + 1
-                }
-            }
-            noteWordSets[noteId] = wordSet
 
-            val totalDocs = noteWordSets.size.coerceAtLeast(1)
-            idf = FloatArray(vocabulary.size) { idx ->
-                val word = vocabulary.entries.find { it.value == idx }?.key
-                val df = word?.let { termDocFrequency[it] } ?: 1
-                kotlin.math.ln(totalDocs.toDouble() / df.coerceAtLeast(1)).toFloat().coerceAtLeast(0f)
+                    edges.add(
+                        GraphEdgeEntity(
+                            sourceId = aId,
+                            targetId = bId,
+                            relationType = relationType,
+                            weight = weight,
+                            reason = reason,
+                            createdAt = currentTime,
+                        )
+                    )
+                }
             }
+            store.upsertEdges(edges)
+            DebugLog.i(TAG, "rebuild done: ${nodes.size} nodes, ${edges.size} edges")
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "rebuildFromNotes failed: ${e.message}", e)
         }
     }
 
-    private fun computeTfIdf(tf: Map<String, Int>): FloatArray {
-        val vec = FloatArray(vocabulary.size)
-        val maxTf = tf.values.maxOrNull() ?: 1
-        for ((word, count) in tf) {
-            val idx = vocabulary[word] ?: continue
-            val tfNorm = count.toFloat() / maxTf
-            val idfWeight = if (idx < idf.size) idf[idx] else 1f
-            vec[idx] = tfNorm * idfWeight
-        }
-        val norm = sqrt(vec.sumOf { (it * it).toDouble() }).toFloat()
-        if (norm > 0f) {
-            for (i in vec.indices) vec[i] /= norm
-        }
-        return vec
+    fun needsRebuild(): Boolean = try {
+        store.getAllNodes().isEmpty() && store.getAllEdges().isNotEmpty()
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "needsRebuild failed: ${e.message}", e)
+        false
     }
 
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
-        val size = minOf(a.size, b.size)
-        if (size == 0) return 0f
-        var dot = 0f
-        for (i in 0 until size) dot += a[i] * b[i]
-        return dot  // 已归一化，dot = cosine
-    }
-
-    private fun addLink(noteId: String, linkedId: String) {
-        links.getOrPut(noteId) { mutableSetOf() }.add(linkedId)
-        links.getOrPut(linkedId) { mutableSetOf() }.add(noteId)
-    }
-
-    private fun trimLinks(noteId: String) {
-        val linked = links[noteId] ?: return
-        if (linked.size <= MAX_LINKS_PER_NOTE) return
-
-        val embedding = embeddings[noteId] ?: return
-        val ranked = linked.map { otherId ->
-            otherId to (embeddings[otherId]?.let { cosineSimilarity(embedding, it) } ?: 0f)
-        }.sortedByDescending { it.second }
-
-        linked.clear()
-        linked.addAll(ranked.take(MAX_LINKS_PER_NOTE).map { it.first })
-    }
-
-    // ==================== 持久化 ====================
-
-    private fun saveGraph() {
-        try {
-            val json = JSONObject()
-            // 保存关联
-            val linksArr = JSONObject()
-            for ((noteId, linkedIds) in links) {
-                linksArr.put(noteId, JSONArray(linkedIds.toList()))
-            }
-            json.put("links", linksArr)
-            // 保存词汇表大小（嵌入向量太大，不保存）
-            json.put("vocabSize", vocabulary.size)
-
-            graphFile.writeText(json.toString())
-            DebugLog.d(TAG, "知识图谱已保存: ${links.size} 个节点")
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "保存知识图谱失败: ${e.message}")
+        if (a.size != b.size || a.isEmpty()) return 0f
+        var dot = 0.0
+        var normA = 0.0
+        var normB = 0.0
+        for (i in a.indices) {
+            val av = a[i].toDouble()
+            val bv = b[i].toDouble()
+            dot += av * bv
+            normA += av * av
+            normB += bv * bv
         }
+        if (normA <= 0.0 || normB <= 0.0) return 0f
+        return (dot / (sqrt(normA) * sqrt(normB))).toFloat().coerceIn(0f, 1f)
     }
 
-    private fun loadGraph() {
-        try {
-            if (!graphFile.exists()) return
-            val json = JSONObject(graphFile.readText())
-
-            // 加载关联
-            val linksArr = json.optJSONObject("links") ?: return
-            for (noteId in linksArr.keys()) {
-                val arr = linksArr.getJSONArray(noteId)
-                val set = mutableSetOf<String>()
-                for (i in 0 until arr.length()) set.add(arr.getString(i))
-                links[noteId] = set
-            }
-
-            DebugLog.i(TAG, "知识图谱已加载: ${links.size} 个节点")
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "加载知识图谱失败: ${e.message}")
+    private fun FloatArray.toByteArray(): ByteArray {
+        val buffer = ByteBuffer.allocate(size * 4).order(ByteOrder.LITTLE_ENDIAN)
+        for (value in this) {
+            buffer.putFloat(value)
         }
+        return buffer.array()
     }
 
-    // ==================== 数据类 ====================
+    private fun ByteArray.toFloatArray(): FloatArray {
+        val buffer = ByteBuffer.wrap(this).order(ByteOrder.LITTLE_ENDIAN)
+        return FloatArray(size / 4) { buffer.getFloat() }
+    }
 
     data class GraphStats(
         val totalNotes: Int,
@@ -344,4 +448,52 @@ class KnowledgeGraph(private val context: Context) {
         val sourceId: String,
         val targetId: String,
     )
+
+    /**
+     * 带关系类型、原因和权重的完整边信息，用于可视化增强。
+     */
+    data class GraphEdgeDetail(
+        val sourceId: String,
+        val targetId: String,
+        val relationType: String,
+        val reason: String,
+        val weight: Float,
+    )
+
+    /** 获取所有边的完整详情（含关系类型与原因）。 */
+    fun getAllEdgeDetails(): List<GraphEdgeDetail> = try {
+        store.getAllEdges().map {
+            GraphEdgeDetail(
+                sourceId = it.sourceId,
+                targetId = it.targetId,
+                relationType = it.relationType,
+                reason = it.reason,
+                weight = it.weight,
+            )
+        }
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getAllEdgeDetails failed: ${e.message}", e)
+        emptyList()
+    }
+
+    /** 获取指定节点对之间的边详情（无向查找）。 */
+    fun getEdgeDetails(sourceId: String, targetId: String): GraphEdgeDetail? = try {
+        store.getAllEdges()
+            .find {
+                (it.sourceId == sourceId && it.targetId == targetId) ||
+                    (it.sourceId == targetId && it.targetId == sourceId)
+            }
+            ?.let {
+                GraphEdgeDetail(
+                    sourceId = it.sourceId,
+                    targetId = it.targetId,
+                    relationType = it.relationType,
+                    reason = it.reason,
+                    weight = it.weight,
+                )
+            }
+    } catch (e: Exception) {
+        DebugLog.e(TAG, "getEdgeDetails failed: ${e.message}", e)
+        null
+    }
 }

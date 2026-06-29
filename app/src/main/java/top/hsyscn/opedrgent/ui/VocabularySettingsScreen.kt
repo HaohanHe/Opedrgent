@@ -114,7 +114,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 label = { Text("搜索术语") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "图标") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 shape = ShapeTokens.mediumShape,
             )
 
