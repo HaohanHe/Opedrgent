@@ -54,7 +54,12 @@ class KnowledgeGraph(
     }
 
     private fun doLinkNote(noteId: String, content: String): List<String> {
-        val embedding = runBlocking(Dispatchers.Default) { provider.embed(content) }
+        val embedding = try {
+            runBlocking(Dispatchers.Default) { provider.embed(content) }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
+            runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embed(content) }
+        }
         val title = content.take(100)
         val summary = content.take(300)
         val keywords = LocalEntityExtractor.extractKeywords(title = title, content = content)
@@ -308,7 +313,12 @@ class KnowledgeGraph(
                     )
                 )
 
-                val embedding = runBlocking(Dispatchers.Default) { provider.embed(content) }
+                val embedding = try {
+                    runBlocking(Dispatchers.Default) { provider.embed(content) }
+                } catch (e: Exception) {
+                    DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
+                    runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embed(content) }
+                }
                 embeddings.add(
                     GraphEmbeddingEntity(
                         nodeId = noteId,
@@ -401,8 +411,10 @@ class KnowledgeGraph(
         }
     }
 
-    fun needsRebuild(): Boolean = try {
-        store.getAllNodes().isEmpty() && store.getAllEdges().isNotEmpty()
+    fun needsRebuild(noteCount: Long): Boolean = try {
+        val nodes = store.getAllNodes()
+        val edges = store.getAllEdges()
+        (noteCount > 0 && nodes.isEmpty()) || (nodes.isEmpty() && edges.isNotEmpty())
     } catch (e: Exception) {
         DebugLog.e(TAG, "needsRebuild failed: ${e.message}", e)
         false
