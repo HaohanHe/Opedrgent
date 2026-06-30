@@ -594,44 +594,87 @@ private fun GraphCanvas(
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
-    val edgeHitThreshold = SizeTokens.iconXs
-    val edgeHitThresholdPx = with(density) { edgeHitThreshold.toPx() }
+    // 一次性把 dp 转成 px，避免 draw 帧内反复查询 Density
+    val baseSizePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+    val maxExtraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
+    val labelPaddingPx = with(density) { SpacingTokens.xs.toPx() }
+    val borderWidthPx = with(density) { SizeTokens.borderWidth.toPx() }
+    val glowExtraPx = with(density) { SpacingTokens.sm.toPx() }
+    val edgeHitThresholdPx = with(density) { SizeTokens.iconXs.toPx() }
 
-    // 节点半径计算：使用 sqrt 压缩中心性差异，避免个别节点过大；孤立节点只使用基础半径
-    fun nodeRadiusPx(node: GraphNode): Float {
-        if (node.id in orphanNodeIds) {
-            return with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+    // 节点半径缓存（按笔记 ID）
+    val radiusMap = remember(nodes, centralityMap, orphanNodeIds) {
+        nodes.associate { node ->
+            val c = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
+            val r = if (node.id in orphanNodeIds) baseSizePx else baseSizePx + kotlin.math.sqrt(c) * maxExtraPx
+            node.id to r
         }
-        return GraphLayoutEngine.nodeRadiusPx(node.id, centralityMap, density)
+    }
+
+    // 按中心性排序，优先绘制重要节点（标签也优先）
+    val sortedNodes = remember(nodes, centralityMap) {
+        nodes.sortedByDescending { centralityMap[it.id] ?: 0f }
+    }
+
+    // 预计算中心性分位阈值
+    val (top10Threshold, top30Threshold) = remember(nodes, centralityMap) {
+        val sorted = nodes.map { centralityMap[it.id] ?: 0f }.sortedDescending()
+        if (sorted.isEmpty()) {
+            0f to 0f
+        } else {
+            val idx10 = kotlin.math.ceil(nodes.size * 0.1f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size) - 1
+            val idx30 = kotlin.math.ceil(nodes.size * 0.3f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size) - 1
+            sorted[idx10] to sorted[idx30]
+        }
+    }
+
+    // 标签文本测量缓存：按缩放档位 bucket，避免每帧重测
+    val scaleBucket = (scale * 20).toInt() / 20f
+    val labelLayouts = remember(sortedNodes, scaleBucket, labelStyle) {
+        val fontScale = scale.coerceAtLeast(0.6f)
+        val style = labelStyle.copy(fontSize = labelStyle.fontSize * fontScale)
+        sortedNodes.associate { node ->
+            val maxChars = when {
+                scale > 1.5f -> 16
+                scale > 0.9f -> 12
+                else -> 8
+            }
+            val raw = node.label.take(maxChars)
+            val displayLabel = if (node.label.length > maxChars) "$raw…" else raw
+            node.id to textMeasurer.measure(AnnotatedString(displayLabel), style)
+        }
+    }
+
+    // 复用 Paint，避免每个标签都 new Paint
+    val labelPaint = remember(accentBlue, labelColor) {
+        android.graphics.Paint().apply {
+            isAntiAlias = true
+            isFakeBoldText = true
+        }
     }
 
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(nodes, edgeDetails, scale, offset) {
+            .pointerInput(nodes, edgeDetails, scale, offset, radiusMap) {
                 detectTapGestures(
                     onDoubleTap = { tapOffset ->
                         val transformedOffset = (tapOffset - offset) / scale
                         val hitNode = nodes.find { node ->
                             val pos = positions[node.id] ?: return@find false
-                            val radius = nodeRadiusPx(node)
+                            val radius = radiusMap[node.id] ?: return@find false
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
                             dx * dx + dy * dy < radius * radius
                         }
-                        if (hitNode != null) {
-                            onFocusNode(hitNode)
-                        } else {
-                            onResetView()
-                        }
+                        if (hitNode != null) onFocusNode(hitNode) else onResetView()
                     },
                     onTap = { tapOffset ->
                         val transformedOffset = (tapOffset - offset) / scale
 
-                        // 优先判断节点点击
                         val hitNode = nodes.find { node ->
                             val pos = positions[node.id] ?: return@find false
-                            val radius = nodeRadiusPx(node)
+                            val radius = radiusMap[node.id] ?: return@find false
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
                             dx * dx + dy * dy < radius * radius
@@ -641,7 +684,6 @@ private fun GraphCanvas(
                             return@detectTapGestures
                         }
 
-                        // 判断边点击
                         val hitThresholdUnscaled = edgeHitThresholdPx / scale
                         val hitDetail = edgeDetails.minByOrNull { detail ->
                             val a = positions[detail.sourceId]
@@ -654,9 +696,7 @@ private fun GraphCanvas(
                             val b = positions[detail.targetId]
                             if (a != null && b != null) {
                                 val dist = GraphLayoutEngine.distanceToSegment(transformedOffset, a, b)
-                                if (dist < hitThresholdUnscaled) {
-                                    onEdgeClick(detail)
-                                }
+                                if (dist < hitThresholdUnscaled) onEdgeClick(detail)
                             }
                         }
                     },
@@ -664,7 +704,7 @@ private fun GraphCanvas(
                         val transformedOffset = (tapOffset - offset) / scale
                         val hitNode = nodes.find { node ->
                             val pos = positions[node.id] ?: return@find false
-                            val radius = nodeRadiusPx(node)
+                            val radius = radiusMap[node.id] ?: return@find false
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
                             dx * dx + dy * dy < radius * radius
@@ -674,25 +714,39 @@ private fun GraphCanvas(
                 )
             },
     ) {
-        // 计算缩放后的坐标变换
-        val centerX = size.width / 2
-        val centerY = size.height / 2
+        val width = size.width
+        val height = size.height
+        val centerX = width / 2
+        val centerY = height / 2
 
-        fun transformPos(pos: Offset): Offset {
-            return Offset(
-                x = pos.x * scale + offset.x + centerX,
-                y = pos.y * scale + offset.y + centerY,
-            )
+        fun transformPos(pos: Offset): Offset = Offset(
+            pos.x * scale + offset.x + centerX,
+            pos.y * scale + offset.y + centerY,
+        )
+
+        // viewport 裁剪：世界坐标系下的可见范围
+        val maxRadius = radiusMap.values.maxOrNull() ?: baseSizePx
+        val margin = maxRadius * 2f
+        val worldLeft = (-offset.x - centerX) / scale - margin
+        val worldTop = (-offset.y - centerY) / scale - margin
+        val worldRight = worldLeft + width / scale + margin * 2f
+        val worldBottom = worldTop + height / scale + margin * 2f
+
+        fun isVisibleWorld(x: Float, y: Float, radius: Float): Boolean {
+            return x + radius >= worldLeft && x - radius <= worldRight &&
+                y + radius >= worldTop && y - radius <= worldBottom
         }
 
-        val baseSizePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-        val maxExtraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
-        val labelTextSizePx = labelStyle.fontSize.toPx()
-
-        // 绘制连线
+        // 绘制连线（带 viewport 裁剪）
+        val edgeStrokeScale = scale.coerceAtLeast(0.5f)
         for (detail in edgeDetails) {
             val sourcePos = positions[detail.sourceId] ?: continue
             val targetPos = positions[detail.targetId] ?: continue
+            if (!isVisibleWorld(sourcePos.x, sourcePos.y, maxRadius) &&
+                !isVisibleWorld(targetPos.x, targetPos.y, maxRadius)
+            ) {
+                continue
+            }
 
             val isHighlighted = detail.sourceId in highlightNoteIds || detail.targetId in highlightNoteIds
             val strokeWidth = if (isHighlighted) 2.5f else 1f
@@ -703,36 +757,26 @@ private fun GraphCanvas(
                 color = color,
                 start = transformPos(sourcePos),
                 end = transformPos(targetPos),
-                strokeWidth = strokeWidth * scale.coerceAtLeast(0.5f),
+                strokeWidth = strokeWidth * edgeStrokeScale,
                 alpha = alpha,
             )
         }
 
-        // 按中心性排序，优先绘制重要节点（标签也优先）
-        val sortedNodes = nodes.sortedByDescending { centralityMap[it.id] ?: 0f }
-
         // 节点标签防重叠：记录已占矩形区域
         val drawnRects = mutableListOf<android.graphics.RectF>()
-        val labelPaddingPx = with(density) { SpacingTokens.xs.toPx() }
-
-        // 预计算中心性分位阈值，避免在循环中重复排序
-        val sortedCentralities = nodes.map { centralityMap[it.id] ?: 0f }.sortedDescending()
-        val top10Threshold = if (sortedCentralities.isEmpty()) 0f else sortedCentralities[(kotlin.math.ceil(nodes.size * 0.1f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size)) - 1]
-        val top30Threshold = if (sortedCentralities.isEmpty()) 0f else sortedCentralities[(kotlin.math.ceil(nodes.size * 0.3f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size)) - 1]
+        val scaledBorderWidth = borderWidthPx * edgeStrokeScale
 
         for (node in sortedNodes) {
             val pos = positions[node.id] ?: continue
+            val nodeRadius = radiusMap[node.id] ?: continue
+            if (!isVisibleWorld(pos.x, pos.y, nodeRadius)) continue
+
             val transformedPos = transformPos(pos)
             val centrality = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
             val isOrphan = node.id in orphanNodeIds
-            val nodeRadius = if (isOrphan) {
-                baseSizePx
-            } else {
-                baseSizePx + kotlin.math.sqrt(centrality) * maxExtraPx
-            }
+            val isHighlighted = node.id in highlightNoteIds
             val radius = nodeRadius * scale
 
-            val isHighlighted = node.id in highlightNoteIds
             val communityId = communityMap[node.id]
             val nodeColor = when {
                 isHighlighted -> accentBlue
@@ -741,31 +785,23 @@ private fun GraphCanvas(
                 else -> outlineColor.copy(alpha = 0.5f)
             }
 
-            // 外圈光晕（高亮时）
             if (isHighlighted) {
                 drawCircle(
                     color = accentBlue.copy(alpha = 0.25f),
-                    radius = radius + with(density) { SpacingTokens.sm.toPx() } * scale,
+                    radius = radius + glowExtraPx * scale,
                     center = transformedPos,
                 )
             }
 
-            // 节点圆形
-            drawCircle(
-                color = nodeColor,
-                radius = radius,
-                center = transformedPos,
-            )
-
-            // 节点边框
+            drawCircle(color = nodeColor, radius = radius, center = transformedPos)
             drawCircle(
                 color = surfaceColor,
                 radius = radius,
                 center = transformedPos,
-                style = Stroke(width = with(density) { SizeTokens.borderWidth.toPx() } * scale.coerceAtLeast(0.5f)),
+                style = Stroke(width = scaledBorderWidth),
             )
 
-            // 节点标签密度控制：按缩放级别与中心性分层显示
+            // 节点标签密度控制
             val showLabel = when {
                 isHighlighted -> true
                 scale <= 1.0f -> centrality > 0f && centrality >= top10Threshold
@@ -774,16 +810,7 @@ private fun GraphCanvas(
             }
             if (!showLabel) continue
 
-            val maxChars = when {
-                scale > 1.5f -> 16
-                scale > 0.9f -> 12
-                else -> 8
-            }
-            val raw = node.label.take(maxChars)
-            val displayLabel = if (node.label.length > maxChars) "$raw…" else raw
-
-            val style = labelStyle.copy(fontSize = labelStyle.fontSize * scale.coerceAtLeast(0.6f))
-            val textLayout = textMeasurer.measure(AnnotatedString(displayLabel), style)
+            val textLayout = labelLayouts[node.id] ?: continue
             val w = textLayout.size.width.toFloat()
             val h = textLayout.size.height.toFloat()
             val topLeft = Offset(
@@ -798,7 +825,7 @@ private fun GraphCanvas(
                 topLeft.y + h + labelPaddingPx / 2,
             )
 
-            // 贪心遮挡剔除：与已绘标签碰撞则不绘制
+            // 贪心遮挡剔除
             if (drawnRects.any { android.graphics.RectF.intersects(it, rect) }) continue
             drawnRects += rect
 
@@ -808,16 +835,14 @@ private fun GraphCanvas(
                 topLeft = Offset(rect.left, rect.top),
                 size = androidx.compose.ui.geometry.Size(rect.width(), rect.height()),
             )
+
+            labelPaint.textSize = labelStyle.fontSize.toPx() * scale.coerceAtLeast(0.6f)
+            labelPaint.color = (if (isHighlighted) accentBlue else labelColor).toArgb()
             drawContext.canvas.nativeCanvas.drawText(
-                displayLabel,
+                textLayout.layoutInput.text.text,
                 topLeft.x,
                 topLeft.y + h,
-                android.graphics.Paint().apply {
-                    textSize = style.fontSize.toPx()
-                    color = (if (isHighlighted) accentBlue else labelColor).toArgb()
-                    isAntiAlias = true
-                    isFakeBoldText = true
-                },
+                labelPaint,
             )
         }
     }

@@ -118,13 +118,14 @@ object GraphLayoutEngine {
 
         val nodeIds = nodes.map { it.id }
         val n = nodes.size
+        val idToIndex = nodeIds.withIndex().associate { it.value to it.index }
 
         // 节点半径（px），用于碰撞检测
         val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
         val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
-        fun radiusOf(id: String): Float {
-            val c = centrality[id]?.coerceIn(0f, 1f) ?: 0f
-            return basePx + sqrt(c) * extraPx
+        val radii = FloatArray(n) { i ->
+            val c = centrality[nodeIds[i]]?.coerceIn(0f, 1f) ?: 0f
+            basePx + sqrt(c) * extraPx
         }
 
         // 1. 圆盘内随机初始化（避免花圈）
@@ -133,22 +134,27 @@ object GraphLayoutEngine {
             max(160f, sqrt(n.toFloat()) * 45f),
             canvasSize?.let { min(it.width, it.height) * 0.45f } ?: Float.MAX_VALUE,
         )
-        val positions = nodeIds.associateWith { id ->
+
+        val posX = FloatArray(n)
+        val posY = FloatArray(n)
+        for (i in 0 until n) {
             val r = sqrt(rng.nextFloat()) * initRadius
             val theta = rng.nextFloat() * 2f * kotlin.math.PI
-            Offset(
-                x = (r * cos(theta)).toFloat(),
-                y = (r * sin(theta)).toFloat(),
-            )
-        }.toMutableMap()
+            posX[i] = (r * cos(theta)).toFloat()
+            posY[i] = (r * sin(theta)).toFloat()
+        }
 
-        // 唯一边集合（避免双向重复计算）
-        val edgeSet = edges.map {
-            if (it.sourceId < it.targetId) it.sourceId to it.targetId
-            else it.targetId to it.sourceId
+        val velX = FloatArray(n)
+        val velY = FloatArray(n)
+        val forceX = FloatArray(n)
+        val forceY = FloatArray(n)
+
+        // 唯一边集合（避免双向重复计算），转换为索引对
+        val edgeSet = edges.mapNotNull {
+            val a = idToIndex[it.sourceId] ?: return@mapNotNull null
+            val b = idToIndex[it.targetId] ?: return@mapNotNull null
+            if (a < b) a to b else b to a
         }.toSet()
-
-        val velocities = mutableMapOf<String, Offset>()
 
         val area = kotlin.math.PI * initRadius * initRadius
         val repulsion = (area / n * 0.5f).toFloat().coerceIn(10_000f, 120_000f)
@@ -160,99 +166,119 @@ object GraphLayoutEngine {
         val maxVelocity = 100f
         val stopThreshold = 1.2f
         val paddingPx = with(density) { SpacingTokens.sm.toPx() }
+        // 斥力截断距离：距离过远时斥力极小，直接忽略以减少 O(N^2) 计算
+        val repulsionCutoff = initRadius * 2.5f
+        val repulsionCutoffSq = repulsionCutoff * repulsionCutoff
 
-        var converged = false
         for (iter in 0 until iterations) {
-            val forces = nodeIds.associateWith { Offset.Zero }.toMutableMap()
+            // 清零力
+            for (i in 0 until n) {
+                forceX[i] = 0f
+                forceY[i] = 0f
+            }
 
             // 斥力（所有节点对之间）
             for (i in 0 until n) {
+                var fxi = forceX[i]
+                var fyi = forceY[i]
                 for (j in i + 1 until n) {
-                    val a = nodeIds[i]
-                    val b = nodeIds[j]
-                    val pa = positions.getValue(a)
-                    val pb = positions.getValue(b)
-                    val dx = pa.x - pb.x
-                    val dy = pa.y - pb.y
-                    val dist = max(sqrt(dx * dx + dy * dy), 1f)
-                    val force = repulsion / (dist * dist)
+                    val dx = posX[i] - posX[j]
+                    val dy = posY[i] - posY[j]
+                    val distSq = dx * dx + dy * dy
+                    if (distSq > repulsionCutoffSq || distSq < 0.001f) continue
+                    val dist = sqrt(distSq).coerceAtLeast(1f)
+                    val force = repulsion / distSq
                     val fx = (dx / dist) * force
                     val fy = (dy / dist) * force
-                    forces[a] = forces.getValue(a).plus(Offset(fx, fy))
-                    forces[b] = forces.getValue(b).plus(Offset(-fx, -fy))
+                    fxi += fx
+                    fyi += fy
+                    forceX[j] -= fx
+                    forceY[j] -= fy
                 }
+                forceX[i] = fxi
+                forceY[i] = fyi
             }
 
             // 弹簧引力（带理想边长）
             for ((a, b) in edgeSet) {
-                val pa = positions[a] ?: continue
-                val pb = positions[b] ?: continue
-                val dx = pb.x - pa.x
-                val dy = pb.y - pa.y
-                val dist = max(sqrt(dx * dx + dy * dy), 1f)
+                val dx = posX[b] - posX[a]
+                val dy = posY[b] - posY[a]
+                val distSq = dx * dx + dy * dy
+                val dist = sqrt(distSq).coerceAtLeast(1f)
                 val force = (dist - idealLength) * springStrength
                 val fx = (dx / dist) * force
                 val fy = (dy / dist) * force
-                forces[a] = forces.getValue(a).plus(Offset(fx, fy))
-                forces[b] = forces.getValue(b).plus(Offset(-fx, -fy))
+                forceX[a] += fx
+                forceY[a] += fy
+                forceX[b] -= fx
+                forceY[b] -= fy
             }
 
             // 向心力
-            for (id in nodeIds) {
-                val pos = positions.getValue(id)
-                forces[id] = forces.getValue(id).minus(pos * centerGravity)
+            for (i in 0 until n) {
+                forceX[i] -= posX[i] * centerGravity
+                forceY[i] -= posY[i] * centerGravity
             }
 
             // 更新速度与位置
             var maxMove = 0f
-            for (id in nodeIds) {
-                val vel = (velocities.getOrDefault(id, Offset.Zero) + forces.getValue(id)) * damping
-                val speed = sqrt(vel.x * vel.x + vel.y * vel.y)
-                val cappedVel = if (speed > maxVelocity) vel * (maxVelocity / speed) else vel
-                velocities[id] = cappedVel
-                val disp = cappedVel * timeStep
-                maxMove = max(maxMove, sqrt(disp.x * disp.x + disp.y * disp.y))
-                positions[id] = positions.getValue(id).plus(disp)
+            for (i in 0 until n) {
+                val vx = (velX[i] + forceX[i]) * damping
+                val vy = (velY[i] + forceY[i]) * damping
+                val speed = sqrt(vx * vx + vy * vy)
+                val scale = if (speed > maxVelocity) maxVelocity / speed else 1f
+                val cvx = vx * scale
+                val cvy = vy * scale
+                velX[i] = cvx
+                velY[i] = cvy
+                val dx = cvx * timeStep
+                val dy = cvy * timeStep
+                maxMove = max(maxMove, sqrt(dx * dx + dy * dy))
+                posX[i] += dx
+                posY[i] += dy
             }
 
             // 硬碰撞：防止节点重叠
             for (i in 0 until n) {
+                val rai = radii[i] + paddingPx
                 for (j in i + 1 until n) {
-                    val a = nodeIds[i]
-                    val b = nodeIds[j]
-                    val pa = positions.getValue(a)
-                    val pb = positions.getValue(b)
-                    val dx = pa.x - pb.x
-                    val dy = pa.y - pb.y
-                    val dist = max(sqrt(dx * dx + dy * dy), 1f)
-                    val minDist = radiusOf(a) + radiusOf(b) + paddingPx
-                    if (dist < minDist) {
-                        val overlap = (minDist - dist) / 2f
-                        val nx = dx / dist
-                        val ny = dy / dist
-                        positions[a] = pa.plus(Offset(nx * overlap, ny * overlap))
-                        positions[b] = pb.minus(Offset(nx * overlap, ny * overlap))
-                    }
+                    val dx = posX[i] - posX[j]
+                    val dy = posY[i] - posY[j]
+                    val distSq = dx * dx + dy * dy
+                    val minDist = rai + radii[j]
+                    if (distSq >= minDist * minDist || distSq < 0.001f) continue
+                    val dist = sqrt(distSq).coerceAtLeast(1f)
+                    val overlap = (minDist - dist) / 2f
+                    val nx = dx / dist
+                    val ny = dy / dist
+                    posX[i] += nx * overlap
+                    posY[i] += ny * overlap
+                    posX[j] -= nx * overlap
+                    posY[j] -= ny * overlap
                 }
             }
 
             // 边界约束：限制在初始圆盘内
-            for (id in nodeIds) {
-                val pos = positions.getValue(id)
-                val len = sqrt(pos.x * pos.x + pos.y * pos.y)
+            for (i in 0 until n) {
+                val x = posX[i]
+                val y = posY[i]
+                val len = sqrt(x * x + y * y)
                 if (len > initRadius) {
-                    positions[id] = pos * (initRadius / len)
+                    val ratio = initRadius / len
+                    posX[i] = x * ratio
+                    posY[i] = y * ratio
                 }
             }
 
             // 收敛检测
             if (maxMove < stopThreshold && iter > 30) {
-                converged = true
                 break
             }
         }
 
-        return positions
+        return nodeIds.withIndex().associate { (index, id) ->
+            id to Offset(posX[index], posY[index])
+        }
     }
 
     private fun computeLayoutBounds(
