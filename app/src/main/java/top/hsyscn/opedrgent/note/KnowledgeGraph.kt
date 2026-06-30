@@ -12,6 +12,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sqrt
 
 class KnowledgeGraph(
@@ -30,10 +31,13 @@ class KnowledgeGraph(
         const val REL_CITES = "CITES"
 
         const val SIMILARITY_THRESHOLD = 0.15f
+        const val LOCAL_SIMILARITY_THRESHOLD = 0.08f
         const val MAX_LINKS_PER_NOTE = 10
 
         private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000
     }
+
+    private fun isLocalProvider(): Boolean = provider.providerName().startsWith("local")
 
     init {
         try {
@@ -131,20 +135,21 @@ class KnowledgeGraph(
             val relationType: String
             val weight: Float
             val reason: String
+            val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
             when {
                 sharedEntities.isNotEmpty() -> {
                     relationType = REL_SHARED_ENTITY
-                    weight = if (similarity > 0f) similarity else 0.9f
+                    weight = max(similarity, 0.9f)
                     reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
                 }
 
                 sharedKeywords.size >= 2 -> {
                     relationType = REL_SHARED_KEYWORD
-                    weight = if (similarity > 0f) similarity else 0.8f
+                    weight = max(similarity, 0.8f)
                     reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
                 }
 
-                similarity >= SIMILARITY_THRESHOLD -> {
+                similarity >= threshold -> {
                     relationType = REL_SEMANTIC_SIMILAR
                     weight = similarity
                     reason = "语义相似度：${String.format("%.2f", similarity)}"
@@ -152,7 +157,7 @@ class KnowledgeGraph(
 
                 abs(other.updatedAt - currentTime) < ONE_WEEK_MS -> {
                     relationType = REL_TEMPORAL_CLOSE
-                    weight = if (similarity > 0f) similarity else 0.3f
+                    weight = max(similarity, 0.3f)
                     reason = "时间接近"
                 }
 
@@ -287,7 +292,8 @@ class KnowledgeGraph(
 
             val currentTime = System.currentTimeMillis()
             val nodes = mutableListOf<GraphNodeEntity>()
-            val embeddings = mutableListOf<GraphEmbeddingEntity>()
+            val contents = mutableListOf<String>()
+            val noteIds = mutableListOf<String>()
             val entityRelations = mutableListOf<GraphNodeEntityRelation>()
             val noteKeywords = mutableMapOf<String, Set<String>>()
             val noteEntities = mutableMapOf<String, Set<String>>()
@@ -312,22 +318,8 @@ class KnowledgeGraph(
                         contentHash = content.hashCode().toString(),
                     )
                 )
-
-                val embedding = try {
-                    runBlocking(Dispatchers.Default) { provider.embed(content) }
-                } catch (e: Exception) {
-                    DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
-                    runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embed(content) }
-                }
-                embeddings.add(
-                    GraphEmbeddingEntity(
-                        nodeId = noteId,
-                        provider = provider.providerName(),
-                        model = "",
-                        dimension = provider.dimension(),
-                        vector = embedding.toByteArray(),
-                    )
-                )
+                contents.add(content)
+                noteIds.add(noteId)
 
                 for (entity in entities) {
                     val entityId = store.upsertEntity(
@@ -343,6 +335,33 @@ class KnowledgeGraph(
                             entityId = entityId,
                             weight = 1f,
                         )
+                    )
+                }
+            }
+
+            if (nodes.isEmpty()) return
+
+            val embeddings = try {
+                val batch = runBlocking(Dispatchers.Default) { provider.embedBatch(contents) }
+                batch.mapIndexed { index, vector ->
+                    GraphEmbeddingEntity(
+                        nodeId = noteIds[index],
+                        provider = provider.providerName(),
+                        model = "",
+                        dimension = provider.dimension(),
+                        vector = vector.toByteArray(),
+                    )
+                }
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "batch embedding failed, falling back to local: ${e.message}")
+                val batch = runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embedBatch(contents) }
+                batch.mapIndexed { index, vector ->
+                    GraphEmbeddingEntity(
+                        nodeId = noteIds[index],
+                        provider = provider.providerName(),
+                        model = "",
+                        dimension = provider.dimension(),
+                        vector = vector.toByteArray(),
                     )
                 }
             }
@@ -370,20 +389,21 @@ class KnowledgeGraph(
                     val relationType: String
                     val weight: Float
                     val reason: String
+                    val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
                     when {
                         sharedEntities.isNotEmpty() -> {
                             relationType = REL_SHARED_ENTITY
-                            weight = if (similarity > 0f) similarity else 0.9f
+                            weight = max(similarity, 0.9f)
                             reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
                         }
 
                         sharedKeywords.size >= 2 -> {
                             relationType = REL_SHARED_KEYWORD
-                            weight = if (similarity > 0f) similarity else 0.8f
+                            weight = max(similarity, 0.8f)
                             reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
                         }
 
-                        similarity >= SIMILARITY_THRESHOLD -> {
+                        similarity >= threshold -> {
                             relationType = REL_SEMANTIC_SIMILAR
                             weight = similarity
                             reason = "语义相似度：${String.format("%.2f", similarity)}"
@@ -405,6 +425,11 @@ class KnowledgeGraph(
                 }
             }
             store.upsertEdges(edges)
+
+            for (node in nodes) {
+                trimLinks(node.id)
+            }
+
             DebugLog.i(TAG, "rebuild done: ${nodes.size} nodes, ${edges.size} edges")
         } catch (e: Exception) {
             DebugLog.e(TAG, "rebuildFromNotes failed: ${e.message}", e)
