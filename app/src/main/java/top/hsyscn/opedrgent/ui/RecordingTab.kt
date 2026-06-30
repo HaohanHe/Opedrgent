@@ -269,14 +269,14 @@ fun RecordingTab(
                     val text = result?.text?.trim().orEmpty()
                     if (text.isNotBlank()) {
                         try {
-                            val autoTitle = text.take(20).ifBlank {
+                            val displayTitle = text.take(20).ifBlank {
                                 "音视频转录 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
                             }
-                            val noteId = vm.createNoteFromText(autoTitle, text, NoteType.ASR)
+                            val noteId = vm.createNoteFromText("", text, NoteType.ASR, autoFinalizeTitle = true)
                             NotificationHelper.showAutoSaveNote(
                                 context = context,
                                 noteId = noteId,
-                                title = autoTitle,
+                                title = displayTitle,
                                 preview = text,
                             )
                             val snackbarResult = snackbar.showSnackbar(
@@ -688,12 +688,21 @@ fun RecordingTab(
             },
             confirmButton = {
                 Button(onClick = {
-                    val title = noteTitle.ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
                     val text = transcriptResult?.fullText ?: ""
                     if (text.isNotBlank()) {
                         scope.launch {
                             val contentWithPhotos = text + formatPhotosForNote(capturedPhotos)
-                            vm.createNoteFromText(title, contentWithPhotos, NoteType.ASR, sourceUri = playbackAudioUri)
+                            val autoTitleEnabled = vm.isAutoGenerateNoteTitle()
+                            val title = noteTitle.ifBlank {
+                                if (autoTitleEnabled) "" else "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
+                            }
+                            vm.createNoteFromText(
+                                title,
+                                contentWithPhotos,
+                                NoteType.ASR,
+                                sourceUri = playbackAudioUri,
+                                autoFinalizeTitle = noteTitle.isBlank() && autoTitleEnabled,
+                            )
                             savedToNote = true
                             showSaveDialog = false
                             snackbar.showSnackbar(context.getString(R.string.msg_saved_as_note))
@@ -865,16 +874,24 @@ fun RecordingTab(
                                         // 先设置音频路径（createNoteFromText 需要 sourceUri）
                                         playbackAudioUri = wavFile.absolutePath
                                         try {
-                                            val autoTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
+                                            val autoTitleEnabled = vm.isAutoGenerateNoteTitle()
+                                            val displayTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
+                                            val noteTitle = if (autoTitleEnabled) "" else displayTitle
                                             val contentWithPhotos = transcriptText + formatPhotosForNote(capturedPhotos)
-                                            val noteId = vm.createNoteFromText(autoTitle, contentWithPhotos, NoteType.ASR, sourceUri = playbackAudioUri)
+                                            val noteId = vm.createNoteFromText(
+                                                noteTitle,
+                                                contentWithPhotos,
+                                                NoteType.ASR,
+                                                sourceUri = playbackAudioUri,
+                                                autoFinalizeTitle = autoTitleEnabled,
+                                            )
                                             autoSaved = true
                                             autoSavedNoteId = noteId
                                             savedToNote = true
                                             NotificationHelper.showAutoSaveNote(
                                                 context = context,
                                                 noteId = noteId,
-                                                title = autoTitle,
+                                                title = displayTitle,
                                                 preview = transcriptText,
                                             )
                                             DebugLog.i("RecordingTab", "自动保存笔记成功, id=$noteId")

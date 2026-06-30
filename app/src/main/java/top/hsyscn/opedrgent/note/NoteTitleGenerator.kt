@@ -17,6 +17,7 @@ object NoteTitleGenerator {
 
     private const val TAG = "NoteTitleGenerator"
     private const val MAX_TITLE_LENGTH = 20
+    const val MIN_CONTENT_LENGTH_FOR_LLM_TITLE = 20
     private const val CONTENT_PREVIEW_LENGTH = 400
     private const val GENERATION_TIMEOUT_MS = 6_000L
 
