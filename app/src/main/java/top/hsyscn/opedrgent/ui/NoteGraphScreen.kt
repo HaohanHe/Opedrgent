@@ -6,8 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -204,12 +203,6 @@ fun NoteGraphScreen(
     val currentScale = animatedScale.value
     val currentOffset = Offset(animatedOffsetX.value, animatedOffsetY.value)
 
-    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
-        val newScale = (currentScale * zoomChange).coerceIn(0.2f, 4f)
-        targetScale = newScale
-        targetOffset = currentOffset + panChange
-    }
-
     // 社区颜色板（主题感知）
     val communityColors = MaterialTheme.colorScheme.run {
         listOf(
@@ -347,7 +340,22 @@ fun NoteGraphScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .weight(1f)
-                                .transformable(state = transformableState),
+                                .pointerInput(Unit) {
+                                    detectTransformGestures { centroid, pan, zoom, _ ->
+                                        val oldScale = animatedScale.value
+                                        val newScale = (oldScale * zoom).coerceIn(0.2f, 4f)
+                                        val oldOffset = Offset(animatedOffsetX.value, animatedOffsetY.value)
+                                        // 以手势中心点为中心缩放：保持 centroid 在屏幕上的位置不变
+                                        val newOffset = centroid - (centroid - oldOffset) * (newScale / oldScale) + pan
+                                        scope.launch {
+                                            animatedScale.snapTo(newScale)
+                                            animatedOffsetX.snapTo(newOffset.x)
+                                            animatedOffsetY.snapTo(newOffset.y)
+                                        }
+                                        targetScale = newScale
+                                        targetOffset = newOffset
+                                    }
+                                },
                         ) {
                             val canvasWidth = constraints.maxWidth.toFloat()
                             val canvasHeight = constraints.maxHeight.toFloat()
