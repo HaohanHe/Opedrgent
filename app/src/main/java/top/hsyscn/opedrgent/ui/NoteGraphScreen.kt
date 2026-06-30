@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.graphics.RectF
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -33,7 +34,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -41,6 +41,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.GraphAlgorithms
+import top.hsyscn.opedrgent.note.GraphLayout
+import top.hsyscn.opedrgent.note.GraphLayoutEngine
+import top.hsyscn.opedrgent.note.GraphNode
 import top.hsyscn.opedrgent.note.KnowledgeGraph
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -48,9 +51,6 @@ import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /** 视图模式 */
 private enum class GraphViewMode(@StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -147,15 +147,16 @@ fun NoteGraphScreen(
     // 力导向布局计算（放到后台线程，避免主线程阻塞）
     val density = LocalDensity.current
     val layout by produceState(
-        initialValue = emptyMap<String, Offset>(),
+        initialValue = GraphLayout(emptyMap(), RectF()),
         key1 = displayNodes,
         key2 = allEdges,
         key3 = centrality,
     ) {
         value = withContext(Dispatchers.Default) {
-            computeForceLayout(displayNodes, allEdges, centrality, density)
+            GraphLayoutEngine.computeLayout(displayNodes, allEdges, centrality, density)
         }
     }
+    val positions = layout.positions
 
     // 搜索触发高亮
     LaunchedEffect(searchQuery) {
@@ -334,9 +335,9 @@ fun NoteGraphScreen(
                             var initialFitDone by remember(displayNodes, allEdges) { mutableStateOf(false) }
 
                             // 布局计算完成后，自动缩放使所有节点可见
-                            LaunchedEffect(layout, canvasWidth, canvasHeight) {
-                                if (!initialFitDone && layout.isNotEmpty() && canvasWidth > 0 && canvasHeight > 0) {
-                                    val bounds = computeLayoutBounds(layout, displayNodes, centrality, density)
+                            LaunchedEffect(positions, canvasWidth, canvasHeight) {
+                                if (!initialFitDone && positions.isNotEmpty() && canvasWidth > 0 && canvasHeight > 0) {
+                                    val bounds = layout.bounds
                                     val paddingPx = with(density) { SpacingTokens.xl.toPx() }
                                     val contentWidth = bounds.width() + paddingPx * 2
                                     val contentHeight = bounds.height() + paddingPx * 2
@@ -355,7 +356,7 @@ fun NoteGraphScreen(
                             GraphCanvas(
                                 nodes = displayNodes,
                                 edgeDetails = visibleEdgeDetails,
-                                layout = layout,
+                                layout = positions,
                                 communityMap = communities,
                                 centralityMap = centrality,
                                 communityColors = communityColors,
@@ -369,7 +370,7 @@ fun NoteGraphScreen(
                                 },
                                 onEdgeClick = { detail -> selectedEdgeDetail = detail },
                                 onFocusNode = { node ->
-                                    val pos = layout[node.id] ?: return@GraphCanvas
+                                    val pos = positions[node.id] ?: return@GraphCanvas
                                     targetScale = 2.5f.coerceIn(0.2f, 4f)
                                     targetOffset = Offset(
                                         -pos.x * targetScale,
@@ -557,6 +558,7 @@ private fun GraphCanvas(
     onFocusNode: (GraphNode) -> Unit,
     onResetView: () -> Unit,
 ) {
+    val positions = layout
     val accentBlue = MaterialTheme.customColors.accentBlue
     val outlineColor = MaterialTheme.colorScheme.outline
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -570,10 +572,10 @@ private fun GraphCanvas(
 
     // 节点半径计算：使用 sqrt 压缩中心性差异，避免个别节点过大；孤立节点只使用基础半径
     fun nodeRadiusPx(node: GraphNode): Float {
-        val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-        if (node.id in orphanNodeIds) return basePx
-        val c = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
-        return basePx + kotlin.math.sqrt(c) * with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
+        if (node.id in orphanNodeIds) {
+            return with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+        }
+        return GraphLayoutEngine.nodeRadiusPx(node.id, centralityMap, density)
     }
 
     Canvas(
@@ -584,7 +586,7 @@ private fun GraphCanvas(
                     onDoubleTap = { tapOffset ->
                         val transformedOffset = (tapOffset - offset) / scale
                         val hitNode = nodes.find { node ->
-                            val pos = layout[node.id] ?: return@find false
+                            val pos = positions[node.id] ?: return@find false
                             val radius = nodeRadiusPx(node)
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
@@ -601,7 +603,7 @@ private fun GraphCanvas(
 
                         // 优先判断节点点击
                         val hitNode = nodes.find { node ->
-                            val pos = layout[node.id] ?: return@find false
+                            val pos = positions[node.id] ?: return@find false
                             val radius = nodeRadiusPx(node)
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
@@ -615,16 +617,16 @@ private fun GraphCanvas(
                         // 判断边点击
                         val hitThresholdUnscaled = edgeHitThresholdPx / scale
                         val hitDetail = edgeDetails.minByOrNull { detail ->
-                            val a = layout[detail.sourceId]
-                            val b = layout[detail.targetId]
+                            val a = positions[detail.sourceId]
+                            val b = positions[detail.targetId]
                             if (a == null || b == null) Float.MAX_VALUE
-                            else distanceToSegment(transformedOffset, a, b)
+                            else GraphLayoutEngine.distanceToSegment(transformedOffset, a, b)
                         }
                         hitDetail?.let { detail ->
-                            val a = layout[detail.sourceId]
-                            val b = layout[detail.targetId]
+                            val a = positions[detail.sourceId]
+                            val b = positions[detail.targetId]
                             if (a != null && b != null) {
-                                val dist = distanceToSegment(transformedOffset, a, b)
+                                val dist = GraphLayoutEngine.distanceToSegment(transformedOffset, a, b)
                                 if (dist < hitThresholdUnscaled) {
                                     onEdgeClick(detail)
                                 }
@@ -634,7 +636,7 @@ private fun GraphCanvas(
                     onLongPress = { tapOffset ->
                         val transformedOffset = (tapOffset - offset) / scale
                         val hitNode = nodes.find { node ->
-                            val pos = layout[node.id] ?: return@find false
+                            val pos = positions[node.id] ?: return@find false
                             val radius = nodeRadiusPx(node)
                             val dx = transformedOffset.x - pos.x
                             val dy = transformedOffset.y - pos.y
@@ -662,8 +664,8 @@ private fun GraphCanvas(
 
         // 绘制连线
         for (detail in edgeDetails) {
-            val sourcePos = layout[detail.sourceId] ?: continue
-            val targetPos = layout[detail.targetId] ?: continue
+            val sourcePos = positions[detail.sourceId] ?: continue
+            val targetPos = positions[detail.targetId] ?: continue
 
             val isHighlighted = detail.sourceId in highlightNoteIds || detail.targetId in highlightNoteIds
             val strokeWidth = if (isHighlighted) 2.5f else 1f
@@ -692,7 +694,7 @@ private fun GraphCanvas(
         val top30Threshold = if (sortedCentralities.isEmpty()) 0f else sortedCentralities[(kotlin.math.ceil(nodes.size * 0.3f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size)) - 1]
 
         for (node in sortedNodes) {
-            val pos = layout[node.id] ?: continue
+            val pos = positions[node.id] ?: continue
             val transformedPos = transformPos(pos)
             val centrality = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
             val isOrphan = node.id in orphanNodeIds
@@ -1107,171 +1109,6 @@ private fun TimelineNoteCard(
     }
 }
 
-// ==================== 数据模型 ====================
-
-data class GraphNode(
-    val id: String,
-    val label: String,
-    val linkCount: Int,
-    val noteId: Long,
-)
-
-// ==================== 力导向布局 ====================
-
-/**
- * 力导向图布局算法。
- *
- * 改进点：
- * - 初始位置在圆盘内随机分布，避免所有节点排成一圈形成"花圈"
- * - 斥力 + 弹簧引力 + 硬碰撞，防止节点重叠
- * - 边界约束，防止节点飘出可视区域
- * - 收敛检测，稳定后提前退出
- */
-private fun computeForceLayout(
-    nodes: List<GraphNode>,
-    edges: List<top.hsyscn.opedrgent.note.KnowledgeGraph.GraphEdge>,
-    centrality: Map<String, Float>,
-    density: Density,
-    iterations: Int = 120,
-): Map<String, Offset> {
-    if (nodes.isEmpty()) return emptyMap()
-
-    val nodeIds = nodes.map { it.id }
-    val n = nodes.size
-
-    // 节点半径（px），用于碰撞检测
-    val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-    val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
-    fun radiusOf(id: String): Float {
-        val c = centrality[id]?.coerceIn(0f, 1f) ?: 0f
-        return basePx + kotlin.math.sqrt(c) * extraPx
-    }
-
-    // 1. 圆盘内随机初始化（避免花圈）
-    val rng = kotlin.random.Random(0xACE)
-    val initRadius = kotlin.math.max(160f, kotlin.math.sqrt(n.toFloat()) * 45f)
-    val positions = nodeIds.associateWith { id ->
-        val r = kotlin.math.sqrt(rng.nextFloat()) * initRadius
-        val theta = rng.nextFloat() * 2f * kotlin.math.PI
-        Offset(
-            x = (r * kotlin.math.cos(theta)).toFloat(),
-            y = (r * kotlin.math.sin(theta)).toFloat(),
-        )
-    }.toMutableMap()
-
-    // 唯一边集合（避免双向重复计算）
-    val edgeSet = edges.map {
-        if (it.sourceId < it.targetId) it.sourceId to it.targetId
-        else it.targetId to it.sourceId
-    }.toSet()
-
-    val velocities = mutableMapOf<String, Offset>()
-
-    val area = kotlin.math.PI * initRadius * initRadius
-    val repulsion = (area / n * 0.5f).toFloat().coerceIn(10_000f, 120_000f)
-    val springStrength = 0.02f
-    val idealLength = initRadius * 0.18f
-    val centerGravity = 0.04f
-    val damping = 0.85f
-    val timeStep = 0.45f
-    val maxVelocity = 100f
-    val stopThreshold = 1.2f
-    val paddingPx = with(density) { SpacingTokens.sm.toPx() }
-
-    var converged = false
-    for (iter in 0 until iterations) {
-        val forces = nodeIds.associateWith { Offset.Zero }.toMutableMap()
-
-        // 斥力（所有节点对之间）
-        for (i in 0 until n) {
-            for (j in i + 1 until n) {
-                val a = nodeIds[i]
-                val b = nodeIds[j]
-                val pa = positions.getValue(a)
-                val pb = positions.getValue(b)
-                val dx = pa.x - pb.x
-                val dy = pa.y - pb.y
-                val dist = kotlin.math.max(kotlin.math.sqrt(dx * dx + dy * dy), 1f)
-                val force = repulsion / (dist * dist)
-                val fx = (dx / dist) * force
-                val fy = (dy / dist) * force
-                forces[a] = forces.getValue(a).plus(Offset(fx, fy))
-                forces[b] = forces.getValue(b).plus(Offset(-fx, -fy))
-            }
-        }
-
-        // 弹簧引力（带理想边长）
-        for ((a, b) in edgeSet) {
-            val pa = positions[a] ?: continue
-            val pb = positions[b] ?: continue
-            val dx = pb.x - pa.x
-            val dy = pb.y - pa.y
-            val dist = kotlin.math.max(kotlin.math.sqrt(dx * dx + dy * dy), 1f)
-            val force = (dist - idealLength) * springStrength
-            val fx = (dx / dist) * force
-            val fy = (dy / dist) * force
-            forces[a] = forces.getValue(a).plus(Offset(fx, fy))
-            forces[b] = forces.getValue(b).plus(Offset(-fx, -fy))
-        }
-
-        // 向心力
-        for (id in nodeIds) {
-            val pos = positions.getValue(id)
-            forces[id] = forces.getValue(id).minus(pos * centerGravity)
-        }
-
-        // 更新速度与位置
-        var maxMove = 0f
-        for (id in nodeIds) {
-            val vel = (velocities.getOrDefault(id, Offset.Zero) + forces.getValue(id)) * damping
-            val speed = kotlin.math.sqrt(vel.x * vel.x + vel.y * vel.y)
-            val cappedVel = if (speed > maxVelocity) vel * (maxVelocity / speed) else vel
-            velocities[id] = cappedVel
-            val disp = cappedVel * timeStep
-            maxMove = kotlin.math.max(maxMove, kotlin.math.sqrt(disp.x * disp.x + disp.y * disp.y))
-            positions[id] = positions.getValue(id).plus(disp)
-        }
-
-        // 硬碰撞：防止节点重叠
-        for (i in 0 until n) {
-            for (j in i + 1 until n) {
-                val a = nodeIds[i]
-                val b = nodeIds[j]
-                val pa = positions.getValue(a)
-                val pb = positions.getValue(b)
-                val dx = pa.x - pb.x
-                val dy = pa.y - pb.y
-                val dist = kotlin.math.max(kotlin.math.sqrt(dx * dx + dy * dy), 1f)
-                val minDist = radiusOf(a) + radiusOf(b) + paddingPx
-                if (dist < minDist) {
-                    val overlap = (minDist - dist) / 2f
-                    val nx = dx / dist
-                    val ny = dy / dist
-                    positions[a] = pa.plus(Offset(nx * overlap, ny * overlap))
-                    positions[b] = pb.minus(Offset(nx * overlap, ny * overlap))
-                }
-            }
-        }
-
-        // 边界约束：限制在初始圆盘内
-        for (id in nodeIds) {
-            val pos = positions.getValue(id)
-            val len = kotlin.math.sqrt(pos.x * pos.x + pos.y * pos.y)
-            if (len > initRadius) {
-                positions[id] = pos * (initRadius / len)
-            }
-        }
-
-        // 收敛检测
-        if (maxMove < stopThreshold && iter > 30) {
-            converged = true
-            break
-        }
-    }
-
-    return positions
-}
-
 // ==================== 工具函数 ====================
 
 private fun List<KnowledgeGraph.GraphEdgeDetail>.toGraphEdges(): List<KnowledgeGraph.GraphEdge> {
@@ -1284,42 +1121,4 @@ private fun List<KnowledgeGraph.GraphEdgeDetail>.toEdgeWeights(): Map<Pair<Strin
         val b = it.targetId
         (if (a < b) a to b else b to a) to it.weight
     }
-}
-
-private fun distanceToSegment(point: Offset, a: Offset, b: Offset): Float {
-    val ab = b - a
-    val ap = point - a
-    val len2 = ab.x * ab.x + ab.y * ab.y
-    val t = if (len2 == 0f) 0f else ((ap.x * ab.x + ap.y * ab.y) / len2).coerceIn(0f, 1f)
-    val projection = Offset(a.x + t * ab.x, a.y + t * ab.y)
-    val d = point - projection
-    return sqrt(d.x * d.x + d.y * d.y)
-}
-
-/**
- * 计算布局的包围盒（px），包含节点半径避免边缘裁切。
- */
-private fun computeLayoutBounds(
-    layout: Map<String, Offset>,
-    nodes: List<GraphNode>,
-    centrality: Map<String, Float>,
-    density: Density,
-): android.graphics.RectF {
-    if (layout.isEmpty()) return android.graphics.RectF()
-    val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-    val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
-    var minX = Float.MAX_VALUE
-    var minY = Float.MAX_VALUE
-    var maxX = -Float.MAX_VALUE
-    var maxY = -Float.MAX_VALUE
-    for (node in nodes) {
-        val pos = layout[node.id] ?: continue
-        val c = centrality[node.id]?.coerceIn(0f, 1f) ?: 0f
-        val radius = basePx + kotlin.math.sqrt(c) * extraPx
-        minX = kotlin.math.min(minX, pos.x - radius)
-        minY = kotlin.math.min(minY, pos.y - radius)
-        maxX = kotlin.math.max(maxX, pos.x + radius)
-        maxY = kotlin.math.max(maxY, pos.y + radius)
-    }
-    return android.graphics.RectF(minX, minY, maxX, maxY)
 }

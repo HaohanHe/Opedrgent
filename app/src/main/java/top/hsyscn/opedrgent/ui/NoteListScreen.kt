@@ -124,7 +124,7 @@ fun NoteListScreen(
         if (isAiSearchActive) {
             kotlinx.coroutines.flow.flowOf(emptyList())
         } else if (searchQuery.isNotBlank()) {
-            repository.searchNotes(searchQuery.trim())
+            repository.searchNotesSmart(searchQuery.trim())
         } else if (selectedTag != null) {
             repository.getByTag(selectedTag!!)
         } else if (selectedType != null) {

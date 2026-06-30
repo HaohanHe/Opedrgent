@@ -12,6 +12,7 @@ class AiSearchEngine(
     private val noteDao: NoteDao,
     private val llmClient: LlmClient,
     private val apiSettings: ApiSettings,
+    private val noteRepository: NoteRepository? = null,
 ) {
     suspend fun search(query: String): List<AiSearchResult> = withContext(Dispatchers.IO) {
         val allNotes = noteDao.getAllNotes()
@@ -21,8 +22,8 @@ class AiSearchEngine(
 
         val apiConfig = apiSettings.getApiConfig()
         if (apiConfig == null) {
-            DebugLog.w("AiSearchEngine: API config not available, falling back to text search")
-            return@withContext emptyList()
+            DebugLog.w("AiSearchEngine: API config not available, falling back to semantic search")
+            return@withContext fallbackSemanticSearch(query)
         }
 
         val prompt = buildString {
@@ -64,8 +65,25 @@ class AiSearchEngine(
             }
         } catch (e: Exception) {
             DebugLog.e("AiSearchEngine failed: ${e.message}", e)
-            emptyList()
+            fallbackSemanticSearch(query)
         }
+    }
+
+    /**
+     * 回退到本地语义搜索。
+     *
+     * 当 API Key 未配置或 LLM 调用失败时，使用知识图谱的 [NoteRepository.searchByRelevance]
+     * 计算查询与笔记的语义相似度，并包装为 [AiSearchResult]。
+     */
+    private suspend fun fallbackSemanticSearch(query: String): List<AiSearchResult> {
+        val repo = noteRepository ?: return emptyList()
+        val semanticResults = repo.searchByRelevance(query, maxResults = 10)
+        return semanticResults.mapNotNull { (noteIdStr, score) ->
+            val noteId = noteIdStr.toLongOrNull() ?: return@mapNotNull null
+            val note = noteDao.getById(noteId) ?: return@mapNotNull null
+            val relevance = (score * 100).toInt().coerceIn(10, 100)
+            AiSearchResult(note, relevance)
+        }.sortedByDescending { it.relevance }
     }
 }
 

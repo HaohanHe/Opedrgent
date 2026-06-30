@@ -1,17 +1,12 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.HippocampusIndex
@@ -51,9 +46,6 @@ class NoteRepository(
         )
     }
 
-    private val graphScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var linkNoteJob: Job? = null
-
     // 响应式变更通知
     private val _changeTrigger = MutableStateFlow(0L)
 
@@ -87,6 +79,48 @@ class NoteRepository(
     /** 搜索笔记（标题/内容/摘要模糊匹配） */
     fun searchNotes(query: String): Flow<List<Note>> = _changeTrigger
         .map { dao.searchNotes(query) }
+        .flowOn(Dispatchers.IO)
+        .conflate()
+
+    /**
+     * 智能搜索：合并数据库 LIKE 匹配结果与知识图谱语义召回结果。
+     *
+     * 文本匹配结果优先展示，语义召回结果按相似度排序并去重补充。
+     */
+    fun searchNotesSmart(query: String): Flow<List<Note>> = _changeTrigger
+        .map {
+            val textMatches = dao.searchNotes(query)
+            val semanticResults = try {
+                knowledgeGraph.searchByRelevance(query, maxResults = 20)
+            } catch (e: Exception) {
+                DebugLog.e("NoteRepository", "semantic search failed: ${e.message}", e)
+                emptyList()
+            }
+
+            val combined = mutableListOf<Note>()
+            val seenIds = mutableSetOf<Long>()
+
+            // 1. 文本匹配结果优先
+            for (note in textMatches) {
+                if (seenIds.add(note.id)) {
+                    combined.add(note)
+                }
+            }
+
+            // 2. 语义召回结果按分数排序并去重补充
+            val semanticNotes = semanticResults
+                .mapNotNull { (noteIdStr, _) ->
+                    val noteId = noteIdStr.toLongOrNull() ?: return@mapNotNull null
+                    dao.getById(noteId)
+                }
+            for (note in semanticNotes) {
+                if (seenIds.add(note.id)) {
+                    combined.add(note)
+                }
+            }
+
+            combined
+        }
         .flowOn(Dispatchers.IO)
         .conflate()
 
@@ -134,12 +168,7 @@ class NoteRepository(
             if (note.title.isNotBlank()) append(note.title).append(" ")
             append(note.content)
         }
-        val noteIdStr = id.toString()
-        linkNoteJob?.cancel()
-        linkNoteJob = graphScope.launch {
-            delay(5000)
-            knowledgeGraph.linkNote(noteIdStr, content)
-        }
+        GraphLinkWorker.enqueue(context, id, content)
         syncNoteMemory(id, note)
         return id
     }
