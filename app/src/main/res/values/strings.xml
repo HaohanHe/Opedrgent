@@ -481,4 +481,9 @@
     <string name="graph_switch_to">切换到%1$s视图</string>
     <string name="graph_view_graph">图谱</string>
     <string name="graph_view_timeline">时间线</string>
+    <string name="graph_hide_orphans">隐藏孤立节点</string>
+    <string name="graph_show_orphans">显示孤立节点</string>
+    <string name="graph_stat_total_notes">总笔记</string>
+    <string name="graph_stat_total_links">总关联</string>
+    <string name="graph_stat_isolated_notes">孤立笔记</string>
 </resources>

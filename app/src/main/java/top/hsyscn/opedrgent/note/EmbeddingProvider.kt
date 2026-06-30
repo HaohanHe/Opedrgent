@@ -191,9 +191,38 @@ class CloudEmbeddingProvider(
 }
 
 /**
+ * 云 -> 本地 Embedding 回退提供器。
+ *
+ * 优先使用云端能力，失败时自动降级到本地 Embedding，
+ * 保证知识图谱在弱网/无 key 场景下仍可正常工作。
+ */
+class FallbackEmbeddingProvider(
+    private val primary: CloudEmbeddingProvider,
+    private val fallback: LocalEmbeddingProvider,
+) : EmbeddingProvider {
+
+    companion object {
+        private const val TAG = "FallbackEmbeddingProvider"
+    }
+
+    override fun providerName(): String = "cloud-fallback"
+
+    override fun isAvailable(): Boolean = true
+
+    override fun dimension(): Int = fallback.dimension()
+
+    override suspend fun embed(text: String): FloatArray = try {
+        primary.embed(text)
+    } catch (e: Exception) {
+        DebugLog.w(TAG, "cloud embedding failed, falling back to local: ${e.message}")
+        fallback.embed(text)
+    }
+}
+
+/**
  * Embedding 提供器工厂。
  *
- * 根据设置决定使用本地能力还是云端能力。
+ * 根据设置决定使用本地能力还是云端能力，云端不可用时自动降级。
  */
 object EmbeddingProviderFactory {
 
@@ -205,7 +234,13 @@ object EmbeddingProviderFactory {
         return if (apiSettings.isLocalModelEnabled()) {
             LocalEmbeddingProvider(store)
         } else {
-            CloudEmbeddingProvider(apiSettings.getApiConfig(), HttpClients.default)
+            val cloud = CloudEmbeddingProvider(apiSettings.getApiConfig(), HttpClients.default)
+            val local = LocalEmbeddingProvider(store)
+            if (cloud.isAvailable()) {
+                FallbackEmbeddingProvider(primary = cloud, fallback = local)
+            } else {
+                local
+            }
         }
     }
 }

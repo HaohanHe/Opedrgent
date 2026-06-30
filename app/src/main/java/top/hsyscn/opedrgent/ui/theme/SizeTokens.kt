@@ -27,6 +27,10 @@ object SizeTokens {
     val previewPanelWidth = 400.dp
     val textFieldWidthSm = 100.dp
 
+    // 知识图谱节点尺寸
+    val graphNodeBaseRadius = 5.dp
+    val graphNodeMaxExtraRadius = 3.dp
+
     // 紧凑间距/微调
     val compactSpacing = 6.dp
     val sectionGapSm = 10.dp

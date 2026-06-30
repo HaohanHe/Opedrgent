@@ -85,6 +85,7 @@ fun NoteGraphScreen(
     var viewMode by remember { mutableStateOf(GraphViewMode.GRAPH) }
     var selectedRelationType by remember { mutableStateOf<String?>(null) }
     var selectedEdgeDetail by remember { mutableStateOf<KnowledgeGraph.GraphEdgeDetail?>(null) }
+    var hideOrphans by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     var refreshTrigger by remember { mutableStateOf(0) }
     var rebuilding by remember { mutableStateOf(false) }
@@ -115,27 +116,44 @@ fun NoteGraphScreen(
             )
         }
     }
-    val nodeIds = remember(nodes) { nodes.map { it.id } }
+    val connectedNodeIds = remember(allEdges) {
+        allEdges.flatMap { listOf(it.sourceId, it.targetId) }.toSet()
+    }
+    val displayNodes = remember(nodes, connectedNodeIds, hideOrphans) {
+        when {
+            !hideOrphans -> nodes
+            connectedNodeIds.isNotEmpty() -> nodes.filter { it.id in connectedNodeIds }
+            else -> nodes
+        }
+    }
+    val displayNodeIds = remember(displayNodes) { displayNodes.map { it.id } }
+    val orphanNodeIds = remember(nodes, connectedNodeIds) {
+        nodes.map { it.id }.filter { it !in connectedNodeIds }.toSet()
+    }
 
     // 图算法：社区检测 + 中心性
     val edgeWeights = remember(edgeDetails) { edgeDetails.toEdgeWeights() }
     val communities = remember(allEdges, edgeWeights) {
         GraphAlgorithms.detectCommunities(allEdges, edgeWeights)
     }
-    val centrality = remember(nodeIds, allEdges, edgeWeights) {
-        GraphAlgorithms.pageRank(nodeIds, allEdges, edgeWeights)
+    val centrality = remember(displayNodeIds, allEdges, edgeWeights) {
+        if (allEdges.isEmpty()) {
+            GraphAlgorithms.degreeCentrality(displayNodeIds, allEdges)
+        } else {
+            GraphAlgorithms.pageRank(displayNodeIds, allEdges, edgeWeights)
+        }
     }
 
     // 力导向布局计算（放到后台线程，避免主线程阻塞）
     val density = LocalDensity.current
     val layout by produceState(
         initialValue = emptyMap<String, Offset>(),
-        key1 = nodes,
+        key1 = displayNodes,
         key2 = allEdges,
         key3 = centrality,
     ) {
         value = withContext(Dispatchers.Default) {
-            computeForceLayout(nodes, allEdges, centrality, density)
+            computeForceLayout(displayNodes, allEdges, centrality, density)
         }
     }
 
@@ -293,6 +311,8 @@ fun NoteGraphScreen(
             RelationFilterChips(
                 selectedType = selectedRelationType,
                 onTypeSelected = { selectedRelationType = it },
+                hideOrphans = hideOrphans,
+                onHideOrphansChange = { hideOrphans = it },
             )
 
             Spacer(Modifier.height(SpacingTokens.sm))
@@ -311,13 +331,13 @@ fun NoteGraphScreen(
                         ) {
                             val canvasWidth = constraints.maxWidth.toFloat()
                             val canvasHeight = constraints.maxHeight.toFloat()
-                            var initialFitDone by remember(nodes, allEdges) { mutableStateOf(false) }
+                            var initialFitDone by remember(displayNodes, allEdges) { mutableStateOf(false) }
 
                             // 布局计算完成后，自动缩放使所有节点可见
                             LaunchedEffect(layout, canvasWidth, canvasHeight) {
                                 if (!initialFitDone && layout.isNotEmpty() && canvasWidth > 0 && canvasHeight > 0) {
-                                    val bounds = computeLayoutBounds(layout)
-                                    val paddingPx = with(density) { 24.dp.toPx() }
+                                    val bounds = computeLayoutBounds(layout, displayNodes, centrality, density)
+                                    val paddingPx = with(density) { SpacingTokens.xl.toPx() }
                                     val contentWidth = bounds.width() + paddingPx * 2
                                     val contentHeight = bounds.height() + paddingPx * 2
                                     val scaleX = canvasWidth / contentWidth
@@ -333,12 +353,13 @@ fun NoteGraphScreen(
                             }
 
                             GraphCanvas(
-                                nodes = nodes,
+                                nodes = displayNodes,
                                 edgeDetails = visibleEdgeDetails,
                                 layout = layout,
                                 communityMap = communities,
                                 centralityMap = centrality,
                                 communityColors = communityColors,
+                                orphanNodeIds = orphanNodeIds,
                                 highlightNoteIds = highlightNoteIds,
                                 scale = currentScale,
                                 offset = currentOffset,
@@ -426,21 +447,21 @@ private fun StatsRow(stats: top.hsyscn.opedrgent.note.KnowledgeGraph.GraphStats)
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
         StatCard(
-            title = "总笔记",
+            title = stringResource(R.string.graph_stat_total_notes),
             value = "${stats.totalNotes}",
             icon = Icons.Default.Description,
             color = MaterialTheme.customColors.accentBlue,
             modifier = Modifier.weight(1f),
         )
         StatCard(
-            title = "总关联",
+            title = stringResource(R.string.graph_stat_total_links),
             value = "${stats.totalLinks}",
             icon = Icons.Default.Hub,
             color = MaterialTheme.customColors.successGreen,
             modifier = Modifier.weight(1f),
         )
         StatCard(
-            title = "孤立笔记",
+            title = stringResource(R.string.graph_stat_isolated_notes),
             value = "${stats.isolatedNotes}",
             icon = Icons.Default.PersonOff,
             color = MaterialTheme.customColors.accentOrange,
@@ -478,6 +499,8 @@ private fun StatCard(
 private fun RelationFilterChips(
     selectedType: String?,
     onTypeSelected: (String?) -> Unit,
+    hideOrphans: Boolean,
+    onHideOrphansChange: (Boolean) -> Unit,
 ) {
     val filters = listOf(
         null to R.string.graph_filter_all,
@@ -494,6 +517,18 @@ private fun RelationFilterChips(
             .padding(horizontal = SpacingTokens.lg),
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
+        FilterChip(
+            selected = hideOrphans,
+            onClick = { onHideOrphansChange(!hideOrphans) },
+            label = { Text(stringResource(if (hideOrphans) R.string.graph_hide_orphans else R.string.graph_show_orphans)) },
+            leadingIcon = {
+                Icon(
+                    if (hideOrphans) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = null,
+                    modifier = Modifier.size(SizeTokens.iconMd),
+                )
+            },
+        )
         filters.forEach { (type, labelRes) ->
             FilterChip(
                 selected = selectedType == type,
@@ -512,6 +547,7 @@ private fun GraphCanvas(
     communityMap: Map<String, Int>,
     centralityMap: Map<String, Float>,
     communityColors: List<Color>,
+    orphanNodeIds: Set<String>,
     highlightNoteIds: Set<String>,
     scale: Float,
     offset: Offset,
@@ -529,15 +565,15 @@ private fun GraphCanvas(
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
-    val baseNodeSize = 8.dp
-    val maxExtraSize = 8.dp
     val edgeHitThreshold = SizeTokens.iconXs
     val edgeHitThresholdPx = with(density) { edgeHitThreshold.toPx() }
 
-    // 节点半径计算：使用 sqrt 压缩中心性差异，避免个别节点过大
+    // 节点半径计算：使用 sqrt 压缩中心性差异，避免个别节点过大；孤立节点只使用基础半径
     fun nodeRadiusPx(node: GraphNode): Float {
+        val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+        if (node.id in orphanNodeIds) return basePx
         val c = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
-        return with(density) { baseNodeSize.toPx() } + kotlin.math.sqrt(c) * with(density) { maxExtraSize.toPx() }
+        return basePx + kotlin.math.sqrt(c) * with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
     }
 
     Canvas(
@@ -620,8 +656,8 @@ private fun GraphCanvas(
             )
         }
 
-        val baseSizePx = with(density) { baseNodeSize.toPx() }
-        val maxExtraPx = with(density) { maxExtraSize.toPx() }
+        val baseSizePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+        val maxExtraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
         val labelTextSizePx = labelStyle.fontSize.toPx()
 
         // 绘制连线
@@ -650,17 +686,28 @@ private fun GraphCanvas(
         val drawnRects = mutableListOf<android.graphics.RectF>()
         val labelPaddingPx = with(density) { SpacingTokens.xs.toPx() }
 
+        // 预计算中心性分位阈值，避免在循环中重复排序
+        val sortedCentralities = nodes.map { centralityMap[it.id] ?: 0f }.sortedDescending()
+        val top10Threshold = if (sortedCentralities.isEmpty()) 0f else sortedCentralities[(kotlin.math.ceil(nodes.size * 0.1f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size)) - 1]
+        val top30Threshold = if (sortedCentralities.isEmpty()) 0f else sortedCentralities[(kotlin.math.ceil(nodes.size * 0.3f).toInt().coerceAtLeast(1).coerceAtMost(nodes.size)) - 1]
+
         for (node in sortedNodes) {
             val pos = layout[node.id] ?: continue
             val transformedPos = transformPos(pos)
             val centrality = centralityMap[node.id]?.coerceIn(0f, 1f) ?: 0f
-            val nodeRadius = baseSizePx + kotlin.math.sqrt(centrality) * maxExtraPx
+            val isOrphan = node.id in orphanNodeIds
+            val nodeRadius = if (isOrphan) {
+                baseSizePx
+            } else {
+                baseSizePx + kotlin.math.sqrt(centrality) * maxExtraPx
+            }
             val radius = nodeRadius * scale
 
             val isHighlighted = node.id in highlightNoteIds
             val communityId = communityMap[node.id]
             val nodeColor = when {
                 isHighlighted -> accentBlue
+                isOrphan -> outlineColor.copy(alpha = 0.35f)
                 communityId != null -> communityColors[communityId % communityColors.size]
                 else -> outlineColor.copy(alpha = 0.5f)
             }
@@ -689,12 +736,12 @@ private fun GraphCanvas(
                 style = Stroke(width = with(density) { SizeTokens.borderWidth.toPx() } * scale.coerceAtLeast(0.5f)),
             )
 
-            // 节点标签：缩放小时只显示高亮/重要节点，避免重叠
+            // 节点标签密度控制：按缩放级别与中心性分层显示
             val showLabel = when {
                 isHighlighted -> true
-                scale > 1.2f -> true
-                centrality >= 0.5f -> true
-                else -> false
+                scale <= 1.0f -> centrality > 0f && centrality >= top10Threshold
+                scale <= 1.5f -> centrality >= top30Threshold
+                else -> true
             }
             if (!showLabel) continue
 
@@ -1093,8 +1140,8 @@ private fun computeForceLayout(
     val n = nodes.size
 
     // 节点半径（px），用于碰撞检测
-    val basePx = with(density) { 8.dp.toPx() }
-    val extraPx = with(density) { 8.dp.toPx() }
+    val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+    val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
     fun radiusOf(id: String): Float {
         val c = centrality[id]?.coerceIn(0f, 1f) ?: 0f
         return basePx + kotlin.math.sqrt(c) * extraPx
@@ -1250,19 +1297,29 @@ private fun distanceToSegment(point: Offset, a: Offset, b: Offset): Float {
 }
 
 /**
- * 计算布局的包围盒（px）。
+ * 计算布局的包围盒（px），包含节点半径避免边缘裁切。
  */
-private fun computeLayoutBounds(layout: Map<String, Offset>): android.graphics.RectF {
+private fun computeLayoutBounds(
+    layout: Map<String, Offset>,
+    nodes: List<GraphNode>,
+    centrality: Map<String, Float>,
+    density: Density,
+): android.graphics.RectF {
     if (layout.isEmpty()) return android.graphics.RectF()
+    val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
+    val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
     var minX = Float.MAX_VALUE
     var minY = Float.MAX_VALUE
     var maxX = -Float.MAX_VALUE
     var maxY = -Float.MAX_VALUE
-    for ((_, pos) in layout) {
-        minX = kotlin.math.min(minX, pos.x)
-        minY = kotlin.math.min(minY, pos.y)
-        maxX = kotlin.math.max(maxX, pos.x)
-        maxY = kotlin.math.max(maxY, pos.y)
+    for (node in nodes) {
+        val pos = layout[node.id] ?: continue
+        val c = centrality[node.id]?.coerceIn(0f, 1f) ?: 0f
+        val radius = basePx + kotlin.math.sqrt(c) * extraPx
+        minX = kotlin.math.min(minX, pos.x - radius)
+        minY = kotlin.math.min(minY, pos.y - radius)
+        maxX = kotlin.math.max(maxX, pos.x + radius)
+        maxY = kotlin.math.max(maxY, pos.y + radius)
     }
     return android.graphics.RectF(minX, minY, maxX, maxY)
 }
