@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
@@ -28,6 +29,7 @@ class NoteRepository(
     private val context: Context,
     private val memoryStore: MemoryStore? = null,
     private val apiSettings: ApiSettings = ApiSettings(context),
+    private val llmClient: LlmClient = LlmClient(),
 ) {
 
     private val database = NoteDatabase.getInstance(context)
@@ -167,14 +169,20 @@ class NoteRepository(
 
     /** 创建或更新笔记（自动计算字数和摘要，触发知识图谱关联，同步笔记记忆） */
     suspend fun saveNote(note: Note): Long {
-        val id = dao.insertOrUpdate(note)
+        val noteToSave = if (note.title.isBlank() && note.content.isNotBlank()) {
+            val generated = NoteTitleGenerator.generate(note.content, apiSettings, llmClient)
+            note.copy(title = generated)
+        } else {
+            note
+        }
+        val id = dao.insertOrUpdate(noteToSave)
         _changeTrigger.value = System.currentTimeMillis()
         val content = buildString {
-            if (note.title.isNotBlank()) append(note.title).append(" ")
-            append(note.content)
+            if (noteToSave.title.isNotBlank()) append(noteToSave.title).append(" ")
+            append(noteToSave.content)
         }
         GraphLinkWorker.enqueue(context, id, content)
-        syncNoteMemory(id, note)
+        syncNoteMemory(id, noteToSave)
         return id
     }
 
