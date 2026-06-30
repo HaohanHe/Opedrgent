@@ -101,6 +101,7 @@ object GraphAlgorithms {
         iterations: Int = 30,
     ): Map<String, Float> {
         if (nodes.isEmpty()) return emptyMap()
+        if (edges.isEmpty()) return nodes.associateWith { 0f }
         val nodeSet = nodes.toSet()
 
         val outNeighbors = mutableMapOf<String, MutableList<Pair<String, Float>>>()

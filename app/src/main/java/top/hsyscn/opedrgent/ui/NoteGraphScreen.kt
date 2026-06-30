@@ -28,8 +28,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -167,6 +171,21 @@ fun NoteGraphScreen(
         } else {
             highlightNoteIds = emptySet()
         }
+    }
+
+    // 监听后台建边 Worker：当从“运行/排队”变为全部完成时，自动刷新图谱
+    val context = LocalContext.current
+    val workManager = remember { WorkManager.getInstance(context) }
+    val workInfos by workManager.getWorkInfosByTagLiveData("graph_link").observeAsState(initial = emptyList())
+    var hadRunningWork by remember { mutableStateOf(false) }
+    LaunchedEffect(workInfos) {
+        val hasRunning = workInfos.any {
+            it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
+        }
+        if (hadRunningWork && !hasRunning) {
+            refreshTrigger++
+        }
+        hadRunningWork = hasRunning
     }
 
     // 缩放和平移状态（使用动画实现双击聚焦）
