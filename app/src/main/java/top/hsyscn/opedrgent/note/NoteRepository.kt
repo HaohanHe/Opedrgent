@@ -306,7 +306,8 @@ class NoteRepository(
 
     /** 启动时一致性校验：检测 v1 格式或数据损坏，自动重建 */
     suspend fun checkAndRebuildGraphIfNeeded() {
-        if (knowledgeGraph.needsRebuild()) {
+        val noteCount = dao.countAll()
+        if (knowledgeGraph.needsRebuild(noteCount)) {
             DebugLog.w("NoteRepository", "知识图谱需要重建（v1格式或数据损坏），开始自动重建...")
             rebuildKnowledgeGraph()
         }
