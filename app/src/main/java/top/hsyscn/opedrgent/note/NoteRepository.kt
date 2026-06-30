@@ -169,9 +169,9 @@ class NoteRepository(
 
     /** 创建或更新笔记（自动计算字数和摘要，触发知识图谱关联，同步笔记记忆） */
     suspend fun saveNote(note: Note): Long {
-        val noteToSave = if (note.title.isBlank() && note.content.isNotBlank()) {
-            val generated = NoteTitleGenerator.generate(note.content, apiSettings, llmClient)
-            note.copy(title = generated)
+        // 关闭自动标题生成时，为空标题笔记保留旧的截取兜底行为
+        val noteToSave = if (!apiSettings.isAutoGenerateNoteTitle() && note.title.isBlank() && note.content.isNotBlank()) {
+            note.copy(title = note.content.take(30).replace("\n", " "))
         } else {
             note
         }
@@ -184,6 +184,36 @@ class NoteRepository(
         GraphLinkWorker.enqueue(context, id, content)
         syncNoteMemory(id, noteToSave)
         return id
+    }
+
+    /**
+     * 在合适的时机为笔记生成 LLM 标题（仅一次）。
+     *
+     * 触发条件：开关开启、标题为空、内容长度 ≥20 字。
+     * 生成成功后会更新数据库并通知观察者。
+     *
+     * @return 是否实际生成了标题
+     */
+    suspend fun finalizeTitle(noteId: Long): Boolean {
+        if (!apiSettings.isAutoGenerateNoteTitle()) return false
+        val note = dao.getById(noteId) ?: return false
+        if (note.title.isNotBlank()) return false
+        val text = note.content
+        if (text.length < NoteTitleGenerator.MIN_CONTENT_LENGTH_FOR_LLM_TITLE) return false
+
+        return try {
+            val generated = NoteTitleGenerator.generate(text, apiSettings, llmClient)
+            if (generated.isNotBlank()) {
+                dao.insertOrUpdate(note.copy(title = generated))
+                _changeTrigger.value = System.currentTimeMillis()
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            DebugLog.w("NoteRepository", "finalizeTitle failed: ${e.message}")
+            false
+        }
     }
 
     /**
@@ -229,14 +259,17 @@ class NoteRepository(
 
     /** 从会议转录创建笔记 */
     suspend fun saveFromMeeting(content: String, audioPath: String?): Long {
-        val ts = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date())
+        // 标题留空，让 finalizeTitle 在内容足够时生成 LLM 标题；
+        // 若开关关闭或生成失败，saveNote 会回退到旧的截取兜底
         val note = Note(
-            title = "会议记录 $ts",
+            title = "",
             content = content,
             type = NoteType.MEETING,
             sourceUri = audioPath,
         )
-        return saveNote(note)
+        val id = saveNote(note)
+        finalizeTitle(id)
+        return id
     }
 
     /** 软删除 */

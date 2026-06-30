@@ -272,6 +272,8 @@
     <string name="settings_notes_management">笔记管理</string>
     <string name="settings_my_notes">我的笔记</string>
     <string name="settings_notes_desc">支持文本/语音/图片/链接/PDF笔记，带标签分类</string>
+    <string name="settings_auto_title">自动 LLM 生成标题</string>
+    <string name="settings_auto_title_desc">退出编辑或完成录音时，由 LLM 为无标题笔记生成简短标题（内容需超过20字）</string>
     <string name="settings_voiceprint_section">声纹识别</string>
     <string name="settings_voiceprint_desc">注册说话人声纹，会议录音自动识别发言人</string>
     <string name="settings_stt_label">语音转文字</string>
