@@ -118,6 +118,12 @@ class ApiSettings(private val context: Context) {
     fun isDeepThinking(): Boolean = prefs.getBoolean("deepThinking", true)
     fun isProviderWebSearchEnabled(): Boolean = prefs.getBoolean("providerWebSearchEnabled", true)
 
+    /** 笔记自动 LLM 生成标题：默认开启 */
+    fun isAutoGenerateNoteTitle(): Boolean = prefs.getBoolean("autoGenerateNoteTitle", true)
+    fun saveAutoGenerateNoteTitle(enabled: Boolean) {
+        prefs.edit().putBoolean("autoGenerateNoteTitle", enabled).apply()
+    }
+
     /** 联网查询总开关：关闭后所有网络搜索功能禁用 */
     fun isWebSearchEnabled(): Boolean = prefs.getBoolean("webSearchEnabled", true)
 

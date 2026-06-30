@@ -192,6 +192,7 @@ fun SettingsScreen(
     var webSearchEnabled by rememberSaveable { mutableStateOf(vm.isWebSearchEnabled()) }
     var webSearchSource by rememberSaveable { mutableStateOf(vm.getWebSearchSource()) }
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
+    var autoGenerateNoteTitle by rememberSaveable { mutableStateOf(vm.isAutoGenerateNoteTitle()) }
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
     var tavilyApiKey by rememberSaveable { mutableStateOf(vm.getTavilyApiKey() ?: "") }
     var braveApiKey by rememberSaveable { mutableStateOf(vm.getBraveApiKey() ?: "") }
@@ -1251,6 +1252,15 @@ fun SettingsScreen(
                     icon = Icons.Default.Psychology,
                     iconTint = InterviewPurple,
                     onClick = toHippocampus,
+                )
+                SettingSwitchRow(
+                    title = stringResource(R.string.settings_auto_title),
+                    subtitle = stringResource(R.string.settings_auto_title_desc),
+                    checked = autoGenerateNoteTitle,
+                    onCheckedChange = {
+                        autoGenerateNoteTitle = it
+                        vm.saveAutoGenerateNoteTitle(it)
+                    },
                     showDivider = false,
                 )
             }

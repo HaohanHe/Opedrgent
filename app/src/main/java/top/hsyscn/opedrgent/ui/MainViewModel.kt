@@ -1755,6 +1755,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         type: NoteType = NoteType.TEXT,
         sourceUri: String? = null,
         originalContent: String? = null,
+        autoFinalizeTitle: Boolean = false,
     ): Long {
         val note = Note(
             title = title,
@@ -1774,6 +1775,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             wordCount = content.length,
         )
         val id = noteRepository.saveNote(note)
+        if (autoFinalizeTitle) {
+            noteRepository.finalizeTitle(id)
+        }
         hippocampus?.upsertNote(id, note.title, note.content)
         return id
     }
@@ -4110,6 +4114,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
     fun isDebugMode(): Boolean = apiSettings.isDebugMode()
     fun isDeepThinking(): Boolean = apiSettings.isDeepThinking()
+    fun isAutoGenerateNoteTitle(): Boolean = apiSettings.isAutoGenerateNoteTitle()
+    fun saveAutoGenerateNoteTitle(enabled: Boolean) { apiSettings.saveAutoGenerateNoteTitle(enabled) }
     fun isWebSearchEnabled(): Boolean = apiSettings.isWebSearchEnabled()
     fun getWebSearchSource(): String = apiSettings.getWebSearchSource()
     fun saveWebSearchEnabled(enabled: Boolean) { apiSettings.saveWebSearchEnabled(enabled) }

@@ -135,13 +135,13 @@ fun NoteEditorScreen(
     var lastSavedContentSnapshot by remember { mutableStateOf(initialContent) }
     var showUnsavedDialog by remember { mutableStateOf(false) }
 
-    suspend fun save(showGraphInfo: Boolean = false) {
-        if (isSaving) return
+    suspend fun save(showGraphInfo: Boolean = false): Long {
+        if (isSaving) return -1
         isSaving = true
-        try {
+        return try {
             val note = Note(
                 id = noteId ?: 0,
-                title = title.ifBlank { content.text.take(30).replace("\n", " ") },
+                title = title, // 保持用户输入（含空），由 Repository 决定是否兜底
                 content = content.text,
                 type = noteType,
                 wordCount = content.text.length,
@@ -172,9 +172,19 @@ fun NoteEditorScreen(
                     duration = SnackbarDuration.Short
                 )
             }
+            id
         } finally {
             isSaving = false
         }
+    }
+
+    /** 保存并退出：退出编辑页时才触发一次 LLM 标题生成 */
+    suspend fun saveAndExit() {
+        val id = save()
+        if (id > 0) {
+            repository.finalizeTitle(id)
+        }
+        onBack()
     }
 
     fun addTag() {
@@ -1048,8 +1058,7 @@ fun NoteEditorScreen(
                             if (hasUnsavedChanges) {
                                 showUnsavedDialog = true
                             } else {
-                                scope.launch { save() }
-                                onBack()
+                                scope.launch { saveAndExit() }
                             }
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back)) }
                     },
@@ -1447,10 +1456,7 @@ fun NoteEditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showUnsavedDialog = false
-                    scope.launch {
-                        save(showGraphInfo = true)
-                        onBack()
-                    }
+                    scope.launch { saveAndExit() }
                 }) { Text(stringResource(R.string.note_editor_save_leave), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.customColors.accentBlue) }
             },
             dismissButton = {
