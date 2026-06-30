@@ -301,7 +301,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val speakerEmbeddingExtractor by lazy { top.hsyscn.opedrgent.stt.SpeakerEmbeddingExtractor(app) }
     private val tts by lazy { TtsPlayer(app, apiSettings) }
     private val automationStore = AutomationStore(app)
-    val noteRepository = NoteRepository(app, memoryStore, apiSettings)
+    val noteRepository = NoteRepository(app, memoryStore, apiSettings, llm)
     val folderRepository = FolderRepository(app)
     private val noteDao = NoteDao(NoteDatabase.getInstance(app))
     private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings, noteRepository)
