@@ -39,6 +39,23 @@ class KnowledgeGraph(
 
     private fun isLocalProvider(): Boolean = provider.providerName().startsWith("local")
 
+    /**
+     * 对敏感实体名称进行掩码。
+     *
+     * - PERSON / LOCATION / ORGANIZATION：保留首字，其余替换为 *
+     * - TIME / CONCEPT 等其他类型：不掩码
+     */
+    private fun maskSensitiveEntity(name: String, type: LocalEntityExtractor.EntityType): String {
+        return when (type) {
+            LocalEntityExtractor.EntityType.PERSON,
+            LocalEntityExtractor.EntityType.LOCATION,
+            LocalEntityExtractor.EntityType.ORGANIZATION -> {
+                if (name.length <= 1) name else "${name.first()}${"*".repeat(name.length - 1)}"
+            }
+            else -> name
+        }
+    }
+
     init {
         try {
             KnowledgeGraphMigrator.migrateIfNeeded(context, store)
@@ -140,13 +157,25 @@ class KnowledgeGraph(
                 sharedEntities.isNotEmpty() -> {
                     relationType = REL_SHARED_ENTITY
                     weight = max(similarity, 0.9f)
-                    reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
+                    val entityTypes = entities.associate { it.name to it.type }
+                    reason = "共同实体：" + sharedEntities.take(3).map { name ->
+                        val type = entityTypes[name]
+                            ?: store.getEntityByName(name)?.entityType?.let {
+                                LocalEntityExtractor.EntityType.valueOf(it)
+                            }
+                            ?: LocalEntityExtractor.EntityType.CONCEPT
+                        maskSensitiveEntity(name, type)
+                    }.joinToString("、")
                 }
 
                 sharedKeywords.size >= 2 -> {
                     relationType = REL_SHARED_KEYWORD
                     weight = max(similarity, 0.8f)
-                    reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
+                    val entityTypes = entities.associate { it.name to it.type }
+                    reason = "共同关键词：" + sharedKeywords.take(3).map { name ->
+                        val type = entityTypes[name]
+                        if (type != null) maskSensitiveEntity(name, type) else name
+                    }.joinToString("、")
                 }
 
                 similarity >= threshold -> {
@@ -297,6 +326,7 @@ class KnowledgeGraph(
             val entityRelations = mutableListOf<GraphNodeEntityRelation>()
             val noteKeywords = mutableMapOf<String, Set<String>>()
             val noteEntities = mutableMapOf<String, Set<String>>()
+            val noteEntityTypes = mutableMapOf<String, Map<String, LocalEntityExtractor.EntityType>>()
 
             for ((noteId, content) in notes) {
                 if (content.isBlank()) continue
@@ -307,6 +337,7 @@ class KnowledgeGraph(
                 val keywordSet = keywords.toSet()
                 noteKeywords[noteId] = keywordSet
                 noteEntities[noteId] = entities.map { it.name }.toSet()
+                noteEntityTypes[noteId] = entities.associate { it.name to it.type }
 
                 nodes.add(
                     GraphNodeEntity(
@@ -394,13 +425,22 @@ class KnowledgeGraph(
                         sharedEntities.isNotEmpty() -> {
                             relationType = REL_SHARED_ENTITY
                             weight = max(similarity, 0.9f)
-                            reason = "共同实体：" + sharedEntities.take(3).joinToString("、")
+                            reason = "共同实体：" + sharedEntities.take(3).map { name ->
+                                val type = noteEntityTypes[aId]?.get(name)
+                                    ?: noteEntityTypes[bId]?.get(name)
+                                    ?: LocalEntityExtractor.EntityType.CONCEPT
+                                maskSensitiveEntity(name, type)
+                            }.joinToString("、")
                         }
 
                         sharedKeywords.size >= 2 -> {
                             relationType = REL_SHARED_KEYWORD
                             weight = max(similarity, 0.8f)
-                            reason = "共同关键词：" + sharedKeywords.take(3).joinToString("、")
+                            reason = "共同关键词：" + sharedKeywords.take(3).map { name ->
+                                val type = noteEntityTypes[aId]?.get(name)
+                                    ?: noteEntityTypes[bId]?.get(name)
+                                if (type != null) maskSensitiveEntity(name, type) else name
+                            }.joinToString("、")
                         }
 
                         similarity >= threshold -> {

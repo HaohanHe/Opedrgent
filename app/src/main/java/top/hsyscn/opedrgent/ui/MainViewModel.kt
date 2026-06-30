@@ -304,7 +304,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val noteRepository = NoteRepository(app, memoryStore, apiSettings)
     val folderRepository = FolderRepository(app)
     private val noteDao = NoteDao(NoteDatabase.getInstance(app))
-    private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings)
+    private val aiSearchEngine = AiSearchEngine(noteDao, llm, apiSettings, noteRepository)
     private val knowledgeBase by lazy { top.hsyscn.opedrgent.storage.KnowledgeBase(app) }
     /** 知识库增量同步管理器 — 监控源文件变更 + 云端向量存储同步 */
     val kbSyncManager by lazy { top.hsyscn.opedrgent.storage.KbSyncManager(knowledgeBase) }

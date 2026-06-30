@@ -77,4 +77,47 @@ class GraphAlgorithmsTest {
         assertTrue("Expected positive rank for B", rankB > 0f)
         assertEquals(rankA, rankB, 1e-5f)
     }
+
+    @Test
+    fun `detectCommunities puts triangle into one community`() {
+        val edges = listOf(
+            GraphEdge("A", "B"),
+            GraphEdge("B", "C"),
+            GraphEdge("C", "A"),
+        )
+        val communities = GraphAlgorithms.detectCommunities(edges)
+        assertEquals(3, communities.size)
+        assertEquals(communities["A"], communities["B"])
+        assertEquals(communities["B"], communities["C"])
+    }
+
+    @Test
+    fun `detectCommunities separates two disconnected edges into two communities`() {
+        val edges = listOf(
+            GraphEdge("A", "B"),
+            GraphEdge("C", "D"),
+        )
+        val communities = GraphAlgorithms.detectCommunities(edges)
+        assertEquals(4, communities.size)
+        assertEquals(communities["A"], communities["B"])
+        assertEquals(communities["C"], communities["D"])
+        assertNotEquals(
+            "Disconnected edges should belong to different communities",
+            communities["A"],
+            communities["C"],
+        )
+    }
+
+    @Test
+    fun `pageRank values are positive and normalized`() {
+        val nodes = listOf("A", "B")
+        val edges = listOf(GraphEdge("A", "B"))
+        val ranks = GraphAlgorithms.pageRank(nodes, edges)
+        assertEquals(2, ranks.size)
+        for ((_, value) in ranks) {
+            assertTrue("Rank should be positive", value > 0f)
+            assertTrue("Rank should be normalized to <= 1", value <= 1f)
+        }
+        assertEquals(ranks.values.maxOrNull() ?: 0f, 1f, 1e-6f)
+    }
 }
