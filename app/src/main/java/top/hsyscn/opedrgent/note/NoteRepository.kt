@@ -58,10 +58,15 @@ class NoteRepository(
     /** 获取所有笔记（一次性，用于同步） */
     suspend fun getAllNotesOnce(): List<Note> = dao.getAllNotes()
 
-    /** 从同步更新笔记（不触发知识图谱/记忆同步） */
+    /** 从同步更新笔记（触发知识图谱建边，但不触发记忆同步） */
     suspend fun updateFromSync(note: Note) {
-        dao.insertOrUpdate(note)
+        val id = dao.insertOrUpdate(note)
         _changeTrigger.value = System.currentTimeMillis()
+        val content = buildString {
+            if (note.title.isNotBlank()) append(note.title).append(" ")
+            append(note.content)
+        }
+        GraphLinkWorker.enqueue(context, id, content)
     }
 
     /** 按类型筛选 */
