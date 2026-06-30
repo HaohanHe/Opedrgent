@@ -39,6 +39,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,6 +55,7 @@ import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.graphLabel
 
 /** 视图模式 */
 private enum class GraphViewMode(@StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -187,17 +189,25 @@ fun NoteGraphScreen(
         hadRunningWork = hasRunning
     }
 
-    // 缩放和平移状态（使用动画实现双击聚焦）
-    var targetScale by remember { mutableFloatStateOf(1f) }
-    var targetOffset by remember { mutableStateOf(Offset.Zero) }
+    // 缩放和平移状态（Animatable 直接驱动，避免 target/animated 双轨竞争）
     val animatedScale = remember { Animatable(1f) }
     val animatedOffsetX = remember { Animatable(0f) }
     val animatedOffsetY = remember { Animatable(0f) }
 
-    LaunchedEffect(targetScale, targetOffset) {
-        launch { animatedScale.animateTo(targetScale, tween(300)) }
-        launch { animatedOffsetX.animateTo(targetOffset.x, tween(300)) }
-        launch { animatedOffsetY.animateTo(targetOffset.y, tween(300)) }
+    suspend fun animateGraph(scale: Float, offset: Offset) {
+        coroutineScope {
+            launch { animatedScale.animateTo(scale, tween(300)) }
+            launch { animatedOffsetX.animateTo(offset.x, tween(300)) }
+            launch { animatedOffsetY.animateTo(offset.y, tween(300)) }
+        }
+    }
+
+    suspend fun snapGraph(scale: Float, offset: Offset) {
+        coroutineScope {
+            launch { animatedScale.snapTo(scale) }
+            launch { animatedOffsetX.snapTo(offset.x) }
+            launch { animatedOffsetY.snapTo(offset.y) }
+        }
     }
 
     val currentScale = animatedScale.value
@@ -347,13 +357,7 @@ fun NoteGraphScreen(
                                         val oldOffset = Offset(animatedOffsetX.value, animatedOffsetY.value)
                                         // 以手势中心点为中心缩放：保持 centroid 在屏幕上的位置不变
                                         val newOffset = centroid - (centroid - oldOffset) * (newScale / oldScale) + pan
-                                        scope.launch {
-                                            animatedScale.snapTo(newScale)
-                                            animatedOffsetX.snapTo(newOffset.x)
-                                            animatedOffsetY.snapTo(newOffset.y)
-                                        }
-                                        targetScale = newScale
-                                        targetOffset = newOffset
+                                        scope.launch { snapGraph(newScale, newOffset) }
                                     }
                                 },
                         ) {
@@ -371,11 +375,11 @@ fun NoteGraphScreen(
                                     val scaleX = canvasWidth / contentWidth
                                     val scaleY = canvasHeight / contentHeight
                                     val fitScale = kotlin.math.min(scaleX, scaleY).coerceIn(0.3f, 1.2f)
-                                    targetScale = fitScale
-                                    targetOffset = Offset(
+                                    val fitOffset = Offset(
                                         -bounds.centerX() * fitScale,
                                         -bounds.centerY() * fitScale,
                                     )
+                                    animateGraph(fitScale, fitOffset)
                                     initialFitDone = true
                                 }
                             }
@@ -398,15 +402,13 @@ fun NoteGraphScreen(
                                 onEdgeClick = { detail -> selectedEdgeDetail = detail },
                                 onFocusNode = { node ->
                                     val pos = positions[node.id] ?: return@GraphCanvas
-                                    targetScale = 2.5f.coerceIn(0.2f, 4f)
-                                    targetOffset = Offset(
-                                        -pos.x * targetScale,
-                                        -pos.y * targetScale,
-                                    )
+                                    val focusScale = 2.5f.coerceIn(0.2f, 4f)
+                                    scope.launch {
+                                        animateGraph(focusScale, Offset(-pos.x * focusScale, -pos.y * focusScale))
+                                    }
                                 },
                                 onResetView = {
-                                    targetScale = 1f
-                                    targetOffset = Offset.Zero
+                                    scope.launch { animateGraph(1f, Offset.Zero) }
                                 },
                             )
 
@@ -590,7 +592,7 @@ private fun GraphCanvas(
     val outlineColor = MaterialTheme.colorScheme.outline
     val surfaceColor = MaterialTheme.colorScheme.surface
     val labelColor = MaterialTheme.colorScheme.onSurface
-    val labelStyle = MaterialTheme.typography.labelSmall
+    val labelStyle = MaterialTheme.typography.graphLabel
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
@@ -628,20 +630,17 @@ private fun GraphCanvas(
         }
     }
 
-    // 标签文本测量缓存：按缩放档位 bucket，避免每帧重测
-    val scaleBucket = (scale * 20).toInt() / 20f
-    val labelLayouts = remember(sortedNodes, scaleBucket, labelStyle) {
-        val fontScale = scale.coerceAtLeast(0.6f)
-        val style = labelStyle.copy(fontSize = labelStyle.fontSize * fontScale)
+    // 标签文本测量缓存：标签固定屏幕大小，不按图谱缩放比例放大
+    val labelLayouts = remember(sortedNodes, labelStyle) {
         sortedNodes.associate { node ->
             val maxChars = when {
-                scale > 1.5f -> 16
-                scale > 0.9f -> 12
-                else -> 8
+                scale > 1.5f -> 10
+                scale > 0.9f -> 7
+                else -> 5
             }
             val raw = node.label.take(maxChars)
             val displayLabel = if (node.label.length > maxChars) "$raw…" else raw
-            node.id to textMeasurer.measure(AnnotatedString(displayLabel), style)
+            node.id to textMeasurer.measure(AnnotatedString(displayLabel), labelStyle)
         }
     }
 
@@ -836,7 +835,7 @@ private fun GraphCanvas(
                 size = androidx.compose.ui.geometry.Size(rect.width(), rect.height()),
             )
 
-            labelPaint.textSize = labelStyle.fontSize.toPx() * scale.coerceAtLeast(0.6f)
+            labelPaint.textSize = labelStyle.fontSize.toPx()
             labelPaint.color = (if (isHighlighted) accentBlue else labelColor).toArgb()
             drawContext.canvas.nativeCanvas.drawText(
                 textLayout.layoutInput.text.text,
