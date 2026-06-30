@@ -114,3 +114,7 @@ val Typography = Typography(
         letterSpacing = 0.sp
     ),
 )
+
+/** 图谱节点标签：比 labelSmall 更小，避免覆盖节点。 */
+val Typography.graphLabel: TextStyle
+    get() = labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp)
