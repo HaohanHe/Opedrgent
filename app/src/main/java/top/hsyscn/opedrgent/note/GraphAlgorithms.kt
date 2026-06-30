@@ -37,7 +37,6 @@ object GraphAlgorithms {
 
         repeat(maxIterations) {
             var changed = false
-            val next = communities.toMutableMap()
             for (node in nodeIds) {
                 val neighbors = adjacency[node] ?: continue
                 val scores = mutableMapOf<Int, Double>()
@@ -50,12 +49,11 @@ object GraphAlgorithms {
                 val bestCommunity = scores.maxWithOrNull(
                     compareBy<Map.Entry<Int, Double>> { it.value }.thenBy { it.key },
                 )?.key ?: continue
-                if (next[node] != bestCommunity) {
-                    next[node] = bestCommunity
+                if (communities[node] != bestCommunity) {
+                    communities[node] = bestCommunity
                     changed = true
                 }
             }
-            communities = next
             if (!changed) return@repeat
         }
 
