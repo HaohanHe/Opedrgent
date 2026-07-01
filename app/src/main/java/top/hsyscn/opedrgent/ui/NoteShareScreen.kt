@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -89,7 +91,7 @@ fun NoteShareScreen(
                 title = { Text(stringResource(R.string.title_share_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -352,7 +354,7 @@ data class ShareFormat(
 
 // 以下颜色为第三方平台品牌色（微信/朋友圈绿、小红书红等），按平台官方规范硬编码，不参与主题切换
 val sharePlatforms = listOf(
-    SharePlatform("微信", Icons.Default.Chat, Color(0xFF07C160), "wechat"),
+    SharePlatform("微信", Icons.AutoMirrored.Filled.Chat, Color(0xFF07C160), "wechat"),
     SharePlatform("朋友圈", Icons.Default.Public, Color(0xFF07C160), "moments"),
     SharePlatform("小红书", Icons.Default.Image, Color(0xFFFF2442), "xiaohongshu"),
     SharePlatform("复制链接", Icons.Default.Link, AccentBlue, "copy_link"),
