@@ -48,6 +48,7 @@ fun NoteActionBottomSheet(
     onSendToChat: () -> Unit,
 ) {
     val context = LocalContext.current
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val feedback = LocalFeedbackController.current
@@ -198,7 +199,7 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text("添加到知识库") },
                     leadingContent = {
-                        Icon(Icons.Default.LibraryBooks, "添加到知识库", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, "添加到知识库", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddToKnowledgeBase() },
                 )
