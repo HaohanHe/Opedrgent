@@ -244,14 +244,11 @@ class EditorTeamService(
             PlanStep(
                 index = idx,
                 role = role,
-                instruction = when (role) {
-                    is RoleInstance.Preset -> when (role.role) {
-                        EditorRole.EDITOR_IN_CHIEF ->
-                            "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}" +
-                                    if (styleReference.isNotEmpty()) "\n\n风格参考：$styleReference" else ""
-                        else -> ""
-                    }
-                    is RoleInstance.Dynamic -> ""
+                instruction = when (role.role) {
+                    EditorRole.EDITOR_IN_CHIEF ->
+                        "请将文章排版为「${targetPlatform.displayName}」格式。${targetPlatform.formatHint}" +
+                                if (styleReference.isNotEmpty()) "\n\n风格参考：$styleReference" else ""
+                    else -> ""
                 },
                 dependsOnPrevious = true,
             )
@@ -578,7 +575,7 @@ $historySection$finalHint"""
             
             // 检查步骤级条件
             if (step.condition != null) {
-                val shouldExecute = evaluateCondition(step.condition!!, conditionEvaluator)
+                val shouldExecute = evaluateCondition(step.condition, conditionEvaluator)
                 if (!shouldExecute) {
                     DebugLog.i("EditorTeamService: step $index skipped (condition: ${step.condition.expression})")
                     continue

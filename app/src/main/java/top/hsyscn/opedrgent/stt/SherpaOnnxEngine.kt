@@ -749,7 +749,7 @@ class SherpaOnnxEngine(
             stream.acceptWaveform(samples, TARGET_SAMPLE_RATE)
             recognizer.decode(stream)
             val result = recognizer.getResult(stream)
-            result.text ?: ""
+            result.text
         } catch (e: OutOfMemoryError) {
             DebugLog.e(TAG, "解码段时内存不足: ${e.message}")
             ""

@@ -54,8 +54,8 @@ object MapTileFetcher {
             DebugLog.i("MapTileFetcher: fetching map at $lat, $lon zoom=$zoom ${widthTiles}x${heightTiles} tiles")
 
             val (centerTileX, centerTileY) = latLonToTile(lat, lon, zoom)
-            val offsetX = ((lonToX(lon, zoom) - centerTileX) * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE)
-            val offsetY = ((latToY(lat, zoom) - centerTileY) * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE)
+            val offsetX = ((lonToX(lon, zoom) - centerTileX) * TILE_SIZE).coerceIn(0, TILE_SIZE)
+            val offsetY = ((latToY(lat, zoom) - centerTileY) * TILE_SIZE).coerceIn(0, TILE_SIZE)
 
             val startX = centerTileX - widthTiles / 2
             val startY = centerTileY - heightTiles / 2

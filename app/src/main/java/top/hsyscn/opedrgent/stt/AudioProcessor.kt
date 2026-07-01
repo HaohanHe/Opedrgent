@@ -1078,7 +1078,7 @@ object AudioProcessor {
             val absVal = kotlin.math.abs(input[i])
             if (absVal < noiseThreshold) {
                 // 低能量区域：软衰减（不是硬切除，避免引入截断噪声）
-                val attenuation = ((absVal.toDouble() / noiseThreshold.toDouble()).toFloat()).coerceIn(0f, 1f)
+                val attenuation = ((absVal.toDouble() / noiseThreshold).toFloat()).coerceIn(0f, 1f)
                 output[i] = input[i] * attenuation * attenuation  // 二次衰减更平滑
             } else {
                 output[i] = input[i]

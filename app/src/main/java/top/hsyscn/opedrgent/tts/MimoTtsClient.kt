@@ -162,7 +162,7 @@ object MimoTtsClient {
                 ?.optJSONObject(0)
                 ?.optJSONObject("message")
 
-            val audioData = messageObj?.optJSONObject("audio")?.optString("data", null)?.trim()
+            val audioData = messageObj?.optJSONObject("audio")?.optString("data", "")?.trim()
 
             if (audioData.isNullOrBlank()) {
                 DebugLog.e("MimoTts: no audio data in response")

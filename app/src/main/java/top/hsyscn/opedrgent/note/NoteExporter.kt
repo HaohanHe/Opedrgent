@@ -53,8 +53,6 @@ fun exportNoteToFile(note: Note, format: ExportFormat, context: Context): File {
             appendLine()
             appendLine(note.content)
         }
-
-        else -> ""
     }
 
     file.writeText(content)

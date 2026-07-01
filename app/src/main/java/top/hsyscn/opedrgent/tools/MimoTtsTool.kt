@@ -47,7 +47,7 @@ class MimoTtsTool(
             return emptyResult(tp, "mimo_tts: 未配置API Key（MiMo与主模型共用同一Key）")
         }
 
-        val voiceId = tp.state.input["voice"]?.trim() ?: apiSettings.getTtsMimoVoice() ?: "冰糖"
+        val voiceId = tp.state.input["voice"]?.trim() ?: apiSettings.getTtsMimoVoice()
         val rawModelId = tp.state.input["model"]?.trim() ?: "mimo-v2.5-tts"
         val modelId = when {
             rawModelId.contains("voiceclone") -> "mimo-v2.5-tts-voiceclone"
