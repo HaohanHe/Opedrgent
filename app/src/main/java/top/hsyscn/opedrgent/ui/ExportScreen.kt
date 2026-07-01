@@ -28,13 +28,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Html
 import androidx.compose.material.icons.filled.IosShare
-import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -93,7 +93,7 @@ fun ExportScreen(
                 title = { Text(stringResource(R.string.title_export), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -133,7 +133,7 @@ fun ExportScreen(
             )
 
             ExportOptionCard(
-                icon = Icons.Default.TextSnippet,
+                icon = Icons.AutoMirrored.Filled.TextSnippet,
                 title = "导出纯文本",
                 description = "仅导出用户和 AI 的对话内容",
                 onClick = {

@@ -42,8 +42,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Create
@@ -56,9 +56,9 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -268,7 +268,7 @@ fun KnowledgeBaseScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = themeForeground())
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = themeForeground())
                     }
                 },
                 actions = {
@@ -313,7 +313,7 @@ fun KnowledgeBaseScreen(
                     }
                     if (selectedKbId != null) {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "排序", tint = themeForegroundMuted())
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序", tint = themeForegroundMuted())
                         }
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             SortBy.entries.forEach { sort ->
@@ -749,7 +749,7 @@ private fun KbCard(
                         modifier = Modifier.size(32.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -928,7 +928,7 @@ private fun DocumentListView(
             EmptyStateView(
                 icon = {
                     Icon(
-                        Icons.Default.Article,
+                        Icons.AutoMirrored.Filled.Article,
                         contentDescription = null,
                         tint = themeForegroundMuted().copy(alpha = 0.4f),
                         modifier = Modifier.size(64.dp),
@@ -966,7 +966,7 @@ private fun DocumentCard(
         "pdf" -> Icons.Default.PictureAsPdf
         "jpg", "jpeg", "png", "bmp", "webp" -> Icons.Default.Image
         "docx", "doc" -> Icons.Default.Description
-        else -> Icons.Default.TextSnippet
+        else -> Icons.AutoMirrored.Filled.TextSnippet
     }
 
     val iconTint = when (document.fileType) {

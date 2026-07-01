@@ -43,7 +43,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CameraAlt
@@ -251,7 +251,7 @@ fun SessionScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { vm.closeSession(); onBack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = themeTextDark())
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = themeTextDark())
             }
             Text(
                 text = session?.title ?: "Opedrgent",
