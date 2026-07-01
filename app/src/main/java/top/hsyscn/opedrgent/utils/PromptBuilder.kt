@@ -63,7 +63,7 @@ object PromptBuilder {
         val layers = mutableListOf<String?>()
 
         val resolvedModel = modelInfo ?: ModelInfo(
-            modelId = apiSettings.getModel() ?: "unknown",
+            modelId = apiSettings.getModel(),
             provider = inferProviderFromUrl(apiSettings.getBaseUrl())
         )
 
@@ -436,7 +436,7 @@ ${buildToolDetails()}
         val memory = memoryStore?.getMemoryBlock()?.trim().orEmpty().ifBlank { apiSettings.getMemory() }
 
         // 弹性截断：根据模型上下文窗口按比例计算
-        val maxTokens = ModelLimits.inferMaxContextTokens(apiSettings.getModel() ?: "")
+        val maxTokens = ModelLimits.inferMaxContextTokens(apiSettings.getModel())
         val memMaxChars = ModelLimits.memoryMaxChars(maxTokens)
         val noteMaxChars = ModelLimits.noteMemoryMaxChars(maxTokens)
         val convMaxChars = ModelLimits.conversationMemoryMaxChars(maxTokens)

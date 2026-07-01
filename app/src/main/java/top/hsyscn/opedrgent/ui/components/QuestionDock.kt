@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -313,7 +313,7 @@ fun QuestionDock(
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     } else {
-                                        Icon(Icons.Default.Send, contentDescription = "提交", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "提交", modifier = Modifier.size(16.dp))
                                     }
                                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                     Text(if (isSubmitting) "提交中..." else "确认提交")

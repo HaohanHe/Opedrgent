@@ -49,7 +49,7 @@ object ContextFileLoader {
         var depth = 0
         val maxDepth = 10
 
-        while (current != null && depth < maxDepth) {
+        while (depth < maxDepth) {
             for (name in listOf(".opedrgent.md", "OPEDRGENT.md")) {
                 val file = File(current, name)
                 if (file.exists()) {
