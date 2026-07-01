@@ -62,9 +62,9 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DeveloperBoard
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Note
+import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
@@ -325,7 +325,7 @@ fun AppRoot(
                     onClick = { selectedTab = MainTab.HOME; subScreen = null },
                 )
                 NavigationRailItem(
-                    icon = { Icon(Icons.Default.Note, contentDescription = stringResource(R.string.tab_notes)) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Note, contentDescription = stringResource(R.string.tab_notes)) },
                     label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                     selected = selectedTab == MainTab.NOTES,
                     onClick = { selectedTab = MainTab.NOTES; subScreen = null },
@@ -339,7 +339,7 @@ fun AppRoot(
                 NavigationRailItem(
                     icon = {
                         Box(modifier = Modifier.size(SpacingTokens.xl), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Chat, contentDescription = stringResource(R.string.tab_ai))
+                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = stringResource(R.string.tab_ai))
                             BadgeDot(
                                 visible = state.pendingMessageCount > 0,
                                 modifier = Modifier.align(Alignment.TopEnd).offset(x = SpacingTokens.xs, y = -SpacingTokens.xs)
@@ -379,7 +379,7 @@ fun AppRoot(
                             onClick = { selectedTab = MainTab.HOME; subScreen = null },
                         )
                         NavigationBarItem(
-                            icon = { Icon(Icons.Default.Note, contentDescription = stringResource(R.string.tab_notes)) },
+                            icon = { Icon(Icons.AutoMirrored.Filled.Note, contentDescription = stringResource(R.string.tab_notes)) },
                             label = { Text(stringResource(R.string.tab_notes), color = if (selectedTab == MainTab.NOTES) navSelectedLabelColor else navLabelColor) },
                             selected = selectedTab == MainTab.NOTES,
                             onClick = { selectedTab = MainTab.NOTES; subScreen = null },
@@ -393,7 +393,7 @@ fun AppRoot(
                         NavigationBarItem(
                             icon = {
                                 Box(modifier = Modifier.size(SpacingTokens.xl), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Chat, contentDescription = stringResource(R.string.tab_ai))
+                                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = stringResource(R.string.tab_ai))
                                     BadgeDot(
                                         visible = state.pendingMessageCount > 0,
                                         modifier = Modifier.align(Alignment.TopEnd).offset(x = SpacingTokens.xs, y = -SpacingTokens.xs)

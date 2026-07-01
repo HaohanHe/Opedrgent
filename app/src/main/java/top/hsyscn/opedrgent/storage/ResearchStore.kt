@@ -817,9 +817,6 @@ class ResearchStore(context: Context) {
                         obj.put("filePath", part.filePath)
                         obj.put("transcript", part.transcript)
                     }
-                    else -> {
-                        obj.put("type", "Unknown")
-                    }
                 }
                 put(obj)
             }

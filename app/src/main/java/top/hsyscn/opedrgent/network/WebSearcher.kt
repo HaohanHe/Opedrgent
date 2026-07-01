@@ -176,7 +176,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     val h2 = item.selectFirst("h2 a")
                     val title = h2?.text()?.trim() ?: continue
-                    var href = h2?.attr("href") ?: continue
+                    var href = h2.attr("href") ?: continue
 
                     if (title.isBlank() || href.isBlank() || href.contains("duckduckgo.com")) continue
 
@@ -315,7 +315,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     val h2 = item.selectFirst("h2")
                     val title = h2?.text()?.trim() ?: continue
-                    val link = h2?.selectFirst("a") ?: item.selectFirst("a")
+                    val link = h2.selectFirst("a") ?: item.selectFirst("a")
                     val rawHref = link?.attr("href") ?: continue
 
                     if (title.isBlank() || rawHref.isBlank()) continue
@@ -620,7 +620,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     val h3 = item.selectFirst("h3 a, h3.t > a")
                     val title = h3?.text()?.trim() ?: continue
-                    var href = h3?.attr("href") ?: continue
+                    var href = h3.attr("href") ?: continue
 
                     if (title.isBlank() || href.isBlank()) continue
                     if ((href.contains("baidu.com") || href.contains("baiducontent.com")) && !href.startsWith("http")) continue
@@ -821,7 +821,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                             out.add(SearchResult(
                                 title = StringUtils.sanitizeJsonNull(title),
                                 url = href,
-                                snippet = content?.let { StringUtils.sanitizeJsonNull(it) },
+                                snippet = content.let { StringUtils.sanitizeJsonNull(it) },
                                 sourceEngines = setOf(engine),
                                 score = score
                             ))
@@ -1361,7 +1361,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                         val titleEl = item.selectFirst("h3.serp-title, h3.organic__title, a.serp-url__title, h2 > a")
                         val title = titleEl?.text()?.trim() ?: continue
-                        var href = titleEl?.attr("href") ?: 
+                        var href = titleEl.attr("href") ?: 
                             item.selectFirst("a[href]")?.attr("href") ?: continue
 
                         if (title.isBlank() || href.isBlank()) continue
@@ -1510,7 +1510,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                         val titleEl = item.selectFirst("h3.vrTitle, h3 > a, a.vrTitle")
                         val title = titleEl?.text()?.trim() ?: continue
-                        var href = titleEl?.attr("href") ?: continue
+                        var href = titleEl.attr("href") ?: continue
 
                         if (title.isBlank() || href.isBlank()) continue
 
@@ -1618,7 +1618,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                         val titleEl = item.selectFirst("h3 > a, a.title, h3.res-title")
                         val title = titleEl?.text()?.trim() ?: continue
-                        var href = titleEl?.attr("href") ?: continue
+                        var href = titleEl.attr("href") ?: continue
 
                         if (title.isBlank() || href.isBlank()) continue
 

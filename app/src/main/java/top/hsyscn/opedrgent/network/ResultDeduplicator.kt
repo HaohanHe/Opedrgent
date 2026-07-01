@@ -36,8 +36,8 @@ class ResultDeduplicator {
             normalizedUrl = normalizeUrl(result.url),
             title = result.title,
             snippet = result.snippet,
-            sourceEngines = mutableSetOf(*(result.sourceEngines?.toTypedArray() ?: emptyArray())),
-            bestScore = result.score ?: 0.0,
+            sourceEngines = mutableSetOf(*result.sourceEngines.toTypedArray()),
+            bestScore = result.score,
             bestSnippetLength = result.snippet?.length ?: 0
         )
     }

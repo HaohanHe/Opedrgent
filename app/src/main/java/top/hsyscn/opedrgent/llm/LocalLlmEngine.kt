@@ -398,7 +398,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         try {
             val config = cachedConfig ?: return
             @Suppress("UNCHECKED_CAST")
-            conversation = (engine as? Engine)?.createConversation(config)
+            conversation = engine?.createConversation(config)
             DebugLog.i(TAG, "Conversation reset for new session")
         } catch (e: Exception) {
             DebugLog.w(TAG, "Error resetting conversation: ${e.message}")

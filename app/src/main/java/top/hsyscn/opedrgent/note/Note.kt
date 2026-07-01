@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Notes
 
 /**
  * 笔记数据模型。
@@ -389,7 +391,7 @@ data class ArticleSection(
 }
 
 fun NoteType.icon(): ImageVector = when (this) {
-    NoteType.TEXT -> Icons.Default.Notes
+    NoteType.TEXT -> Icons.AutoMirrored.Filled.Notes
     NoteType.ASR -> Icons.Default.Mic
     NoteType.MEETING -> Icons.Default.Groups
     NoteType.LINK -> Icons.Default.Link
@@ -398,7 +400,7 @@ fun NoteType.icon(): ImageVector = when (this) {
     NoteType.IMAGE -> Icons.Default.Image
     NoteType.PDF -> Icons.Default.PictureAsPdf
     NoteType.AUDIO -> Icons.Default.Headphones
-    NoteType.BOOK -> Icons.Default.MenuBook
+    NoteType.BOOK -> Icons.AutoMirrored.Filled.MenuBook
 }
 
 fun NoteType.color(): Color = when (this) {

@@ -52,7 +52,7 @@ object PdfProcessor {
                 for (bmp in bitmaps) {
                     val image = InputImage.fromBitmap(bmp, 0)
                     val result = Tasks.await(recognizer.process(image))
-                    val t = result.text?.trim().orEmpty()
+                    val t = result.text.trim().orEmpty()
                     if (t.isNotBlank()) texts.add(t)
                 }
                 texts.joinToString("\n\n")

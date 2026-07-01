@@ -342,7 +342,7 @@ class StepVisionTool(
 
     private fun resolveImage(args: JSONObject): String? {
         // 优先 base64
-        args.optString("image_base64", "")?.ifBlank { null }?.let {
+        args.optString("image_base64", "").ifBlank { null }?.let {
             if (it.length < MAX_IMAGE_SIZE_BYTES * 4 / 3) return it // base64 ≈ 4/3 原始大小
         }
         // 回退文件路径

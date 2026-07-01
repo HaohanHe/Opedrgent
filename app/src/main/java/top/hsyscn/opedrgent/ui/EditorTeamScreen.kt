@@ -36,8 +36,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.NoteAdd
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -609,7 +609,7 @@ private fun WritingWelcomeArea(
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
                         enabled = welcomeInput.isNotBlank(),
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SpacingTokens.lg))
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SpacingTokens.lg))
                         Spacer(Modifier.width(SpacingTokens.xs))
                         Text("开始讨论")
                     }
@@ -850,7 +850,7 @@ private fun FinalDraftCard(
                             onClick = onSaveToNote,
                             shape = ShapeTokens.largeShape,
                         ) {
-                            Icon(Icons.Default.NoteAdd, contentDescription = stringResource(R.string.cd_save), modifier = Modifier.size(SpacingTokens.md))
+                            Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.cd_save), modifier = Modifier.size(SpacingTokens.md))
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text("存为笔记", style = MaterialTheme.typography.labelMedium)
                         }
@@ -983,7 +983,7 @@ private fun ChatInputBar(
                         modifier = Modifier.size(42.dp),
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(18.dp))
                     }
                 }
             }

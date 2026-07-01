@@ -200,7 +200,7 @@ class SkillWebViewExecutor(private val context: Context) {
                     ?: "about:blank"
 
                 DebugLog.i("SkillWebViewExecutor: loading $htmlPath")
-                webView?.loadUrl("file:///android_asset/$htmlPath")
+                webView.loadUrl("file:///android_asset/$htmlPath")
             } catch (e: Exception) {
                 if (!completed) {
                     completed = true

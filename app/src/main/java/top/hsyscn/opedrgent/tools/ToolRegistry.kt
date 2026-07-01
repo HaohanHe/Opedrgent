@@ -116,7 +116,7 @@ class ToolRegistry {
                         param.kind == kotlin.reflect.KParameter.Kind.INSTANCE -> params[param] = target
                         param.type.isSubtypeOf(ToolPart::class.createType(nullable = false)) -> params[param] = tp
                         param.type.isSubtypeOf(ApiConfig::class.createType(nullable = false)) -> params[param] = config
-                        param.type.classifier == String::class && param.index != null && (param.index ?: 0) > 0 -> params[param] = systemPrompt
+                        param.type.classifier == String::class && param.index > 0 -> params[param] = systemPrompt
                         param.type.classifier == Boolean::class -> params[param] = useProviderSearch
                         else -> params[param] = null
                     }

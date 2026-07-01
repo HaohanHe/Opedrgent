@@ -172,7 +172,7 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
         }
 
         // 5. 兜底：body.text()
-        return doc.body()?.text()?.trim().orEmpty()
+        return doc.body().text()?.trim().orEmpty()
     }
 
     /**

@@ -387,7 +387,7 @@ class AsrManager(
 
             DebugLog.i(TAG, "尝试模型 $modelType: dir=${modelDir?.absolutePath}, 已下载=$downloaded")
 
-            if (!downloaded || modelDir == null) continue
+            if (!downloaded) continue
 
             val engine = SherpaOnnxEngine(context, SttConfig(modelType = modelType))
             if (engine.initialize(modelDir)) {

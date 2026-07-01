@@ -143,7 +143,7 @@ class StepAudioAsrEngine(
             val processingTimeMs = System.currentTimeMillis() - startTimeMs
             result.copy(
                 processingTimeMs = processingTimeMs,
-                durationMs = file.length().toLong(),
+                durationMs = file.length(),
                 modelUsed = "stepaudio-2.5-asr",
             )
         } catch (e: Exception) {
