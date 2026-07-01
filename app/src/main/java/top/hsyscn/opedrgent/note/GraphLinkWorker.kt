@@ -25,17 +25,19 @@ class GraphLinkWorker(
         private const val TAG = "GraphLinkWorker"
         private const val WORK_NAME_PREFIX = "graph_link_"
         private const val KEY_NOTE_ID = "note_id"
-        private const val KEY_CONTENT = "content"
 
         /**
          * 提交一条笔记的建边任务。
          *
+         * 只传递 [noteId]，不传递内容。WorkManager 的 [androidx.work.Data] 有 10KB 大小限制，
+         * 大笔记内容直接序列化会触发 `Data cannot occupy more than 10240 bytes` 崩溃。
+         * Worker 内部通过 [NoteDatabase] 重新读取笔记内容。
+         *
          * 使用 [ExistingWorkPolicy.KEEP] 避免连续保存同一笔记时产生重复任务。
          */
-        fun enqueue(context: Context, noteId: Long, content: String) {
+        fun enqueue(context: Context, noteId: Long) {
             val input = workDataOf(
                 KEY_NOTE_ID to noteId.toString(),
-                KEY_CONTENT to content,
             )
             val request = OneTimeWorkRequestBuilder<GraphLinkWorker>()
                 .setInputData(input)
@@ -51,19 +53,32 @@ class GraphLinkWorker(
     }
 
     override suspend fun doWork(): Result {
-        val noteId = inputData.getString(KEY_NOTE_ID)
-        val content = inputData.getString(KEY_CONTENT)
-        if (noteId.isNullOrBlank() || content.isNullOrBlank()) {
+        val noteIdStr = inputData.getString(KEY_NOTE_ID)
+        if (noteIdStr.isNullOrBlank()) {
             return Result.failure()
         }
+        val noteId = noteIdStr.toLongOrNull() ?: return Result.failure()
 
         return try {
             val ctx = applicationContext
+            val note = NoteDao(NoteDatabase.getInstance(ctx)).getById(noteId)
+            if (note == null) {
+                DebugLog.w(TAG, "note $noteId not found, skip linking")
+                return Result.failure()
+            }
+            val content = buildString {
+                if (note.title.isNotBlank()) append(note.title).append(" ")
+                append(note.content)
+            }
+            if (content.isBlank()) {
+                DebugLog.w(TAG, "note $noteId has blank content, skip linking")
+                return Result.success()
+            }
             val graphStore = KnowledgeGraphStore(ctx)
             val apiSettings = ApiSettings(ctx)
             val provider = EmbeddingProviderFactory.create(ctx, apiSettings, graphStore)
             val knowledgeGraph = KnowledgeGraph(ctx, graphStore, provider)
-            knowledgeGraph.linkNote(noteId, content)
+            knowledgeGraph.linkNote(noteIdStr, content)
             DebugLog.d(TAG, "link success for note $noteId")
             Result.success()
         } catch (e: Exception) {

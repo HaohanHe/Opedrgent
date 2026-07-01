@@ -64,11 +64,7 @@ class NoteRepository(
     suspend fun updateFromSync(note: Note) {
         val id = dao.insertOrUpdate(note)
         _changeTrigger.value = System.currentTimeMillis()
-        val content = buildString {
-            if (note.title.isNotBlank()) append(note.title).append(" ")
-            append(note.content)
-        }
-        GraphLinkWorker.enqueue(context, id, content)
+        GraphLinkWorker.enqueue(context, id)
     }
 
     /** 按类型筛选 */
@@ -177,11 +173,7 @@ class NoteRepository(
         }
         val id = dao.insertOrUpdate(noteToSave)
         _changeTrigger.value = System.currentTimeMillis()
-        val content = buildString {
-            if (noteToSave.title.isNotBlank()) append(noteToSave.title).append(" ")
-            append(noteToSave.content)
-        }
-        GraphLinkWorker.enqueue(context, id, content)
+        GraphLinkWorker.enqueue(context, id)
         syncNoteMemory(id, noteToSave)
         return id
     }
