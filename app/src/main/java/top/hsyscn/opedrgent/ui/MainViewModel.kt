@@ -251,6 +251,7 @@ enum class SttProgressState {
     ERROR,
 }
 
+@Suppress("DEPRECATION")
 sealed class SproutUiState {
     object Idle : SproutUiState()
     data class AnalyzingInput(val textPreview: String) : SproutUiState()
@@ -343,7 +344,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 config = apiConfig,
                 system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
                 messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
-            ) ?: ""
+                )
         },
     )
     private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
@@ -2707,8 +2708,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             store.addMessage(
                 sessionId = ctx.sessionId,
                 role = Role.SYSTEM,
-                content = compressed.summary!!,
-                parts = listOf(MessagePart.Compaction(compressed.summary!!, auto = true)),
+                content = compressed.summary,
+                parts = listOf(MessagePart.Compaction(compressed.summary, auto = true)),
             )
         }
         val compressedSystem = buildString {
@@ -2873,11 +2874,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val pendingToolParts = result.toolCalls.mapIndexed { idx, tc ->
             val parsedArgs: Map<String, String> = runCatching {
-                val argsStr = tc.arguments ?: "{}"
+                val argsStr = tc.arguments
                 // 先直接解析（LLM 返回的 JSON 通常是合法的）
                 try {
                     org.json.JSONObject(argsStr).let { json ->
-                        json.keys().asSequence().associateWith { json.opt(it).toString() }
+                        json.keys().asSequence().associateWith { json.opt(it)?.toString() ?: "" }
                     }
                 } catch (_: Exception) {
                     // 解析失败才做修复：去掉尾部逗号（字符串操作，避免正则平台兼容问题）
@@ -2887,13 +2888,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         .replace(",]", "]")
                         .replace(", ]", "]")
                     org.json.JSONObject(fixed).let { json ->
-                        json.keys().asSequence().associateWith { json.opt(it).toString() }
+                        json.keys().asSequence().associateWith { json.opt(it)?.toString() ?: "" }
                     }
                 }
             }.getOrElse { e ->
-                DebugLog.w("工具参数 JSON 解析失败: ${tc.arguments?.take(100)} -> ${e.message}")
+                DebugLog.w("工具参数 JSON 解析失败: ${tc.arguments.take(100)} -> ${e.message}")
                 // 智能 fallback：尝试从原始字符串中提取 url / query 等常见参数名
-                val raw = tc.arguments ?: ""
+                val raw = tc.arguments
                 val extracted = mutableMapOf<String, String>()
                 for (key in listOf("url", "query", "code", "address", "skill_name")) {
                     val pattern = "\"$key\""
@@ -2971,7 +2972,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     if (tc.name == "ask_question") {
                         try {
-                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val params = org.json.JSONObject(tc.arguments)
                             val questionsArray = params.getJSONArray("questions")
                             val questions = (0 until questionsArray.length()).map { i ->
                                 val q = questionsArray.getJSONObject(i)
@@ -3037,7 +3038,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     if (tc.name == "ask_confirmation") {
                         try {
-                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val params = org.json.JSONObject(tc.arguments)
                             val message = params.optString("message", "请确认")
                             val detail = params.optString("detail", "")
                             val timeoutSeconds = params.optInt("timeoutSeconds", 30)
@@ -3108,7 +3109,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     if (tc.name == "get_memory_detail") {
                         try {
-                            val params = org.json.JSONObject(tc.arguments ?: "{}")
+                            val params = org.json.JSONObject(tc.arguments)
                             val query = params.optString("query", "")
                             val results = hippocampus?.query(query, limit = 3) ?: emptyList()
                             val output = if (results.isEmpty()) {
@@ -3220,7 +3221,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             guardrailHalted = true
                             lastError = "工具调用保护: 检测到严重问题，已自动停止"
                             _state.value = _state.value.copy(
-                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
+                                streamingText = _state.value.streamingText + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
                             )
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.AGENT_HALT,
@@ -3233,7 +3234,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             DebugLog.w("ToolCallGuardrail: PARTIAL_ERROR — 部分工具失败，继续返回可用结果")
                             // 不终止会话，仅记录警告；后续循环仍可使用已成功工具结果。
                             _state.value = _state.value.copy(
-                                streamingText = (_state.value.streamingText ?: "") + "\n\n[工具调用保护] 部分工具失败，将基于已成功结果继续。",
+                                streamingText = _state.value.streamingText + "\n\n[工具调用保护] 部分工具失败，将基于已成功结果继续。",
                             )
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.ALLOW -> { }
@@ -3745,7 +3746,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
-                                        val t = delta.text ?: ""
+                                        val t = delta.text
                                         if (t.isNotEmpty()) {
                                             contentBuilder.append(t); lastStreamingContent = contentBuilder.toString()
                                             val now = System.currentTimeMillis()
@@ -3762,7 +3763,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         }
                                     }
                                     is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
-                                        val t = delta.text ?: ""
+                                        val t = delta.text
                                         if (t.isNotEmpty()) {
                                             reasoningBuilder.append(t)
                                             val now = System.currentTimeMillis()
@@ -3909,7 +3910,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             onDelta = { delta ->
                                 when (delta) {
                                     is top.hsyscn.opedrgent.network.StreamDelta.TextDelta -> {
-                                        val t = delta.text ?: ""
+                                        val t = delta.text
                                         if (t.isNotEmpty()) {
                                             contentBuilder.append(t); lastStreamingContent = contentBuilder.toString()
                                             val now = System.currentTimeMillis()
@@ -3926,7 +3927,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         }
                                     }
                                     is top.hsyscn.opedrgent.network.StreamDelta.ReasoningDelta -> {
-                                        val t = delta.text ?: ""
+                                        val t = delta.text
                                         if (t.isNotEmpty()) {
                                             reasoningBuilder.append(t)
                                             val now = System.currentTimeMillis()
@@ -5813,10 +5814,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 DebugLog.i("STT: 用户取消转录")
                 _sttUiState.value = SttUiState.Idle
                 _sttProgress.value = SttProgressState.IDLE
+            } catch (e: OutOfMemoryError) {
+                DebugLog.e("STT: 内存不足 [OOM] ${e.message}", e)
+                _sttUiState.value = SttUiState.Error("设备内存不足", "OUT_OF_MEMORY", "设备内存不足，请关闭其他应用后重试")
+                _sttProgress.value = SttProgressState.ERROR
+                _sttError.value = "设备内存不足"
+                lastFailedUri = uri
+                _sttEventBus.tryEmit("转录失败: 内存不足")
             } catch (e: Exception) {
                 val errorCode = when (e) {
                     is java.io.IOException -> "IO_ERROR"
-                    is java.lang.OutOfMemoryError -> "OUT_OF_MEMORY"
                     is java.lang.IllegalStateException -> "ENGINE_ERROR"
                     else -> "UNKNOWN_ERROR"
                 }
@@ -6145,6 +6152,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return ModelManager.getRecommendedModel(context)
     }
 
+    @Suppress("DEPRECATION")
     fun triggerInsightSprout(text: String, config: SproutConfig? = null) {
         val trimmedText = text.trim()
         if (trimmedText.isBlank()) {
@@ -6201,7 +6209,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             config = apiConfig,
                             system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
                             messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
-                        ) ?: ""
+                        )
                     },
                 )
 
@@ -6670,7 +6678,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 error = "报告生成失败: ${e.message}",
             )
         } finally {
-            voiceEngine?.stopConversation()
+            voiceEngine?.stopFullDuplex()
         }
     }
 
@@ -6678,7 +6686,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * 重置面试状态。
      */
     fun resetInterview() {
-        voiceEngine?.stopConversation()
+        voiceEngine?.stopFullDuplex()
         voiceEngine = null
         interviewTranscript.clear()
         currentQuestionIdx = 0
