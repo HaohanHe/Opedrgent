@@ -112,7 +112,7 @@ fun AIMessageCard(
 
                     if (message.questionPart != null) {
                         QuestionCard(
-                            question = message.questionPart!!,
+                            question = message.questionPart,
                             onAnswer = {},
                             onDismiss = {},
                             readonly = true,

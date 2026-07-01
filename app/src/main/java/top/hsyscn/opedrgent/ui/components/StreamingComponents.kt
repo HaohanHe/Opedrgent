@@ -811,7 +811,7 @@ fun ToolCard(toolPart: ToolPart) {
                 if (!toolPart.state.output.isNullOrBlank()) {
                     Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
-                        text = toolPart.state.output!!.take(500) + if (toolPart.state.output!!.length > 500) "…" else "",
+                        text = toolPart.state.output.take(500) + if (toolPart.state.output.length > 500) "…" else "",
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextDark(),
                     )
