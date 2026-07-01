@@ -148,7 +148,7 @@ fun ModelDownloadDialog(
 
                 when (progress?.status) {
                     DownloadStatus.DOWNLOADING -> {
-                        ProgressSection(progress = progress!!)
+                        ProgressSection(progress = progress)
                     }
                     DownloadStatus.PAUSED -> {
                         PausedSection(progress = progress)
@@ -157,7 +157,7 @@ fun ModelDownloadDialog(
                         QueuedSection()
                     }
                     DownloadStatus.FAILED -> {
-                        FailedSection(error = progress?.error ?: "未知错误")
+                        FailedSection(error = progress.error ?: "未知错误")
                     }
                     else -> {
                         IdleSection(totalMb = modelInfo.sizeMb)

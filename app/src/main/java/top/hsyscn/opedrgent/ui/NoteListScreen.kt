@@ -17,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -945,7 +947,7 @@ private fun NotePreviewPanel(
                 onClick = onSendToChat,
                 shape = ShapeTokens.smallShape,
             ) {
-                Icon(Icons.Default.Chat, contentDescription = "发送到对话", modifier = Modifier.size(SpacingTokens.lg))
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "发送到对话", modifier = Modifier.size(SpacingTokens.lg))
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text("发到对话")
             }
@@ -1125,7 +1127,7 @@ private fun NoteCard(
                                 )
                             }
                             Icon(
-                                imageVector = Icons.Default.OpenInNew,
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                 contentDescription = "打开链接",
                                 tint = themeForegroundMuted(),
                                 modifier = Modifier.size(SpacingTokens.lg),

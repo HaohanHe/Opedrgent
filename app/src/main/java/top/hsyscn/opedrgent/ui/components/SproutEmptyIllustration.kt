@@ -44,11 +44,11 @@ fun SproutEmptyIllustration(modifier: Modifier = Modifier) {
         drawPath(
             path = androidx.compose.ui.graphics.Path().apply {
                 moveTo(size.width * 0.5f, size.height * 0.52f)
-                quadraticBezierTo(
+                quadraticTo(
                     size.width * 0.25f, size.height * 0.42f,
                     size.width * 0.22f, size.height * 0.55f
                 )
-                quadraticBezierTo(
+                quadraticTo(
                     size.width * 0.30f, size.height * 0.60f,
                     size.width * 0.5f, size.height * 0.52f
                 )
@@ -61,11 +61,11 @@ fun SproutEmptyIllustration(modifier: Modifier = Modifier) {
         drawPath(
             path = androidx.compose.ui.graphics.Path().apply {
                 moveTo(size.width * 0.5f, size.height * 0.48f)
-                quadraticBezierTo(
+                quadraticTo(
                     size.width * 0.75f, size.height * 0.38f,
                     size.width * 0.78f, size.height * 0.51f
                 )
-                quadraticBezierTo(
+                quadraticTo(
                     size.width * 0.70f, size.height * 0.56f,
                     size.width * 0.5f, size.height * 0.48f
                 )

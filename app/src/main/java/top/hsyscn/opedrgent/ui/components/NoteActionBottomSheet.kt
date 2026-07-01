@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -203,7 +205,7 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text("添加标签") },
                     leadingContent = {
-                        Icon(Icons.Default.Label, "添加标签", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(Icons.AutoMirrored.Filled.Label, "添加标签", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddTag() },
                 )
