@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.ui
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.themeErrorBackground
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -335,7 +336,7 @@ private fun ImportFileTypeCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(SizeTokens.sectionIcon)
                     .background(AccentBlue.copy(alpha = 0.1f), ShapeTokens.mediumShape),
                 contentAlignment = Alignment.Center,
             ) {

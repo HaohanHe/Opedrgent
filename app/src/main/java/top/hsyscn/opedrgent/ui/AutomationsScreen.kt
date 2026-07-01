@@ -43,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,7 +100,7 @@ fun AutomationsScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = a.name, fontWeight = FontWeight.SemiBold)
+                            Text(text = a.name, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 text = "${a.kind.name} · ${a.intervalMinutes} 分钟",
                                 modifier = Modifier.padding(top = SpacingTokens.xs),

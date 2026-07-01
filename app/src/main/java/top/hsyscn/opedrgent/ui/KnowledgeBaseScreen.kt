@@ -255,8 +255,7 @@ fun KnowledgeBaseScreen(
                         } else {
                             stringResource(R.string.kb_title)
                         },
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp,
+                        style = MaterialTheme.typography.titleMedium,
                         color = themeForeground(),
                     )
                 },
@@ -645,7 +644,7 @@ private fun KbGridView(
         val totalDocs = filteredKbs.sumOf { it.documentCount }
         Text(
             text = "共 ${filteredKbs.size} 个知识库，$totalDocs 篇文档",
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelMedium,
             color = themeForegroundMuted(),
             modifier = Modifier.padding(bottom = 16.dp),
         )
@@ -756,15 +755,14 @@ private fun KbCard(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         info.name,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.titleSmall,
                         color = themeForeground(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         "${info.documentCount} 篇文档" + if (info.totalSizeBytes > 0) " · ${formatFileSize(info.totalSizeBytes)}" else "",
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         color = themeForegroundMuted(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -842,7 +840,7 @@ private fun NewKbCard(
             Spacer(Modifier.height(8.dp))
             Text(
                 "新建知识库",
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
                 color = themeForegroundMuted(),
             )
@@ -996,7 +994,7 @@ private fun DocumentCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = ShapeTokens.smallShape,
                 color = iconTint.copy(alpha = 0.1f),
                 modifier = Modifier.size(44.dp),
             ) {
@@ -1010,8 +1008,7 @@ private fun DocumentCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     document.title,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     color = themeForeground(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1020,14 +1017,14 @@ private fun DocumentCard(
                 Text(
                     "${document.fileType.uppercase()} · ${formatFileSize(document.fileSizeBytes)}",
                     color = themeForegroundMuted(),
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                 )
 
                 Text(
                     "来源: ${document.fileName} · $dateStr",
                     color = themeForegroundMuted().copy(alpha = 0.8f),
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
