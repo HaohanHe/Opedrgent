@@ -63,11 +63,7 @@ class RunCalendarTool(
 
         return try {
             // input 可能是 String 或 Map<String, String>
-            val paramsJson = when (input) {
-                is String -> input
-                is Map<*, *> -> JSONObject(input as Map<*, *>).toString()
-                else -> "{}"
-            }
+            val paramsJson = JSONObject(input as Map<*, *>).toString()
             val params = JSONObject(paramsJson)
             val action = params.optString("action", "")
 

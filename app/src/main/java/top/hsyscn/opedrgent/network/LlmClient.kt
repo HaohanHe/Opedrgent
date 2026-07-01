@@ -482,7 +482,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 val choice = choices.getJSONObject(0)
                 val delta = choice.optJSONObject("delta") ?: return@runCatching
 
-                val finishReason = choice.optString("finish_reason", null)
+                val finishReason = choice.optString("finish_reason").takeIf { it.isNotEmpty() }
                 if (finishReason != null && finishReason != "null") {
                     lastFinishReason = finishReason
                 }
@@ -1467,8 +1467,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                             // 当前内容块结束，如果是 tool_use 则收集完整工具调用
                             if (currentToolName != null && currentToolId != null) {
                                 val argsStr = currentToolInput.toString()
-                                val toolId = currentToolId!!
-                                val toolName = currentToolName!!
+                                val toolId = currentToolId
+                                val toolName = currentToolName
                                 toolCalls.add(CompletedToolCall(
                                     id = toolId,
                                     name = toolName,
@@ -1486,7 +1486,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
 
                         "message_delta" -> {
                             val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
-                            lastStopReason = obj.optString("stop_reason", null)
+                            lastStopReason = obj.optString("stop_reason").takeIf { it.isNotEmpty() }
                         }
                     }
                 }

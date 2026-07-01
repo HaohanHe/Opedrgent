@@ -358,7 +358,7 @@ class StepImageEditTool(
 
     private fun resolveImageData(args: JSONObject): String? {
         // 优先 base64
-        args.optString("image_base64", "")?.ifBlank { null }?.let { return it }
+        args.optString("image_base64", "").ifBlank { null }?.let { return it }
         // 回退文件路径
         val path = args.optString("image_path", "").ifBlank { null } ?: return null
         return try {

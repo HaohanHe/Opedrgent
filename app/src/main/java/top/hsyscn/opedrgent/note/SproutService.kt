@@ -47,7 +47,6 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
     companion object {
         private const val TAG = "SproutService"
-        private const val DEFAULT_MODEL = "mimo-v2.5"
 
         /**
          * 叙事式发芽提示词 — 产出 SproutArticle 格式
@@ -124,7 +123,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     suspend fun sprout(
         noteContent: String,
         otherNotesContext: String = "",
-        modelId: String = apiSettings.getModel() ?: DEFAULT_MODEL,
+        modelId: String = apiSettings.getModel(),
     ): Result<SproutArticle> = withContext(Dispatchers.IO) {
         try {
             var prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
@@ -223,7 +222,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
      */
     fun sproutStreaming(
         noteContent: String,
-        modelId: String = apiSettings.getModel() ?: DEFAULT_MODEL,
+        modelId: String = apiSettings.getModel(),
     ): Flow<SproutProgress> = flow {
         emit(SproutProgress.Loading)
         try {

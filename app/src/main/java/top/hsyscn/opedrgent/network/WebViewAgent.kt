@@ -234,7 +234,7 @@ class WebViewAgent(context: Context) {
                             return text.replace(/\s+/g, ' ').trim();
                         })()
                     """.trimIndent()) { r ->
-                        captured.complete(r?.trim('"').orEmpty() ?: "")
+                        captured.complete(r?.trim('"').orEmpty())
                     }
                 }
 
@@ -310,7 +310,7 @@ class WebViewAgent(context: Context) {
             if (picture != null) {
                 try {
                     bitmapRef = Bitmap.createBitmap(picture.width, picture.height, Bitmap.Config.ARGB_8888)
-                    bitmapRef?.let { canvas -> picture.draw(android.graphics.Canvas(canvas)) }
+                    bitmapRef.let { canvas -> picture.draw(android.graphics.Canvas(canvas)) }
                 } catch (_: Exception) {}
             }
             latch.countDown()
