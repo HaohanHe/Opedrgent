@@ -161,6 +161,7 @@ fun MeetingRecordScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
 
     var hasPermission by remember {
@@ -1250,7 +1251,7 @@ private fun AdditionalNotesContent(
                 segments = segments,
                 onSubmit = { text, segmentIdx ->
                     if (editingNoteId != null) {
-                        onUpdateNote(editingNoteId!!, text)
+                        onUpdateNote(editingNoteId, text)
                     } else {
                         onAddNote(text, segmentIdx)
                     }
@@ -1688,6 +1689,7 @@ private suspend fun downloadToDownloads(
             sourceFile.copyTo(destFile, overwrite = true)
 
             // 通过 MediaStore 扫描让文件管理器立即可见（API < 29 兼容）
+            @Suppress("DEPRECATION")
             if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
                 intent.data = android.net.Uri.fromFile(destFile)
