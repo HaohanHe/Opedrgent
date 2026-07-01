@@ -388,7 +388,7 @@ private fun StepRecommendationBanner(
                 text = "StepAudio 2.5 Realtime — 副语言感知 + Zero-shot 音色复刻 + Global/Inline 双语境控制，ASR+LLM+TTS 一体化 WebSocket",
                 style = MaterialTheme.typography.bodySmall,
                 color = InterviewTextMuted,
-                lineHeight = 18.sp,
+                
             )
 
             if (!showConfig) {
@@ -606,7 +606,7 @@ private fun ModeSelectionCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
                 textAlign = TextAlign.Center,
-                lineHeight = 16.sp,
+                
             )
         }
     }
@@ -692,7 +692,7 @@ private fun InterviewPreparingScreen(
                                     text = "• $point",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = themeTextDark(),
-                                    lineHeight = 18.sp,
+                                    
                                 )
                             }
                         }
@@ -711,7 +711,7 @@ private fun InterviewPreparingScreen(
                                     text = "• $q",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = themeTextDark(),
-                                    lineHeight = 18.sp,
+                                    
                                 )
                             }
                         }
@@ -730,7 +730,7 @@ private fun InterviewPreparingScreen(
                                     text = "• $risk",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = themeTextDark(),
-                                    lineHeight = 18.sp,
+                                    
                                 )
                             }
                         }
@@ -1032,7 +1032,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                         Text(
                             text = feedback.detailedFeedback,
                             style = MaterialTheme.typography.bodyMedium,
-                            lineHeight = 19.sp,
+                            
                             color = themeTextDark(),
                         )
                     }
@@ -1127,7 +1127,7 @@ private fun InterviewBubble(message: DialogueTurn) {
             Text(
                 text = message.content,
                 style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 20.sp,
+                
                 color = if (isInterviewer) themeTextDark() else MaterialTheme.colorScheme.onPrimary,
             )
         }
@@ -1695,7 +1695,7 @@ private fun SummaryCard(summary: String) {
             Text(
                 text = summary,
                 style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 22.sp,
+                
                 color = themeTextDark().copy(alpha = 0.8f),
             )
         }
@@ -1781,7 +1781,7 @@ private fun DimensionBar(dimension: EvaluationDimension) {
                 text = dimension.feedback,
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
-                lineHeight = 16.sp,
+                
             )
         }
     }
@@ -1824,7 +1824,7 @@ private fun EvaluationSection(
                     Text(
                         text = item,
                         style = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 20.sp,
+                        
                         color = themeTextDark().copy(alpha = 0.8f),
                         modifier = Modifier.weight(1f),
                     )
@@ -1899,7 +1899,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                                 Text(
                                     text = turn.content,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    lineHeight = 18.sp,
+                                    
                                     color = themeTextDark(),
                                 )
                             }

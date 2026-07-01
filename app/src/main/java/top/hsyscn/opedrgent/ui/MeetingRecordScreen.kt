@@ -964,7 +964,7 @@ private fun SentenceItem(
                     color = normalMetaColor,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    lineHeight = 18.sp,
+                    
                     modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                 )
             }
@@ -998,8 +998,8 @@ private fun SentenceItem(
             text = segment.text,
             color = if (isPlaying) playingColor else normalTextColor,
             style = MaterialTheme.typography.titleSmall,
-            lineHeight = 26.sp,
-            modifier = Modifier.padding(start = 32.dp).fillMaxWidth(),
+            
+            modifier = Modifier.padding(start = SpacingTokens.xxl).fillMaxWidth(),
         )
     }
 }
@@ -1061,7 +1061,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             Spacer(Modifier.height(SpacingTokens.sm))
             Text(text = section.title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
             section.content.forEach { para ->
-                Text(text = para, style = MaterialTheme.typography.bodyLarge, color = themeTextDark(), lineHeight = 22.sp)
+                Text(text = para, style = MaterialTheme.typography.bodyLarge, color = themeTextDark())
             }
         }
 
@@ -1094,7 +1094,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                     text = chapter.summary,
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
-                    lineHeight = 22.sp,
+                    
                     modifier = Modifier.padding(start = SpacingTokens.xs),
                 )
             }
@@ -1113,7 +1113,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                     Text(
                         text = quote.text,
                         style = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 22.sp,
+                        
                         modifier = Modifier.weight(1f),
                     )
                     Text(text = " \u201D (${quote.category})", color = themeTextGrey(), style = MaterialTheme.typography.bodySmall)
@@ -1132,7 +1132,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 Text(
                     text = "\u2022 ${item.assignee}: ${item.task}",
                     style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 22.sp,
+                    
                 )
             }
         }
@@ -1365,7 +1365,7 @@ private fun NoteItemCard(
             Text(
                 text = note.content,
                 style = MaterialTheme.typography.titleSmall,
-                lineHeight = 22.sp,
+                
                 color = TextPrimary,
             )
 

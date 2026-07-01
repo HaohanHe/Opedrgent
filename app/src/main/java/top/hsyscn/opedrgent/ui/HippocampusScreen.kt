@@ -40,6 +40,8 @@ import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.SourceType
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -183,7 +185,7 @@ private fun TypeFilterRow(
                 colors = chipColors,
                 shape = ShapeTokens.largeShape,
                 border = if (isSelected) null else BorderStroke(
-                    1.dp,
+                    SizeTokens.borderWidth,
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                 ),
             )
@@ -239,7 +241,7 @@ private fun HippocampusItemCard(
         Card(
             shape = ShapeTokens.mediumShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(SpacingTokens.md)) {

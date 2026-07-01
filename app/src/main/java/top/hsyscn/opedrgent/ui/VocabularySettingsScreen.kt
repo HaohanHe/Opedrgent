@@ -11,6 +11,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -168,7 +168,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                                         Icons.Default.Delete,
                                         contentDescription = "删除",
                                         tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(SizeTokens.iconLg),
                                     )
                                 }
                             }

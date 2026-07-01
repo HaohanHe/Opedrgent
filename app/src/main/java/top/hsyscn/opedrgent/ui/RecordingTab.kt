@@ -1806,7 +1806,7 @@ private fun TranscriptResultCard(
                         text = result.fullText.ifBlank { "（无识别结果）" },
                         style = MaterialTheme.typography.bodyLarge,
                         color = themeTextDark(),
-                        lineHeight = 22.sp,
+                        
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
@@ -1818,7 +1818,7 @@ private fun TranscriptResultCard(
                     text = result.fullText.ifBlank { "（无识别结果）" },
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
-                    lineHeight = 22.sp,
+                    
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 300.dp)
@@ -2002,7 +2002,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
                             text = para,
                             style = MaterialTheme.typography.bodyMedium,
                             color = themeTextDark(),
-                            lineHeight = 20.sp,
+                            
                             modifier = Modifier.padding(bottom = SpacingTokens.xs),
                         )
                     }
@@ -2051,7 +2051,7 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                         text = chapter.summary,
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
-                        lineHeight = 18.sp,
+                        
                         modifier = Modifier.padding(top = SpacingTokens.xxs),
                     )
                 }
@@ -2082,7 +2082,7 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
                             text = quote.text,
                             style = MaterialTheme.typography.bodyMedium,
                             color = themeTextDark(),
-                            lineHeight = 19.sp,
+                            
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         )
                         Spacer(Modifier.height(SpacingTokens.xs))
