@@ -41,6 +41,7 @@ fun CodeBlock(
     language: String = "",
     modifier: Modifier = Modifier,
 ) {
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val feedback = LocalFeedbackController.current
     val displayLang = language.trim()

@@ -147,6 +147,7 @@ fun SessionScreen(
     onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package top.hsyscn.opedrgent.ui.components
 
 import androidx.compose.foundation.background
@@ -48,6 +50,7 @@ import top.hsyscn.opedrgent.ui.theme.SpacingTokens
  * 保留原有功能：音频片段、思考过程、工具状态、选择题、Markdown 渲染、
  * 引用来源、点赞/踩反馈、复制与撤回。
  */
+@Suppress("DEPRECATION")
 @Composable
 fun AIMessageCard(
     message: ChatMessage,
@@ -224,6 +227,7 @@ fun AIMessageCard(
 @Composable
 private fun AIMessageCardPreview() {
     OpedrgentTheme(darkTheme = false) {
+        @Suppress("DEPRECATION")
         val clipboard = LocalClipboardManager.current
         val message = ChatMessage(
             role = Role.ASSISTANT,
@@ -244,6 +248,7 @@ private fun AIMessageCardPreview() {
 @Composable
 private fun AIMessageCardDarkPreview() {
     OpedrgentTheme(darkTheme = true) {
+        @Suppress("DEPRECATION")
         val clipboard = LocalClipboardManager.current
         val message = ChatMessage(
             role = Role.ASSISTANT,

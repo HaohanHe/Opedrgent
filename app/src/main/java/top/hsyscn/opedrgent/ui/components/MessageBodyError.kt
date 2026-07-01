@@ -49,6 +49,7 @@ fun MessageBodyError(
     snackbarHostState: SnackbarHostState? = null,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val maxLines = remember { mutableIntStateOf(5) }
