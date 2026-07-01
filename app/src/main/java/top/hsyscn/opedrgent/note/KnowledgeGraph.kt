@@ -1,8 +1,6 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import top.hsyscn.opedrgent.note.graph.GraphEdgeEntity
 import top.hsyscn.opedrgent.note.graph.GraphEmbeddingEntity
 import top.hsyscn.opedrgent.note.graph.GraphEntity
@@ -64,7 +62,7 @@ class KnowledgeGraph(
         }
     }
 
-    fun linkNote(noteId: String, content: String): List<String> {
+    suspend fun linkNote(noteId: String, content: String): List<String> {
         if (content.isBlank()) return emptyList()
         return try {
             doLinkNote(noteId, content)
@@ -74,12 +72,12 @@ class KnowledgeGraph(
         }
     }
 
-    private fun doLinkNote(noteId: String, content: String): List<String> {
+    private suspend fun doLinkNote(noteId: String, content: String): List<String> {
         val embedding = try {
-            runBlocking(Dispatchers.Default) { provider.embed(content) }
+            provider.embed(content)
         } catch (e: Exception) {
             DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
-            runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embed(content) }
+            LocalEmbeddingProvider(store).embed(content)
         }
         val title = content.take(100)
         val summary = content.take(300)
@@ -273,10 +271,10 @@ class KnowledgeGraph(
         emptyList()
     }
 
-    fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
+    suspend fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
         if (query.isBlank()) return emptyList()
         return try {
-            val queryVector = runBlocking(Dispatchers.Default) { provider.embed(query) }
+            val queryVector = provider.embed(query)
             store.getAllNodes()
                 .mapNotNull { node ->
                     val embedding = store.getEmbedding(node.id)?.vector?.toFloatArray()
@@ -314,7 +312,7 @@ class KnowledgeGraph(
         }
     }
 
-    fun rebuildFromNotes(notes: List<Pair<String, String>>) {
+    suspend fun rebuildFromNotes(notes: List<Pair<String, String>>) {
         try {
             clear()
             if (notes.isEmpty()) return
@@ -373,7 +371,7 @@ class KnowledgeGraph(
             if (nodes.isEmpty()) return
 
             val embeddings = try {
-                val batch = runBlocking(Dispatchers.Default) { provider.embedBatch(contents) }
+                val batch = provider.embedBatch(contents)
                 batch.mapIndexed { index, vector ->
                     GraphEmbeddingEntity(
                         nodeId = noteIds[index],
@@ -385,7 +383,7 @@ class KnowledgeGraph(
                 }
             } catch (e: Exception) {
                 DebugLog.w(TAG, "batch embedding failed, falling back to local: ${e.message}")
-                val batch = runBlocking(Dispatchers.Default) { LocalEmbeddingProvider(store).embedBatch(contents) }
+                val batch = LocalEmbeddingProvider(store).embedBatch(contents)
                 batch.mapIndexed { index, vector ->
                     GraphEmbeddingEntity(
                         nodeId = noteIds[index],

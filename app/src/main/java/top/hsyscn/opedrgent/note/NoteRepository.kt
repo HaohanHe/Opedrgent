@@ -362,7 +362,7 @@ class NoteRepository(
     }
 
     /** 语义搜索笔记 */
-    fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
+    suspend fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
         return knowledgeGraph.searchByRelevance(query, maxResults)
     }
 

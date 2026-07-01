@@ -1802,7 +1802,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** 语义搜索笔记 */
-    fun searchNotesByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
+    suspend fun searchNotesByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
         return noteRepository.searchByRelevance(query, maxResults)
     }
 
