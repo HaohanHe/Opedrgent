@@ -201,6 +201,7 @@ private fun HippocampusItemCard(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    @Suppress("DEPRECATION")
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {

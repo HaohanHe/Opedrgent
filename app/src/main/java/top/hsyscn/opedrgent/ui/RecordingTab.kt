@@ -196,6 +196,7 @@ fun RecordingTab(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
 
     // 模式选择
@@ -630,8 +631,7 @@ fun RecordingTab(
                     playbackAudioUri = wavFile.absolutePath
                     isProcessing = false
                     // 清理临时PCM文件
-                    val pcmForCleanup = pcmPath
-                    if (pcmForCleanup != null) java.io.File(pcmForCleanup).delete()
+                    java.io.File(pcmPath).delete()
                 } catch (e: Exception) {
                     snackbar.showSnackbar("录音处理失败: ${e.message}")
                     // 异常时也清理PCM文件

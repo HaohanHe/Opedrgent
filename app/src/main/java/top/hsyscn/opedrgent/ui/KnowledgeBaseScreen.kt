@@ -325,7 +325,7 @@ fun KnowledgeBaseScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = themeBackgroundSecondary(),
                     scrolledContainerColor = themeBackgroundSecondary(),
                 ),

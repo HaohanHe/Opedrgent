@@ -856,7 +856,6 @@ fun SettingsScreen(
                                             ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                             ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                             ModelType.STREAMING_PARAFORMER -> "Paraformer 流式"
-                                            else -> modelInfo.type.name
                                         }
                                         FilterChip(
                                             selected = selectedLocalModel == modelInfo.type.name,
@@ -893,7 +892,6 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
-                                                    else -> modelInfo.modelName
                                                 },
                                                 style = MaterialTheme.typography.labelLarge,
                                                 maxLines = 1,
@@ -979,7 +977,6 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
-                                                    else -> modelInfo.modelName
                                                 }
                                                 sttDialogModelDesc = "本地离线语音识别模型"
                                                 sttDialogPercent = 0
@@ -1982,7 +1979,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showMemoryWarning = null },
             title = { Text(stringResource(R.string.msg_memory_insufficient)) },
-            text = { Text(msg ?: stringResource(R.string.msg_memory_insufficient_desc)) },
+            text = { Text(msg) },
             confirmButton = {
                 Button(onClick = {
                     showMemoryWarning = null
