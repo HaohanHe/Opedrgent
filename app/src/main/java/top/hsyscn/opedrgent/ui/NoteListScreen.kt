@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -486,7 +487,7 @@ private fun NoteHeader(
         if (showBackButton) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.Default.ArrowBack,
+                    Icons.AutoMirrored.Filled.ArrowBack,
                     "返回",
                     tint = themeForeground(),
                     modifier = Modifier.size(SizeTokens.iconLg),
@@ -707,7 +708,7 @@ private fun FolderNavigation(
         ) {
             if (currentFolderId != null) {
                 IconButton(onClick = onBackToRoot, modifier = Modifier.size(SpacingTokens.xl)) {
-                    Icon(Icons.Default.ArrowBack, "返回根目录", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回根目录", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
                 }
                 Spacer(Modifier.width(SpacingTokens.xs))
 
