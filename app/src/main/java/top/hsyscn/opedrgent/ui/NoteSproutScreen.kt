@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -121,6 +123,7 @@ fun NoteSproutScreen(
     }
 
     var showMenu by remember { mutableStateOf(false) }
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
 
     Scaffold(
@@ -177,7 +180,7 @@ fun NoteSproutScreen(
                                     feedback.showFeedback(context.getString(R.string.msg_feature_under_development))
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.Default.Label, "添加标签") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, "添加标签") },
                             )
                             DropdownMenuItem(
                                 text = { Text("复制全文") },
@@ -314,7 +317,7 @@ private fun SproutArticleContent(
                     }
                 },
             ) {
-                Icon(Icons.Default.NoteAdd, "追加笔记", Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, "追加笔记", Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text("追加笔记")
             }
