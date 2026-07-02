@@ -307,6 +307,15 @@ fun AppRoot(
         }
     }
 
+    // 首次使用引导
+    val onboardingCompleted by OnboardingDataStore.isCompleted(context).collectAsState(initial = null)
+    if (onboardingCompleted == false) {
+        OnboardingScreen(
+            onFinished = { scope.launch { OnboardingDataStore.markCompleted(context) } },
+        )
+        return
+    }
+
     val activity = LocalContext.current as? android.app.Activity
     @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
     val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }
