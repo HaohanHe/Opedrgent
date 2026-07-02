@@ -156,7 +156,6 @@ fun SessionScreen(
     var prompt by rememberSaveable { mutableStateOf("") }
     var listening by rememberSaveable { mutableStateOf(false) }
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
-    var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
@@ -578,14 +577,10 @@ fun SessionScreen(
                             maxLines = 5,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                             keyboardActions = KeyboardActions(onSend = {
-                                if (!isSending && prompt.isNotBlank()) {
-                                    isSending = true
-                                    vm.sendUserMessage(prompt)
+                                if (!state.isStreaming && prompt.isNotBlank()) {
+                                    val text = prompt
                                     prompt = ""
-                                    scope.launch {
-                                        kotlinx.coroutines.delay(500)
-                                        isSending = false
-                                    }
+                                    vm.sendUserMessage(text)
                                 }
                             }),
                         )
@@ -684,7 +679,7 @@ fun SessionScreen(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(
                         containerColor = when {
-                            isSending -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)  // 发送中：禁用态
+                            state.isStreaming -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)  // 流式中：禁用态
                             prompt.isNotBlank() -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outline
                         },
@@ -693,20 +688,15 @@ fun SessionScreen(
                         .size(37.dp)
                         .clip(CircleShape),
                     onClick = {
-                        if (!isSending && prompt.isNotBlank()) {
-                            isSending = true
-                            vm.sendUserMessage(prompt)
+                        if (!state.isStreaming && prompt.isNotBlank()) {
+                            val text = prompt
                             prompt = ""
-                            // 流式输出开始后重置发送状态
-                            scope.launch {
-                                kotlinx.coroutines.delay(500)
-                                isSending = false
-                            }
+                            vm.sendUserMessage(text)
                         }
                     },
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        if (isSending) {
+                        if (state.isStreaming) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 modifier = Modifier.size(SpacingTokens.md),
                                 strokeWidth = 2.dp,
