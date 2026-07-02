@@ -269,7 +269,7 @@ class KnowledgeGraphStore(context: Context) {
         return if (existing != null) {
             val values = ContentValues().apply {
                 put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
-                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, entity.frequency)
+                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, existing.frequency + 1)
             }
             db.update(
                 KnowledgeGraphDatabase.TABLE_ENTITIES,

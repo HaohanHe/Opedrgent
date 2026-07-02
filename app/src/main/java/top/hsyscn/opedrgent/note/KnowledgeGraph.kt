@@ -101,7 +101,7 @@ class KnowledgeGraph(
                 nodeId = noteId,
                 provider = provider.providerName(),
                 model = "",
-                dimension = provider.dimension(),
+                dimension = embedding.size,
                 vector = embedding.toByteArray(),
             )
         )
@@ -159,7 +159,7 @@ class KnowledgeGraph(
                     reason = "共同实体：" + sharedEntities.take(3).map { name ->
                         val type = entityTypes[name]
                             ?: store.getEntityByName(name)?.entityType?.let {
-                                LocalEntityExtractor.EntityType.valueOf(it)
+                                runCatching { LocalEntityExtractor.EntityType.valueOf(it) }.getOrNull()
                             }
                             ?: LocalEntityExtractor.EntityType.CONCEPT
                         maskSensitiveEntity(name, type)
@@ -377,7 +377,7 @@ class KnowledgeGraph(
                         nodeId = noteIds[index],
                         provider = provider.providerName(),
                         model = "",
-                        dimension = provider.dimension(),
+                        dimension = vector.size,
                         vector = vector.toByteArray(),
                     )
                 }
@@ -389,7 +389,7 @@ class KnowledgeGraph(
                         nodeId = noteIds[index],
                         provider = provider.providerName(),
                         model = "",
-                        dimension = provider.dimension(),
+                        dimension = vector.size,
                         vector = vector.toByteArray(),
                     )
                 }
