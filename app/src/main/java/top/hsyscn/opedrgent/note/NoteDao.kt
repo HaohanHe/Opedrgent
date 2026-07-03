@@ -170,22 +170,20 @@ class NoteDao(private val db: NoteDatabase) {
         }
     }
 
-    /** 软删除 */
+    /** 软删除（不刷新 updatedAt：删除/恢复不应改变“最后编辑时间”语义） */
     suspend fun softDelete(id: Long) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
             put(NoteDatabase.COL_IS_DELETED, 1)
-            put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
         }
         db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
             "${NoteDatabase.COL_ID} = ?", arrayOf(id.toString()))
         notifyChange()
     }
 
-    /** 置顶切换 */
+    /** 置顶切换（不刷新 updatedAt：置顶不是内容编辑） */
     suspend fun setPinned(id: Long, pinned: Boolean) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
             put(NoteDatabase.COL_IS_PINNED, if (pinned) 1 else 0)
-            put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
         }
         db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
             "${NoteDatabase.COL_ID} = ?", arrayOf(id.toString()))
@@ -217,7 +215,9 @@ class NoteDao(private val db: NoteDatabase) {
         put(NoteDatabase.COL_IS_DELETED, if (note.isDeleted) 1 else 0)
         put(NoteDatabase.COL_SOURCE_URI, note.sourceUri)
         put(NoteDatabase.COL_CREATED_AT, note.createdAt)
-        put(NoteDatabase.COL_UPDATED_AT, System.currentTimeMillis())
+        // 尊重调用方传入的 updatedAt：浏览/发芽等非编辑场景不应刷新“最后编辑时间”。
+        // 仅当调用方未显式设置（<=0）时才用当前时间兜底（理论上不会发生，Note 默认值已为当前时间）。
+        put(NoteDatabase.COL_UPDATED_AT, if (note.updatedAt > 0) note.updatedAt else System.currentTimeMillis())
         put(NoteDatabase.COL_WORD_COUNT, note.content.length)
         put(NoteDatabase.COL_SPROUT_REPORT_JSON, note.sproutReportJson)
         put(NoteDatabase.COL_ORIGINAL_CONTENT, note.originalContent)

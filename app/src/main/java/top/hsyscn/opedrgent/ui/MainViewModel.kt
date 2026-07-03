@@ -133,6 +133,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.sync.NoteSyncService
 import top.hsyscn.opedrgent.sync.WebDavConfig
@@ -4090,6 +4091,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         sttJob = null
         sproutJob?.cancel()
         sproutJob = null
+        asrStreamingJob?.cancel()
+        asrStreamingJob = null
+        _asrEvent.close()
         sherpaOnnxEngine?.close()
         sherpaOnnxEngine = null
         androidSpeechRecognizer?.close()
@@ -6028,6 +6032,73 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun stopUnifiedStreamingAsr() {
         asrManager.stopStreaming()
+    }
+
+    // ==================== 统一流式 ASR 状态（跨页面保持） ====================
+    // 录音状态上提到 ViewModel：切到笔记/设置再切回，录音不中断。
+    private val _asrListening = MutableStateFlow(false)
+    val asrListening: StateFlow<Boolean> = _asrListening.asStateFlow()
+
+    private val _asrEvent = Channel<AsrUiEvent>(Channel.BUFFERED)
+    val asrEvent: Flow<AsrUiEvent> = _asrEvent.receiveAsFlow()
+
+    private var asrStreamingJob: kotlinx.coroutines.Job? = null
+
+    /** ASR UI 事件：识别结果 / 错误 / 空结果。UI 层 collect 后更新输入框或提示。 */
+    sealed interface AsrUiEvent {
+        data class FinalText(val text: String) : AsrUiEvent
+        data class Error(val message: String) : AsrUiEvent
+        data object EmptyResult : AsrUiEvent
+    }
+
+    /** 切换流式 ASR：未在听则开始，正在听则停止。 */
+    fun toggleStreamingAsr() {
+        if (_asrListening.value) stopStreamingAsr() else startStreamingAsrCollection()
+    }
+
+    /**
+     * 启动流式 ASR 识别。job 绑定 viewModelScope，跨页面导航不中断。
+     * 识别结果通过 [asrEvent] 推送，UI 层观察 [asrListening] 更新麦克风按钮状态。
+     */
+    fun startStreamingAsrCollection() {
+        if (_asrListening.value) return
+        asrStreamingJob?.cancel()
+        _asrListening.value = true
+        asrStreamingJob = viewModelScope.launch {
+            try {
+                val flow = startUnifiedStreamingAsr()
+                flow.collect { state ->
+                    when (state) {
+                        is StreamingRecognitionState.FinalResult -> {
+                            if (state.text.isNotBlank()) {
+                                _asrEvent.trySend(AsrUiEvent.FinalText(state.text))
+                            } else {
+                                _asrEvent.trySend(AsrUiEvent.EmptyResult)
+                            }
+                            _asrListening.value = false
+                        }
+                        is StreamingRecognitionState.Error -> {
+                            _asrEvent.trySend(AsrUiEvent.Error(state.message))
+                            _asrListening.value = false
+                        }
+                        else -> {}
+                    }
+                }
+            } catch (e: Exception) {
+                _asrEvent.trySend(AsrUiEvent.Error("语音识别失败: ${e.message}"))
+                _asrListening.value = false
+            } finally {
+                _asrListening.value = false
+            }
+        }
+    }
+
+    /** 停止流式 ASR 识别并释放底层引擎。 */
+    fun stopStreamingAsr() {
+        asrStreamingJob?.cancel()
+        asrStreamingJob = null
+        stopUnifiedStreamingAsr()
+        _asrListening.value = false
     }
 
     fun copyToClipboard(text: String, showToast: Boolean = true) {

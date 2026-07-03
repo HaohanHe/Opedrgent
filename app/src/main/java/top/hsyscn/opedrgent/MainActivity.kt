@@ -26,23 +26,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val navBarColor = if (ApiSettings(this).getThemeMode() == "dark") {
+        // 导航栏颜色跟随“最终解析的暗黑状态”，而非仅设置项。
+        // 跟随系统时读取当前 uiMode 配置，确保导航栏与 Compose 主题一致（修复暗黑模式下导航栏仍为浅色）。
+        val themeMode = ApiSettings(this).getThemeMode()
+        val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val systemDark = nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val darkTheme = when (themeMode) {
+            "light" -> false
+            "dark" -> true
+            else -> systemDark
+        }
+        window.navigationBarColor = if (darkTheme) {
             android.graphics.Color.parseColor("#FF121212")
         } else {
             android.graphics.Color.parseColor("#FFF5F5F6")
         }
-        window.navigationBarColor = navBarColor
         pendingShareText.value = extractSharedText(intent)
         pendingAction.value = extractAction(intent)
         setContent {
-            val themeMode = remember { ApiSettings(this).getThemeMode() }
             val dynamicColor = remember { ApiSettings(this).isDynamicColorEnabled() }
-            val systemDark = isSystemInDarkTheme()
-            val darkTheme = when (themeMode) {
-                "light" -> false
-                "dark" -> true
-                else -> systemDark
-            }
             OpedrgentTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 AppRoot(
                     initialShareText = pendingShareText.value,

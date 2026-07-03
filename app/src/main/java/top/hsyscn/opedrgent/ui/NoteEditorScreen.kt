@@ -141,6 +141,8 @@ fun NoteEditorScreen(
         if (isSaving) return -1
         isSaving = true
         return try {
+            // 仅当内容真正发生变化时才刷新 updatedAt，避免浏览/无变更保存把“最后编辑时间”刷成当前时间。
+            val contentChanged = content.text != lastSavedContentSnapshot
             val note = Note(
                 id = noteId ?: 0,
                 title = title, // 保持用户输入（含空），由 Repository 决定是否兜底
@@ -158,6 +160,8 @@ fun NoteEditorScreen(
                 isPinned = currentNote?.isPinned ?: false,
                 isDeleted = currentNote?.isDeleted ?: false,
                 createdAt = currentNote?.createdAt ?: System.currentTimeMillis(),
+                // 内容未变时保留原 updatedAt；内容变化或新建时使用当前时间。
+                updatedAt = if (contentChanged || currentNote == null) System.currentTimeMillis() else currentNote!!.updatedAt,
                 sproutReportJson = currentNote?.sproutReportJson,
             )
             note.setTags(tags)
@@ -170,7 +174,7 @@ fun NoteEditorScreen(
             if (showGraphInfo && id > 0) {
                 val newLinkCount = repository.getLinkCount(id)
                 snackbarHostState.showSnackbar(
-                    message = if (newLinkCount > 0) "已保存并发现 $newLinkCount 个关联" else "笔记已保存",
+                    message = if (newLinkCount > 0) context.getString(R.string.note_editor_saved_with_links, newLinkCount) else context.getString(R.string.note_editor_saved),
                     duration = SnackbarDuration.Short
                 )
             }
@@ -216,12 +220,15 @@ fun NoteEditorScreen(
                 lastSavedAt = existing.updatedAt
                 currentNote = existing
                 spansJson = existing.spans
+                // 关键：同步快照为已加载内容，否则首次自动保存会误判为“内容已变”而刷新 updatedAt。
+                lastSavedContentSnapshot = existing.content
             }
         }
     }
 
+    // 自动保存：仅在编辑模式（非阅读模式）触发，避免浏览笔记时把 updatedAt 刷成当前时间。
     LaunchedEffect(title, content.text, spansJson) {
-        if (noteId != null && content.text.isNotEmpty()) {
+        if (!forceReadOnly && noteId != null && content.text.isNotEmpty()) {
             kotlinx.coroutines.delay(1000L)
             save()
         }
@@ -230,14 +237,18 @@ fun NoteEditorScreen(
     val wordCount = content.text.length
     val focusManager = LocalFocusManager.current
     val displayTitle = remember(title, content.text) {
-        title.ifBlank { content.text.take(30).replace("\n", " ").ifBlank { "无标题" } }
+        title.ifBlank { content.text.take(30).replace("\n", " ").ifBlank { context.getString(R.string.note_editor_title_placeholder) } }
     }
 
     if (forceReadOnly) {
         // ════════════════════════════════════════
         // 阅读模式（只读展示）— opedrgent 风格 Tab + 浮动底栏
         // ════════════════════════════════════════
-        val tabTitles = listOf("原文", "笔记内容", "发芽", "追加笔记")
+        val tabOriginal = stringResource(R.string.note_editor_tab_original)
+        val tabContent = stringResource(R.string.note_editor_tab_content)
+        val tabSprout = stringResource(R.string.note_editor_tab_sprout)
+        val tabAppend = stringResource(R.string.note_editor_tab_append)
+        val tabTitles = listOf(tabOriginal, tabContent, tabSprout, tabAppend)
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -252,12 +263,12 @@ fun NoteEditorScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
                         IconButton(onClick = { showReaderMenu = true }) {
-                            Icon(Icons.Default.MoreVert, "更多操作")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.cd_more))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -382,13 +393,13 @@ fun NoteEditorScreen(
                                             ) {
                                                 Icon(
                                                     Icons.Default.Link,
-                                                    contentDescription = "来源链接",
+                                                    contentDescription = stringResource(R.string.note_editor_source_link),
                                                     tint = MaterialTheme.customColors.accentBlue,
                                                 )
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        "来源链接",
+                                                        stringResource(R.string.note_editor_source_link),
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = themeTextGrey(),
                                                     )
@@ -402,7 +413,7 @@ fun NoteEditorScreen(
                                                 }
                                                 Icon(
                                                     Icons.AutoMirrored.Filled.OpenInNew,
-                                                    contentDescription = "打开链接",
+                                                    contentDescription = stringResource(R.string.cd_open_link),
                                                     tint = themeTextGrey(),
                                                 )
                                             }
@@ -419,13 +430,13 @@ fun NoteEditorScreen(
                                         icon = {
                                             Icon(
                                                 Icons.Default.Mic,
-                                                contentDescription = "麦克风",
+                                                contentDescription = stringResource(R.string.cd_microphone),
                                                 modifier = Modifier.size(72.dp),
                                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                             )
                                         },
-                                        title = "正在汲取养分..",
-                                        subtitle = "暂无原始转录文本",
+                                        title = stringResource(R.string.note_editor_generating_sprout),
+                                        subtitle = stringResource(R.string.note_editor_no_original_text),
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 } else {
@@ -443,7 +454,11 @@ fun NoteEditorScreen(
                         1 -> {
                             // 笔记内容（含智能总结子标签）
                             var selectedSubTab by remember { mutableIntStateOf(0) }
-                            val subTabTitles = listOf("智能总结", "章节概要", "金句精选", "待办事项")
+                            val subtabSummary = stringResource(R.string.note_editor_subtab_summary)
+                            val subtabChapters = stringResource(R.string.note_editor_subtab_chapters)
+                            val subtabQuotes = stringResource(R.string.note_editor_subtab_quotes)
+                            val subtabTodos = stringResource(R.string.note_editor_subtab_todos)
+                            val subTabTitles = listOf(subtabSummary, subtabChapters, subtabQuotes, subtabTodos)
                             var parsedSummary by remember { mutableStateOf(ParsedSummary()) }
                             LaunchedEffect(content.text) {
                                 delay(400)
@@ -557,12 +572,12 @@ fun NoteEditorScreen(
                                                     icon = {
                                                         Icon(
                                                             Icons.Default.FormatQuote,
-                                                            contentDescription = "引用",
+                                                            contentDescription = stringResource(R.string.cd_quote),
                                                             modifier = Modifier.size(56.dp),
                                                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                                         )
                                                     },
-                                                    title = "暂无金句精选",
+                                                    title = stringResource(R.string.note_editor_no_key_quotes),
                                                     subtitle = "",
                                                     modifier = Modifier.fillMaxSize(),
                                                 )
@@ -601,12 +616,12 @@ fun NoteEditorScreen(
                                                     icon = {
                                                         Icon(
                                                             Icons.Default.CheckCircle,
-                                                            contentDescription = "待办",
+                                                            contentDescription = stringResource(R.string.cd_todo),
                                                             modifier = Modifier.size(56.dp),
                                                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                                         )
                                                     },
-                                                    title = "暂无待办事项",
+                                                    title = stringResource(R.string.note_editor_no_action_items),
                                                     subtitle = "",
                                                     modifier = Modifier.fillMaxSize(),
                                                 )
@@ -651,13 +666,13 @@ fun NoteEditorScreen(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         Icons.Default.Lightbulb,
-                                                        contentDescription = "核心洞察",
+                                                        contentDescription = stringResource(R.string.note_editor_core_insight),
                                                         tint = MaterialTheme.customColors.successGreen,
                                                         modifier = Modifier.size(16.dp),
                                                     )
                                                     Spacer(Modifier.width(6.dp))
                                                     Text(
-                                                        "核心洞察",
+                                                        stringResource(R.string.note_editor_core_insight),
                                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                                         color = MaterialTheme.customColors.successGreen,
                                                     )
@@ -713,7 +728,7 @@ fun NoteEditorScreen(
                                                             shape = ShapeTokens.smallShape,
                                                         ) {
                                                             Text(
-                                                                "种子：${section.seed}",
+                                                                stringResource(R.string.note_editor_seed_prefix, section.seed),
                                                                 style = MaterialTheme.typography.bodySmall,
                                                                 color = MaterialTheme.customColors.sproutSeedText,
                                                                 modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
@@ -735,7 +750,7 @@ fun NoteEditorScreen(
                                                             Row(modifier = Modifier.fillMaxWidth()) {
                                                                 Icon(
                                                                     Icons.Default.AutoAwesome,
-                                                                    contentDescription = "震惊瞬间",
+                                                                    contentDescription = stringResource(R.string.note_editor_shocking_moment),
                                                                     tint = MaterialTheme.customColors.accentOrange,
                                                                     modifier = Modifier.size(16.dp),
                                                                 )
@@ -765,20 +780,20 @@ fun NoteEditorScreen(
                                             ) {
                                                 Icon(
                                                     Icons.Default.Lightbulb,
-                                                    contentDescription = "旧版发芽报告",
+                                                    contentDescription = stringResource(R.string.note_editor_legacy_sprout),
                                                     tint = MaterialTheme.customColors.accentOrange,
                                                     modifier = Modifier.size(32.dp),
                                                 )
                                                 Spacer(Modifier.height(12.dp))
                                                 Text(
-                                                    "检测到旧版发芽报告",
+                                                    stringResource(R.string.note_editor_legacy_detected),
                                                     style = MaterialTheme.typography.titleMedium,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = MaterialTheme.colorScheme.onSurface,
                                                 )
                                                 Spacer(Modifier.height(8.dp))
                                                 Text(
-                                                    "当前显示的是旧版摘要格式，重新发芽可获取完整的叙事式分析报告。",
+                                                    stringResource(R.string.note_editor_legacy_desc),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     textAlign = TextAlign.Center,
@@ -788,14 +803,14 @@ fun NoteEditorScreen(
                                                     onClick = {
                                                         scope.launch {
                                                             if (!sproutMutex.tryLock()) {
-                                                                snackbarHostState.showSnackbar("发芽正在进行中，请稍候")
+                                                                snackbarHostState.showSnackbar(context.getString(R.string.msg_sprout_in_progress))
                                                                 return@launch
                                                             }
                                                             val note = currentNote
                                                             val service = sproutService
                                                             if (note == null || service == null) {
                                                                 sproutMutex.unlock()
-                                                                snackbarHostState.showSnackbar("笔记未加载或发芽服务不可用")
+                                                                snackbarHostState.showSnackbar(context.getString(R.string.msg_sprout_unavailable))
                                                                 return@launch
                                                             }
                                                             isGenerating = true
@@ -815,11 +830,11 @@ fun NoteEditorScreen(
                                                                             }
                                                                         },
                                                                         onFailure = { e ->
-                                                                            snackbarHostState.showSnackbar("发芽失败: ${e.message}")
+                                                                            snackbarHostState.showSnackbar(context.getString(R.string.msg_sprout_failed, e.message ?: ""))
                                                                         },
                                                                     )
                                                                 } catch (e: Exception) {
-                                                                    snackbarHostState.showSnackbar("发芽失败: ${e.message}")
+                                                                    snackbarHostState.showSnackbar(context.getString(R.string.msg_sprout_failed, e.message ?: ""))
                                                                 }
                                                             } finally {
                                                                 isGenerating = false
@@ -837,9 +852,9 @@ fun NoteEditorScreen(
                                                         )
                                                         Spacer(Modifier.width(8.dp))
                                                     }
-                                                    Icon(Icons.Default.AutoAwesome, "重新发芽", Modifier.size(16.dp))
+                                                    Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.note_editor_regenerate_sprout), Modifier.size(16.dp))
                                                     Spacer(Modifier.width(6.dp))
-                                                    Text("重新发芽")
+                                                    Text(stringResource(R.string.note_editor_regenerate_sprout))
                                                 }
                                             }
                                         }
@@ -857,13 +872,13 @@ fun NoteEditorScreen(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         Icons.Default.CheckCircle,
-                                                        contentDescription = "行动建议",
+                                                        contentDescription = stringResource(R.string.note_editor_action_suggestion),
                                                         tint = MaterialTheme.customColors.accentBlue,
                                                         modifier = Modifier.size(16.dp),
                                                     )
                                                     Spacer(Modifier.width(6.dp))
                                                     Text(
-                                                        "行动建议",
+                                                        stringResource(R.string.note_editor_action_suggestion),
                                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                                         color = MaterialTheme.customColors.accentBlue,
                                                     )
@@ -894,7 +909,7 @@ fun NoteEditorScreen(
                                         ) {
                                             Column(modifier = Modifier.padding(SpacingTokens.md)) {
                                                 Text(
-                                                    "相关概念",
+                                                    stringResource(R.string.note_editor_related_concepts),
                                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
@@ -928,13 +943,14 @@ fun NoteEditorScreen(
                                             modifier = Modifier.fillMaxWidth().padding(top = SpacingTokens.sm),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                         ) {
+                                            val modelDefault = stringResource(R.string.note_editor_model_default)
                                             Text(
-                                                "模型: ${article.modelUsed.ifBlank { "默认" }}",
+                                                stringResource(R.string.note_editor_model_used, article.modelUsed.ifBlank { modelDefault }),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                             Text(
-                                                "阅读约 ${article.readingTimeMinutes.coerceAtLeast(1)} 分钟",
+                                                stringResource(R.string.note_editor_reading_minutes, article.readingTimeMinutes.coerceAtLeast(1)),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -942,10 +958,11 @@ fun NoteEditorScreen(
                                     }
                                 }
                             } else {
-                                var sproutTitle by remember { mutableStateOf("正在汲取养分..") }
+                                val generatingSprout = stringResource(R.string.note_editor_generating_sprout)
+                                var sproutTitle by remember { mutableStateOf(generatingSprout) }
                                 LaunchedEffect(Unit) {
                                     delay(2000L)
-                                    sproutTitle = "暂无发芽"
+                                    sproutTitle = context.getString(R.string.note_editor_no_sprout)
                                 }
                                 EmptyStateView(
                                     icon = { SproutEmptyIllustration() },
@@ -976,16 +993,16 @@ fun NoteEditorScreen(
                             .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(noteType.icon(), "笔记类型", tint = noteType.color(), modifier = Modifier.size(14.dp))
+                        Icon(noteType.icon(), contentDescription = stringResource(R.string.cd_note_type), tint = noteType.color(), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(noteType.displayName(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                         Spacer(Modifier.width(12.dp))
-                        Text("$wordCount 字", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.note_editor_word_count, wordCount), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                         if (lastSavedAt != null) {
                             Text(
-                                "保存于 ${EditorUtils.formatTimeAgo(lastSavedAt!!)}",
+                                stringResource(R.string.note_editor_saved_at, EditorUtils.formatTimeAgo(lastSavedAt!!)),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.customColors.successGreen,
                                 modifier = Modifier.padding(start = SpacingTokens.sm),
@@ -1017,7 +1034,7 @@ fun NoteEditorScreen(
                 onShare = {
                     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(content.text))
                     scope.launch {
-                        snackbarHostState.showSnackbar("已复制到剪贴板", duration = SnackbarDuration.Short)
+                        snackbarHostState.showSnackbar(context.getString(R.string.msg_copied_to_clipboard), duration = SnackbarDuration.Short)
                     }
                 },
                 onAppend = { onAppendNote(noteId) },
@@ -1077,23 +1094,25 @@ fun NoteEditorScreen(
                     },
                     actions = {
                         // 预览/编辑模式切换
+                        val editLabel = stringResource(R.string.action_edit)
+                        val previewLabel = stringResource(R.string.note_editor_preview)
                         IconButton(onClick = { isPreviewMode = !isPreviewMode }) {
                             Icon(
                                 if (isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
-                                if (isPreviewMode) "编辑" else "预览",
+                                contentDescription = if (isPreviewMode) editLabel else previewLabel,
                                 tint = MaterialTheme.customColors.accentBlue,
                             )
                         }
 
                         // 格式化工具栏切换
                         IconButton(onClick = { showFormatToolbar = !showFormatToolbar }) {
-                            Icon(Icons.Default.FormatBold, "格式化", tint = MaterialTheme.customColors.accentBlue)
+                            Icon(Icons.Default.FormatBold, contentDescription = stringResource(R.string.cd_format), tint = MaterialTheme.customColors.accentBlue)
                         }
 
                         // AI 操作按钮（只在编辑已有笔记时显示）
                         if (noteId != null) {
                             IconButton(onClick = { showAiMenu = true }) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作", tint = MaterialTheme.customColors.accentBlue)
+                                Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.note_editor_ai_action), tint = MaterialTheme.customColors.accentBlue)
                             }
                         }
 
@@ -1114,7 +1133,7 @@ fun NoteEditorScreen(
                                 },
                                 enabled = content.text.isNotBlank(),
                             ) {
-                                Icon(Icons.Default.ChatBubbleOutline, "在对话中讨论", modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentBlue)
+                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = stringResource(R.string.cd_discuss), modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentBlue)
                                 Spacer(Modifier.width(4.dp))
                                 Text(stringResource(R.string.note_editor_discuss), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.customColors.accentBlue)
                             }
@@ -1129,6 +1148,7 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // 标题输入
@@ -1141,7 +1161,7 @@ fun NoteEditorScreen(
                 decorationBox = { innerTextField ->
                     Box(modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)) {
                         if (title.isEmpty()) {
-                            Text("标题（可选）", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            Text(stringResource(R.string.note_editor_title_hint), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         }
                         innerTextField()
                     }
@@ -1173,7 +1193,7 @@ fun NoteEditorScreen(
                                         onClick = { removeTag(tag) },
                                         modifier = Modifier.size(14.dp),
                                     ) {
-                                        Icon(Icons.Default.Close, "删除", modifier = Modifier.size(10.dp), tint = MaterialTheme.customColors.accentOrange)
+                                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_delete), modifier = Modifier.size(10.dp), tint = MaterialTheme.customColors.accentOrange)
                                     }
                                 }
                             }
@@ -1184,7 +1204,7 @@ fun NoteEditorScreen(
 
                 // 标签输入框
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.Label, "标签", tint = MaterialTheme.customColors.accentOrange, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.Label, contentDescription = stringResource(R.string.cd_tag), tint = MaterialTheme.customColors.accentOrange, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     BasicTextField(
                         value = tagInput,
@@ -1195,7 +1215,7 @@ fun NoteEditorScreen(
                         decorationBox = { innerTextField ->
                             Box {
                                 if (tagInput.isEmpty()) {
-                                    Text("添加标签（最多200个，每个40字符）", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                    Text(stringResource(R.string.note_editor_tag_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                 }
                                 innerTextField()
                             }
@@ -1206,7 +1226,7 @@ fun NoteEditorScreen(
                     )
                     if (tagInput.isNotEmpty()) {
                         IconButton(onClick = { addTag() }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Add, "添加", modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentOrange)
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add), modifier = Modifier.size(16.dp), tint = MaterialTheme.customColors.accentOrange)
                         }
                     }
                 }
@@ -1257,7 +1277,7 @@ fun NoteEditorScreen(
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
-                    placeholder = "开始书写...\n\n选中文字即可加粗、斜体、代码等格式",
+                    placeholder = stringResource(R.string.note_editor_format_hint),
                 )
             } else {
                 // Markdown 编辑模式
@@ -1302,18 +1322,11 @@ fun NoteEditorScreen(
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     decorationBox = { innerTextField ->
                         Box {
+                            val markdownPlaceholder = stringResource(R.string.note_editor_markdown_placeholder)
                             if (content.text.isEmpty()) {
                                 Text(
                                     buildAnnotatedString {
-                                        append("开始书写...\n\n")
-                                        append("支持 Markdown 格式：\n")
-                                        append("# 标题\n")
-                                        append("**加粗** *斜体* `代码`\n")
-                                        append("- 无序列表\n")
-                                        append("1. 有序列表\n")
-                                        append("> 引用\n")
-                                        append("![图片](url)\n")
-                                        append("[链接](url)")
+                                        append(markdownPlaceholder)
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
@@ -1346,7 +1359,7 @@ fun NoteEditorScreen(
                             // Tab 键接受提示（底部小字提示）
                             if (isGhostTextActive && ghostText.isNotEmpty()) {
                                 Text(
-                                    text = "Tab 接受 | Esc 取消",
+                                    text = stringResource(R.string.note_editor_ghost_hint),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.customColors.accentBlue.copy(alpha = 0.5f),
                                     modifier = Modifier
@@ -1402,17 +1415,17 @@ fun NoteEditorScreen(
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(noteType.icon(), "笔记类型", tint = noteType.color(), modifier = Modifier.size(16.dp))
+                    Icon(noteType.icon(), contentDescription = stringResource(R.string.cd_note_type), tint = noteType.color(), modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(SpacingTokens.xs))
                     Text(noteType.displayName(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     Spacer(Modifier.weight(1f))
 
-                    Text("$wordCount 字", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.note_editor_word_count, wordCount), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     if (lastSavedAt != null) {
                         Text(
-                            "已保存 ${EditorUtils.formatTimeAgo(lastSavedAt!!)}",
+                            stringResource(R.string.note_editor_saved_ago, EditorUtils.formatTimeAgo(lastSavedAt!!)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.customColors.successGreen,
                             modifier = Modifier.padding(start = SpacingTokens.sm),
@@ -1431,20 +1444,20 @@ fun NoteEditorScreen(
             title = { Text(stringResource(R.string.note_editor_ai_action)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AIActionButton("点评", "识别亮点，正向强化", "insight_review") {
+                    AIActionButton(stringResource(R.string.ai_action_review), stringResource(R.string.ai_action_review_desc), "insight_review") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "insight_review")
                     }
-                    AIActionButton("拷问", "深度追问，挑战逻辑", "critical_inquiry") {
+                    AIActionButton(stringResource(R.string.ai_action_inquiry), stringResource(R.string.ai_action_inquiry_desc), "critical_inquiry") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "critical_inquiry")
                     }
-                    AIActionButton("润色", "优化表达，提升质量", "text_refine") {
+                    AIActionButton(stringResource(R.string.ai_action_refine), stringResource(R.string.ai_action_refine_desc), "text_refine") {
                         showAiMenu = false
                         onSendWithSkill(noteId, "text_refine")
                     }
                     HorizontalDivider(color = themeDividerColor(), modifier = Modifier.padding(vertical = SpacingTokens.xs))
-                    AIActionButton("AI 编辑团", "8人编辑团协作创作", "editor_team") {
+                    AIActionButton(stringResource(R.string.ai_action_editor_team), stringResource(R.string.ai_action_editor_team_desc), "editor_team") {
                         showAiMenu = false
                         scope.launch { save() }
                         onOpenEditorTeam(content.text)
