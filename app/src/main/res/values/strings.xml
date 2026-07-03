@@ -498,6 +498,7 @@
     <!-- Onboarding -->
     <string name="onboarding_skip">跳过</string>
     <string name="onboarding_next">下一步</string>
+    <string name="onboarding_prev">上一页</string>
     <string name="onboarding_get_started">进入 Opedrgent</string>
     <string name="onboarding_page_welcome_title">欢迎来到 Opedrgent</string>
     <string name="onboarding_page_welcome_subtitle">你的本地优先 AI 助手。对话、笔记、知识图谱三位一体，让思考自然生长。</string>
@@ -505,6 +506,8 @@
     <string name="onboarding_page_chat_subtitle">支持多轮对话、工具调用、联网搜索与深度研究。需要时 AI 会主动确认，不会擅自执行敏感操作。</string>
     <string name="onboarding_page_notes_title">笔记与知识图谱</string>
     <string name="onboarding_page_notes_subtitle">记录灵感、会议、图片与链接。保存后系统会自动构建知识图谱，帮你发现笔记之间的隐藏联系。</string>
+    <string name="onboarding_page_sprout_title">思想空间发芽</string>
+    <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
     <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
     <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
 </resources>
