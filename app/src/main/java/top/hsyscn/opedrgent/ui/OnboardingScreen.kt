@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Button
@@ -28,13 +29,19 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -82,7 +89,7 @@ fun OnboardingScreen(
             icon = Icons.Default.AutoAwesome,
             title = stringResource(R.string.onboarding_page_sprout_title),
             subtitle = stringResource(R.string.onboarding_page_sprout_subtitle),
-            gradientStart = MaterialTheme.colorScheme.successContainer.copy(alpha = 0.3f),
+            gradientStart = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
             gradientEnd = Color.Transparent,
         ),
         OnboardingPage(
@@ -121,17 +128,22 @@ fun OnboardingScreen(
             .background(MaterialTheme.colorScheme.background)
             .pointerInput(isFinishing, isAnimating) {
                 if (isFinishing || isAnimating) return@pointerInput
+                var totalDrag = 0f
                 detectHorizontalDragGestures(
-                    onDragEnd = { velocity ->
-                        val screenWidth = size.width
-                        val threshold = screenWidth * 0.2f
-                        if (velocity.x < -500 || (velocity.x < 0 && abs(velocity.x) > screenWidth * 0.05f)) {
+                    onDragStart = { },
+                    onDragEnd = {
+                        val screenWidth = size.width.toFloat()
+                        if (totalDrag < -screenWidth * 0.2f) {
                             onNext()
-                        } else if (velocity.x > 500 || (velocity.x > 0 && velocity.x > screenWidth * 0.05f)) {
+                        } else if (totalDrag > screenWidth * 0.2f) {
                             onPrev()
                         }
+                        totalDrag = 0f
                     },
-                ) { _, _ -> }
+                    onDragCancel = { totalDrag = 0f },
+                ) { _, dragAmount ->
+                    totalDrag += dragAmount
+                }
             },
     ) {
         // 背景渐变层
@@ -168,11 +180,8 @@ fun OnboardingScreen(
                     .padding(top = SpacingTokens.lg),
             ) {
                 TextButton(
-                    onClick = onComplete,
+                    onClick = { onComplete() },
                     modifier = Modifier.align(Alignment.CenterEnd),
-                    colors = androidx.compose.material3.TextButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
                 ) {
                     Text(
                         stringResource(R.string.onboarding_skip),
@@ -194,11 +203,11 @@ fun OnboardingScreen(
                 transitionSpec = {
                     val direction = if (targetState > initialState) 1 else -1
                     (slideInHorizontally(
-                        initialOffset = { it * direction },
+                        initialOffsetX = { it * direction },
                         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                     ) + fadeIn())
                         .togetherWith(slideOutHorizontally(
-                            targetOffset = { -it * direction },
+                            targetOffsetX = { -it * direction },
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                         ) + fadeOut())
                 },
@@ -293,7 +302,7 @@ fun OnboardingScreen(
                                 Text(stringResource(R.string.onboarding_get_started))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
-                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    Icons.Default.ArrowForward,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -303,7 +312,7 @@ fun OnboardingScreen(
                                 Text(stringResource(R.string.onboarding_next))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
-                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    Icons.Default.ArrowForward,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -327,8 +336,8 @@ private fun OnboardingPageContent(
     pageIndex: Int,
     totalPages: Int,
 ) {
-    val showTitle by remember { mutableStateOf(false) }
-    val showSubtitle by remember { mutableStateOf(false) }
+    var showTitle by remember { mutableStateOf(false) }
+    var showSubtitle by remember { mutableStateOf(false) }
     val iconScale = remember { Animatable(0.8f) }
     val iconAlpha = remember { Animatable(0f) }
 
