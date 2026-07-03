@@ -18,6 +18,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -48,8 +49,29 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
     // 服务层最后防线：避免多入口并发请求同一服务实例
     private val sproutMutex = Mutex()
+    private val webSearcher by lazy { WebSearcher() }
 
-    companion object {
+    // ==================== 发芽专用工具定义 ====================
+
+    private val WEB_SEARCH_TOOL = JSONObject().apply {
+        put("type", "function")
+        put("function", JSONObject().apply {
+            put("name", "web_search")
+            put("description", "搜索互联网获取真实信息。用于验证关键事实、查找案例和数据。只在需要外部事实支撑时调用。")
+            put("parameters", JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("query", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "搜索关键词")
+                    })
+                })
+                put("required", JSONArray().apply { put("query") })
+            })
+        })
+    }
+
+    private companion object {
         private const val TAG = "SproutService"
 
         /**
@@ -164,57 +186,124 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                 prompt += "\n\n## 其他笔记索引\n$otherNotesContext"
             }
 
-            prompt += "\n\n## 重要：联网搜索验证\n在分析过程中，请主动使用联网搜索工具验证关键事实、查找相关案例和数据。搜索至少2个关键词，但不超过3次搜索。"
+            prompt += "\n\n## 联网搜索\n你有一个 web_search 工具可以搜索互联网。在分析过程中，如果你需要验证某个事实、查找真实案例或数据，可以调用它。不需要搜也行——只在确实需要外部证据支撑论点时才搜。最多搜 3 次。"
 
             val apiKey = apiSettings.getApiKey()
                 ?: return@withContext Result.failure(IllegalStateException("API Key 未设置"))
 
             val baseUrl = apiSettings.getBaseUrl().removeSuffix("/")
 
-            val jsonBody = JSONObject().apply {
-                put("model", modelId)
-                put("max_tokens", 32768)
-                put("temperature", 1.0)
-                put("top_p", 0.95)
-                put("top_k", 20)
-                put("presence_penalty", 1.5)
-                put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "system")
-                        put("content", "你是顶级知识管理顾问+深度内容分析师。你的写作风格类似《经济学人》中文版专栏——专业但不晦涩，深刻但不做作。必须严格输出 JSON 格式。")
-                    })
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", prompt)
-                    })
-                })
+            val systemMsg = JSONObject().apply {
+                put("role", "system")
+                put("content", "你是顶级知识管理顾问+深度内容分析师。你的写作风格类似《经济学人》中文版专栏——专业但不晦涩，深刻但不做作。必须严格输出 JSON 格式。")
+            }
+            val userMsg = JSONObject().apply {
+                put("role", "user")
+                put("content", prompt)
+            }
+            val messages = JSONArray().apply {
+                put(systemMsg)
+                put(userMsg)
             }
 
-            val url = if (baseUrl.endsWith("/v1") || baseUrl.endsWith("/v2") || baseUrl.endsWith("/v3")) {
-                "$baseUrl/chat/completions"
-            } else {
-                "$baseUrl/v1/chat/completions"
-            }
+            // Tool calling 循环：AI 可以调用 web_search，我们执行后把结果喂回去
+            val maxToolRounds = 4
+            var finalContent: String? = null
 
-            val request = Request.Builder()
-                .url(url)
-                .header("Authorization", "Bearer $apiKey")
-                .header("Content-Type", "application/json")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val error = "HTTP ${response.code}"
-                    DebugLog.e(TAG, "发芽请求失败: $error")
-                    return@withContext Result.failure(RuntimeException(error))
+            for (round in 0..maxToolRounds) {
+                val jsonBody = JSONObject().apply {
+                    put("model", modelId)
+                    put("max_tokens", 32768)
+                    put("temperature", 1.0)
+                    put("top_p", 0.95)
+                    put("top_k", 20)
+                    put("presence_penalty", 1.5)
+                    put("messages", messages)
+                    put("tools", JSONArray().apply { put(WEB_SEARCH_TOOL) })
+                    put("tool_choice", "auto")
                 }
 
-                val body = response.body?.string() ?: return@withContext Result.failure(
-                    RuntimeException("空响应")
-                )
+                val url = if (baseUrl.endsWith("/v1") || baseUrl.endsWith("/v2") || baseUrl.endsWith("/v3")) {
+                    "$baseUrl/chat/completions"
+                } else {
+                    "$baseUrl/v1/chat/completions"
+                }
 
-                parseNarrativeResponse(body, modelId)
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $apiKey")
+                    .header("Content-Type", "application/json")
+                    .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val responseBody = httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val error = "HTTP ${response.code}"
+                        DebugLog.e(TAG, "发芽请求失败: $error")
+                        return@withContext Result.failure(RuntimeException(error))
+                    }
+                    response.body?.string() ?: return@withContext Result.failure(RuntimeException("空响应"))
+                }
+
+                val root = JSONObject(responseBody)
+                val choice = root.getJSONArray("choices").getJSONObject(0)
+                val message = choice.getJSONObject("message")
+                val content = message.optString("content", "")
+                val toolCalls = message.optJSONArray("tool_calls")
+
+                if (toolCalls != null && toolCalls.length() > 0) {
+                    DebugLog.i(TAG, "发芽 round $round: AI 调用了 ${toolCalls.length()} 个工具")
+                    // 把 assistant 消息（含 tool_calls）加到 messages
+                    val assistantMsg = JSONObject().apply {
+                        put("role", "assistant")
+                        put("content", content.ifEmpty { "" })
+                        put("tool_calls", toolCalls)
+                    }
+                    messages.put(assistantMsg)
+
+                    // 执行每个 tool call
+                    for (i in 0 until toolCalls.length()) {
+                        val tc = toolCalls.getJSONObject(i)
+                        val tcId = tc.getString("id")
+                        val func = tc.getJSONObject("function")
+                        val funcName = func.getString("name")
+                        val args = JSONObject(func.getString("arguments"))
+
+                        val toolResult = if (funcName == "web_search") {
+                            executeWebSearch(args.optString("query", ""))
+                        } else {
+                            "未知工具: $funcName"
+                        }
+
+                        DebugLog.i(TAG, "工具结果 (${toolResult.take(100)}...)")
+                        messages.put(JSONObject().apply {
+                            put("role", "tool")
+                            put("tool_call_id", tcId)
+                            put("content", toolResult)
+                        })
+                    }
+                    // 继续下一轮
+                } else {
+                    // 没有 tool_call，AI 给出了最终回答
+                    finalContent = content
+                    break
+                }
+            }
+
+            if (finalContent == null) {
+                return@withContext Result.failure(RuntimeException("发芽 tool call 循环未产生最终回答"))
+            }
+
+            // 复用原有解析逻辑
+            val jsonStr = extractJsonFromMarkdown(stripThinkingTags(finalContent!!)) ?: finalContent!!.trim()
+            val articleResult = extractSproutArticle(jsonStr)
+            if (articleResult.isSuccess) {
+                val article = articleResult.getOrThrow().copy(modelUsed = modelId)
+                DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
+                Result.success(article)
+            } else {
+                DebugLog.e(TAG, "发芽解析失败: ${articleResult.exceptionOrNull()?.message}")
+                articleResult
             }
         } catch (e: Exception) {
             DebugLog.e(TAG, "发芽失败: ${e.message}", e)
@@ -278,6 +367,39 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                     }
                 }
             }.awaitAll()
+        }
+    }
+
+    // ==================== 工具执行 ====================
+
+    /**
+     * 执行联网搜索，返回格式化的搜索结果摘要。
+     * 限制返回长度，避免 tool result 过大浪费 token。
+     */
+    private suspend fun executeWebSearch(query: String): String {
+        if (query.isBlank()) return "搜索关键词为空"
+        return try {
+            val results = webSearcher.search(query, limit = 5)
+            if (results.isEmpty()) {
+                "未找到相关结果"
+            } else {
+                buildString {
+                    appendLine("搜索「$query」的结果：")
+                    results.forEachIndexed { index, result ->
+                        appendLine("${index + 1}. ${result.title}")
+                        if (!result.snippet.isNullOrBlank()) {
+                            appendLine("   ${result.snippet.take(200)}")
+                        }
+                        if (result.url.isNotBlank()) {
+                            appendLine("   来源: ${result.url}")
+                        }
+                        appendLine()
+                    }
+                }.trim()
+            }
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "web_search 失败: ${e.message}")
+            "搜索失败: ${e.message}"
         }
     }
 

@@ -767,6 +767,9 @@ private fun SproutLoadingView() {
         label = "pulse_alpha",
     )
 
+    val successColor = MaterialTheme.customColors.successGreen
+    val seedColor = MaterialTheme.customColors.sproutSeedText
+
     Column(
         Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -780,14 +783,14 @@ private fun SproutLoadingView() {
                     val groundY = size.height * 0.72f
 
                     drawCircle(
-                        color = MaterialTheme.customColors.successGreen.copy(alpha = pulseAlpha * 0.15f),
+                        color = successColor.copy(alpha = pulseAlpha * 0.15f),
                         radius = size.width * 0.45f,
                         center = Offset(centerX, groundY),
                     )
 
                     val seedY = groundY - 8.dp.toPx()
                     drawOval(
-                        color = MaterialTheme.customColors.sproutSeedText.copy(alpha = 0.6f),
+                        color = seedColor.copy(alpha = 0.6f),
                         topLeft = Offset(centerX - 14.dp.toPx(), seedY - 10.dp.toPx()),
                         size = androidx.compose.ui.geometry.Size(28.dp.toPx(), 20.dp.toPx()),
                     )
@@ -806,7 +809,7 @@ private fun SproutLoadingView() {
                         }
                         drawPath(
                             path = stemPath,
-                            color = MaterialTheme.customColors.successGreen,
+                            color = successColor,
                             style = androidx.compose.ui.graphics.drawscope.Stroke(
                                 width = 4.dp.toPx(),
                                 cap = androidx.compose.ui.graphics.StrokeCap.Round,
@@ -819,13 +822,13 @@ private fun SproutLoadingView() {
                             val leafY = groundY - stemHeight * 0.7f
                             val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * 8.dp.toPx()
                             drawOval(
-                                color = MaterialTheme.customColors.successGreen.copy(alpha = 0.85f),
+                                color = successColor.copy(alpha = 0.85f),
                                 topLeft = Offset(centerX + swayX * 0.5f - leafSize * 0.7f, leafY - leafSize * 0.3f),
                                 size = androidx.compose.ui.geometry.Size(leafSize, leafSize * 0.6f),
                                 alpha = 1f,
                             )
                             drawOval(
-                                color = MaterialTheme.customColors.successGreen.copy(alpha = 0.85f),
+                                color = successColor.copy(alpha = 0.85f),
                                 topLeft = Offset(centerX + swayX * 0.5f + leafSize * 0.1f, leafY - leafSize * 0.1f),
                                 size = androidx.compose.ui.geometry.Size(leafSize, leafSize * 0.6f),
                                 alpha = 1f,
