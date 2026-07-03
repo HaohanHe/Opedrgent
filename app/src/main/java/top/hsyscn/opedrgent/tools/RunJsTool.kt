@@ -171,7 +171,7 @@ class RunJsTool(
     private fun isScriptNameSafe(scriptName: String): Boolean {
         if (scriptName.isBlank()) return false
         if (scriptName.contains("..") || scriptName.contains('/') || scriptName.contains('\\')) return false
-        return scriptName.matches(Regex("^[\w.\-]+$"))
+        return scriptName.matches(Regex("^[\\w.\\-]+$"))
     }
 
     /**

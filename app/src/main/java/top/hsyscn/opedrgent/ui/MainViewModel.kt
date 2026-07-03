@@ -4599,7 +4599,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** UI 层响应高危工具确认：允许或拒绝。 */
     fun resolveToolConfirmation(allowed: Boolean) {
         currentConfirmationDeferred?.let { deferred ->
-            if (!deferred.tryComplete(allowed)) {
+            if (!deferred.complete(allowed)) {
                 DebugLog.w("MainViewModel", "resolveToolConfirmation: deferred already completed/cancelled")
             }
         }
