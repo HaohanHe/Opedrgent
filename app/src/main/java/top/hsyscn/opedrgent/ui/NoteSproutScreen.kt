@@ -268,12 +268,12 @@ fun NoteSproutScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).background(themeSproutBackground())) {
             val uiState = when {
-                isGenerating && article == null -> SproutUiState.Loading
-                isGenerating && article != null -> SproutUiState.Refreshing(article!!)
-                errorMessage != null && article == null -> SproutUiState.Error(errorMessage!!)
-                errorMessage != null && article != null -> SproutUiState.ErrorWithArticle(errorMessage!!, article!!)
-                article != null -> SproutUiState.Success(article!!)
-                else -> SproutUiState.Empty
+                isGenerating && article == null -> SproutScreenState.Loading
+                isGenerating && article != null -> SproutScreenState.Refreshing(article!!)
+                errorMessage != null && article == null -> SproutScreenState.Error(errorMessage!!)
+                errorMessage != null && article != null -> SproutScreenState.ErrorWithArticle(errorMessage!!, article!!)
+                article != null -> SproutScreenState.Success(article!!)
+                else -> SproutScreenState.Empty
             }
             AnimatedContent(
                 targetState = uiState,
@@ -282,8 +282,8 @@ fun NoteSproutScreen(
                 label = "sprout_state",
             ) { state ->
                 when (state) {
-                    SproutUiState.Loading -> SproutLoadingView()
-                    is SproutUiState.Error -> SproutErrorView(message = state.message, onRetry = {
+                    SproutScreenState.Loading -> SproutLoadingView()
+                    is SproutScreenState.Error -> SproutErrorView(message = state.message, onRetry = {
                         doSprout(
                             scope = scope,
                             mutex = sproutMutex,
@@ -296,7 +296,7 @@ fun NoteSproutScreen(
                             onSuccess = { article = it },
                         )
                     })
-                    is SproutUiState.Success -> SproutArticleContent(
+                    is SproutScreenState.Success -> SproutArticleContent(
                         article = state.article,
                         completedActions = completedActions,
                         onActionToggle = toggleAction,
@@ -326,7 +326,7 @@ fun NoteSproutScreen(
                             )
                         },
                     )
-                    is SproutUiState.Refreshing -> SproutArticleContent(
+                    is SproutScreenState.Refreshing -> SproutArticleContent(
                         article = state.article,
                         completedActions = completedActions,
                         onActionToggle = toggleAction,
@@ -343,7 +343,7 @@ fun NoteSproutScreen(
                         sproutReportStore = sproutReportStore,
                         onResprout = {},
                     )
-                    is SproutUiState.ErrorWithArticle -> SproutArticleContent(
+                    is SproutScreenState.ErrorWithArticle -> SproutArticleContent(
                         article = state.article,
                         completedActions = completedActions,
                         onActionToggle = toggleAction,
@@ -374,7 +374,7 @@ fun NoteSproutScreen(
                             )
                         },
                     )
-                    SproutUiState.Empty -> SproutEmptyView(onGenerate = {
+                    SproutScreenState.Empty -> SproutEmptyView(onGenerate = {
                         doSprout(
                             scope = scope,
                             mutex = sproutMutex,
@@ -779,13 +779,13 @@ private fun SproutEmptyView(onGenerate: () -> Unit) {
 // ==================== UI 状态 ====================
 
 /** 发芽页面状态机，用于 AnimatedContent 做状态间淡入淡出过渡 */
-private sealed class SproutUiState {
-    data object Loading : SproutUiState()
-    data object Empty : SproutUiState()
-    data class Error(val message: String) : SproutUiState()
-    data class Success(val article: SproutArticle) : SproutUiState()
-    data class Refreshing(val article: SproutArticle) : SproutUiState()
-    data class ErrorWithArticle(val message: String, val article: SproutArticle) : SproutUiState()
+private sealed class SproutScreenState {
+    data object Loading : SproutScreenState()
+    data object Empty : SproutScreenState()
+    data class Error(val message: String) : SproutScreenState()
+    data class Success(val article: SproutArticle) : SproutScreenState()
+    data class Refreshing(val article: SproutArticle) : SproutScreenState()
+    data class ErrorWithArticle(val message: String, val article: SproutArticle) : SproutScreenState()
 }
 
 // ==================== 发芽辅助函数 ====================
@@ -800,7 +800,7 @@ private fun doSprout(
     service: SproutService,
     note: Note,
     repository: NoteRepository,
-    store: SproutReportStore?,
+    sproutReportStore: SproutReportStore?,
     seedContent: String? = null,
     setGenerating: (Boolean) -> Unit,
     setError: (String?) -> Unit,
@@ -825,7 +825,7 @@ private fun doSprout(
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
                             note.setSproutArticle(article)
                             repository.saveNote(note)
-                            persistSprout(store, note.id, note.title, article)
+                            persistSprout(sproutReportStore, note.id, note.title, article)
                         }
                         onSuccess(article)
                     },

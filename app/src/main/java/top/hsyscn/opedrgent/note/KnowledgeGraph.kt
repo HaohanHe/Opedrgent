@@ -242,8 +242,8 @@ class KnowledgeGraph(
         }
     }
 
-    fun getLinkedNotes(noteId: String): List<String> = graphMutex.withLock {
-        try {
+    fun getLinkedNotes(noteId: String): List<String> {
+        return try {
             store.getEdgesForNode(noteId)
                 .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
                 .distinct()
@@ -253,8 +253,8 @@ class KnowledgeGraph(
         }
     }
 
-    fun getLinkCount(noteId: String): Int = graphMutex.withLock {
-        try {
+    fun getLinkCount(noteId: String): Int {
+        return try {
             store.getEdgesForNode(noteId).size
         } catch (e: Exception) {
             DebugLog.e(TAG, "getLinkCount failed: ${e.message}", e)
@@ -262,8 +262,8 @@ class KnowledgeGraph(
         }
     }
 
-    fun getStats(): GraphStats = graphMutex.withLock {
-        try {
+    fun getStats(): GraphStats {
+        return try {
             val nodes = store.getAllNodes()
             val links = store.getAllEdges()
                 .map {
@@ -287,8 +287,8 @@ class KnowledgeGraph(
         }
     }
 
-    fun getAllLinks(): List<GraphEdge> = graphMutex.withLock {
-        try {
+    fun getAllLinks(): List<GraphEdge> {
+        return try {
             store.getAllEdges()
                 .map {
                     val a = it.sourceId
