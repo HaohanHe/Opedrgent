@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.note
 import android.content.Context
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import top.hsyscn.opedrgent.note.graph.GraphEdgeEntity
 import top.hsyscn.opedrgent.note.graph.GraphEmbeddingEntity
 import top.hsyscn.opedrgent.note.graph.GraphEntity
@@ -241,68 +242,86 @@ class KnowledgeGraph(
         }
     }
 
-    fun getLinkedNotes(noteId: String): List<String> = try {
-        store.getEdgesForNode(noteId)
-            .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
-            .distinct()
-    } catch (e: Exception) {
-        DebugLog.e(TAG, "getLinkedNotes failed: ${e.message}", e)
-        emptyList()
+    fun getLinkedNotes(noteId: String): List<String> = graphMutex.withLock {
+        try {
+            store.getEdgesForNode(noteId)
+                .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
+                .distinct()
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "getLinkedNotes failed: ${e.message}", e)
+            emptyList()
+        }
     }
 
-    fun getLinkCount(noteId: String): Int = try {
-        store.getEdgesForNode(noteId).size
-    } catch (e: Exception) {
-        DebugLog.e(TAG, "getLinkCount failed: ${e.message}", e)
-        0
+    fun getLinkCount(noteId: String): Int = graphMutex.withLock {
+        try {
+            store.getEdgesForNode(noteId).size
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "getLinkCount failed: ${e.message}", e)
+            0
+        }
     }
 
-    fun getStats(): GraphStats = try {
-        val nodes = store.getAllNodes()
-        val links = getAllLinks()
-        val totalNotes = nodes.size
-        val totalLinks = links.size
-        val isolatedNotes = nodes.count { store.getEdgesForNode(it.id).isEmpty() }
-        GraphStats(
-            totalNotes = totalNotes,
-            totalLinks = totalLinks,
-            isolatedNotes = isolatedNotes,
-            avgLinksPerNote = if (totalNotes > 0) totalLinks.toFloat() / totalNotes else 0f,
-        )
-    } catch (e: Exception) {
-        DebugLog.e(TAG, "getStats failed: ${e.message}", e)
-        GraphStats(0, 0, 0, 0f)
+    fun getStats(): GraphStats = graphMutex.withLock {
+        try {
+            val nodes = store.getAllNodes()
+            val links = store.getAllEdges()
+                .map {
+                    val a = it.sourceId
+                    val b = it.targetId
+                    if (a < b) GraphEdge(a, b) else GraphEdge(b, a)
+                }
+                .distinct()
+            val totalNotes = nodes.size
+            val totalLinks = links.size
+            val isolatedNotes = nodes.count { store.getEdgesForNode(it.id).isEmpty() }
+            GraphStats(
+                totalNotes = totalNotes,
+                totalLinks = totalLinks,
+                isolatedNotes = isolatedNotes,
+                avgLinksPerNote = if (totalNotes > 0) totalLinks.toFloat() / totalNotes else 0f,
+            )
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "getStats failed: ${e.message}", e)
+            GraphStats(0, 0, 0, 0f)
+        }
     }
 
-    fun getAllLinks(): List<GraphEdge> = try {
-        store.getAllEdges()
-            .map {
-                val a = it.sourceId
-                val b = it.targetId
-                if (a < b) GraphEdge(a, b) else GraphEdge(b, a)
-            }
-            .distinct()
-    } catch (e: Exception) {
-        DebugLog.e(TAG, "getAllLinks failed: ${e.message}", e)
-        emptyList()
+    fun getAllLinks(): List<GraphEdge> = graphMutex.withLock {
+        try {
+            store.getAllEdges()
+                .map {
+                    val a = it.sourceId
+                    val b = it.targetId
+                    if (a < b) GraphEdge(a, b) else GraphEdge(b, a)
+                }
+                .distinct()
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "getAllLinks failed: ${e.message}", e)
+            emptyList()
+        }
     }
 
     suspend fun searchByRelevance(query: String, maxResults: Int = 5): List<Pair<String, Float>> {
         if (query.isBlank()) return emptyList()
-        return try {
-            val queryVector = provider.embed(query)
-            store.getAllNodes()
-                .mapNotNull { node ->
-                    val embedding = store.getEmbedding(node.id)?.vector?.toFloatArray()
-                        ?: return@mapNotNull null
-                    val similarity = cosineSimilarity(queryVector, embedding)
-                    if (similarity > 0.05f) node.id to similarity else null
-                }
-                .sortedByDescending { it.second }
-                .take(maxResults)
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "searchByRelevance failed: ${e.message}", e)
-            emptyList()
+        return graphMutex.withLock {
+            try {
+                val queryVector = withTimeoutOrNull(30_000L) {
+                    provider.embed(query)
+                } ?: return@withLock emptyList()
+                store.getAllNodes()
+                    .mapNotNull { node ->
+                        val embedding = store.getEmbedding(node.id)?.vector?.toFloatArray()
+                            ?: return@mapNotNull null
+                        val similarity = cosineSimilarity(queryVector, embedding)
+                        if (similarity > 0.05f) node.id to similarity else null
+                    }
+                    .sortedByDescending { it.second }
+                    .take(maxResults)
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "searchByRelevance failed: ${e.message}", e)
+                emptyList()
+            }
         }
     }
 
@@ -310,6 +329,15 @@ class KnowledgeGraph(
         graphMutex.withLock {
             try {
                 store.runInTransaction {
+                    val entities = store.getEntitiesForNode(noteId)
+                    for (entity in entities) {
+                        val updatedFrequency = entity.frequency - 1
+                        if (updatedFrequency <= 0) {
+                            store.deleteEntity(entity.id)
+                        } else {
+                            store.updateEntityFrequency(entity.id, updatedFrequency)
+                        }
+                    }
                     store.deleteNode(noteId)
                     store.deleteEmbedding(noteId)
                     store.deleteNodeEntityRelations(noteId)

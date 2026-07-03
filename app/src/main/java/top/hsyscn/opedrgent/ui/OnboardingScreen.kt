@@ -53,7 +53,8 @@ fun OnboardingScreen(
     onFinished: () -> Unit,
 ) {
     var page by rememberSaveable { mutableIntStateOf(0) }
-    var isFinishing by remember { mutableStateOf(false) }
+    var isFinishing by rememberSaveable { mutableStateOf(false) }
+    var isAnimating by remember { mutableStateOf(false) }
 
     val pages = listOf(
         OnboardingPage(
@@ -105,27 +106,40 @@ fun OnboardingScreen(
         }
     }
 
+    val scope = rememberCoroutineScope()
     val onComplete = {
         isFinishing = true
-        onFinished()
+        scope.launch {
+            delay(300)
+            onFinished()
+        }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .pointerInput(Unit) {
+            .pointerInput(isFinishing, isAnimating) {
+                if (isFinishing || isAnimating) return@pointerInput
                 detectHorizontalDragGestures(
-                    onDragEnd = { /* handled below */ },
-                ) { _, dragAmount ->
-                    if (dragAmount < -50) onNext()
-                    else if (dragAmount > 50) onPrev()
-                }
+                    onDragEnd = { velocity ->
+                        val screenWidth = size.width
+                        val threshold = screenWidth * 0.2f
+                        if (velocity.x < -500 || (velocity.x < 0 && abs(velocity.x) > screenWidth * 0.05f)) {
+                            onNext()
+                        } else if (velocity.x > 500 || (velocity.x > 0 && velocity.x > screenWidth * 0.05f)) {
+                            onPrev()
+                        }
+                    },
+                ) { _, _ -> }
             },
     ) {
         // 背景渐变层
         AnimatedContent(
             targetState = pages[page].gradientStart,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+            },
             label = "bg_gradient",
         ) { color ->
             Box(
@@ -135,7 +149,7 @@ fun OnboardingScreen(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
                             listOf(color, Color.Transparent),
                             startY = 0f,
-                            endY = 500f,
+                            endY = Float.POSITIVE_INFINITY,
                         ),
                     ),
             )
@@ -170,6 +184,11 @@ fun OnboardingScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             // 内容区：带动画切换
+            LaunchedEffect(page) {
+                isAnimating = true
+                delay(500)
+                isAnimating = false
+            }
             AnimatedContent(
                 targetState = page,
                 transitionSpec = {
@@ -308,17 +327,18 @@ private fun OnboardingPageContent(
     pageIndex: Int,
     totalPages: Int,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        // 图标容器：弹跳入场
-        val iconScale = remember { Animatable(0.8f) }
-        val iconAlpha = remember { Animatable(0f) }
+    val showTitle by remember { mutableStateOf(false) }
+    val showSubtitle by remember { mutableStateOf(false) }
+    val iconScale = remember { Animatable(0.8f) }
+    val iconAlpha = remember { Animatable(0f) }
 
-        LaunchedEffect(pageIndex) {
-            iconScale.snapTo(0.8f)
-            iconAlpha.snapTo(0f)
+    LaunchedEffect(pageIndex) {
+        showTitle = false
+        showSubtitle = false
+        iconScale.snapTo(0.8f)
+        iconAlpha.snapTo(0f)
+
+        launch {
             iconScale.animateTo(
                 1f,
                 animationSpec = spring(
@@ -326,9 +346,23 @@ private fun OnboardingPageContent(
                     stiffness = Spring.StiffnessLow,
                 ),
             )
+        }
+        launch {
+            delay(100)
             iconAlpha.animateTo(1f, animationSpec = tween(300))
         }
 
+        delay(150)
+        showTitle = true
+        delay(100)
+        showSubtitle = true
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        // 图标容器：弹跳入场
         Box(
             modifier = Modifier
                 .size(140.dp)
@@ -350,9 +384,9 @@ private fun OnboardingPageContent(
 
         // 标题：从下方滑入
         AnimatedVisibility(
-            visible = iconAlpha.value >= 0.5f,
+            visible = showTitle,
             enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
-            modifier = Modifier.animateItemPlacement(),
+            exit = slideOutVertically(targetOffsetY = { -20 }) + fadeOut(),
         ) {
             Text(
                 text = page.title,
@@ -366,9 +400,9 @@ private fun OnboardingPageContent(
 
         // 副标题：延迟滑入
         AnimatedVisibility(
-            visible = iconAlpha.value >= 0.8f,
+            visible = showSubtitle,
             enter = slideInVertically(initialOffsetY = { 16 }) + fadeIn(animationSpec = tween(400)),
-            modifier = Modifier.animateItemPlacement(),
+            exit = slideOutVertically(targetOffsetY = { -16 }) + fadeOut(),
         ) {
             Text(
                 text = page.subtitle,
