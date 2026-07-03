@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 暗黑模式：使用框架 Material 深色主题作为启动窗口背景，与 Compose 主题保持一致。 -->
+    <style name="Theme.Opedrgent" parent="android:Theme.Material.NoActionBar" />
+</resources>
