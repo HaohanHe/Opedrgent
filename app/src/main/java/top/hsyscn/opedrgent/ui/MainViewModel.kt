@@ -4081,7 +4081,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         super.onCleared()
-        // Curator: 会话结束时非阻塞触发维护检查
+        toolConfirmationRequests.close()
+        currentConfirmationDeferred?.cancel()
         viewModelScope.launch(Dispatchers.IO) {
             curatorService.maybeRunCurator()
         }
@@ -4597,7 +4598,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** UI 层响应高危工具确认：允许或拒绝。 */
     fun resolveToolConfirmation(allowed: Boolean) {
-        currentConfirmationDeferred?.takeIf { !it.isCompleted }?.complete(allowed)
+        currentConfirmationDeferred?.let { deferred ->
+            if (!deferred.tryComplete(allowed)) {
+                DebugLog.w("MainViewModel", "resolveToolConfirmation: deferred already completed/cancelled")
+            }
+        }
     }
 
     fun answerQuestion(answer: String) {

@@ -50,6 +50,7 @@ import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.SproutArticle
 import top.hsyscn.opedrgent.note.SproutService
+import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
@@ -91,11 +92,11 @@ fun NoteSproutScreen(
     var article by remember { mutableStateOf(note.getSproutArticle()) }
     var isGenerating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    // 已勾选行动建议：使用 rememberSaveable 避免配置变化/进程重建后丢失
-    var completedActionIds by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
-    val completedActions = remember(completedActionIds) { completedActionIds.toSet() }
-    val toggleAction: (Int) -> Unit = { index ->
-        completedActionIds = if (index in completedActionIds) completedActionIds - index else completedActionIds + index
+    // 已勾选行动建议：使用内容哈希而非索引，避免重新发芽后勾选错位
+    var completedActionHashes by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
+    val completedActions = remember(completedActionHashes) { completedActionHashes }
+    val toggleAction: (String) -> Unit = { actionHash ->
+        completedActionHashes = if (actionHash in completedActionHashes) completedActionHashes - actionHash else completedActionHashes + actionHash
     }
     // 历史发芽报告列表（从数据库加载）
     var historyReports by remember { mutableStateOf<List<SproutReportRecord>>(emptyList()) }
@@ -103,6 +104,11 @@ fun NoteSproutScreen(
     var hasAutoTriggered by rememberSaveable { mutableStateOf(false) }
     // 防止发芽被重复触发
     val sproutMutex = remember { Mutex() }
+    // 导出状态（提升到顶层，与下拉菜单同步）
+    var isExporting by remember { mutableStateOf(false) }
+    // 追加笔记状态
+    var isAppending by remember { mutableStateOf(false) }
+    val appendMutex = remember { Mutex() }
 
     // 加载历史发芽记录，并在无历史且无当前文章时自动触发一次发芽
     LaunchedEffect(note.id) {
@@ -263,7 +269,9 @@ fun NoteSproutScreen(
         Box(Modifier.fillMaxSize().padding(padding).background(themeSproutBackground())) {
             val uiState = when {
                 isGenerating && article == null -> SproutUiState.Loading
+                isGenerating && article != null -> SproutUiState.Refreshing(article!!)
                 errorMessage != null && article == null -> SproutUiState.Error(errorMessage!!)
+                errorMessage != null && article != null -> SproutUiState.ErrorWithArticle(errorMessage!!, article!!)
                 article != null -> SproutUiState.Success(article!!)
                 else -> SproutUiState.Empty
             }
@@ -292,14 +300,66 @@ fun NoteSproutScreen(
                         article = state.article,
                         completedActions = completedActions,
                         onActionToggle = toggleAction,
-                        isRefreshing = isGenerating,
+                        isRefreshing = false,
+                        isExporting = isExporting,
+                        onExportStateChange = { isExporting = it },
+                        isAppending = isAppending,
+                        onAppendStateChange = { isAppending = it },
+                        appendMutex = appendMutex,
                         scrollState = scrollState,
                         note = note,
                         repository = repository,
                         sproutService = sproutService,
                         sproutReportStore = sproutReportStore,
                         onResprout = { seedContent ->
-                            // 以当前发芽结果为种子，重新触发发芽
+                            doSprout(
+                                scope = scope,
+                                mutex = sproutMutex,
+                                service = sproutService,
+                                repository = repository,
+                                note = note,
+                                sproutReportStore = sproutReportStore,
+                                seedContent = seedContent,
+                                setGenerating = { isGenerating = it },
+                                setError = { errorMessage = it },
+                                onSuccess = { article = it },
+                            )
+                        },
+                    )
+                    is SproutUiState.Refreshing -> SproutArticleContent(
+                        article = state.article,
+                        completedActions = completedActions,
+                        onActionToggle = toggleAction,
+                        isRefreshing = true,
+                        isExporting = isExporting,
+                        onExportStateChange = { isExporting = it },
+                        isAppending = isAppending,
+                        onAppendStateChange = { isAppending = it },
+                        appendMutex = appendMutex,
+                        scrollState = scrollState,
+                        note = note,
+                        repository = repository,
+                        sproutService = sproutService,
+                        sproutReportStore = sproutReportStore,
+                        onResprout = {},
+                    )
+                    is SproutUiState.ErrorWithArticle -> SproutArticleContent(
+                        article = state.article,
+                        completedActions = completedActions,
+                        onActionToggle = toggleAction,
+                        isRefreshing = false,
+                        isExporting = isExporting,
+                        onExportStateChange = { isExporting = it },
+                        isAppending = isAppending,
+                        onAppendStateChange = { isAppending = it },
+                        appendMutex = appendMutex,
+                        scrollState = scrollState,
+                        note = note,
+                        repository = repository,
+                        sproutService = sproutService,
+                        sproutReportStore = sproutReportStore,
+                        errorMessage = state.message,
+                        onResprout = { seedContent ->
                             doSprout(
                                 scope = scope,
                                 mutex = sproutMutex,
@@ -338,14 +398,20 @@ fun NoteSproutScreen(
 @Composable
 private fun SproutArticleContent(
     article: SproutArticle,
-    completedActions: Set<Int>,
-    onActionToggle: (Int) -> Unit,
+    completedActions: Set<String>,
+    onActionToggle: (String) -> Unit,
     isRefreshing: Boolean,
+    isExporting: Boolean,
+    onExportStateChange: (Boolean) -> Unit,
+    isAppending: Boolean,
+    onAppendStateChange: (Boolean) -> Unit,
+    appendMutex: Mutex,
     scrollState: androidx.compose.foundation.ScrollState,
     note: Note,
     repository: NoteRepository,
     sproutService: SproutService,
     sproutReportStore: SproutReportStore?,
+    errorMessage: String? = null,
     onResprout: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -353,9 +419,11 @@ private fun SproutArticleContent(
     val feedback = LocalFeedbackController.current
     val dateFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
 
-    // 防呆：追加笔记、导出等耗时操作防止重复触发
-    var isAppending by remember { mutableStateOf(false) }
-    var isExporting by remember { mutableStateOf(false) }
+    LaunchedEffect(errorMessage) {
+        if (!errorMessage.isNullOrBlank()) {
+            feedback.showFeedback(errorMessage)
+        }
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = SpacingTokens.xl),
@@ -391,13 +459,16 @@ private fun SproutArticleContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md, Alignment.End),
         ) {
-            // 追加笔记
+            // 追加笔记（使用 mutex 防止并发）
             FilledTonalButton(
                 onClick = {
-                    if (isAppending) return@FilledTonalButton
-                    val reportText = article.toPlainText()
-                    isAppending = true
                     scope.launch {
+                        if (!appendMutex.tryLock()) {
+                            feedback.showFeedback("操作正在进行中，请稍候")
+                            return@launch
+                        }
+                        val reportText = article.toPlainText()
+                        onAppendStateChange(true)
                         try {
                             withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 repository.quickCreate(reportText)
@@ -406,7 +477,8 @@ private fun SproutArticleContent(
                         } catch (e: Exception) {
                             feedback.showFeedback("追加失败: ${e.message}")
                         } finally {
-                            isAppending = false
+                            onAppendStateChange(false)
+                            appendMutex.unlock()
                         }
                     }
                 },
@@ -618,21 +690,23 @@ private fun ShockingBlock(moment: String, importance: Int) {
 // ==================== 行动建议 ====================
 
 @Composable
-private fun ActionSection(items: List<String>, completed: Set<Int>, onToggle: (Int) -> Unit) {
-    val progress = if (items.isEmpty()) 0f else completed.size.toFloat() / items.size
+private fun ActionSection(items: List<String>, completed: Set<String>, onToggle: (String) -> Unit) {
+    val completedCount = items.count { it.hashCode().toString() in completed }
+    val progress = if (items.isEmpty()) 0f else completedCount.toFloat() / items.size
 
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("行动建议", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-            if (items.isNotEmpty()) Text("${completed.size}/${items.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentBlue)
+            if (items.isNotEmpty()) Text("${completedCount}/${items.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentBlue)
         }
         if (items.isNotEmpty()) {
             LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(vertical = SpacingTokens.sm), color = MaterialTheme.customColors.successGreen, trackColor = themeDividerColor())
         }
-        items.forEachIndexed { idx, item ->
-            val done = idx in completed
+        items.forEach { item ->
+            val itemHash = item.hashCode().toString()
+            val done = itemHash in completed
             Row(
-                Modifier.fillMaxWidth().clickable { onToggle(idx) }.padding(vertical = SpacingTokens.sm),
+                Modifier.fillMaxWidth().clickable { onToggle(itemHash) }.padding(vertical = SpacingTokens.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -710,6 +784,8 @@ private sealed class SproutUiState {
     data object Empty : SproutUiState()
     data class Error(val message: String) : SproutUiState()
     data class Success(val article: SproutArticle) : SproutUiState()
+    data class Refreshing(val article: SproutArticle) : SproutUiState()
+    data class ErrorWithArticle(val message: String, val article: SproutArticle) : SproutUiState()
 }
 
 // ==================== 发芽辅助函数 ====================
@@ -741,21 +817,23 @@ private fun doSprout(
             val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try { repository.getRecentNotesIndex(5) } catch (_: Exception) { "" }
             }
-            service.sprout(seedContent ?: note.content, otherNotesContext).fold(
-                onSuccess = { article ->
-                    try {
-                        note.setSproutArticle(article)
-                        repository.saveNote(note)
-                        persistSprout(scope, store, note.id, note.title, article)
+            runCatching {
+                service.sprout(seedContent ?: note.content, otherNotesContext)
+            }.onSuccess { result ->
+                result.fold(
+                    onSuccess = { article ->
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            note.setSproutArticle(article)
+                            repository.saveNote(note)
+                            persistSprout(store, note.id, note.title, article)
+                        }
                         onSuccess(article)
-                    } catch (e: Exception) {
-                        setError(e.message ?: "保存发芽结果失败")
-                    }
-                },
-                onFailure = { e -> setError(e.message ?: "生成失败") },
-            )
-        } catch (e: Exception) {
-            setError(e.message ?: "发芽失败")
+                    },
+                    onFailure = { e -> setError(e.message ?: "生成失败") },
+                )
+            }.onFailure { e ->
+                setError(e.message ?: "发芽失败")
+            }
         } finally {
             setGenerating(false)
             mutex.unlock()
@@ -764,28 +842,27 @@ private fun doSprout(
 }
 
 /**
- * 将发芽结果持久化到 SproutReportStore（非阻塞）
+ * 将发芽结果持久化到 SproutReportStore（同步执行，在 mutex 保护内调用）
  */
-private fun persistSprout(
-    scope: kotlinx.coroutines.CoroutineScope,
+private suspend fun persistSprout(
     store: SproutReportStore?,
     noteId: Long,
     noteTitle: String,
     article: SproutArticle,
 ) {
     if (store == null) return
-    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-        runCatching {
-            store.insert(SproutReportRecord(
-                sourceNoteId = noteId,
-                sourceTitle = noteTitle,
-                markdownReport = article.toMarkdown(),
-                summary = article.summary,
-                modelUsed = article.modelUsed,
-                createdAt = article.generatedAt,
-                wordCount = article.markdownReport().length,
-            ))
-        }
+    runCatching {
+        store.insert(SproutReportRecord(
+            sourceNoteId = noteId,
+            sourceTitle = noteTitle,
+            markdownReport = article.toMarkdown(),
+            summary = article.summary,
+            modelUsed = article.modelUsed,
+            createdAt = article.generatedAt,
+            wordCount = article.markdownReport().length,
+        ))
+    }.onFailure { e ->
+        DebugLog.w("NoteSproutScreen", "persistSprout failed: ${e.message}")
     }
 }
 
