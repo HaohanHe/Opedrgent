@@ -58,6 +58,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.components.DownloadQuotes
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -85,10 +86,13 @@ fun NoteSproutScreen(
     repository: NoteRepository,
     sproutService: SproutService,
     sproutReportStore: SproutReportStore? = null,
+    sproutScope: kotlinx.coroutines.CoroutineScope? = null,
     onBack: () -> Unit,
     onEditNote: () -> Unit = {},
 ) {
-    val scope = rememberCoroutineScope()
+    val pageScope = rememberCoroutineScope()
+    // 优先使用 ViewModel scope（后台执行，退出不中断），否则用页面 scope
+    val effectiveScope = sproutScope ?: pageScope
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val feedback = LocalFeedbackController.current
@@ -125,7 +129,7 @@ fun NoteSproutScreen(
         if (!hasAutoTriggered && article == null && history.isEmpty()) {
             hasAutoTriggered = true
             doSprout(
-                scope = scope,
+                scope = effectiveScope,
                 mutex = sproutMutex,
                 service = sproutService,
                 repository = repository,
@@ -175,7 +179,7 @@ fun NoteSproutScreen(
                                 onClick = {
                                     showMenu = false
                                     doSprout(
-                                        scope = scope,
+                                        scope = effectiveScope,
                                         mutex = sproutMutex,
                                         service = sproutService,
                                         repository = repository,
@@ -246,7 +250,7 @@ fun NoteSproutScreen(
                                         return@DropdownMenuItem
                                     }
                                     isExporting = true
-                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    effectiveScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                         try {
                                             val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
                                             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -289,7 +293,7 @@ fun NoteSproutScreen(
                     SproutScreenState.Loading -> SproutLoadingView()
                     is SproutScreenState.Error -> SproutErrorView(message = state.message, onRetry = {
                         doSprout(
-                            scope = scope,
+                            scope = effectiveScope,
                             mutex = sproutMutex,
                             service = sproutService,
                             repository = repository,
@@ -317,7 +321,7 @@ fun NoteSproutScreen(
                         sproutReportStore = sproutReportStore,
                         onResprout = { seedContent ->
                             doSprout(
-                                scope = scope,
+                                scope = effectiveScope,
                                 mutex = sproutMutex,
                                 service = sproutService,
                                 repository = repository,
@@ -365,7 +369,7 @@ fun NoteSproutScreen(
                         errorMessage = state.message,
                         onResprout = { seedContent ->
                             doSprout(
-                                scope = scope,
+                                scope = effectiveScope,
                                 mutex = sproutMutex,
                                 service = sproutService,
                                 repository = repository,
@@ -380,7 +384,7 @@ fun NoteSproutScreen(
                     )
                     SproutScreenState.Empty -> SproutEmptyView(onGenerate = {
                         doSprout(
-                            scope = scope,
+                            scope = effectiveScope,
                             mutex = sproutMutex,
                             service = sproutService,
                             repository = repository,
@@ -850,6 +854,54 @@ private fun SproutLoadingView() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Spacer(Modifier.height(SpacingTokens.xl))
+
+        // 名言轮播 — 跟下载弹窗一样的逻辑
+        var shuffledIndices by remember { mutableStateOf(DownloadQuotes.ALL_QUOTES.indices.shuffled()) }
+        var quotePointer by remember { mutableIntStateOf(0) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                kotlinx.coroutines.delay(10_000L)
+                quotePointer++
+                if (quotePointer >= shuffledIndices.size) {
+                    shuffledIndices = DownloadQuotes.ALL_QUOTES.indices.shuffled()
+                    quotePointer = 0
+                }
+            }
+        }
+        val currentQuote = DownloadQuotes.ALL_QUOTES[shuffledIndices[quotePointer]]
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = SpacingTokens.xl),
+            shape = ShapeTokens.mediumShape,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Crossfade(
+                targetState = currentQuote,
+                animationSpec = tween(durationMillis = 500),
+                label = "sprout_quote_crossfade",
+            ) { q ->
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(SpacingTokens.lg),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = q.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (q.author.isNotBlank()) {
+                        Spacer(Modifier.height(SpacingTokens.sm))
+                        Text(
+                            text = "-- ${q.author}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
