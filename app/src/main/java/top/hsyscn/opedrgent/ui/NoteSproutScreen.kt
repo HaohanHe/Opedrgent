@@ -26,10 +26,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -743,16 +747,106 @@ private fun ConceptsSection(concepts: List<String>) {
 
 @Composable
 private fun SproutLoadingView() {
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        val infiniteTransition = rememberInfiniteTransition(label = "sprout")
-        val scale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.25f,
-            animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s")
-        Box(Modifier.size(80.dp).scale(scale).background(MaterialTheme.customColors.successGreen.copy(alpha = 0.15f), shape = CircleShape), contentAlignment = Alignment.Center) {
-            Text("*", style = MaterialTheme.typography.displayLarge)
-        }
+    val infiniteTransition = rememberInfiniteTransition(label = "sprout_loading")
+    val sproutProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "sprout_progress",
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulse_alpha",
+    )
+
+    Column(
+        Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(160.dp)
+                .drawBehind {
+                    val centerX = size.width / 2f
+                    val groundY = size.height * 0.72f
+
+                    drawCircle(
+                        color = MaterialTheme.customColors.successGreen.copy(alpha = pulseAlpha * 0.15f),
+                        radius = size.width * 0.45f,
+                        center = Offset(centerX, groundY),
+                    )
+
+                    val seedY = groundY - 8.dp.toPx()
+                    drawOval(
+                        color = MaterialTheme.customColors.sproutSeedText.copy(alpha = 0.6f),
+                        topLeft = Offset(centerX - 14.dp.toPx(), seedY - 10.dp.toPx()),
+                        size = androidx.compose.ui.geometry.Size(28.dp.toPx(), 20.dp.toPx()),
+                    )
+
+                    val stemHeight = size.height * 0.45f * sproutProgress
+                    if (stemHeight > 0f) {
+                        val stemPath = Path().apply {
+                            moveTo(centerX, groundY)
+                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * 8.dp.toPx()
+                            quadraticBezierTo(
+                                centerX + swayX,
+                                groundY - stemHeight * 0.5f,
+                                centerX + swayX * 0.5f,
+                                groundY - stemHeight,
+                            )
+                        }
+                        drawPath(
+                            path = stemPath,
+                            color = MaterialTheme.customColors.successGreen,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = 4.dp.toPx(),
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            ),
+                        )
+
+                        if (sproutProgress > 0.35f) {
+                            val leafProgress = (sproutProgress - 0.35f) / 0.65f
+                            val leafSize = 22.dp.toPx() * leafProgress.coerceIn(0f, 1f)
+                            val leafY = groundY - stemHeight * 0.7f
+                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * 8.dp.toPx()
+                            drawOval(
+                                color = MaterialTheme.customColors.successGreen.copy(alpha = 0.85f),
+                                topLeft = Offset(centerX + swayX * 0.5f - leafSize * 0.7f, leafY - leafSize * 0.3f),
+                                size = androidx.compose.ui.geometry.Size(leafSize, leafSize * 0.6f),
+                                alpha = 1f,
+                            )
+                            drawOval(
+                                color = MaterialTheme.customColors.successGreen.copy(alpha = 0.85f),
+                                topLeft = Offset(centerX + swayX * 0.5f + leafSize * 0.1f, leafY - leafSize * 0.1f),
+                                size = androidx.compose.ui.geometry.Size(leafSize, leafSize * 0.6f),
+                                alpha = 1f,
+                            )
+                        }
+                    }
+                },
+        )
+
         Spacer(Modifier.height(SpacingTokens.xl))
-        Text("正在发芽...", style = MaterialTheme.typography.titleMedium)
-        Text("AI 正在深度分析你的笔记", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stringResource(R.string.sprout_loading_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(SpacingTokens.sm))
+        Text(
+            stringResource(R.string.sprout_loading_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
