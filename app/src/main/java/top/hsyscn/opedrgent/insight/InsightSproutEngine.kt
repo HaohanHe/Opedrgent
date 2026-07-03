@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.insight
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.text.SimpleDateFormat
@@ -46,12 +47,28 @@ class InsightSproutEngine(
 
     private val phaseCache = ConcurrentHashMap<String, Any?>()
 
+    // 防止同一引擎实例被并发调用，避免 phaseCache 与内部状态被覆盖
+    private val sproutMutex = Mutex()
+
     // ==================== 核心入口：思想空间发芽 ====================
 
     suspend fun sprout(
         inputText: String,
         config: SproutConfig = SproutConfig(),
         userContext: String? = null,
+    ): SproutResult {
+        sproutMutex.lock()
+        try {
+            return doSprout(inputText, config, userContext)
+        } finally {
+            sproutMutex.unlock()
+        }
+    }
+
+    private suspend fun doSprout(
+        inputText: String,
+        config: SproutConfig,
+        userContext: String?,
     ): SproutResult {
         phaseCache.clear()
         val startTime = System.currentTimeMillis()
@@ -87,8 +104,8 @@ class InsightSproutEngine(
         val template = selectTemplate(rawSeedsJson, inputText, config)
 
         // ====== 阶段2: 多声音并发 ======
-        val voiceStatuses = mutableMapOf<SproutVoice, SproutVoiceStatus>()
-        val voiceStatements = mutableMapOf<SproutVoice, SproutVoiceStatement>()
+        val voiceStatuses = ConcurrentHashMap<SproutVoice, SproutVoiceStatus>()
+        val voiceStatements = ConcurrentHashMap<SproutVoice, SproutVoiceStatement>()
 
         template.voices.forEach { voice ->
             voiceStatuses[voice] = SproutVoiceStatus.PENDING
@@ -179,12 +196,7 @@ class InsightSproutEngine(
 
         // ====== 阶段4: 可选的金句回响 ======
         var quotes = emptyList<SproutQuote>()
-        val includeQuotes = try {
-            config.javaClass.getDeclaredField("includeQuotes")
-            true // 字段存在但无法反射读取，默认开启
-        } catch (_: Exception) {
-            true // SproutConfig 没有此字段时默认开启
-        }
+        val includeQuotes = config.includeQuotes
         if (includeQuotes && (synthesis != null || voiceStatements.isNotEmpty())) {
             runCatchingWithRecovery("金句回响", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
                 generateQuotes(synthesis, voiceStatements.toMap())

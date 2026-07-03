@@ -35,6 +35,7 @@ import java.util.TimeZone
  */
 class RunCalendarTool(
     private val context: Context,
+    private val requestConfirmation: suspend (ToolConfirmation) -> Boolean = { true },
 ) : ToolSet {
 
     companion object {
@@ -42,6 +43,16 @@ class RunCalendarTool(
         private const val MIN_EVENT_DURATION_MS = 60_000L
         private const val ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000L
         private const val MAX_DESCRIPTION_PREVIEW_LENGTH = 50
+        private val WRITE_ACTIONS = setOf("create", "update", "delete")
+    }
+
+    private fun buildConfirmationDetail(action: String, params: JSONObject): String {
+        return when (action) {
+            "create" -> "标题: ${params.optString("title", "")}\n时间: ${params.optString("start_time", "")} ~ ${params.optString("end_time", "")}"
+            "update" -> "事件 ID: ${params.optString("event_id", "")}\n新标题: ${params.optString("title", "")}"
+            "delete" -> "事件 ID: ${params.optString("event_id", "")}"
+            else -> "操作: $action"
+        }
     }
 
     override fun getTools(): Map<String, ToolBinding> = mapOf(
@@ -69,6 +80,20 @@ class RunCalendarTool(
 
             if (action.isBlank()) {
                 return emptyResult(toolPart, "缺少 action 参数，请指定要执行的操作类型 (create/query_today/query_tomorrow/query_week/delete)")
+            }
+
+            // 写操作需要用户确认
+            if (action in WRITE_ACTIONS) {
+                val confirmed = requestConfirmation(
+                    ToolConfirmation(
+                        toolName = "run_calendar",
+                        action = "直接修改系统日历: $action",
+                        detail = buildConfirmationDetail(action, params),
+                    )
+                )
+                if (!confirmed) {
+                    return emptyResult(toolPart, "用户拒绝了日历 $action 操作")
+                }
             }
 
             // 权限检查

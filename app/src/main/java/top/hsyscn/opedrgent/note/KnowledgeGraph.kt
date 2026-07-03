@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import top.hsyscn.opedrgent.note.graph.GraphEdgeEntity
 import top.hsyscn.opedrgent.note.graph.GraphEmbeddingEntity
 import top.hsyscn.opedrgent.note.graph.GraphEntity
@@ -18,6 +20,9 @@ class KnowledgeGraph(
     private val store: KnowledgeGraphStore,
     private val provider: EmbeddingProvider,
 ) {
+
+    // 防止多个协程并发修改图谱（link/rebuild/remove 串行执行），避免事务干扰与状态错乱
+    private val graphMutex = Mutex()
 
     companion object {
         private const val TAG = "KnowledgeGraph"
@@ -64,11 +69,13 @@ class KnowledgeGraph(
 
     suspend fun linkNote(noteId: String, content: String): List<String> {
         if (content.isBlank()) return emptyList()
-        return try {
-            doLinkNote(noteId, content)
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "linkNote failed: ${e.message}", e)
-            emptyList()
+        return graphMutex.withLock {
+            try {
+                doLinkNote(noteId, content)
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "linkNote failed: ${e.message}", e)
+                emptyList()
+            }
         }
     }
 
@@ -86,43 +93,45 @@ class KnowledgeGraph(
         val keywordSet = keywords.toSet()
         val currentTime = System.currentTimeMillis()
 
-        store.upsertNode(
-            GraphNodeEntity(
-                id = noteId,
-                title = title,
-                summary = summary,
-                keywords = keywords.joinToString(","),
-                updatedAt = currentTime,
-                contentHash = content.hashCode().toString(),
-            )
-        )
-        store.saveEmbedding(
-            GraphEmbeddingEntity(
-                nodeId = noteId,
-                provider = provider.providerName(),
-                model = "",
-                dimension = embedding.size,
-                vector = embedding.toByteArray(),
-            )
-        )
-
         val entityNameToId = mutableMapOf<String, Long>()
-        for (entity in entities) {
-            val entityId = store.upsertEntity(
-                GraphEntity(
-                    name = entity.name,
-                    entityType = entity.type.name,
-                    frequency = 1,
+        // 节点、embedding、实体关系在同一事务中写入，保证基础数据一致
+        store.runInTransaction {
+            store.upsertNode(
+                GraphNodeEntity(
+                    id = noteId,
+                    title = title,
+                    summary = summary,
+                    keywords = keywords.joinToString(","),
+                    updatedAt = currentTime,
+                    contentHash = content.hashCode().toString(),
                 )
             )
-            entityNameToId[entity.name] = entityId
-            store.upsertNodeEntityRelation(
-                GraphNodeEntityRelation(
+            store.saveEmbedding(
+                GraphEmbeddingEntity(
                     nodeId = noteId,
-                    entityId = entityId,
-                    weight = 1f,
+                    provider = provider.providerName(),
+                    model = "",
+                    dimension = embedding.size,
+                    vector = embedding.toByteArray(),
                 )
             )
+            for (entity in entities) {
+                val entityId = store.upsertEntity(
+                    GraphEntity(
+                        name = entity.name,
+                        entityType = entity.type.name,
+                        frequency = 1,
+                    )
+                )
+                entityNameToId[entity.name] = entityId
+                store.upsertNodeEntityRelation(
+                    GraphNodeEntityRelation(
+                        nodeId = noteId,
+                        entityId = entityId,
+                        weight = 1f,
+                    )
+                )
+            }
         }
 
         val existingLinkedIds = store.getEdgesForNode(noteId)
@@ -130,6 +139,7 @@ class KnowledgeGraph(
             .toSet()
 
         val newLinkedIds = mutableListOf<String>()
+        val edgesToUpsert = mutableListOf<GraphEdgeEntity>()
         val allNodes = store.getAllNodes()
         for (other in allNodes) {
             val otherId = other.id
@@ -191,7 +201,7 @@ class KnowledgeGraph(
                 else -> continue
             }
 
-            store.upsertEdge(
+            edgesToUpsert.add(
                 GraphEdgeEntity(
                     sourceId = noteId,
                     targetId = otherId,
@@ -206,7 +216,13 @@ class KnowledgeGraph(
             }
         }
 
-        trimLinks(noteId)
+        // 边写入与裁剪在同一事务内完成，避免中间状态被其他读操作看到
+        store.runInTransaction {
+            for (edge in edgesToUpsert) {
+                store.upsertEdge(edge)
+            }
+            trimLinks(noteId)
+        }
         return newLinkedIds
     }
 
@@ -290,187 +306,212 @@ class KnowledgeGraph(
         }
     }
 
-    fun removeNote(noteId: String) {
-        try {
-            store.deleteNode(noteId)
-            store.deleteEmbedding(noteId)
-            store.deleteNodeEntityRelations(noteId)
-            val edges = store.getEdgesForNode(noteId)
-            for (edge in edges) {
-                store.deleteEdge(edge.id)
+    suspend fun removeNote(noteId: String) {
+        graphMutex.withLock {
+            try {
+                store.runInTransaction {
+                    store.deleteNode(noteId)
+                    store.deleteEmbedding(noteId)
+                    store.deleteNodeEntityRelations(noteId)
+                    val edges = store.getEdgesForNode(noteId)
+                    for (edge in edges) {
+                        store.deleteEdge(edge.id)
+                    }
+                }
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "removeNote failed: ${e.message}", e)
             }
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "removeNote failed: ${e.message}", e)
         }
     }
 
-    fun clear() {
-        try {
-            store.clearAll()
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "clear failed: ${e.message}", e)
+    suspend fun clear() {
+        graphMutex.withLock {
+            try {
+                store.clearAll()
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "clear failed: ${e.message}", e)
+            }
         }
     }
 
     suspend fun rebuildFromNotes(notes: List<Pair<String, String>>) {
-        try {
-            clear()
-            if (notes.isEmpty()) return
+        graphMutex.withLock {
+            try {
+                if (notes.isEmpty()) {
+                    store.clearAll()
+                    return@withLock
+                }
 
-            val currentTime = System.currentTimeMillis()
-            val nodes = mutableListOf<GraphNodeEntity>()
-            val contents = mutableListOf<String>()
-            val noteIds = mutableListOf<String>()
-            val entityRelations = mutableListOf<GraphNodeEntityRelation>()
-            val noteKeywords = mutableMapOf<String, Set<String>>()
-            val noteEntities = mutableMapOf<String, Set<String>>()
-            val noteEntityTypes = mutableMapOf<String, Map<String, LocalEntityExtractor.EntityType>>()
+                val currentTime = System.currentTimeMillis()
+                val nodes = mutableListOf<GraphNodeEntity>()
+                val contents = mutableListOf<String>()
+                val noteIds = mutableListOf<String>()
+                val allEntities = mutableListOf<GraphEntity>()
+                val noteKeywords = mutableMapOf<String, Set<String>>()
+                val noteEntities = mutableMapOf<String, Set<String>>()
+                val noteEntityTypes = mutableMapOf<String, Map<String, LocalEntityExtractor.EntityType>>()
+                val noteRawEntities = mutableMapOf<String, List<LocalEntityExtractor.Entity>>()
 
-            for ((noteId, content) in notes) {
-                if (content.isBlank()) continue
-                val title = content.take(100)
-                val summary = content.take(300)
-                val keywords = LocalEntityExtractor.extractKeywords(title = title, content = content)
-                val entities = LocalEntityExtractor.extractEntities(content)
-                val keywordSet = keywords.toSet()
-                noteKeywords[noteId] = keywordSet
-                noteEntities[noteId] = entities.map { it.name }.toSet()
-                noteEntityTypes[noteId] = entities.associate { it.name to it.type }
+                for ((noteId, content) in notes) {
+                    if (content.isBlank()) continue
+                    val title = content.take(100)
+                    val summary = content.take(300)
+                    val keywords = LocalEntityExtractor.extractKeywords(title = title, content = content)
+                    val entities = LocalEntityExtractor.extractEntities(content)
+                    val keywordSet = keywords.toSet()
+                    noteKeywords[noteId] = keywordSet
+                    noteEntities[noteId] = entities.map { it.name }.toSet()
+                    noteEntityTypes[noteId] = entities.associate { it.name to it.type }
+                    noteRawEntities[noteId] = entities
 
-                nodes.add(
-                    GraphNodeEntity(
-                        id = noteId,
-                        title = title,
-                        summary = summary,
-                        keywords = keywords.joinToString(","),
-                        updatedAt = currentTime,
-                        contentHash = content.hashCode().toString(),
-                    )
-                )
-                contents.add(content)
-                noteIds.add(noteId)
-
-                for (entity in entities) {
-                    val entityId = store.upsertEntity(
-                        GraphEntity(
-                            name = entity.name,
-                            entityType = entity.type.name,
-                            frequency = 1,
+                    nodes.add(
+                        GraphNodeEntity(
+                            id = noteId,
+                            title = title,
+                            summary = summary,
+                            keywords = keywords.joinToString(","),
+                            updatedAt = currentTime,
+                            contentHash = content.hashCode().toString(),
                         )
                     )
-                    entityRelations.add(
-                        GraphNodeEntityRelation(
-                            nodeId = noteId,
-                            entityId = entityId,
-                            weight = 1f,
+                    contents.add(content)
+                    noteIds.add(noteId)
+
+                    for (entity in entities) {
+                        allEntities.add(
+                            GraphEntity(
+                                name = entity.name,
+                                entityType = entity.type.name,
+                                frequency = 1,
+                            )
                         )
-                    )
-                }
-            }
-
-            if (nodes.isEmpty()) return
-
-            val embeddings = try {
-                val batch = provider.embedBatch(contents)
-                batch.mapIndexed { index, vector ->
-                    GraphEmbeddingEntity(
-                        nodeId = noteIds[index],
-                        provider = provider.providerName(),
-                        model = "",
-                        dimension = vector.size,
-                        vector = vector.toByteArray(),
-                    )
-                }
-            } catch (e: Exception) {
-                DebugLog.w(TAG, "batch embedding failed, falling back to local: ${e.message}")
-                val batch = LocalEmbeddingProvider(store).embedBatch(contents)
-                batch.mapIndexed { index, vector ->
-                    GraphEmbeddingEntity(
-                        nodeId = noteIds[index],
-                        provider = provider.providerName(),
-                        model = "",
-                        dimension = vector.size,
-                        vector = vector.toByteArray(),
-                    )
-                }
-            }
-
-            store.upsertNodes(nodes)
-            store.saveEmbeddings(embeddings)
-            store.upsertNodeEntityRelations(entityRelations)
-
-            val nodeIds = nodes.map { it.id }
-            val edges = mutableListOf<GraphEdgeEntity>()
-            for (i in nodeIds.indices) {
-                val aId = nodeIds[i]
-                val embeddingA = store.getEmbedding(aId)?.vector?.toFloatArray() ?: continue
-                val keywordsA = noteKeywords[aId] ?: emptySet()
-                val entitiesA = noteEntities[aId] ?: emptySet()
-                for (j in i + 1 until nodeIds.size) {
-                    val bId = nodeIds[j]
-                    val embeddingB = store.getEmbedding(bId)?.vector?.toFloatArray() ?: continue
-                    val similarity = cosineSimilarity(embeddingA, embeddingB)
-                    val keywordsB = noteKeywords[bId] ?: emptySet()
-                    val entitiesB = noteEntities[bId] ?: emptySet()
-                    val sharedEntities = entitiesA.intersect(entitiesB)
-                    val sharedKeywords = keywordsA.intersect(keywordsB)
-
-                    val relationType: String
-                    val weight: Float
-                    val reason: String
-                    val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
-                    when {
-                        sharedEntities.isNotEmpty() -> {
-                            relationType = REL_SHARED_ENTITY
-                            weight = max(similarity, 0.9f)
-                            reason = "共同实体：" + sharedEntities.take(3).map { name ->
-                                val type = noteEntityTypes[aId]?.get(name)
-                                    ?: noteEntityTypes[bId]?.get(name)
-                                    ?: LocalEntityExtractor.EntityType.CONCEPT
-                                maskSensitiveEntity(name, type)
-                            }.joinToString("、")
-                        }
-
-                        sharedKeywords.size >= 2 -> {
-                            relationType = REL_SHARED_KEYWORD
-                            weight = max(similarity, 0.8f)
-                            reason = "共同关键词：" + sharedKeywords.take(3).map { name ->
-                                val type = noteEntityTypes[aId]?.get(name)
-                                    ?: noteEntityTypes[bId]?.get(name)
-                                if (type != null) maskSensitiveEntity(name, type) else name
-                            }.joinToString("、")
-                        }
-
-                        similarity >= threshold -> {
-                            relationType = REL_SEMANTIC_SIMILAR
-                            weight = similarity
-                            reason = "语义相似度：${String.format("%.2f", similarity)}"
-                        }
-
-                        else -> continue
                     }
-
-                    edges.add(
-                        GraphEdgeEntity(
-                            sourceId = aId,
-                            targetId = bId,
-                            relationType = relationType,
-                            weight = weight,
-                            reason = reason,
-                            createdAt = currentTime,
-                        )
-                    )
                 }
-            }
-            store.upsertEdges(edges)
 
-            for (node in nodes) {
-                trimLinks(node.id)
-            }
+                if (nodes.isEmpty()) {
+                    store.clearAll()
+                    return@withLock
+                }
 
-            DebugLog.i(TAG, "rebuild done: ${nodes.size} nodes, ${edges.size} edges")
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "rebuildFromNotes failed: ${e.message}", e)
+                val embeddings = try {
+                    val batch = provider.embedBatch(contents)
+                    batch.mapIndexed { index, vector ->
+                        GraphEmbeddingEntity(
+                            nodeId = noteIds[index],
+                            provider = provider.providerName(),
+                            model = "",
+                            dimension = vector.size,
+                            vector = vector.toByteArray(),
+                        )
+                    }
+                } catch (e: Exception) {
+                    DebugLog.w(TAG, "batch embedding failed, falling back to local: ${e.message}")
+                    val batch = LocalEmbeddingProvider(store).embedBatch(contents)
+                    batch.mapIndexed { index, vector ->
+                        GraphEmbeddingEntity(
+                            nodeId = noteIds[index],
+                            provider = provider.providerName(),
+                            model = "",
+                            dimension = vector.size,
+                            vector = vector.toByteArray(),
+                        )
+                    }
+                }
+
+                val nodeIds = nodes.map { it.id }
+                val edges = mutableListOf<GraphEdgeEntity>()
+                for (i in nodeIds.indices) {
+                    val aId = nodeIds[i]
+                    val embeddingA = embeddings.find { it.nodeId == aId }?.vector?.toFloatArray() ?: continue
+                    val keywordsA = noteKeywords[aId] ?: emptySet()
+                    val entitiesA = noteEntities[aId] ?: emptySet()
+                    for (j in i + 1 until nodeIds.size) {
+                        val bId = nodeIds[j]
+                        val embeddingB = embeddings.find { it.nodeId == bId }?.vector?.toFloatArray() ?: continue
+                        val similarity = cosineSimilarity(embeddingA, embeddingB)
+                        val keywordsB = noteKeywords[bId] ?: emptySet()
+                        val entitiesB = noteEntities[bId] ?: emptySet()
+                        val sharedEntities = entitiesA.intersect(entitiesB)
+                        val sharedKeywords = keywordsA.intersect(keywordsB)
+
+                        val relationType: String
+                        val weight: Float
+                        val reason: String
+                        val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
+                        when {
+                            sharedEntities.isNotEmpty() -> {
+                                relationType = REL_SHARED_ENTITY
+                                weight = max(similarity, 0.9f)
+                                reason = "共同实体：" + sharedEntities.take(3).map { name ->
+                                    val type = noteEntityTypes[aId]?.get(name)
+                                        ?: noteEntityTypes[bId]?.get(name)
+                                        ?: LocalEntityExtractor.EntityType.CONCEPT
+                                    maskSensitiveEntity(name, type)
+                                }.joinToString("、")
+                            }
+
+                            sharedKeywords.size >= 2 -> {
+                                relationType = REL_SHARED_KEYWORD
+                                weight = max(similarity, 0.8f)
+                                reason = "共同关键词：" + sharedKeywords.take(3).map { name ->
+                                    val type = noteEntityTypes[aId]?.get(name)
+                                        ?: noteEntityTypes[bId]?.get(name)
+                                    if (type != null) maskSensitiveEntity(name, type) else name
+                                }.joinToString("、")
+                            }
+
+                            similarity >= threshold -> {
+                                relationType = REL_SEMANTIC_SIMILAR
+                                weight = similarity
+                                reason = "语义相似度：${String.format("%.2f", similarity)}"
+                            }
+
+                            else -> continue
+                        }
+
+                        edges.add(
+                            GraphEdgeEntity(
+                                sourceId = aId,
+                                targetId = bId,
+                                relationType = relationType,
+                                weight = weight,
+                                reason = reason,
+                                createdAt = currentTime,
+                            )
+                        )
+                    }
+                }
+
+                // 所有数据准备完毕后，在一个事务内清空旧数据并写入新数据，保证重建原子性
+                store.runInTransaction {
+                    store.clearAll(useTransaction = false)
+                    store.upsertEntities(allEntities, useTransaction = false)
+                    // 通过已持久化的实体名反查 ID，避免重复 upsert 导致 frequency 被多次累加
+                    for ((noteId, entities) in noteRawEntities) {
+                        for (entity in entities) {
+                            val entityId = store.getEntityByName(entity.name)?.id ?: continue
+                            store.upsertNodeEntityRelation(
+                                GraphNodeEntityRelation(
+                                    nodeId = noteId,
+                                    entityId = entityId,
+                                    weight = 1f,
+                                )
+                            )
+                        }
+                    }
+                    store.upsertNodes(nodes, useTransaction = false)
+                    store.saveEmbeddings(embeddings, useTransaction = false)
+                    store.upsertEdges(edges, useTransaction = false)
+                    for (node in nodes) {
+                        trimLinks(node.id)
+                    }
+                }
+
+                DebugLog.i(TAG, "rebuild done: ${nodes.size} nodes, ${edges.size} edges")
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "rebuildFromNotes failed: ${e.message}", e)
+                throw e
+            }
         }
     }
 

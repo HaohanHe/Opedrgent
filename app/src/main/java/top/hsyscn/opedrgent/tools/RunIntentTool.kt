@@ -2,7 +2,9 @@ package top.hsyscn.opedrgent.tools
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.CalendarContract
+import android.util.Patterns
 import android.widget.Toast
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
@@ -27,9 +29,11 @@ import org.json.JSONObject
  * - **dial_phone**: 拨打电话
  *
  * @param context Android Context
+ * @param requestConfirmation 高危操作前的用户确认回调
  */
 class RunIntentTool(
     private val context: Context,
+    private val requestConfirmation: suspend (ToolConfirmation) -> Boolean = { true },
 ) : ToolSet {
 
     override fun getTools(): Map<String, ToolBinding> = mapOf(
@@ -59,6 +63,12 @@ class RunIntentTool(
 
             if (intentType.isBlank()) {
                 return emptyResult(toolPart, "缺少 intent 参数，请指定要执行的操作类型")
+            }
+
+            val confirmation = buildConfirmation(intentType, params)
+            val confirmed = requestConfirmation(confirmation)
+            if (!confirmed) {
+                return emptyResult(toolPart, "用户拒绝了 $intentType 操作")
             }
 
             val result = dispatchIntent(intentType, params)
@@ -93,6 +103,39 @@ class RunIntentTool(
         }
     }
 
+    // ==================== 确认与校验辅助 ====================
+
+    private fun buildConfirmation(intentType: String, params: JSONObject): ToolConfirmation {
+        val detail = when (intentType) {
+            "send_email" -> "收件人: ${params.optString("extra_email", "")}\n主题: ${params.optString("extra_subject", "")}"
+            "send_text_message" -> "号码: ${params.optString("phone", "")}\n内容: ${params.optString("text", "").take(200)}"
+            "create_calendar_event" -> "标题: ${params.optString("title", "")}\n地点: ${params.optString("location", "")}"
+            "open_url" -> "URL: ${params.optString("url", "")}"
+            "share_text" -> "内容: ${params.optString("text", "").take(200)}"
+            "dial_phone" -> "号码: ${params.optString("phone", "")}"
+            else -> "Intent 类型: $intentType"
+        }
+        return ToolConfirmation(
+            toolName = "run_intent",
+            action = "执行设备操作: $intentType",
+            detail = detail,
+        )
+    }
+
+    private fun isPhoneNumber(phone: String): Boolean {
+        return phone.matches(Regex("^[+0-9\\-\\s()]{3,20}$"))
+    }
+
+    private fun isUrlSafe(url: String): Boolean {
+        return try {
+            val uri = Uri.parse(url)
+            val scheme = uri.scheme?.lowercase()
+            scheme == "http" || scheme == "https"
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // ==================== 各 Intent 处理器 ====================
 
     /** 发送邮件 — 调用系统邮件应用 */
@@ -102,6 +145,9 @@ class RunIntentTool(
         val text = params.optString("extra_text", "")
 
         if (email.isBlank()) return "[失败] 发送邮件失败：缺少收件人地址 (extra_email)"
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            return "[失败] 发送邮件失败：邮箱格式不正确"
+        }
 
         return try {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -127,10 +173,11 @@ class RunIntentTool(
         val text = params.optString("text", "")
 
         if (phone.isBlank()) return "[失败] 发送短信失败：缺少手机号码 (phone)"
+        if (!isPhoneNumber(phone)) return "[失败] 发送短信失败：手机号码格式不正确"
 
         return try {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = android.net.Uri.parse("smsto:$phone")
+                data = Uri.parse("smsto:$phone")
                 if (text.isNotBlank()) putExtra("sms_body", text)
             }
 
@@ -180,9 +227,10 @@ class RunIntentTool(
         val url = params.optString("url", "")
 
         if (url.isBlank()) return "[失败] 打开链接失败：缺少 URL 参数"
+        if (!isUrlSafe(url)) return "[失败] 打开链接失败：仅支持 http/https 协议"
 
         return try {
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
             if (intent.resolveActivity(context.packageManager) != null) {
@@ -225,9 +273,10 @@ class RunIntentTool(
         val phone = params.optString("phone", "")
 
         if (phone.isBlank()) return "[失败] 拨号失败：缺少手机号码"
+        if (!isPhoneNumber(phone)) return "[失败] 拨号失败：手机号码格式不正确"
 
         return try {
-            val intent = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone"))
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
 
