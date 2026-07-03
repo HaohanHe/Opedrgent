@@ -277,6 +277,9 @@ enum class SproutingState {
 }
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
+
+    /** 发芽等后台任务的 scope，绑定 ViewModel 生命周期（退出页面不取消） */
+    val backgroundScope: CoroutineScope get() = viewModelScope
     private val http = HttpClients.default
     private val store = ResearchStore(app)
     val apiSettings = ApiSettings(app)

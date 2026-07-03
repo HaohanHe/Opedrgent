@@ -797,6 +797,7 @@ fun AppRoot(
                                         repository = vm.noteRepository,
                                         sproutService = top.hsyscn.opedrgent.note.SproutService(vm.apiSettings, hippocampus),
                                         sproutReportStore = vm.sproutReportStore,
+                                        sproutScope = vm.backgroundScope,
                                         onBack = { subScreen = "notes" },
                                         onEditNote = { subScreen = "noteEditor_$noteId" },
                                     )
