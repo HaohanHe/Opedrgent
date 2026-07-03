@@ -36,6 +36,19 @@ data class ToolBinding(
     val invoker: suspend (ToolPart, ApiConfig, String, Boolean) -> ToolResult,
 )
 
+/**
+ * 需要用户确认的高危工具操作描述。
+ *
+ * @param toolName 工具名，如 open_browser / run_intent
+ * @param action 操作简述，用于对话框标题
+ * @param detail 操作详情，用于对话框正文
+ */
+data class ToolConfirmation(
+    val toolName: String,
+    val action: String,
+    val detail: String,
+)
+
 interface ToolSet {
     val toolSetName: String
         get() = this::class.simpleName ?: "unknown"
