@@ -4,9 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Environment
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +40,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.ArticleSection
@@ -86,39 +91,49 @@ fun NoteSproutScreen(
     var article by remember { mutableStateOf(note.getSproutArticle()) }
     var isGenerating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var completedActions by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    // 已勾选行动建议：使用 rememberSaveable 避免配置变化/进程重建后丢失
+    var completedActionIds by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
+    val completedActions = remember(completedActionIds) { completedActionIds.toSet() }
+    val toggleAction: (Int) -> Unit = { index ->
+        completedActionIds = if (index in completedActionIds) completedActionIds - index else completedActionIds + index
+    }
     // 历史发芽报告列表（从数据库加载）
     var historyReports by remember { mutableStateOf<List<SproutReportRecord>>(emptyList()) }
+    // 防止同一进入周期内重复自动触发（使用 rememberSaveable 防止配置变化后重复触发）
+    var hasAutoTriggered by rememberSaveable { mutableStateOf(false) }
+    // 防止发芽被重复触发
+    val sproutMutex = remember { Mutex() }
 
-    // 加载历史发芽记录
+    // 加载历史发芽记录，并在无历史且无当前文章时自动触发一次发芽
     LaunchedEffect(note.id) {
-        if (sproutReportStore != null) {
-            historyReports = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val history = if (sproutReportStore != null) {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try { sproutReportStore.getByNoteId(note.id) } catch (_: Exception) { emptyList() }
             }
+        } else emptyList()
+        historyReports = history
+        if (!hasAutoTriggered && article == null && history.isEmpty()) {
+            hasAutoTriggered = true
+            doSprout(
+                scope = scope,
+                mutex = sproutMutex,
+                service = sproutService,
+                repository = repository,
+                note = note,
+                sproutReportStore = sproutReportStore,
+                setGenerating = { isGenerating = it },
+                setError = { errorMessage = it },
+                onSuccess = { article = it },
+            )
         }
     }
 
-    // 首次进入自动触发发芽（如果没有历史记录且没有当前文章）
-    LaunchedEffect(note.id) {
-        if (article == null && !isGenerating && historyReports.isEmpty()) {
-            isGenerating = true
+    // 统一错误提示：无论是首次发芽还是重新发芽失败都给出反馈，避免静默失败
+    LaunchedEffect(errorMessage) {
+        val msg = errorMessage
+        if (!msg.isNullOrBlank()) {
+            feedback.showFeedback(msg)
             errorMessage = null
-            try {
-                val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try { repository.getRecentNotesIndex(5) } catch (e: Exception) { "" }
-                }
-                sproutService.sprout(note.content, otherNotesContext).fold(
-                    onSuccess = { newArticle ->
-                        article = newArticle
-                        note.setSproutArticle(newArticle)
-                        repository.saveNote(note)
-                        // 持久化到发芽报告库
-                        persistSprout(scope, sproutReportStore, note.id, note.title, newArticle)
-                    },
-                    onFailure = { e -> errorMessage = e.message ?: "生成失败" },
-                )
-            } finally { isGenerating = false }
         }
     }
 
@@ -149,10 +164,17 @@ fun NoteSproutScreen(
                                 text = { Text("重新发芽") },
                                 onClick = {
                                     showMenu = false
-                                    doSprout(scope, sproutService, note, repository, sproutReportStore,
+                                    doSprout(
+                                        scope = scope,
+                                        mutex = sproutMutex,
+                                        service = sproutService,
+                                        repository = repository,
+                                        note = note,
+                                        sproutReportStore = sproutReportStore,
+                                        setGenerating = { isGenerating = it },
+                                        setError = { errorMessage = it },
                                         onSuccess = { article = it },
-                                        onFailure = { e -> errorMessage = e },
-                                        onDone = {})
+                                    )
                                 },
                                 leadingIcon = { Icon(Icons.Default.Refresh, "重新发芽") },
                                 enabled = !isGenerating,
@@ -196,13 +218,38 @@ fun NoteSproutScreen(
                             DropdownMenuItem(
                                 text = { Text("导出 Markdown") },
                                 onClick = {
-                                    val text = article?.toMarkdownText() ?: ""
-                                    val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
-                                    val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                    File(dir, fileName).writeText(text)
-                                    feedback.showFeedback("已导出到下载目录")
                                     showMenu = false
+                                    val text = article?.toMarkdownText() ?: ""
+                                    if (text.isBlank()) {
+                                        feedback.showFeedback("没有可导出的内容")
+                                        return@DropdownMenuItem
+                                    }
+                                    // Android 10+ 直接写外部存储需要 MANAGE_EXTERNAL_STORAGE 或 Scoped Storage；
+                                    // 这里先检查权限并捕获异常，避免崩溃。
+                                    val canWriteLegacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                                        ContextCompat.checkSelfPermission(
+                                            context,
+                                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                    if (!canWriteLegacy && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        feedback.showFeedback("Android 11+ 请授予所有文件访问权限后导出")
+                                        return@DropdownMenuItem
+                                    }
+                                    isExporting = true
+                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        try {
+                                            val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
+                                            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                            File(dir, fileName).writeText(text)
+                                            feedback.showFeedback("已导出到下载目录: $fileName")
+                                        } catch (e: Exception) {
+                                            feedback.showFeedback("导出失败: ${e.message}")
+                                        } finally {
+                                            isExporting = false
+                                        }
+                                    }
                                 },
+                                enabled = !isExporting && article != null,
                                 leadingIcon = { Icon(Icons.Default.FileDownload, "导出 Markdown") },
                             )
                         }
@@ -214,38 +261,73 @@ fun NoteSproutScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).background(themeSproutBackground())) {
-            when {
-                isGenerating && article == null -> SproutLoadingView()
-                errorMessage != null && article == null -> SproutErrorView(message = errorMessage!!, onRetry = {
-                    doSprout(scope, sproutService, note, repository, sproutReportStore,
-                        onSuccess = { article = it },
-                        onFailure = { e -> errorMessage = e },
-                        onDone = { isGenerating = false })
-                })
-                article != null -> SproutArticleContent(
-                    article = article!!,
-                    completedActions = completedActions,
-                    onActionToggle = { i -> completedActions = if (i in completedActions) completedActions - i else completedActions + i },
-                    isRefreshing = isGenerating,
-                    scrollState = scrollState,
-                    note = note,
-                    repository = repository,
-                    sproutService = sproutService,
-                    sproutReportStore = sproutReportStore,
-                    onResprout = { seedContent ->
-                        // 以当前发芽结果为种子，重新触发发芽
-                        doSprout(scope, sproutService, note, repository, sproutReportStore,
+            val uiState = when {
+                isGenerating && article == null -> SproutUiState.Loading
+                errorMessage != null && article == null -> SproutUiState.Error(errorMessage!!)
+                article != null -> SproutUiState.Success(article!!)
+                else -> SproutUiState.Empty
+            }
+            AnimatedContent(
+                targetState = uiState,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(220)) },
+                modifier = Modifier.fillMaxSize(),
+                label = "sprout_state",
+            ) { state ->
+                when (state) {
+                    SproutUiState.Loading -> SproutLoadingView()
+                    is SproutUiState.Error -> SproutErrorView(message = state.message, onRetry = {
+                        doSprout(
+                            scope = scope,
+                            mutex = sproutMutex,
+                            service = sproutService,
+                            repository = repository,
+                            note = note,
+                            sproutReportStore = sproutReportStore,
+                            setGenerating = { isGenerating = it },
+                            setError = { errorMessage = it },
                             onSuccess = { article = it },
-                            onFailure = { e -> errorMessage = e },
-                            onDone = {})
-                    },
-                )
-                else -> SproutEmptyView(onGenerate = {
-                    doSprout(scope, sproutService, note, repository, sproutReportStore,
-                        onSuccess = { article = it },
-                        onFailure = { e -> errorMessage = e },
-                        onDone = { isGenerating = false })
-                })
+                        )
+                    })
+                    is SproutUiState.Success -> SproutArticleContent(
+                        article = state.article,
+                        completedActions = completedActions,
+                        onActionToggle = toggleAction,
+                        isRefreshing = isGenerating,
+                        scrollState = scrollState,
+                        note = note,
+                        repository = repository,
+                        sproutService = sproutService,
+                        sproutReportStore = sproutReportStore,
+                        onResprout = { seedContent ->
+                            // 以当前发芽结果为种子，重新触发发芽
+                            doSprout(
+                                scope = scope,
+                                mutex = sproutMutex,
+                                service = sproutService,
+                                repository = repository,
+                                note = note,
+                                sproutReportStore = sproutReportStore,
+                                seedContent = seedContent,
+                                setGenerating = { isGenerating = it },
+                                setError = { errorMessage = it },
+                                onSuccess = { article = it },
+                            )
+                        },
+                    )
+                    SproutUiState.Empty -> SproutEmptyView(onGenerate = {
+                        doSprout(
+                            scope = scope,
+                            mutex = sproutMutex,
+                            service = sproutService,
+                            repository = repository,
+                            note = note,
+                            sproutReportStore = sproutReportStore,
+                            setGenerating = { isGenerating = it },
+                            setError = { errorMessage = it },
+                            onSuccess = { article = it },
+                        )
+                    })
+                }
             }
         }
     }
@@ -270,6 +352,10 @@ private fun SproutArticleContent(
     val scope = rememberCoroutineScope()
     val feedback = LocalFeedbackController.current
     val dateFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
+
+    // 防呆：追加笔记、导出等耗时操作防止重复触发
+    var isAppending by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = SpacingTokens.xl),
@@ -308,14 +394,23 @@ private fun SproutArticleContent(
             // 追加笔记
             FilledTonalButton(
                 onClick = {
+                    if (isAppending) return@FilledTonalButton
                     val reportText = article.toPlainText()
+                    isAppending = true
                     scope.launch {
-                        withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            repository.quickCreate(reportText)
+                        try {
+                            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                repository.quickCreate(reportText)
+                            }
+                            feedback.showFeedback("已追加为新笔记")
+                        } catch (e: Exception) {
+                            feedback.showFeedback("追加失败: ${e.message}")
+                        } finally {
+                            isAppending = false
                         }
-                        feedback.showFeedback("已追加为新笔记")
                     }
                 },
+                enabled = !isAppending,
             ) {
                 Icon(Icons.AutoMirrored.Filled.NoteAdd, "追加笔记", Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
@@ -345,6 +440,7 @@ private fun SproutArticleContent(
                     val seedContent = article.toPlainText()
                     onResprout(seedContent)
                 },
+                enabled = !isRefreshing,
             ) {
                 Icon(Icons.Default.AutoAwesome, "再发芽", Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
@@ -559,14 +655,6 @@ private fun ConceptsSection(concepts: List<String>) {
     Column {
         Text("相关概念", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
         Spacer(Modifier.height(SpacingTokens.sm))
-        // 简化：用 Column + Row 模拟流式布局，避免自定义 Layout 的复杂度
-        var rowContent by remember { mutableStateOf(listOf<String>()) }
-        var rows by remember { mutableStateOf(mutableListOf<List<String>>()) }
-
-        concepts.forEach { concept ->
-            val newRow = rowContent + concept
-            rowContent = newRow
-        }
         // 直接用简单的 Wrap 样式展示
         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.wrapContentHeight()) {
             concepts.forEach {
@@ -614,34 +702,64 @@ private fun SproutEmptyView(onGenerate: () -> Unit) {
     }
 }
 
+// ==================== UI 状态 ====================
+
+/** 发芽页面状态机，用于 AnimatedContent 做状态间淡入淡出过渡 */
+private sealed class SproutUiState {
+    data object Loading : SproutUiState()
+    data object Empty : SproutUiState()
+    data class Error(val message: String) : SproutUiState()
+    data class Success(val article: SproutArticle) : SproutUiState()
+}
+
 // ==================== 发芽辅助函数 ====================
 
 /**
- * 统一执行发芽操作：调用 API -> 保存笔记 -> 持久化报告 -> 回调
+ * 统一执行发芽操作：调用 API -> 保存笔记 -> 持久化报告 -> 回调。
+ * 使用 [mutex] 保证同一页面内不会并发执行多次发芽，避免重复请求与状态错乱。
  */
 private fun doSprout(
     scope: kotlinx.coroutines.CoroutineScope,
+    mutex: Mutex,
     service: SproutService,
     note: Note,
     repository: NoteRepository,
     store: SproutReportStore?,
+    seedContent: String? = null,
+    setGenerating: (Boolean) -> Unit,
+    setError: (String?) -> Unit,
     onSuccess: (SproutArticle) -> Unit,
-    onFailure: (String) -> Unit,
-    onDone: () -> Unit,
 ) {
     scope.launch {
-        // Use a local flag since onDone might not set isGenerating
+        if (!mutex.tryLock()) {
+            setError("发芽正在进行中，请稍候")
+            return@launch
+        }
+        setGenerating(true)
+        setError(null)
         try {
-            service.sprout(note.content).fold(
+            val otherNotesContext = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try { repository.getRecentNotesIndex(5) } catch (_: Exception) { "" }
+            }
+            service.sprout(seedContent ?: note.content, otherNotesContext).fold(
                 onSuccess = { article ->
-                    note.setSproutArticle(article)
-                    repository.saveNote(note)
-                    persistSprout(scope, store, note.id, note.title, article)
-                    onSuccess(article)
+                    try {
+                        note.setSproutArticle(article)
+                        repository.saveNote(note)
+                        persistSprout(scope, store, note.id, note.title, article)
+                        onSuccess(article)
+                    } catch (e: Exception) {
+                        setError(e.message ?: "保存发芽结果失败")
+                    }
                 },
-                onFailure = { e -> onFailure(e.message ?: "生成失败") },
+                onFailure = { e -> setError(e.message ?: "生成失败") },
             )
-        } finally { onDone() }
+        } catch (e: Exception) {
+            setError(e.message ?: "发芽失败")
+        } finally {
+            setGenerating(false)
+            mutex.unlock()
+        }
     }
 }
 

@@ -161,6 +161,7 @@ fun SessionScreen(
     var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
     var scrollAnchor by remember(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
     var lastBottomMessageId by remember(state.current?.id) { mutableStateOf<String?>(null) }
+    var pendingDeleteMessageId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -392,14 +393,14 @@ fun SessionScreen(
                             Role.USER -> UserBubble(
                                 text = msg.textContent,
                                 clipboard = clipboard,
-                                onUndo = { vm.deleteMessage(msg.id) },
+                                onUndo = { pendingDeleteMessageId = msg.id },
                             )
                             Role.ASSISTANT -> AIMessageCard(
                                 message = msg,
                                 onSpeak = { vm.toggleSpeak(msg.textContent) },
                                 isSpeaking = state.isSpeaking,
                                 clipboard = clipboard,
-                                onUndo = { vm.deleteMessage(msg.id) },
+                                onUndo = { pendingDeleteMessageId = msg.id },
                             )
                             Role.SYSTEM -> {
                                 when (msg.messageType) {
@@ -713,6 +714,59 @@ fun SessionScreen(
                     }
                 }
             }
+        }
+
+        // 删除消息二次确认
+        if (pendingDeleteMessageId != null) {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteMessageId = null },
+                title = { Text(stringResource(R.string.session_delete_message_title)) },
+                text = { Text(stringResource(R.string.session_delete_message_confirm)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val id = pendingDeleteMessageId
+                            pendingDeleteMessageId = null
+                            if (id != null) {
+                                vm.deleteMessage(id)
+                                scope.launch {
+                                    snackbar.showSnackbar(context.getString(R.string.session_delete_message_toast))
+                                }
+                            }
+                        },
+                    ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteMessageId = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
+
+        // 高危工具操作确认
+        val toolConfirmation by vm.pendingToolConfirmation.collectAsStateCompat()
+        toolConfirmation?.let { confirmation ->
+            AlertDialog(
+                onDismissRequest = { vm.resolveToolConfirmation(false) },
+                title = { Text(stringResource(R.string.tool_confirmation_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Text(confirmation.action, fontWeight = FontWeight.SemiBold)
+                        Text(confirmation.detail)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { vm.resolveToolConfirmation(true) }) {
+                        Text(stringResource(R.string.tool_confirmation_allow))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.resolveToolConfirmation(false) }) {
+                        Text(stringResource(R.string.tool_confirmation_deny))
+                    }
+                },
+            )
         }
 
         // More options bottom sheet (at Box level, as overlay)
