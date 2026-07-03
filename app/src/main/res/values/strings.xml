@@ -586,6 +586,19 @@
     <string name="msg_sprout_unavailable">笔记未加载或发芽服务不可用</string>
     <string name="msg_sprout_failed">发芽失败: %1$s</string>
     <string name="sprout_copy_report">复制报告</string>
+    <string name="sprout_loading_title">正在发芽…</string>
+    <string name="sprout_loading_subtitle">AI 正在从多视角深度分析你的笔记</string>
+    <string name="sprout_error_title">发芽失败</string>
+    <string name="sprout_error_retry">重试</string>
+    <string name="sprout_empty_title">还没有发芽报告</string>
+    <string name="sprout_empty_subtitle">让 AI 帮你深度分析这篇笔记</string>
+    <string name="sprout_start">开始发芽</string>
+    <string name="sprout_action_items">行动建议</string>
+    <string name="sprout_related_concepts">相关概念</string>
+    <string name="sprout_phase_seed">提取种子</string>
+    <string name="sprout_phase_connection">建立关联</string>
+    <string name="sprout_phase_insight">生成洞察</string>
+    <string name="sprout_phase_quote">金句回响</string>
 
     <!-- AI actions -->
     <string name="ai_action_review">点评</string>
