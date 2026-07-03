@@ -307,6 +307,38 @@ fun AppRoot(
         }
     }
 
+    // 首次使用引导：初始值为 null 表示正在加载，避免首次启动时闪烁主界面
+    val onboardingCompleted by OnboardingDataStore.isCompleted(context).collectAsState(initial = null)
+    val shouldShowOnboarding = onboardingCompleted == false
+    val isOnboardingLoading = onboardingCompleted == null
+
+    if (isOnboardingLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (shouldShowOnboarding) {
+        var isClosing by remember { mutableStateOf(false) }
+        AnimatedVisibility(
+            visible = !isClosing,
+            exit = fadeOut(animationSpec = tween(300)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            OnboardingScreen(
+                onFinished = {
+                    isClosing = true
+                    scope.launch { OnboardingDataStore.markCompleted(context) }
+                },
+            )
+        }
+        return
+    }
+
     val activity = LocalContext.current as? android.app.Activity
     @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
     val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }

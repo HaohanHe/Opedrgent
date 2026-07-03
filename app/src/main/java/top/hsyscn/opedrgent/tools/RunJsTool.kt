@@ -31,6 +31,7 @@ import org.json.JSONObject
 class RunJsTool(
     private val context: Context,
     private val skillLoader: SkillLoader,
+    private val requestConfirmation: suspend (ToolConfirmation) -> Boolean = { true },
 ) : ToolSet {
 
     private val webViewExecutor = SkillWebViewExecutor(context)
@@ -65,6 +66,23 @@ class RunJsTool(
             val args = JSONObject(input)
             val scriptName = args.optString("script_name", "index.html")
             val dataStr = args.optString("data", "{}")
+
+            // 校验脚本名，防止路径遍历
+            if (!isScriptNameSafe(scriptName)) {
+                return emptyResult(toolPart, "脚本名不合法：'$scriptName'")
+            }
+
+            // 用户确认：JS Skill 可能执行任意代码并发起网络请求
+            val confirmed = requestConfirmation(
+                ToolConfirmation(
+                    toolName = "run_js",
+                    action = "执行 JS Skill",
+                    detail = "脚本: $scriptName\n输入数据: ${dataStr.take(200)}",
+                )
+            )
+            if (!confirmed) {
+                return emptyResult(toolPart, "用户拒绝了执行 JS Skill")
+            }
 
             // 从 scriptName 反推 Skill 名称（scripts 属于某个 skill 目录）
             // 格式：assets/skills/{skill-name}/scripts/{scriptName}
@@ -145,6 +163,15 @@ class RunJsTool(
             DebugLog.e("RunJsTool 异常: ${e.message}", e)
             emptyResult(toolPart, "JS 执行异常: ${e.message}")
         }
+    }
+
+    /**
+     * 校验脚本文件名：仅允许普通文件名，禁止路径遍历与绝对路径。
+     */
+    private fun isScriptNameSafe(scriptName: String): Boolean {
+        if (scriptName.isBlank()) return false
+        if (scriptName.contains("..") || scriptName.contains('/') || scriptName.contains('\\')) return false
+        return scriptName.matches(Regex("^[\w.\-]+$"))
     }
 
     /**

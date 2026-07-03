@@ -290,10 +290,11 @@ object ContentReplacement {
     ): List<ChatMessage> {
         if (replacementMap.isEmpty()) return messages
         return messages.map { msg ->
-            if (msg.toolCallId == null || msg.toolCallId !in replacementMap) {
-                msg
+            val replacement = msg.toolCallId?.let { replacementMap[it] }
+            if (replacement != null) {
+                msg.copy(content = replacement)
             } else {
-                msg.copy(content = replacementMap[msg.toolCallId]!!)
+                msg
             }
         }
     }

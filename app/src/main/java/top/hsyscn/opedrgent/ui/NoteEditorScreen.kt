@@ -45,6 +45,7 @@ import kotlin.math.max
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
@@ -128,6 +129,7 @@ fun NoteEditorScreen(
     var selectedTab by remember { mutableIntStateOf(1) }
     var currentNote by remember { mutableStateOf<Note?>(null) }
     var isGenerating by remember { mutableStateOf(false) }
+    val sproutMutex = remember { Mutex() }
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current  // 保留此警告，需要后续迁移
 
@@ -785,32 +787,43 @@ fun NoteEditorScreen(
                                                 Button(
                                                     onClick = {
                                                         scope.launch {
+                                                            if (!sproutMutex.tryLock()) {
+                                                                snackbarHostState.showSnackbar("发芽正在进行中，请稍候")
+                                                                return@launch
+                                                            }
+                                                            val note = currentNote
+                                                            val service = sproutService
+                                                            if (note == null || service == null) {
+                                                                sproutMutex.unlock()
+                                                                snackbarHostState.showSnackbar("笔记未加载或发芽服务不可用")
+                                                                return@launch
+                                                            }
                                                             isGenerating = true
                                                             try {
-                                                                val service = sproutService
-                                                                if (service != null) {
-                                                                    val otherNotesCtx = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                                                        try { repository.getRecentNotesIndex(5) } catch (_: Exception) { "" }
-                                                                    }
-                                                                    service.sprout(currentNote!!.content, otherNotesCtx).fold(
+                                                                val otherNotesCtx = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                                    try { repository.getRecentNotesIndex(5) } catch (_: Exception) { "" }
+                                                                }
+                                                                try {
+                                                                    service.sprout(note.content, otherNotesCtx).fold(
                                                                         onSuccess = { newArticle ->
-                                                                            currentNote!!.setSproutArticle(newArticle)
-                                                                            repository.saveNote(currentNote!!)
+                                                                            note.setSproutArticle(newArticle)
+                                                                            repository.saveNote(note)
                                                                             // 从数据库重新加载，触发 Compose 重组
-                                                                            val refreshed = repository.getNoteById(currentNote!!.id)
+                                                                            val refreshed = repository.getNoteById(note.id)
                                                                             if (refreshed != null) {
                                                                                 currentNote = refreshed
                                                                             }
                                                                         },
                                                                         onFailure = { e ->
-                                                                            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                                snackbarHostState.showSnackbar("发芽失败: ${e.message}")
-                                                                            }
+                                                                            snackbarHostState.showSnackbar("发芽失败: ${e.message}")
                                                                         },
                                                                     )
+                                                                } catch (e: Exception) {
+                                                                    snackbarHostState.showSnackbar("发芽失败: ${e.message}")
                                                                 }
                                                             } finally {
                                                                 isGenerating = false
+                                                                sproutMutex.unlock()
                                                             }
                                                         }
                                                     },
