@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -154,7 +156,8 @@ fun SessionScreen(
     val state by vm.state.collectAsStateCompat()
 
     var prompt by rememberSaveable { mutableStateOf("") }
-    var listening by rememberSaveable { mutableStateOf(false) }
+    // 录音状态来自 ViewModel，跨页面导航保持不中断（切到笔记/设置再切回，录音仍在继续）
+    val listening by vm.asrListening.collectAsStateCompat()
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -169,13 +172,20 @@ fun SessionScreen(
         }
     }
 
-    // 统一 ASR 流式识别：使用 AsrManager 根据用户设置选择引擎
-    var streamingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            streamingJob?.cancel()
-            vm.stopUnifiedStreamingAsr()
+    // 统一 ASR 流式识别：job 由 ViewModel 持有，切页面不中断。这里仅收集识别结果事件更新输入框。
+    LaunchedEffect(vm) {
+        vm.asrEvent.collect { event ->
+            when (event) {
+                is MainViewModel.AsrUiEvent.FinalText -> {
+                    prompt = if (prompt.isBlank()) event.text else (prompt.trimEnd() + "\n" + event.text)
+                }
+                is MainViewModel.AsrUiEvent.EmptyResult -> {
+                    snackbar.showSnackbar(context.getString(R.string.msg_asr_no_speech))
+                }
+                is MainViewModel.AsrUiEvent.Error -> {
+                    snackbar.showSnackbar(event.message)
+                }
+            }
         }
     }
 
@@ -188,7 +198,7 @@ fun SessionScreen(
                         // 图片附加到消息让 AI 分析 (通过多模态 API 实际发送图片)
                         val session = vm.state.value.current
                         if (session != null) {
-                            vm.sendUserMessageWithImage("请分析这张图片的内容", uri)
+                            vm.sendUserMessageWithImage(context.getString(R.string.msg_analyze_image), uri)
                         } else {
                             snackbar.showSnackbar(context.getString(R.string.msg_create_session_first))
                         }
@@ -252,7 +262,7 @@ fun SessionScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { vm.closeSession(); onBack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = themeTextDark())
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = themeTextDark())
             }
             Text(
                 text = session?.title ?: "Opedrgent",
@@ -270,7 +280,7 @@ fun SessionScreen(
                 onClick = { actionSheetOpen = true },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = "更多选项", tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
+                    Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.cd_more), tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
                 }
             }
             Spacer(modifier = Modifier.width(SpacingTokens.sm))
@@ -284,7 +294,7 @@ fun SessionScreen(
                 onClick = onOpenSettings,
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.Settings, contentDescription = "设置", tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings), tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
                 }
             }
         }
@@ -295,7 +305,7 @@ fun SessionScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("选择一个会话开始对话", color = themeTextGrey())
+                Text(stringResource(R.string.session_select_prompt), color = themeTextGrey())
             }
         } else {
             // 发芽结果视图 - 自然显示在聊天中
@@ -461,7 +471,7 @@ fun SessionScreen(
                                 sproutingState = sproutingState,
                                 onCopy = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("发芽结果", sproutResult ?: ""))
+                                    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.clipboard_label_sprout_result), sproutResult ?: ""))
                                     scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_copied_to_clipboard)) }
                                 },
                                 onContinueChat = {
@@ -494,7 +504,7 @@ fun SessionScreen(
                             .background(MaterialTheme.colorScheme.primary, ShapeTokens.extraSmallShape),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.sm))
-                    Text("停止回复", style = MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary))
+                    Text(stringResource(R.string.session_stop_reply), style = MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary))
                 }
             }
 
@@ -502,6 +512,8 @@ fun SessionScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
                     .padding(start = SpacingTokens.md, end = SpacingTokens.md, bottom = SpacingTokens.md, top = SpacingTokens.xs),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
@@ -519,7 +531,7 @@ fun SessionScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "搜索范围",
+                            contentDescription = stringResource(R.string.cd_search_scope),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(SpacingTokens.sm),
                         )
@@ -543,7 +555,7 @@ fun SessionScreen(
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
                             Icons.Default.Add,
-                            contentDescription = "更多选项",
+                            contentDescription = stringResource(R.string.cd_more),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(SpacingTokens.md),
                         )
@@ -587,7 +599,7 @@ fun SessionScreen(
                         )
                         // Camera/Files button
                         IconButton(onClick = { filePicker.launch(arrayOf("image/*", "audio/*", "video/*", "application/pdf")) }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = "附加文件", tint = themeTextGrey(), modifier = Modifier.size(SpacingTokens.md))
+                            Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.cd_attach_file), tint = themeTextGrey(), modifier = Modifier.size(SpacingTokens.md))
                         }
                         // Microphone button
                         if (vm.isSttEnabled()) {
@@ -597,42 +609,12 @@ fun SessionScreen(
                                     audioPerm.launch(Manifest.permission.RECORD_AUDIO)
                                     return@IconButton
                                 }
-                                if (!listening) {
-                                    listening = true
-                                    streamingJob = scope.launch {
-                                        try {
-                                            val flow = vm.startUnifiedStreamingAsr()
-                                            flow.collect { state ->
-                                                when (state) {
-                                                    is StreamingRecognitionState.FinalResult -> {
-                                                        if (state.text.isNotBlank()) {
-                                                            prompt = if (prompt.isBlank()) state.text else (prompt.trimEnd() + "\n" + state.text)
-                                                        } else {
-                                                            snackbar.showSnackbar("未识别到语音")
-                                                        }
-                                                        listening = false
-                                                    }
-                                                    is StreamingRecognitionState.Error -> {
-                                                        snackbar.showSnackbar(state.message)
-                                                        listening = false
-                                                    }
-                                                    else -> {}
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            snackbar.showSnackbar("语音识别失败: ${e.message}")
-                                            listening = false
-                                        }
-                                    }
-                                } else {
-                                    listening = false
-                                    streamingJob?.cancel()
-                                    vm.stopUnifiedStreamingAsr()
-                                }
+                                // 录音 job 由 ViewModel 持有，跨页面保持；这里仅切换开关。
+                                vm.toggleStreamingAsr()
                             }) {
                                 Icon(
                                     Icons.Default.Mic,
-                                    contentDescription = "语音输入",
+                                    contentDescription = stringResource(R.string.cd_voice_input),
                                     tint = if (listening) MaterialTheme.colorScheme.primary else themeTextGrey(),
                                     modifier = Modifier.size(SpacingTokens.md),
                                 )
@@ -706,7 +688,7 @@ fun SessionScreen(
                         } else {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "发送",
+                                contentDescription = stringResource(R.string.cd_send),
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(SpacingTokens.md),
                             )
@@ -782,7 +764,7 @@ fun SessionScreen(
                             .padding(SpacingTokens.lg),
                     ) {
                         Text(
-                            text = "更多方式",
+                            text = stringResource(R.string.session_more_ways),
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(bottom = SpacingTokens.lg),
                         )
@@ -806,18 +788,18 @@ fun SessionScreen(
                             ) {
                                 Icon(
                                     Icons.Default.CameraAlt,
-                                    contentDescription = "拍照或图片",
+                                    contentDescription = stringResource(R.string.cd_photo_or_image),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(SpacingTokens.xl),
                                 )
                                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "拍照/图片",
+                                        text = stringResource(R.string.session_photo_image),
                                         style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
-                                        text = "白板记录/课堂笔记/日常饮食，秒变笔记",
+                                        text = stringResource(R.string.session_photo_image_desc),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = themeTextGrey(),
                                     )
@@ -844,18 +826,18 @@ fun SessionScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Save,
-                                    contentDescription = "知识库",
+                                    contentDescription = stringResource(R.string.cd_knowledge_base),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(SpacingTokens.xl),
                                 )
                                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "知识库",
+                                        text = stringResource(R.string.cd_knowledge_base),
                                         style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
-                                        text = "导入文档/PDF/图片，AI 可检索引用",
+                                        text = stringResource(R.string.session_kb_desc),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = themeTextGrey(),
                                     )
@@ -888,11 +870,11 @@ fun SessionScreen(
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "AI 编辑团",
+                                        text = stringResource(R.string.session_ai_editor_team),
                                         style = MaterialTheme.typography.titleSmall,
                                     )
                                     Text(
-                                        text = "AI 动态规划编辑团队",
+                                        text = stringResource(R.string.session_ai_editor_team_desc),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = themeTextGrey(),
                                     )
@@ -917,10 +899,13 @@ fun SessionScreen(
                         .padding(SpacingTokens.lg),
                 ) {
                     Text(
-                        text = "选择数据源范围",
+                        text = stringResource(R.string.session_select_scope),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = SpacingTokens.lg),
                     )
+                    val scopeDescAll = stringResource(R.string.scope_desc_all)
+                    val scopeDescNotes = stringResource(R.string.scope_desc_notes)
+                    val scopeDescWeb = stringResource(R.string.scope_desc_web)
                     SearchScope.entries.forEach { scopeEntry ->
                         Row(
                             modifier = Modifier
@@ -943,9 +928,9 @@ fun SessionScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                 )
                                 val description = when (scopeEntry) {
-                                    SearchScope.ALL -> "笔记、知识库和全网搜索"
-                                    SearchScope.MY_NOTES -> "仅搜索我的笔记和知识库"
-                                    SearchScope.WEB_ONLY -> "仅使用全网搜索引擎"
+                                    SearchScope.ALL -> scopeDescAll
+                                    SearchScope.MY_NOTES -> scopeDescNotes
+                                    SearchScope.WEB_ONLY -> scopeDescWeb
                                 }
                                 Text(
                                     text = description,
@@ -1003,12 +988,14 @@ fun SessionScreen(
 
         if (sttProgress != SttProgressState.IDLE && sttProgress != SttProgressState.DONE) {
             val downloadProg = (sttUiState as? SttUiState.DownloadingModel)?.progress
+            val decodingText = stringResource(R.string.stt_decoding)
+            val recognizingText = stringResource(R.string.stt_recognizing)
             val phaseText = when (sttUiState) {
-                is SttUiState.DecodingAudio -> "正在解码音频..."
+                is SttUiState.DecodingAudio -> decodingText
                 is SttUiState.Recognizing -> {
                     val r = sttUiState as SttUiState.Recognizing
-                    if (r.totalSegments > 0) "正在识别语音... ${r.currentSegment}/${r.totalSegments}"
-                    else "正在识别语音..."
+                    if (r.totalSegments > 0) context.getString(R.string.stt_recognizing_progress, r.currentSegment, r.totalSegments)
+                    else recognizingText
                 }
                 else -> null
             }
@@ -1050,7 +1037,7 @@ fun SessionScreen(
         ) {
             Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 Text(
-                    text = "会话操作",
+                    text = stringResource(R.string.session_actions),
                     style = MaterialTheme.typography.titleMedium,
                 )
 
@@ -1065,7 +1052,7 @@ fun SessionScreen(
                         },
                         modifier = Modifier.weight(1f),
                         shape = ShapeTokens.mediumShape,
-                    ) { Text("导出会话") }
+                    ) { Text(stringResource(R.string.session_export_chat)) }
                     Button(
                         onClick = {
                             scope.launch {
@@ -1076,7 +1063,7 @@ fun SessionScreen(
                         },
                         modifier = Modifier.weight(1f),
                         shape = ShapeTokens.mediumShape,
-                    ) { Text("导出上下文") }
+                    ) { Text(stringResource(R.string.session_export_context)) }
                 }
 
                 Button(
@@ -1087,7 +1074,7 @@ fun SessionScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeTokens.mediumShape,
                     colors = ButtonDefaults.buttonColors(containerColor = themeCardBackground(), contentColor = themeTextDark()),
-                ) { Text("完整导出中心") }
+                ) { Text(stringResource(R.string.session_export_center)) }
 
                 Spacer(modifier = Modifier.height(SpacingTokens.md))
             }
@@ -1096,15 +1083,17 @@ fun SessionScreen(
 
     // 自动化建议对话框
     state.automationSuggestion?.let { suggestion ->
+        val typeHeartbeat = stringResource(R.string.automation_type_heartbeat)
+        val typePrompt = stringResource(R.string.automation_type_prompt)
         AlertDialog(
             onDismissRequest = { vm.dismissAutomationSuggestion() },
-            title = { Text("自动化建议") },
+            title = { Text(stringResource(R.string.automation_suggestion_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                    Text("AI 基于当前会话建议了一个定时任务：")
-                    Text("名称: ${suggestion.name}", fontWeight = FontWeight.SemiBold)
-                    Text("周期: 每 ${suggestion.intervalMinutes} 分钟")
-                    Text("类型: ${if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) "心跳整理" else "定时 Prompt"}")
+                    Text(stringResource(R.string.automation_suggestion_desc))
+                    Text(stringResource(R.string.automation_label_name, suggestion.name), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.automation_label_interval, suggestion.intervalMinutes))
+                    Text(stringResource(R.string.automation_label_type, if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) typeHeartbeat else typePrompt))
                     if (suggestion.kind == AutomationKind.RUN_PROMPT && !suggestion.prompt.isNullOrBlank()) {
                         Text("Prompt:", style = MaterialTheme.typography.titleSmall)
                         Text(suggestion.prompt, style = MaterialTheme.typography.bodySmall.copy(color = themeTextGrey()))
@@ -1112,10 +1101,10 @@ fun SessionScreen(
                 }
             },
             confirmButton = {
-                Button(onClick = { vm.acceptAutomationSuggestion() }) { Text("接受") }
+                Button(onClick = { vm.acceptAutomationSuggestion() }) { Text(stringResource(R.string.action_accept)) }
             },
             dismissButton = {
-                TextButton(onClick = { vm.dismissAutomationSuggestion() }) { Text("忽略") }
+                TextButton(onClick = { vm.dismissAutomationSuggestion() }) { Text(stringResource(R.string.action_ignore)) }
             },
         )
     }

@@ -510,4 +510,99 @@
     <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
     <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
     <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
+
+    <!-- i18n 补充：会话 / 编辑器 / 发芽 硬编码字符串 -->
+    <!-- ASR / 语音输入 -->
+    <string name="msg_asr_no_speech">未识别到语音</string>
+    <string name="msg_asr_failed">语音识别失败: %1$s</string>
+    <string name="cd_voice_input">语音输入</string>
+    <string name="cd_attach_file">附加文件</string>
+    <string name="cd_send">发送</string>
+    <string name="cd_search_scope">搜索范围</string>
+    <string name="cd_note_type">笔记类型</string>
+    <string name="cd_format">格式化</string>
+    <string name="cd_discuss">在对话中讨论</string>
+    <string name="cd_tag">标签</string>
+    <string name="cd_quote">引用</string>
+    <string name="cd_todo">待办</string>
+    <string name="cd_knowledge_base">知识库</string>
+    <string name="cd_photo_or_image">拍照或图片</string>
+
+    <!-- Session screen -->
+    <string name="session_select_prompt">选择一个会话开始对话</string>
+    <string name="session_stop_reply">停止回复</string>
+    <string name="session_more_ways">更多方式</string>
+    <string name="session_photo_image">拍照/图片</string>
+    <string name="session_photo_image_desc">白板记录/课堂笔记/日常饮食，秒变笔记</string>
+    <string name="session_kb_desc">导入文档/PDF/图片，AI 可检索引用</string>
+    <string name="session_ai_editor_team">AI 编辑团</string>
+    <string name="session_ai_editor_team_desc">AI 动态规划编辑团队</string>
+    <string name="session_select_scope">选择数据源范围</string>
+    <string name="scope_desc_all">笔记、知识库和全网搜索</string>
+    <string name="scope_desc_notes">仅搜索我的笔记和知识库</string>
+    <string name="scope_desc_web">仅使用全网搜索引擎</string>
+    <string name="session_actions">会话操作</string>
+    <string name="session_export_chat">导出会话</string>
+    <string name="session_export_context">导出上下文</string>
+    <string name="session_export_center">完整导出中心</string>
+    <string name="msg_analyze_image">请分析这张图片的内容</string>
+
+    <!-- STT progress -->
+    <string name="stt_decoding">正在解码音频…</string>
+    <string name="stt_recognizing">正在识别语音…</string>
+    <string name="stt_recognizing_progress">正在识别语音… %1$d/%2$d</string>
+
+    <!-- Automation suggestion -->
+    <string name="automation_suggestion_title">自动化建议</string>
+    <string name="automation_suggestion_desc">AI 基于当前会话建议了一个定时任务：</string>
+    <string name="automation_label_name">名称: %1$s</string>
+    <string name="automation_label_interval">周期: 每 %1$d 分钟</string>
+    <string name="automation_label_type">类型: %1$s</string>
+    <string name="automation_type_heartbeat">心跳整理</string>
+    <string name="automation_type_prompt">定时 Prompt</string>
+    <string name="action_accept">接受</string>
+    <string name="action_ignore">忽略</string>
+
+    <!-- Note editor (reader mode + sprout) -->
+    <string name="note_editor_seed_prefix">种子：%1$s</string>
+    <string name="note_editor_shocking_moment">震惊瞬间</string>
+    <string name="note_editor_legacy_sprout">旧版发芽报告</string>
+    <string name="note_editor_legacy_detected">检测到旧版发芽报告</string>
+    <string name="note_editor_legacy_desc">当前显示的是旧版摘要格式，重新发芽可获取完整的叙事式分析报告。</string>
+    <string name="note_editor_regenerate_sprout">重新发芽</string>
+    <string name="note_editor_model_used">模型: %1$s</string>
+    <string name="note_editor_model_default">默认</string>
+    <string name="note_editor_start_writing">开始书写…</string>
+    <string name="note_editor_ghost_hint">Tab 接受 | Esc 取消</string>
+    <string name="note_editor_no_key_quotes">暂无金句精选</string>
+    <string name="note_editor_no_action_items">暂无待办事项</string>
+    <string name="note_editor_saved">笔记已保存</string>
+    <string name="note_editor_saved_with_links">已保存并发现 %1$d 个关联</string>
+    <string name="note_editor_format_hint">开始书写…\n\n选中文字即可加粗、斜体、代码等格式</string>
+    <string name="note_editor_markdown_placeholder">开始书写…\n\n支持 Markdown 格式：\n# 标题\n**加粗** *斜体* `代码`\n- 无序列表\n1. 有序列表\n&gt; 引用\n![图片](url)\n[链接](url)</string>
+
+    <!-- Sprout messages -->
+    <string name="msg_sprout_in_progress">发芽正在进行中，请稍候</string>
+    <string name="msg_sprout_unavailable">笔记未加载或发芽服务不可用</string>
+    <string name="msg_sprout_failed">发芽失败: %1$s</string>
+    <string name="sprout_copy_report">复制报告</string>
+
+    <!-- AI actions -->
+    <string name="ai_action_review">点评</string>
+    <string name="ai_action_review_desc">识别亮点，正向强化</string>
+    <string name="ai_action_inquiry">拷问</string>
+    <string name="ai_action_inquiry_desc">深度追问，挑战逻辑</string>
+    <string name="ai_action_refine">润色</string>
+    <string name="ai_action_refine_desc">优化表达，提升质量</string>
+    <string name="ai_action_editor_team">AI 编辑团</string>
+    <string name="ai_action_editor_team_desc">8人编辑团协作创作</string>
+
+    <!-- Note editor sub-tabs -->
+    <string name="note_editor_subtab_summary">智能总结</string>
+    <string name="note_editor_subtab_chapters">章节概要</string>
+    <string name="note_editor_subtab_quotes">金句精选</string>
+    <string name="note_editor_subtab_todos">待办事项</string>
+
+    <!-- Clipboard labels -->
+    <string name="clipboard_label_sprout_result">发芽结果</string>
 </resources>
