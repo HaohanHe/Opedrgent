@@ -408,6 +408,12 @@
     <string name="note_editor_title_placeholder">无标题</string>
     <string name="note_editor_delete_title">删除笔记</string>
     <string name="note_editor_delete_confirm">确定要删除这条笔记吗？此操作不可撤销。</string>
+    <string name="session_delete_message_title">删除消息</string>
+    <string name="session_delete_message_confirm">确定要删除这条消息吗？此操作不可撤销。</string>
+    <string name="session_delete_message_toast">消息已删除</string>
+    <string name="tool_confirmation_title">安全确认</string>
+    <string name="tool_confirmation_allow">允许</string>
+    <string name="tool_confirmation_deny">拒绝</string>
     <string name="note_editor_unsaved_title">未保存的更改</string>
     <string name="note_editor_unsaved_desc">您有尚未保存的内容。是否要在离开前保存？</string>
     <string name="note_editor_save_leave">保存并离开</string>
@@ -488,4 +494,20 @@
     <string name="graph_stat_total_notes">总笔记</string>
     <string name="graph_stat_total_links">总关联</string>
     <string name="graph_stat_isolated_notes">孤立笔记</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_prev">上一页</string>
+    <string name="onboarding_get_started">进入 Opedrgent</string>
+    <string name="onboarding_page_welcome_title">欢迎来到 Opedrgent</string>
+    <string name="onboarding_page_welcome_subtitle">你的本地优先 AI 助手。对话、笔记、知识图谱三位一体，让思考自然生长。</string>
+    <string name="onboarding_page_chat_title">随时对话</string>
+    <string name="onboarding_page_chat_subtitle">支持多轮对话、工具调用、联网搜索与深度研究。需要时 AI 会主动确认，不会擅自执行敏感操作。</string>
+    <string name="onboarding_page_notes_title">笔记与知识图谱</string>
+    <string name="onboarding_page_notes_subtitle">记录灵感、会议、图片与链接。保存后系统会自动构建知识图谱，帮你发现笔记之间的隐藏联系。</string>
+    <string name="onboarding_page_sprout_title">思想空间发芽</string>
+    <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
+    <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
+    <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
 </resources>

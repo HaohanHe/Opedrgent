@@ -24,6 +24,7 @@ import top.hsyscn.opedrgent.tools.RunIntentTool
 import top.hsyscn.opedrgent.tools.RunJsTool
 import top.hsyscn.opedrgent.tools.RunCalendarTool
 import top.hsyscn.opedrgent.tools.SpeechToTextTool
+import top.hsyscn.opedrgent.tools.ToolConfirmation
 import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
 import top.hsyscn.opedrgent.tools.TodoWriteTool
@@ -87,13 +88,14 @@ class ToolExecutor(
     private val insightSproutEngine: top.hsyscn.opedrgent.insight.InsightSproutEngine? = null,
     private val knowledgeBase: KnowledgeBase? = null, // 知识库（用于 RAG 检索工具）
     val mcpManager: McpManager = McpManager(), // MCP 多服务器管理器
+    private val requestConfirmation: suspend (ToolConfirmation) -> Boolean = { false }, // 高危操作用户确认回调（默认拒绝，必须由调用方显式接入确认流程）
 ) {
 
     private var webViewAgent: WebViewAgent? = null
 
     private val toolRegistry = ToolRegistry().apply {
         register(WebSearchTool(context, searcher, fetcher, llm, apiSettings))
-        register(OpenBrowserTool())
+        register(OpenBrowserTool(requestConfirmation))
         register(DeepResearchTool(context, searcher, fetcher, llm))
         register(ReadUrlTool(context, fetcher))
         register(GenerateReportTool(llm))
@@ -105,11 +107,11 @@ class ToolExecutor(
         }
         // ★ Gallery 核心工具：run_js（JS Skill 沙箱执行）和 run_intent（原生 Intent）
         if (skillLoader != null) {
-            register(RunJsTool(context, skillLoader))
+            register(RunJsTool(context, skillLoader, requestConfirmation))
         }
-        register(RunIntentTool(context))
+        register(RunIntentTool(context, requestConfirmation))
         // 日历直接读写工具（通过 ContentProvider 操作系统日历）
-        register(RunCalendarTool(context))
+        register(RunCalendarTool(context, requestConfirmation))
         if (insightSproutEngine != null) {
             register(InsightSproutTool(insightSproutEngine))
         }

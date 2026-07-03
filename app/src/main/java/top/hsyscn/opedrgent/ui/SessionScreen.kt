@@ -156,12 +156,12 @@ fun SessionScreen(
     var prompt by rememberSaveable { mutableStateOf("") }
     var listening by rememberSaveable { mutableStateOf(false) }
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
-    var isSending by remember { mutableStateOf(false) }  // 发送中的加载状态
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
-    var scrollAnchor by remember(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
-    var lastBottomMessageId by remember(state.current?.id) { mutableStateOf<String?>(null) }
+    var reachedTop by rememberSaveable(state.current?.id) { mutableStateOf(false) }
+    var scrollAnchor by rememberSaveable(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
+    var lastBottomMessageId by rememberSaveable(state.current?.id) { mutableStateOf<String?>(null) }
+    var pendingDeleteMessageId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -393,14 +393,14 @@ fun SessionScreen(
                             Role.USER -> UserBubble(
                                 text = msg.textContent,
                                 clipboard = clipboard,
-                                onUndo = { vm.deleteMessage(msg.id) },
+                                onUndo = { pendingDeleteMessageId = msg.id },
                             )
                             Role.ASSISTANT -> AIMessageCard(
                                 message = msg,
                                 onSpeak = { vm.toggleSpeak(msg.textContent) },
                                 isSpeaking = state.isSpeaking,
                                 clipboard = clipboard,
-                                onUndo = { vm.deleteMessage(msg.id) },
+                                onUndo = { pendingDeleteMessageId = msg.id },
                             )
                             Role.SYSTEM -> {
                                 when (msg.messageType) {
@@ -578,14 +578,10 @@ fun SessionScreen(
                             maxLines = 5,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                             keyboardActions = KeyboardActions(onSend = {
-                                if (!isSending && prompt.isNotBlank()) {
-                                    isSending = true
-                                    vm.sendUserMessage(prompt)
+                                if (!state.isStreaming && prompt.isNotBlank()) {
+                                    val text = prompt
                                     prompt = ""
-                                    scope.launch {
-                                        kotlinx.coroutines.delay(500)
-                                        isSending = false
-                                    }
+                                    vm.sendUserMessage(text)
                                 }
                             }),
                         )
@@ -684,7 +680,7 @@ fun SessionScreen(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(
                         containerColor = when {
-                            isSending -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)  // 发送中：禁用态
+                            state.isStreaming -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)  // 流式中：禁用态
                             prompt.isNotBlank() -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outline
                         },
@@ -693,20 +689,15 @@ fun SessionScreen(
                         .size(37.dp)
                         .clip(CircleShape),
                     onClick = {
-                        if (!isSending && prompt.isNotBlank()) {
-                            isSending = true
-                            vm.sendUserMessage(prompt)
+                        if (!state.isStreaming && prompt.isNotBlank()) {
+                            val text = prompt
                             prompt = ""
-                            // 流式输出开始后重置发送状态
-                            scope.launch {
-                                kotlinx.coroutines.delay(500)
-                                isSending = false
-                            }
+                            vm.sendUserMessage(text)
                         }
                     },
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        if (isSending) {
+                        if (state.isStreaming) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 modifier = Modifier.size(SpacingTokens.md),
                                 strokeWidth = 2.dp,
@@ -723,6 +714,59 @@ fun SessionScreen(
                     }
                 }
             }
+        }
+
+        // 删除消息二次确认
+        if (pendingDeleteMessageId != null) {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteMessageId = null },
+                title = { Text(stringResource(R.string.session_delete_message_title)) },
+                text = { Text(stringResource(R.string.session_delete_message_confirm)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val id = pendingDeleteMessageId
+                            pendingDeleteMessageId = null
+                            if (id != null) {
+                                vm.deleteMessage(id)
+                                scope.launch {
+                                    snackbar.showSnackbar(context.getString(R.string.session_delete_message_toast))
+                                }
+                            }
+                        },
+                    ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteMessageId = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
+
+        // 高危工具操作确认
+        val toolConfirmation by vm.pendingToolConfirmation.collectAsStateCompat()
+        toolConfirmation?.let { confirmation ->
+            AlertDialog(
+                onDismissRequest = { vm.resolveToolConfirmation(false) },
+                title = { Text(stringResource(R.string.tool_confirmation_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        Text(confirmation.action, fontWeight = FontWeight.SemiBold)
+                        Text(confirmation.detail)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { vm.resolveToolConfirmation(true) }) {
+                        Text(stringResource(R.string.tool_confirmation_allow))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.resolveToolConfirmation(false) }) {
+                        Text(stringResource(R.string.tool_confirmation_deny))
+                    }
+                },
+            )
         }
 
         // More options bottom sheet (at Box level, as overlay)

@@ -6,10 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -63,6 +64,7 @@ import top.hsyscn.opedrgent.network.ToolExecutor
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.network.HttpClients
+import top.hsyscn.opedrgent.tools.ToolConfirmation
 import top.hsyscn.opedrgent.network.WebResearchMode
 import top.hsyscn.opedrgent.network.WebResearchRequest
 import top.hsyscn.opedrgent.network.WebResearchRouter
@@ -347,7 +349,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
         },
     )
-    private val toolExecutor = ToolExecutor(app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase)
+    // 高危工具操作的用户确认状态（队列式，防止多工具并发时覆盖）
+    private val _pendingToolConfirmation = MutableStateFlow<ToolConfirmation?>(null)
+    val pendingToolConfirmation: StateFlow<ToolConfirmation?> = _pendingToolConfirmation
+    private val toolConfirmationRequests = Channel<Pair<ToolConfirmation, CompletableDeferred<Boolean>>>(Channel.UNLIMITED)
+    private var currentConfirmationDeferred: CompletableDeferred<Boolean>? = null
+
+    private val toolExecutor = ToolExecutor(
+        app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase,
+        requestConfirmation = { confirmation -> confirmTool(confirmation) },
+    )
     // ★ 事务回滚（Koog 风格）：检查点 + 补偿执行器，主 LLM 循环与 AgentSwarm 共用
     private val checkpointStorage by lazy { InMemoryCheckpointStorage() }
     private val checkpointManager by lazy { CheckpointManager(checkpointStorage) }
@@ -718,6 +729,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+
+        // 高危工具确认队列：多个工具同时请求确认时按 FIFO 串行处理，避免覆盖
+        viewModelScope.launch {
+            for ((confirmation, deferred) in toolConfirmationRequests) {
+                currentConfirmationDeferred = deferred
+                _pendingToolConfirmation.value = confirmation
+                try {
+                    deferred.await()
+                } catch (_: CancellationException) {
+                    // 调用方已取消，继续处理下一个请求
+                } finally {
+                    currentConfirmationDeferred = null
+                    _pendingToolConfirmation.value = null
+                }
+            }
+        }
+
         val last = apiSettings.getLastSessionId()
         if (!last.isNullOrBlank()) {
             openSession(last)
@@ -4053,7 +4081,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         super.onCleared()
-        // Curator: 会话结束时非阻塞触发维护检查
+        toolConfirmationRequests.close()
+        currentConfirmationDeferred?.cancel()
         viewModelScope.launch(Dispatchers.IO) {
             curatorService.maybeRunCurator()
         }
@@ -4553,6 +4582,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         store.updateSession(updatedSession)
         refreshCurrentSession(sessionId)
         refreshSessions()
+    }
+
+    /** 请求用户对高危工具操作进行确认。在 UI 层调用 [resolveToolConfirmation] 之前会一直挂起。 */
+    private suspend fun confirmTool(confirmation: ToolConfirmation): Boolean {
+        val deferred = CompletableDeferred<Boolean>()
+        toolConfirmationRequests.send(confirmation to deferred)
+        return try {
+            deferred.await()
+        } catch (e: CancellationException) {
+            if (!deferred.isCompleted) deferred.cancel()
+            throw e
+        }
+    }
+
+    /** UI 层响应高危工具确认：允许或拒绝。 */
+    fun resolveToolConfirmation(allowed: Boolean) {
+        currentConfirmationDeferred?.let { deferred ->
+            if (!deferred.tryComplete(allowed)) {
+                DebugLog.w("MainViewModel", "resolveToolConfirmation: deferred already completed/cancelled")
+            }
+        }
     }
 
     fun answerQuestion(answer: String) {
