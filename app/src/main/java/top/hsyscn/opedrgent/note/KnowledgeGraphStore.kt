@@ -47,8 +47,12 @@ class KnowledgeGraphStore(context: Context) {
         )
     }
 
-    fun upsertNodes(nodes: List<GraphNodeEntity>) {
+    fun upsertNodes(nodes: List<GraphNodeEntity>, useTransaction: Boolean = true) {
         if (nodes.isEmpty()) return
+        if (!useTransaction) {
+            for (node in nodes) upsertNode(node)
+            return
+        }
         db.beginTransaction()
         try {
             for (node in nodes) upsertNode(node)
@@ -131,8 +135,12 @@ class KnowledgeGraphStore(context: Context) {
         }
     }
 
-    fun upsertEdges(edges: List<GraphEdgeEntity>) {
+    fun upsertEdges(edges: List<GraphEdgeEntity>, useTransaction: Boolean = true) {
         if (edges.isEmpty()) return
+        if (!useTransaction) {
+            for (edge in edges) upsertEdge(edge)
+            return
+        }
         db.beginTransaction()
         try {
             for (edge in edges) upsertEdge(edge)
@@ -226,8 +234,12 @@ class KnowledgeGraphStore(context: Context) {
         )
     }
 
-    fun saveEmbeddings(embeddings: List<GraphEmbeddingEntity>) {
+    fun saveEmbeddings(embeddings: List<GraphEmbeddingEntity>, useTransaction: Boolean = true) {
         if (embeddings.isEmpty()) return
+        if (!useTransaction) {
+            for (embedding in embeddings) saveEmbedding(embedding)
+            return
+        }
         db.beginTransaction()
         try {
             for (embedding in embeddings) saveEmbedding(embedding)
@@ -269,7 +281,7 @@ class KnowledgeGraphStore(context: Context) {
         return if (existing != null) {
             val values = ContentValues().apply {
                 put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
-                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, entity.frequency)
+                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, existing.frequency + 1)
             }
             db.update(
                 KnowledgeGraphDatabase.TABLE_ENTITIES,
@@ -288,8 +300,12 @@ class KnowledgeGraphStore(context: Context) {
         }
     }
 
-    fun upsertEntities(entities: List<GraphEntity>) {
+    fun upsertEntities(entities: List<GraphEntity>, useTransaction: Boolean = true) {
         if (entities.isEmpty()) return
+        if (!useTransaction) {
+            for (entity in entities) upsertEntity(entity)
+            return
+        }
         db.beginTransaction()
         try {
             for (entity in entities) upsertEntity(entity)
@@ -331,6 +347,26 @@ class KnowledgeGraphStore(context: Context) {
         return list
     }
 
+    fun updateEntityFrequency(entityId: Long, frequency: Int) {
+        val values = ContentValues().apply {
+            put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, frequency)
+        }
+        db.update(
+            KnowledgeGraphDatabase.TABLE_ENTITIES,
+            values,
+            "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+            arrayOf(entityId.toString()),
+        )
+    }
+
+    fun deleteEntity(entityId: Long) {
+        db.delete(
+            KnowledgeGraphDatabase.TABLE_ENTITIES,
+            "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+            arrayOf(entityId.toString()),
+        )
+    }
+
     // ============================================================
     // 节点-实体关联
     // ============================================================
@@ -349,8 +385,12 @@ class KnowledgeGraphStore(context: Context) {
         )
     }
 
-    fun upsertNodeEntityRelations(relations: List<GraphNodeEntityRelation>) {
+    fun upsertNodeEntityRelations(relations: List<GraphNodeEntityRelation>, useTransaction: Boolean = true) {
         if (relations.isEmpty()) return
+        if (!useTransaction) {
+            for (relation in relations) upsertNodeEntityRelation(relation)
+            return
+        }
         db.beginTransaction()
         try {
             for (relation in relations) upsertNodeEntityRelation(relation)
@@ -407,15 +447,22 @@ class KnowledgeGraphStore(context: Context) {
     // 清空
     // ============================================================
 
-    fun clearAll() {
-        db.beginTransaction()
-        try {
+    fun clearAll(useTransaction: Boolean = true) {
+        val doClear = {
             db.delete(KnowledgeGraphDatabase.TABLE_NODE_ENTITIES, null, null)
             db.delete(KnowledgeGraphDatabase.TABLE_EDGES, null, null)
             db.delete(KnowledgeGraphDatabase.TABLE_EMBEDDINGS, null, null)
             db.delete(KnowledgeGraphDatabase.TABLE_NODES, null, null)
             db.delete(KnowledgeGraphDatabase.TABLE_ENTITIES, null, null)
             db.delete(KnowledgeGraphDatabase.TABLE_MIGRATION_LOG, null, null)
+        }
+        if (!useTransaction) {
+            doClear()
+            return
+        }
+        db.beginTransaction()
+        try {
+            doClear()
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

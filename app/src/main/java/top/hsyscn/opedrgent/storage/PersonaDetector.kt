@@ -168,22 +168,22 @@ object PersonaDetector {
 
         when {
             isWorkHours -> {
-                scores[PartnerPersona.WORK] = scores[PartnerPersona.WORK]!! + 35f
+                scores[PartnerPersona.WORK] = (scores[PartnerPersona.WORK] ?: 0f) + 35f
             }
             isEvening -> {
-                scores[PartnerPersona.LIFE] = scores[PartnerPersona.LIFE]!! + 25f
-                scores[PartnerPersona.CREATIVE] = scores[PartnerPersona.CREATIVE]!! + 15f
+                scores[PartnerPersona.LIFE] = (scores[PartnerPersona.LIFE] ?: 0f) + 25f
+                scores[PartnerPersona.CREATIVE] = (scores[PartnerPersona.CREATIVE] ?: 0f) + 15f
             }
             isLateNight -> {
-                scores[PartnerPersona.LIFE] = scores[PartnerPersona.LIFE]!! + 20f
-                scores[PartnerPersona.CREATIVE] = scores[PartnerPersona.CREATIVE]!! + 25f  // 夜间创作欲强
+                scores[PartnerPersona.LIFE] = (scores[PartnerPersona.LIFE] ?: 0f) + 20f
+                scores[PartnerPersona.CREATIVE] = (scores[PartnerPersona.CREATIVE] ?: 0f) + 25f  // 夜间创作欲强
             }
             isWeekend -> {
-                scores[PartnerPersona.LIFE] = scores[PartnerPersona.LIFE]!! + 30f
-                scores[PartnerPersona.CREATIVE] = scores[PartnerPersona.CREATIVE]!! + 10f
+                scores[PartnerPersona.LIFE] = (scores[PartnerPersona.LIFE] ?: 0f) + 30f
+                scores[PartnerPersona.CREATIVE] = (scores[PartnerPersona.CREATIVE] ?: 0f) + 10f
             }
             else -> {  // 白天非工作时间（如午休）
-                scores[PartnerPersona.LIFE] = scores[PartnerPersona.LIFE]!! + 15f
+                scores[PartnerPersona.LIFE] = (scores[PartnerPersona.LIFE] ?: 0f) + 15f
             }
         }
     }
@@ -236,9 +236,9 @@ object PersonaDetector {
         val lifeScore = lifeKeywords.count { it.lowercase() in textLower } * 8f
         val creativeScore = creativeKeywords.count { it.lowercase() in textLower } * 8f
 
-        scores[PartnerPersona.WORK] = scores[PartnerPersona.WORK]!! + workScore
-        scores[PartnerPersona.LIFE] = scores[PartnerPersona.LIFE]!! + lifeScore
-        scores[PartnerPersona.CREATIVE] = scores[PartnerPersona.CREATIVE]!! + creativeScore
+        scores[PartnerPersona.WORK] = (scores[PartnerPersona.WORK] ?: 0f) + workScore
+        scores[PartnerPersona.LIFE] = (scores[PartnerPersona.LIFE] ?: 0f) + lifeScore
+        scores[PartnerPersona.CREATIVE] = (scores[PartnerPersona.CREATIVE] ?: 0f) + creativeScore
     }
 
     /**
@@ -268,7 +268,7 @@ object PersonaDetector {
             cursor.close()
 
             if (eventCount > 0) {
-                scores[PartnerPersona.WORK] = scores[PartnerPersona.WORK]!! + 30f
+                scores[PartnerPersona.WORK] = (scores[PartnerPersona.WORK] ?: 0f) + 30f
             }
         } catch (_: Exception) {
             // 日历查询失败不影响其他信号

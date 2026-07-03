@@ -5,6 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,9 @@ import java.util.concurrent.TimeUnit
  * - v2: 叙事式文章（SproutArticle）— 人类友好，像在读杂志专栏
  */
 class SproutService(private val apiSettings: ApiSettings, private val hippocampus: HippocampusIndex? = null) {
+
+    // 服务层最后防线：避免多入口并发请求同一服务实例
+    private val sproutMutex = Mutex()
 
     companion object {
         private const val TAG = "SproutService"
@@ -125,6 +129,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         otherNotesContext: String = "",
         modelId: String = apiSettings.getModel(),
     ): Result<SproutArticle> = withContext(Dispatchers.IO) {
+        sproutMutex.lock()
         try {
             var prompt = SPROUT_PROMPT_NARRATIVE.format(noteContent.take(8000))
 
@@ -214,6 +219,8 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         } catch (e: Exception) {
             DebugLog.e(TAG, "发芽失败: ${e.message}", e)
             Result.failure(e)
+        } finally {
+            sproutMutex.unlock()
         }
     }
 

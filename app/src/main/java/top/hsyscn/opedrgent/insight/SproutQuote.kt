@@ -35,6 +35,7 @@ data class SproutConfig(
     val maxPhaseTimeoutSeconds: Int = 30,
     val totalTimeoutSeconds: Int = 120,
     val enableWebSearch: Boolean = false, // 是否启用联网搜索增强（Phase 2.5）
+    val includeQuotes: Boolean = true, // 是否生成金句回响
 )
 
 /**
