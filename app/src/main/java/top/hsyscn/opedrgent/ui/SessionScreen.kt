@@ -158,9 +158,9 @@ fun SessionScreen(
     var actionSheetOpen by rememberSaveable { mutableStateOf(false) }
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    var reachedTop by remember(state.current?.id) { mutableStateOf(false) }
-    var scrollAnchor by remember(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
-    var lastBottomMessageId by remember(state.current?.id) { mutableStateOf<String?>(null) }
+    var reachedTop by rememberSaveable(state.current?.id) { mutableStateOf(false) }
+    var scrollAnchor by rememberSaveable(state.current?.id) { mutableStateOf<Pair<String, Int>?>(null) }
+    var lastBottomMessageId by rememberSaveable(state.current?.id) { mutableStateOf<String?>(null) }
     var pendingDeleteMessageId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val audioPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

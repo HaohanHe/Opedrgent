@@ -347,6 +347,26 @@ class KnowledgeGraphStore(context: Context) {
         return list
     }
 
+    fun updateEntityFrequency(entityId: Long, frequency: Int) {
+        val values = ContentValues().apply {
+            put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, frequency)
+        }
+        db.update(
+            KnowledgeGraphDatabase.TABLE_ENTITIES,
+            values,
+            "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+            arrayOf(entityId.toString()),
+        )
+    }
+
+    fun deleteEntity(entityId: Long) {
+        db.delete(
+            KnowledgeGraphDatabase.TABLE_ENTITIES,
+            "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+            arrayOf(entityId.toString()),
+        )
+    }
+
     // ============================================================
     // 节点-实体关联
     // ============================================================
