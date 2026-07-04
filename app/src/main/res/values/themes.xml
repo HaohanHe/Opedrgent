@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Opedrgent" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        基础主题：跟随 Compose 主题，不强制深色模式。
+        大屏/折叠屏设备常连接键盘鼠标，保留 Material 默认基础样式即可。
+    -->
+    <style name="Theme.Opedrgent" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 禁止系统强制深色模式，避免 WebView/自定义颜色被系统覆盖导致异常 -->
+        <item name="android:forceDarkAllowed">false</item>
+        <!-- 刘海/挖孔屏允许内容延展到裁剪区，配合 enableEdgeToEdge() 使用 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
 </resources>
