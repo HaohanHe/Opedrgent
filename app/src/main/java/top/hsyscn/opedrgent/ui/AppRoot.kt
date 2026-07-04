@@ -624,6 +624,7 @@ fun AppRoot(
                                 subScreen = "interview"
                             },
                             onNavigateToSearch = { selectedTab = MainTab.NOTES },
+                            isLandscape = isLandscape,
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
