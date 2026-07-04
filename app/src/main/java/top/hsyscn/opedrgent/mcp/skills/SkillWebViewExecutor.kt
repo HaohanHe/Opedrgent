@@ -103,6 +103,7 @@ class SkillWebViewExecutor(private val context: Context) {
                     // === 安全配置（沙箱隔离）===
                     settings.apply {
                         javaScriptEnabled = true  // JS Skill 需要启用
+                        defaultTextEncodingName = "UTF-8" // 统一使用 UTF-8，防止中文等多字节字符乱码
                         domStorageEnabled = false // 禁用 DOM 存储（隔离）
                         databaseEnabled = false   // 禁用数据库
                         cacheMode = WebSettings.LOAD_NO_CACHE  // 不缓存

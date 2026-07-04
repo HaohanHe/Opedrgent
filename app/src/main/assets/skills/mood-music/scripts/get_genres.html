@@ -16,8 +16,16 @@ limitations under the License.
 ==============================================================================
 -->
 
-<script>
-  window["ai_edge_gallery_get_result"] = async (data, secret) => {
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mood Music Genre Fetcher</title>
+  </head>
+  <body>
+    <script>
+      window["ai_edge_gallery_get_result"] = async (data, secret) => {
     const apiKey = secret || "YOUR_API_KEY_HERE";
     try {
       const response = await fetch("https://soundtracks.loudly.com/api/ai/genres", {
@@ -31,4 +39,6 @@ limitations under the License.
       return JSON.stringify({ error: "Could not fetch genres." });
     }
   };
-</script>
+    </script>
+  </body>
+</html>
