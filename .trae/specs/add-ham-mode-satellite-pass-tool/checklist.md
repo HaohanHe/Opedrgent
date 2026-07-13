@@ -1,0 +1,10 @@
+- [ ] `ApiSettings.isHamModeEnabled()` 与 `saveHamModeEnabled()` 已实现并持久化到 SharedPreferences
+- [ ] `MainViewModel` 暴露 `isHamModeEnabled()` / `saveHamModeEnabled()` 桥接方法
+- [ ] `SettingsScreen` 的“功能”分组中出现“Ham 模式（业余卫星）”开关，状态可保存
+- [ ] `assets/ham_satellites.json` 存在并包含有效业余卫星基础信息
+- [ ] `SatellitePassTool` 工具类已创建并正确实现 `ToolSet` 接口
+- [ ] `satellite_pass` 工具支持 `action=list` 返回卫星列表
+- [ ] `satellite_pass` 工具支持 `action=passes` 并基于用户位置计算过境窗口
+- [ ] TLE 从 Celestrak 拉取并本地缓存，24 小时过期，无网络时优先使用缓存
+- [ ] `ToolExecutor` 仅在 `isHamModeEnabled()` 为 true 时注册 `SatellitePassTool`
+- [ ] `./gradlew assembleDebug` 编译通过
