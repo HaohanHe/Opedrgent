@@ -117,6 +117,14 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             return THINKING_MODELS.any { model.contains(it, ignoreCase = true) }
         }
 
+        /**
+         * Thinking 模型思维链 token 预算（SiliconFlow enable_thinking 的 thinking_budget）。
+         * 默认 4096，可由外部覆盖（如 MainViewModel 从 ApiSettings 读取用户配置）。
+         * 0 表示不限制（部分模型支持）。
+         */
+        @Volatile
+        var thinkingBudget: Int = 4096
+
         fun isDeepSeek(model: String): Boolean {
             return DEEPSEEK_MODELS.any { model.contains(it, ignoreCase = true) }
         }
@@ -293,7 +301,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                         // SiliconFlow: enable_thinking + thinking_budget（官方文档格式）
                         // thinking_budget 限制思维链长度，防止模型无限思考导致超时
                         put("enable_thinking", true)
-                        put("thinking_budget", 4096)
+                        put("thinking_budget", thinkingBudget)
                     } else {
                         // 其他平台（DeepSeek 官方、StepFun 等）
                         if (isDS) {
@@ -719,7 +727,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 if (thinkingEnabled || defaultReasoning) {
                     if (isSiliconFlow) {
                         put("enable_thinking", true)
-                        put("thinking_budget", 4096)
+                        put("thinking_budget", thinkingBudget)
                     } else {
                         if (isDS) {
                             put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
@@ -922,6 +930,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                             put("role", "assistant")
                             put("content", m.content.ifEmpty { "" })
                             put("tool_calls", JSONArray(m.apiToolCallsJson))
+                            // 回传上一轮思维链，保证 thinking 模型多轮工具调用上下文完整
+                            val reasoningText = m.reasoningParts.joinToString("\n") { it.text }
+                            if (reasoningText.isNotEmpty()) put("reasoning_content", reasoningText)
                         })
                     } else {
                         put(JSONObject().put("role", roleToApi(m.role)).put("content", m.content))
@@ -970,6 +981,8 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             val choice = root.getJSONArray("choices").getJSONObject(0)
             val message = choice.getJSONObject("message")
             val content = message.optString("content", "")
+            // 提取思维链（SiliconFlow / DeepSeek / Qwen3 thinking 模型在非流式响应中通过 reasoning_content 字段返回）
+            val reasoning = message.optString("reasoning_content", "")
             val toolCalls = mutableListOf<CompletedToolCall>()
             if (message.has("tool_calls")) {
                 val arr = message.getJSONArray("tool_calls")
@@ -997,8 +1010,9 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             }
             val result = StreamResult(
                 content = content.trim(),
+                reasoning = reasoning,
                 toolCalls = toolCalls,
-                finishReason = choice.optString("finish_reason", null),
+                finishReason = choice.optString("finish_reason", "").ifEmpty { null },
                 cacheReadTokens = cacheReadTokens,
                 cacheCreationTokens = cacheCreationTokens,
             )
@@ -1015,7 +1029,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     DebugLog.w("PromptCacheBreakDetection", "Phase2 checkResponseForCacheBreak (withTools) failed: ${e.message}")
                 }
             }
-            DebugLog.i("chatCompletionsWithTools ← content=${content.length} chars toolCalls=${toolCalls.size}")
+            DebugLog.i("chatCompletionsWithTools ← content=${content.length} chars reasoning=${reasoning.length} chars toolCalls=${toolCalls.size}")
             return result
         }
     }
