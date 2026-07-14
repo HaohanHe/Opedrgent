@@ -2496,7 +2496,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return listOf(
             top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "satellite_pass",
-                description = "卫星过境预测工具（Ham 模式专用）。action=list 返回支持的业余卫星列表（名称、NORAD ID、频率、调制方式）；action=passes 根据用户位置和当前时间计算未来过境窗口（AOS/LOS时间、最大仰角、方向）。参数：action必填(list或passes)、satellite可选(NORAD ID或卫星名)、hours可选(默认24,最大168)。",
+                description = """卫星过境预测工具（Ham 模式专用）。当用户询问业余卫星通联相关问题时必须调用此工具，包括但不限于：(1) 询问"能打什么卫星"/"哪些卫星过境"时；(2) 询问某颗卫星的"频率"/"调制方式"时（如"SO-50 的频率是多少"）；(3) 询问"什么时候能通联"/"过境时间"时；(4) 用户提到具体卫星名称（如 SO-50, ISS, AO-91）并询问通联信息时；(5) 询问设备匹配（如"IC-9700 能打什么卫星"）时。action=list 返回所有业余卫星列表；action=passes 根据用户位置计算过境窗口。参数：action(必填, "list"|"passes")、satellite(可选)、hours(可选, 默认24, 最大168)。注意：必须先获取用户经纬度，否则 passes 会失败。""",
                 parameters = org.json.JSONObject().apply {
                     put("type", "object")
                     put("properties", org.json.JSONObject().apply {
@@ -5541,6 +5541,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             if (!healthSummary.isNullOrBlank()) {
                 return "$system\n\n# 用户运动健康数据\n$healthSummary\n\n当用户询问运动、健康相关问题时，可基于以上数据回答，或调用 health_read 工具获取更详细数据。"
             }
+        }
+
+        // ★ Ham 模式：当用户开启业余卫星模式时，告知 AI 可使用卫星过境工具
+        if (apiSettings.isHamModeEnabled()) {
+            val hamContext = buildString {
+                appendLine()
+                appendLine("# Ham 模式（业余卫星通联辅助）")
+                appendLine("用户已开启 Ham 模式。你拥有 satellite_pass 工具，用于业余卫星过境预测。")
+                appendLine("当用户询问以下问题时，必须调用 satellite_pass 工具获取实时数据：")
+                appendLine("- 询问\"能打什么卫星\"/\"哪些卫星过境\"/\"什么卫星\" → 调用 action=list")
+                appendLine("- 询问具体卫星名称（SO-50/ISS/AO-91/FO-29/Diwata-2 等）的频率/调制方式/转发器信息 → 调用 action=list")
+                appendLine("- 询问\"什么时候能通联\"/\"过境时间\"/\"什么时候打\" → 调用 action=passes,satellite=卫星名或留空")
+                appendLine("- 询问设备匹配（如\"IC-9700 能打什么\"）→ 调用 action=list 后根据设备频段筛选")
+                appendLine("- 询问 NORAD ID/卫星轨道信息 → 调用 action=list")
+                appendLine("调用 passes 时必须提供用户经纬度（请先确认位置权限已开启并已刷新位置）。")
+            }
+            return "$system$hamContext"
         }
 
         return system
