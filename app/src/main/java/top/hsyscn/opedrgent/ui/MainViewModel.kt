@@ -5313,6 +5313,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         file
     }
 
+    /**
+     * Ham 模式：导出通联日志为 ADIF 格式文件（兼容 QRZ Logbook / LoTW / ClubLog）
+     */
+    suspend fun exportContactLog(log: top.hsyscn.opedrgent.model.HamContactLog): File = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
+        val safeName = log.satName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(40).ifBlank { "contact" }
+        val file = File(exportsDir, "hamlog_${safeName}_${System.currentTimeMillis()}.adi")
+        val adifContent = buildString {
+            append(top.hsyscn.opedrgent.model.HamContactLog.ADIF_HEADER)
+            append(log.toAdifRecord())
+        }
+        file.writeText(adifContent, Charsets.UTF_8)
+        file
+    }
+
     suspend fun exportContextMarkdown(): File? = withContext(Dispatchers.IO) {
         val session = _state.value.current ?: return@withContext null
         val app = getApplication<Application>()

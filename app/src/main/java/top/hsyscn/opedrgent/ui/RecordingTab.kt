@@ -1226,10 +1226,18 @@ fun RecordingTab(
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     OutlinedButton(onClick = {
-                        // TODO: 下载 CSV
+                        scope.launch {
+                            val file = vm.exportContactLog(log)
+                            top.hsyscn.opedrgent.ui.shareFile(
+                                context,
+                                vm.getPackageNameForShare(context),
+                                file,
+                                "text/plain",
+                            )
+                        }
                         showContactLogDialog = false
                     }) {
-                        Text("CSV")
+                        Text("ADIF")
                     }
                     Button(onClick = {
                         scope.launch {
