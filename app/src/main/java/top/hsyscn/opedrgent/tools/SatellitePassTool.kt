@@ -38,7 +38,7 @@ class SatellitePassTool(
         return mapOf(
             "satellite_pass" to ToolBinding(
                 name = "satellite_pass",
-                description = "卫星过境预测工具。action=list 返回业余卫星列表；action=passes 计算指定卫星过境时间窗、最大仰角、频率和调制方式。参数：action(必填, list|passes)、satellite(可选, NORAD ID或名称)、hours(可选, 默认24, 最大168)。",
+                description = """卫星过境预测工具（Ham 模式专用）。当用户询问业余卫星通联相关问题时必须调用此工具，包括但不限于：(1) 询问"能打什么卫星"/"哪些卫星过境"/" satellite pass"时；(2) 询问某颗卫星的"频率"/"调制方式"/"转发器信息"时（如"SO-50 的频率是多少"）；(3) 询问"什么时候能通联"/"过境时间"/"什么时候过境"时；(4) 用户提到具体卫星名称（如 SO-50, ISS, AO-91, FO-29, Diwata-2）并询问通联信息时；(5) 询问设备匹配（如"IC-9700 能打什么卫星"）时。action=list 返回所有业余卫星列表（含名称/NORAD ID/上下行频率/调制方式/最低仰角）；action=passes 根据用户当前位置的经纬度计算指定卫星未来 N 小时内的过境窗口（AOS时间/LOS时间/最大仰角/方向/频率），未指定卫星时返回所有卫星过境。参数：action(必填, "list"|"passes")、satellite(可选, 卫星名称或NORAD ID)、hours(可选, 整数小时, 默认24, 最大168)。注意：必须先获取用户位置权限并调用位置服务获取经纬度，否则 passes 计算会失败。""",
                 invoker = { tp, config, sp, ups -> executeSatellitePass(tp, config, sp, ups) },
             ),
         )
