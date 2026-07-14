@@ -26,6 +26,23 @@ class ResearchState(
     var roundsUsed: Int = 0
         private set
 
+    /** 连续产生 tool_call 但无正文的轮次数（用于检测搜索死循环） */
+    var consecutiveToolOnlyRounds: Int = 0
+        private set
+
+    /**
+     * 记录一轮结果，更新连续 tool-only 计数。
+     * @param hasContent 本轮 LLM 返回中是否包含非空正文
+     * @param hasToolCalls 本轮 LLM 返回中是否包含工具调用
+     */
+    fun recordRoundResult(hasContent: Boolean, hasToolCalls: Boolean) {
+        if (!hasContent && hasToolCalls) {
+            consecutiveToolOnlyRounds++
+        } else {
+            consecutiveToolOnlyRounds = 0
+        }
+    }
+
     val sourcesFound = mutableSetOf<String>()
     val completedSearches = mutableListOf<String>()
     val fetchedUrls = mutableListOf<String>()
