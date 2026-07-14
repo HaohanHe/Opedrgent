@@ -2,6 +2,7 @@
   {
     "name": "ISS (ZARYA)",
     "noradId": 25544,
+    "oscar": null,
     "uplinkMHz": null,
     "downlinkMHz": "145.800",
     "modulation": "FM APRS / Cross-band 145.800 downlink / 437.800 uplink",
@@ -11,6 +12,7 @@
   {
     "name": "SO-50 (SaudiSat-1C)",
     "noradId": 27607,
+    "oscar": null,
     "uplinkMHz": "145.850",
     "downlinkMHz": "436.795",
     "modulation": "FM 亚音 67.0Hz 开启，V/U 转发器",
@@ -20,6 +22,7 @@
   {
     "name": "AO-91 (RadFxSat-2 / Fox-1B)",
     "noradId": 43017,
+    "oscar": "AO-91",
     "uplinkMHz": "435.250",
     "downlinkMHz": "145.960",
     "modulation": "FM 亚音 67.0Hz，V/U 模式",
@@ -29,6 +32,7 @@
   {
     "name": "AO-92 (Fox-1D)",
     "noradId": 43137,
+    "oscar": "AO-92",
     "uplinkMHz": "435.350",
     "downlinkMHz": "145.880",
     "modulation": "FM 亚音 67.0Hz，V/U 模式",
@@ -38,6 +42,7 @@
   {
     "name": "PO-101 (Diwata-2)",
     "noradId": 43678,
+    "oscar": "PO-101",
     "uplinkMHz": "145.900",
     "downlinkMHz": "437.500",
     "modulation": "FM 亚音 141.3Hz，V/U 模式，APRS 中继",
@@ -47,6 +52,7 @@
   {
     "name": "FO-29 (JAS-2)",
     "noradId": 24278,
+    "oscar": "FO-29",
     "uplinkMHz": "145.900",
     "downlinkMHz": "435.800",
     "modulation": "SSB/CW 线性转发器 + FM 1200bps",
@@ -56,15 +62,17 @@
   {
     "name": "CAS-3H (LilacSat-2)",
     "noradId": 40908,
+    "oscar": "CAS-3H",
     "uplinkMHz": "144.350",
     "downlinkMHz": "437.225",
     "modulation": "FM 亚音 67.0Hz，V/U 模式 + SSTV",
     "minElevationDeg": 10,
-    "notes": "中国业余卫星，含 9600bps GMSK 数据和 SSTV 下传"
+    "notes": "紫丁香2号，哈工大/中国业余卫星，含 9600bps GMSK 数据和 SSTV 下传"
   },
   {
     "name": "XW-2A (CAS-3A)",
     "noradId": 40906,
+    "oscar": "CAS-3A",
     "uplinkMHz": "145.640",
     "downlinkMHz": "435.030",
     "modulation": "SSB/CW 线性转发器，V/U 模式",
@@ -74,6 +82,7 @@
   {
     "name": "RS-44 (DOSAAF-85)",
     "noradId": 44901,
+    "oscar": "RS-44",
     "uplinkMHz": "145.965",
     "downlinkMHz": "435.670",
     "modulation": "SSB/CW 线性转发器，V/U 模式",
@@ -83,6 +92,7 @@
   {
     "name": "CAS-4A (Kaituo-1A)",
     "noradId": 42761,
+    "oscar": "CAS-4A",
     "uplinkMHz": "145.950",
     "downlinkMHz": "435.835",
     "modulation": "SSB/CW 线性转发器，V/U 模式",
@@ -92,6 +102,7 @@
   {
     "name": "LAPAN-A2 (IO-86)",
     "noradId": 40931,
+    "oscar": "IO-86",
     "uplinkMHz": "145.880",
     "downlinkMHz": "435.880",
     "modulation": "FM 亚音 88.5Hz，V/U 模式，APRS",
@@ -101,8 +112,9 @@
   {
     "name": "JO-97 (JY1Sat)",
     "noradId": 43803,
+    "oscar": "JO-97",
     "uplinkMHz": "145.860",
-    "downlinkMHz": "145.840,
+    "downlinkMHz": "145.840",
     "modulation": "FM 亚音 67.0Hz，V/U 模式",
     "minElevationDeg": 10,
     "notes": "约旦业余卫星，含 9600bps GMSK 数据"
@@ -110,6 +122,7 @@
   {
     "name": "Falconsat-3",
     "noradId": 30776,
+    "oscar": null,
     "uplinkMHz": "145.840",
     "downlinkMHz": "435.103",
     "modulation": "FM 亚音 67.0Hz，V/U 模式，Packet 9k6",
@@ -119,6 +132,7 @@
   {
     "name": "AO-7 (OSCAR 7)",
     "noradId": 7530,
+    "oscar": "AO-7",
     "uplinkMHz": "145.850",
     "downlinkMHz": "29.400",
     "modulation": "Mode B 线性转发器 / Mode A FM",
@@ -128,6 +142,7 @@
   {
     "name": "AO-16 (Pacsat)",
     "noradId": 20439,
+    "oscar": "AO-16",
     "uplinkMHz": "145.900",
     "downlinkMHz": "437.025",
     "modulation": "FM 亚音 67.0Hz，V/U 模式，Packet 1200bps",

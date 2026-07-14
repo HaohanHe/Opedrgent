@@ -691,10 +691,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /**
      * Ham 模式：请求 AI 从录音转写文本中提取通联日志
      *
-     * 发送专用提示词给 LLM，让它识别卫星名称、频率、模式、时间等信息，
-     * 输出结构化的通联日志字段。解析后存储到 contactLog 并触发回调。
+     * 逻辑：先预填充已知字段（卫星频率/调制/NORAD、QTH、日期时间），
+     * AI 只负责补漏（信号报告、对方呼号、通联结果等转写文本才能提供的字段）。
+     *
+     * @param transcript 录音转写全文
+     * @param conversationContext 对话上下文（提及的频率、设备、卫星名称等），可为空
      */
-    fun requestContactLog(transcript: String) {
+    fun requestContactLog(transcript: String, conversationContext: String = "") {
         if (!apiSettings.isHamModeEnabled()) return
         if (transcript.isBlank()) return
 
@@ -702,33 +705,50 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         contactLog = null
         onContactLogGenerated?.invoke(null)
 
+        // 先从卫星数据库找匹配卫星，预填充已知字段
+        val satMatch = findSatelliteInText(transcript + "\n" + conversationContext)
+        val preFilled = HamContactLog(
+            date = java.time.LocalDate.now().toString(),
+            gridLocator = apiSettings.getLastGridLocator() ?: "",
+            satName = satMatch?.name ?: "",
+            frequency = satMatch?.downlinkMHz ?: "",
+            mode = satMatch?.modulation ?: "",
+            noradId = if (satMatch != null) satMatch.noradId.toString() else "",
+        )
+
         val contactLogPrompt = buildString {
-            appendLine("请分析以下业余卫星通联的录音转写文本，提取通联日志字段。")
+            appendLine("分析业余卫星通联的录音转写文本，提取以下字段。")
             appendLine()
-            appendLine("请以严格的 JSON 格式输出，字段如下（找不到的字段留空字符串）：")
-            appendLine("  date: 通联日期 YYYY-MM-DD")
+            appendLine("已从卫星数据库自动预填充的字段，禁止修改或猜测：")
+            if (preFilled.satName.isNotBlank()) appendLine("  卫星名称: ${preFilled.satName}")
+            if (preFilled.frequency.isNotBlank()) appendLine("  下行频率: ${preFilled.frequency} MHz")
+            if (preFilled.mode.isNotBlank()) appendLine("  调制方式: ${preFilled.mode}")
+            if (preFilled.noradId.isNotBlank()) appendLine("  NORAD ID: ${preFilled.noradId}")
+            if (preFilled.gridLocator.isNotBlank()) appendLine("  QTH网格: ${preFilled.gridLocator}")
+            if (preFilled.date.isNotBlank()) appendLine("  日期: ${preFilled.date}")
+            appendLine()
+            appendLine("以下字段必须从转写文本中提取，找不到则留空：")
             appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
             appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
-            appendLine("  satName: 卫星名称（如 SO-50, ISS, AO-91）")
-            appendLine("  callsign: 对方呼号（与地面电台通联时填写）")
-            appendLine("  frequency: 下行频率 MHz（如 436.795）")
-            appendLine("  mode: 调制方式（FM/SSB/CW/USB/LSB/APRS/GMSK）")
-            appendLine("  rstSent: 发射信号报告（如 59, 599）")
+            appendLine("  callsign: 对方呼号（地面通联时）")
+            appendLine("  rstSent: 发射信号报告 (如 59, 599)")
             appendLine("  rstReceived: 接收信号报告")
+            appendLine("  maxElevation: 最高仰角度数")
             appendLine("  notes: 通联备注")
-            appendLine("  gridLocator: 网格定位")
-            appendLine("  noradId: 卫星 NORAD ID")
-            appendLine("  maxElevation: 最高仰角（度）")
-            appendLine("  result: 通联结果（OK/PARTIAL/NO）")
+            appendLine("  result: 通联结果 (OK/PARTIAL/NO)")
             appendLine()
-            appendLine("只输出 JSON 对象，不要其他文字。格式示例：")
-            appendLine("""{"date":"2026-07-15","timeOn":"203000","timeOff":"204500","satName":"SO-50","frequency":"436.795","mode":"FM","rstSent":"59","rstReceived":"57","noradId":"27607","maxElevation":"45","result":"OK"}""")
+            if (conversationContext.isNotBlank()) {
+                appendLine("对话上下文参考（提及的频率/设备/卫星信息）：")
+                appendLine(conversationContext)
+                appendLine()
+            }
+            appendLine("只输出 JSON 对象。示例：")
+            appendLine("""{"timeOn":"203000","timeOff":"204500","callsign":"BG1ABC","rstSent":"59","rstReceived":"57","maxElevation":"45","notes":"信号良好","result":"OK"}""")
             appendLine()
             appendLine("转写文本：")
             appendLine(transcript)
         }
 
-        // 创建独立 session 用于通联日志提取，不干扰用户主对话
         val session = store.createSession("通联日志")
         refreshSessions()
 
@@ -742,24 +762,86 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val result = withContext(Dispatchers.IO) {
                     llm.chatCompletions(
                         config = config,
-                        system = "你是业余卫星通联日志助手。从通联录音转写文本中提取结构化信息。",
+                        system = "你是业余卫星通联日志助手。从通联录音转写文本中提取结构化信息。已有字段预填充，禁止修改预填充字段。",
                         messages = listOf(
                             ChatMessage(role = Role.USER, content = contactLogPrompt, createdAt = System.currentTimeMillis()),
                         ),
                     )
                 }
-                // 解析 JSON 响应
-                val log = parseContactLogJson(result)
-                contactLog = log
-                onContactLogGenerated?.invoke(log)
+                val aiLog = parseContactLogJson(result)
+                val merged = mergeContactLog(preFilled, aiLog)
+                contactLog = merged
+                onContactLogGenerated?.invoke(merged)
             } catch (e: Exception) {
                 DebugLog.w("requestContactLog: AI 提取失败: ${e.message}")
-                contactLog = null
-                onContactLogGenerated?.invoke(null)
+                // AI 失败时仍展示预填充结果，不阻塞用户
+                contactLog = preFilled
+                onContactLogGenerated?.invoke(preFilled)
             } finally {
                 isGeneratingContactLog = false
             }
         }
+    }
+
+    /**
+     * 从卫星数据库中查找文本里提及的卫星
+     */
+    private fun findSatelliteInText(text: String): top.hsyscn.opedrgent.tools.SatellitePassTool.HamSatellite? {
+        if (text.isBlank()) return null
+        return try {
+            val tool = top.hsyscn.opedrgent.tools.SatellitePassTool(getApplication(), apiSettings)
+            val sats = tool.satelliteDb()
+            sats.firstOrNull { sat ->
+                text.contains(sat.name, ignoreCase = true) ||
+                (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true))
+            }
+        } catch (e: Exception) { null }
+    }
+
+    /**
+     * 合并预填充 + AI 提取：预填充优先，AI 只补空字段
+     */
+    private fun mergeContactLog(preFilled: HamContactLog, aiLog: HamContactLog?): HamContactLog {
+        if (aiLog == null) return preFilled
+        return HamContactLog(
+            date = preFilled.date.ifBlank { aiLog.date },
+            timeOn = preFilled.timeOn.ifBlank { aiLog.timeOn },
+            timeOff = preFilled.timeOff.ifBlank { aiLog.timeOff },
+            satName = preFilled.satName.ifBlank { aiLog.satName },
+            callsign = preFilled.callsign.ifBlank { aiLog.callsign },
+            frequency = preFilled.frequency.ifBlank { aiLog.frequency },
+            mode = preFilled.mode.ifBlank { aiLog.mode },
+            rstSent = preFilled.rstSent.ifBlank { aiLog.rstSent },
+            rstReceived = preFilled.rstReceived.ifBlank { aiLog.rstReceived },
+            notes = preFilled.notes.ifBlank { aiLog.notes },
+            gridLocator = preFilled.gridLocator.ifBlank { aiLog.gridLocator },
+            noradId = preFilled.noradId.ifBlank { aiLog.noradId },
+            maxElevation = preFilled.maxElevation.ifBlank { aiLog.maxElevation },
+            result = preFilled.result.ifBlank { aiLog.result },
+        )
+    }
+
+    /** 从 QTH 经纬度计算梅登海格网格（简化版，6 字符） */
+    private fun ApiSettings.getLastGridLocator(): String? {
+        val lat = getLastLatitude() ?: return null
+        val lon = getLastLongitude() ?: return null
+        return latLonToGrid(lat, lon)
+    }
+
+    /** 经纬度转梅登海格 6 字符网格 */
+    private fun latLonToGrid(lat: Float, lon: Float): String {
+        // 简化转换：仅做粗略估算，不做完整梅登海格计算
+        val latAdj = lat + 90.0
+        val lonAdj = lon + 180.0
+        val fieldLon = (lonAdj / 20.0).toInt().coerceIn(0, 17)
+        val fieldLat = (latAdj / 10.0).toInt().coerceIn(0, 17)
+        val squareLon = ((lonAdj % 20.0) / 2.0).toInt().coerceIn(0, 9)
+        val squareLat = ((latAdj % 10.0) / 1.0).toInt().coerceIn(0, 9)
+        val subsquareLon = ((lonAdj % 2.0) * 12.0).toInt().coerceIn(0, 23)
+        val subsquareLat = ((latAdj % 1.0) * 24.0).toInt().coerceIn(0, 23)
+        val fieldChars = "ABCDEFGHIJKLMNOPQR"
+        val subsquareChars = "abcdefghijklmnopqrstuvwx"
+        return "${fieldChars[fieldLon]}${fieldChars[fieldLat]}$squareLon$squareLat${subsquareChars[subsquareLon]}${subsquareChars[subsquareLat]}"
     }
 
     /** 解析 AI 返回的 JSON 为 HamContactLog */
