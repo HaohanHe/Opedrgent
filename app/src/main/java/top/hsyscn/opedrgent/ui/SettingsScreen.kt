@@ -22,13 +22,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,7 +59,6 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Satellite
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.SmartToy
@@ -81,6 +82,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -94,10 +96,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,6 +113,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -118,6 +124,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
@@ -132,6 +139,9 @@ import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.network.ModelFetcher
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import top.hsyscn.opedrgent.ui.components.SttModelDownloadDialog
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isLandscape
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.InterviewPurple
@@ -146,6 +156,15 @@ import top.hsyscn.opedrgent.utils.LocaleHelper
 import androidx.compose.ui.res.painterResource
 
 private const val BadgeBgAlpha = 0.15f
+
+private enum class SettingsSection(val titleRes: Int, val icon: ImageVector) {
+    MODEL(R.string.settings_section_model, Icons.Default.DeveloperBoard),
+    VOICE(R.string.settings_section_voice, Icons.Default.Mic),
+    MEMORY(R.string.settings_section_memory, Icons.Default.Memory),
+    FEATURES(R.string.settings_section_features, Icons.Default.AutoAwesome),
+    IMPORT_EXPORT(R.string.settings_section_import_export, Icons.Default.ImportExport),
+    ABOUT(R.string.settings_section_about, Icons.Default.Info),
+}
 
 @Composable
 fun SettingsScreen(
@@ -173,8 +192,6 @@ fun SettingsScreen(
     var ttsPitch by rememberSaveable { mutableStateOf(vm.getTtsPitch()) }
     var ttsLocaleTag by rememberSaveable { mutableStateOf(vm.getTtsLocaleTag()) }
     var sttEnabled by rememberSaveable { mutableStateOf(vm.isSttEnabled()) }
-    // ★ Ham 模式（业余卫星过境预测）
-    var hamEnabled by rememberSaveable { mutableStateOf(vm.isHamModeEnabled()) }
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
@@ -294,15 +311,17 @@ fun SettingsScreen(
         containerColor = themeBackgroundSecondary(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.lg),
-            verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
-        ) {
+        val scrollState = rememberScrollState()
+        val sectionOffsets = remember { mutableStateMapOf<SettingsSection, Int>() }
+        var selectedSection by rememberSaveable { mutableStateOf(SettingsSection.MODEL) }
+
+        @Composable
+        fun settingsContent() {
             // ── 模型配置 ──
-            SettingGroup(title = "模型配置") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.MODEL] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_model)) {
                 Column(
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -634,9 +653,13 @@ fun SettingsScreen(
                     }
                 }
             }
+            }
 
             // ── 语音设置 ──
-            SettingGroup(title = "语音设置") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.VOICE] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_voice)) {
                 Column(
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -859,6 +882,7 @@ fun SettingsScreen(
                                             ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                             ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                             ModelType.STREAMING_PARAFORMER -> "Paraformer 流式"
+                                            else -> modelInfo.type.name
                                         }
                                         FilterChip(
                                             selected = selectedLocalModel == modelInfo.type.name,
@@ -895,6 +919,7 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
+                                                    else -> modelInfo.modelName
                                                 },
                                                 style = MaterialTheme.typography.labelLarge,
                                                 maxLines = 1,
@@ -980,6 +1005,7 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
+                                                    else -> modelInfo.modelName
                                                 }
                                                 sttDialogModelDesc = "本地离线语音识别模型"
                                                 sttDialogPercent = 0
@@ -1229,9 +1255,13 @@ fun SettingsScreen(
                     }
                 }
             }
+            }
 
             // ── 知识与记忆 ──
-            SettingGroup(title = "知识与记忆") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.MEMORY] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_memory)) {
                 SettingNavigationRow(
                     title = stringResource(R.string.settings_memory_entries),
                     subtitle = stringResource(R.string.settings_memory_count, memoryCount),
@@ -1264,9 +1294,13 @@ fun SettingsScreen(
                     showDivider = false,
                 )
             }
+            }
 
             // ── 功能 ──
-            SettingGroup(title = "功能") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.FEATURES] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_features)) {
                 Column(
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -1346,15 +1380,7 @@ fun SettingsScreen(
                             vm.saveDynamicColorEnabled(it)
                             (context as? Activity)?.recreate()
                         },
-                    )
-
-                    // ★ Ham 模式：业余卫星过境预测工具
-                    SettingSwitchRow(
-                        title = "Ham 模式（业余卫星）",
-                        subtitle = "开启后启用卫星过境工具",
-                        checked = hamEnabled,
-                        onCheckedChange = { hamEnabled = it },
-                        icon = Icons.Default.Satellite,
+                        showDivider = false,
                     )
 
                     HorizontalDivider(color = themeBorder())
@@ -1693,9 +1719,13 @@ fun SettingsScreen(
                     )
                 }
             }
+            }
 
             // ── 导入导出 ──
-            SettingGroup(title = "导入导出") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.IMPORT_EXPORT] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_import_export)) {
                 Column(
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -1832,9 +1862,13 @@ fun SettingsScreen(
                     )
                 }
             }
+            }
 
             // ── 关于 ──
-            SettingGroup(title = "关于") {
+            Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                sectionOffsets[SettingsSection.ABOUT] = coordinates.positionInParent().y.toInt()
+            }) {
+                SettingGroup(title = stringResource(R.string.settings_section_about)) {
                 Column(
                     modifier = Modifier.padding(SpacingTokens.lg),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -1899,6 +1933,7 @@ fun SettingsScreen(
                     )
                 }
             }
+            }
 
             // ── 底部操作 ──
             Button(
@@ -1923,7 +1958,6 @@ fun SettingsScreen(
                     vm.saveDeepThinking(deepThinkingEnabled)
                     vm.saveCalendarEnabled(calendarEnabled)
                     vm.saveHealthEnabled(healthEnabled)
-                    vm.saveHamModeEnabled(hamEnabled)
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
                     vm.saveTavilyApiKey(tavilyApiKey.takeIf { it.isNotBlank() })
                     vm.saveBraveApiKey(braveApiKey.takeIf { it.isNotBlank() })
@@ -1937,7 +1971,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ShapeTokens.smallShape,
             ) {
-                Text(if (isLocalMode) "保存设置" else "保存")
+                Text(if (isLocalMode) stringResource(R.string.settings_save_settings) else stringResource(R.string.action_save))
             }
             Text(text = stringResource(R.string.settings_api_key_hint), modifier = Modifier.padding(top = SpacingTokens.xs), color = themeForegroundMuted())
             Button(
@@ -1952,6 +1986,84 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_saved_key_hint), color = themeForegroundMuted())
             } else {
                 Text(stringResource(R.string.settings_not_set_key), color = themeForegroundMuted())
+            }
+        }
+
+        if (isLandscape() && isAtLeastMediumWidth()) {
+            // 横屏/大屏：左侧章节导航 + 右侧内容，占满剩余空间并限制最大宽度。
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(SizeTokens.settingsDrawerWidth)
+                        .fillMaxHeight()
+                        .padding(vertical = SpacingTokens.lg, horizontal = SpacingTokens.md)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        text = stringResource(R.string.title_settings),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(start = SpacingTokens.sm, bottom = SpacingTokens.lg),
+                    )
+                    SettingsSection.entries.forEach { section ->
+                        val selected = section == selectedSection
+                        NavigationDrawerItem(
+                            icon = { Icon(section.icon, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd)) },
+                            label = { Text(stringResource(section.titleRes)) },
+                            selected = selected,
+                            onClick = {
+                                selectedSection = section
+                                scope.launch {
+                                    val offset = sectionOffsets[section] ?: 0
+                                    scrollState.animateScrollTo(offset.coerceAtLeast(0))
+                                }
+                            },
+                            modifier = Modifier.padding(bottom = SpacingTokens.xs),
+                        )
+                    }
+                }
+                VerticalDivider(
+                    modifier = Modifier.fillMaxHeight(),
+                    thickness = SizeTokens.thinDividerThickness,
+                    color = themeBorder(),
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .verticalScroll(scrollState),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    val contentMaxWidth = if (isExpandedWidth()) 840.dp else 640.dp
+                    Column(modifier = Modifier.widthIn(max = contentMaxWidth)) {
+                        settingsContent()
+                    }
+                }
+            }
+        } else {
+            val settingsMaxWidth = if (isAtLeastMediumWidth()) 720.dp else Dp.Unspecified
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .then(
+                            if (settingsMaxWidth != Dp.Unspecified) {
+                                Modifier.fillMaxHeight().widthIn(max = settingsMaxWidth)
+                            } else {
+                                Modifier.fillMaxSize()
+                            }
+                        )
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.lg),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
+                ) {
+                    settingsContent()
+                }
             }
         }
     }
@@ -1991,7 +2103,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showMemoryWarning = null },
             title = { Text(stringResource(R.string.msg_memory_insufficient)) },
-            text = { Text(msg) },
+            text = { Text(msg ?: stringResource(R.string.msg_memory_insufficient_desc)) },
             confirmButton = {
                 Button(onClick = {
                     showMemoryWarning = null

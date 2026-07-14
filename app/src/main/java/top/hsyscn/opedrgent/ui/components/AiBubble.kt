@@ -66,10 +66,15 @@ fun AIMessageCard(
     val feedback = LocalFeedbackController.current
     val timeText = remember(message.createdAt) { formatMessageTime(message.createdAt) }
 
-    // AI 消息块整体占父容器 75%，左对齐；头像/名称头部置于卡片上方
+    // 根据窗口宽度动态调整 AI 消息块宽度：大屏更窄，避免文字过长
+    val widthFraction = when (rememberWindowSizeInfo().widthSizeClass) {
+        androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Expanded -> 0.55f
+        androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Medium -> 0.65f
+        else -> 0.75f
+    }
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.75f)
+            .fillMaxWidth(widthFraction)
             .semantics(mergeDescendants = true) {},
     ) {
         MessageHeader(

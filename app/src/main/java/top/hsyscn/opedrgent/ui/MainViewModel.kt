@@ -364,55 +364,39 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         },
     )
     // 高危工具操作的用户确认状态（队列式，防止多工具并发时覆盖）
-
-    // ==================== 录音状态（跨页面存活） ====================
-    /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
-    var recordingState by mutableStateOf<RecordingState?>(null)
-
-    /** 录音模式（常规/内录） */
-    var recordingMode by mutableStateOf(RecordingMode.RECORDING)
-
-    /** 转写结果 */
-    var transcriptResult by mutableStateOf<MeetingTranscriptResult?>(null)
-
-    /** 回放音频 URI */
-    var playbackAudioUri by mutableStateOf<String?>(null)
-
-    /** 录音已过秒数 */
-    var recordingElapsedSeconds by mutableStateOf(0)
-
-    /** AudioRecord 引用（不序列化，ViewModel 存活则有效） */
-    @Volatile
-    var audioRecordRef: AudioRecord? = null
-
-    /** SystemAudioRecorder 引用 */
-    @Volatile
-    var systemAudioRecorderRef: SystemAudioRecorder? = null
-
-    /** 录音自动保存的笔记 ID */
-    var autoSavedNoteId by mutableStateOf(0L)
-
-    /** 是否已保存到笔记 */
-    var savedToNote by mutableStateOf(false)
-
-    /** 防空转门锁：防止 LAUNCHER 重复启动录音 */
-    @Volatile
-    var recordingLaunched: Boolean = false
-
-    // ==================== 通联日志状态 ====================
-    /** 当前生成的通联日志（由 AI 解析产生） */
-    var contactLog by mutableStateOf<HamContactLog?>(null)
-
-    /** 是否正在生成通联日志 */
-    var isGeneratingContactLog by mutableStateOf(false)
-
-    /** 通联日志生成完成回调（UI 观察） */
-    @Volatile
-    var onContactLogGenerated: ((HamContactLog?) -> Unit)? = null
     private val _pendingToolConfirmation = MutableStateFlow<ToolConfirmation?>(null)
     val pendingToolConfirmation: StateFlow<ToolConfirmation?> = _pendingToolConfirmation
     private val toolConfirmationRequests = Channel<Pair<ToolConfirmation, CompletableDeferred<Boolean>>>(Channel.UNLIMITED)
     private var currentConfirmationDeferred: CompletableDeferred<Boolean>? = null
+
+    // ==================== 录音状态（跨页面存活） ====================
+    /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
+    var recordingState by mutableStateOf<RecordingState?>(null)
+    /** 录音模式（常规/内录） */
+    var recordingMode by mutableStateOf(RecordingMode.RECORDING)
+    /** 转写结果 */
+    var transcriptResult by mutableStateOf<MeetingTranscriptResult?>(null)
+    /** 回放音频 URI */
+    var playbackAudioUri by mutableStateOf<String?>(null)
+    /** 录音已过秒数 */
+    var recordingElapsedSeconds by mutableStateOf(0)
+    /** AudioRecord 引用（不序列化，ViewModel 存活则有效） */
+    @Volatile var audioRecordRef: AudioRecord? = null
+    /** SystemAudioRecorder 引用 */
+    @Volatile var systemAudioRecorderRef: SystemAudioRecorder? = null
+    /** 录音自动保存的笔记 ID */
+    var autoSavedNoteId by mutableStateOf(0L)
+    /** 是否已保存到笔记 */
+    var savedToNote by mutableStateOf(false)
+    /** 防空转门锁：防止 LAUNCHER 重复启动录音 */
+    @Volatile var recordingLaunched: Boolean = false
+    // ==================== 通联日志状态 ====================
+    /** 当前生成的通联日志（由 AI 解析产生） */
+    var contactLog by mutableStateOf<HamContactLog?>(null)
+    /** 是否正在生成通联日志 */
+    var isGeneratingContactLog by mutableStateOf(false)
+    /** 通联日志生成完成回调（UI 观察） */
+    @Volatile var onContactLogGenerated: ((HamContactLog?) -> Unit)? = null
 
     private val toolExecutor = ToolExecutor(
         app, webSearcher, sourceFetcher, llm, apiSettings, asrManager, skillLoader, insightSproutEngine, knowledgeBase,
@@ -703,6 +687,124 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /**
+     * Ham 模式：请求 AI 从录音转写文本中提取通联日志
+     *
+     * 发送专用提示词给 LLM，让它识别卫星名称、频率、模式、时间等信息，
+     * 输出结构化的通联日志字段。解析后存储到 contactLog 并触发回调。
+     */
+    fun requestContactLog(transcript: String) {
+        if (!apiSettings.isHamModeEnabled()) return
+        if (transcript.isBlank()) return
+
+        isGeneratingContactLog = true
+        contactLog = null
+        onContactLogGenerated?.invoke(null)
+
+        val contactLogPrompt = buildString {
+            appendLine("请分析以下业余卫星通联的录音转写文本，提取通联日志字段。")
+            appendLine()
+            appendLine("请以严格的 JSON 格式输出，字段如下（找不到的字段留空字符串）：")
+            appendLine("  date: 通联日期 YYYY-MM-DD")
+            appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
+            appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
+            appendLine("  satName: 卫星名称（如 SO-50, ISS, AO-91）")
+            appendLine("  callsign: 对方呼号（与地面电台通联时填写）")
+            appendLine("  frequency: 下行频率 MHz（如 436.795）")
+            appendLine("  mode: 调制方式（FM/SSB/CW/USB/LSB/APRS/GMSK）")
+            appendLine("  rstSent: 发射信号报告（如 59, 599）")
+            appendLine("  rstReceived: 接收信号报告")
+            appendLine("  notes: 通联备注")
+            appendLine("  gridLocator: 网格定位")
+            appendLine("  noradId: 卫星 NORAD ID")
+            appendLine("  maxElevation: 最高仰角（度）")
+            appendLine("  result: 通联结果（OK/PARTIAL/NO）")
+            appendLine()
+            appendLine("只输出 JSON 对象，不要其他文字。格式示例：")
+            appendLine("""{"date":"2026-07-15","timeOn":"203000","timeOff":"204500","satName":"SO-50","frequency":"436.795","mode":"FM","rstSent":"59","rstReceived":"57","noradId":"27607","maxElevation":"45","result":"OK"}""")
+            appendLine()
+            appendLine("转写文本：")
+            appendLine(transcript)
+        }
+
+        // 创建独立 session 用于通联日志提取，不干扰用户主对话
+        val session = store.createSession("通联日志")
+        refreshSessions()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val config = apiSettings.getApiConfig()
+                if (config == null) {
+                    isGeneratingContactLog = false
+                    return@launch
+                }
+                val result = withContext(Dispatchers.IO) {
+                    llm.chatCompletions(
+                        config = config,
+                        system = "你是业余卫星通联日志助手。从通联录音转写文本中提取结构化信息。",
+                        messages = listOf(
+                            ChatMessage(role = Role.USER, content = contactLogPrompt, createdAt = System.currentTimeMillis()),
+                        ),
+                    )
+                }
+                // 解析 JSON 响应
+                val log = parseContactLogJson(result)
+                contactLog = log
+                onContactLogGenerated?.invoke(log)
+            } catch (e: Exception) {
+                DebugLog.w("requestContactLog: AI 提取失败: ${e.message}")
+                contactLog = null
+                onContactLogGenerated?.invoke(null)
+            } finally {
+                isGeneratingContactLog = false
+            }
+        }
+    }
+
+    /** 解析 AI 返回的 JSON 为 HamContactLog */
+    private fun parseContactLogJson(jsonText: String): HamContactLog? = runCatching {
+        val cleaned = jsonText.trim()
+            .replace("```json", "")
+            .replace("```", "")
+            .trim()
+        val obj = org.json.JSONObject(cleaned)
+        HamContactLog(
+            date = obj.optString("date"),
+            timeOn = obj.optString("timeOn"),
+            timeOff = obj.optString("timeOff"),
+            satName = obj.optString("satName"),
+            callsign = obj.optString("callsign"),
+            frequency = obj.optString("frequency"),
+            mode = obj.optString("mode"),
+            rstSent = obj.optString("rstSent"),
+            rstReceived = obj.optString("rstReceived"),
+            notes = obj.optString("notes"),
+            gridLocator = obj.optString("gridLocator"),
+            noradId = obj.optString("noradId"),
+            maxElevation = obj.optString("maxElevation"),
+            result = obj.optString("result"),
+        )
+    }.onFailure { DebugLog.w("parseContactLogJson: 解析失败: ${it.message}") }.getOrNull()
+
+    /** Ham 模式：导出通联日志为 ADIF 格式文件（兼容 QRZ Logbook / LoTW / ClubLog） */
+    suspend fun exportContactLog(log: HamContactLog): File = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
+        val safeName = log.satName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(40).ifBlank { "contact" }
+        val file = File(exportsDir, "hamlog_${safeName}_${System.currentTimeMillis()}.adi")
+        val adifContent = buildString {
+            append(HamContactLog.ADIF_HEADER)
+            append(log.toAdifRecord())
+        }
+        file.writeText(adifContent, Charsets.UTF_8)
+        file
+    }
+
+    fun isHamModeEnabled(): Boolean = apiSettings.isHamModeEnabled()
+    fun saveHamModeEnabled(enabled: Boolean) = apiSettings.saveHamModeEnabled(enabled)
+    fun getLastLatitude(): Float? = apiSettings.getLastLatitude()
+    fun getLastLongitude(): Float? = apiSettings.getLastLongitude()
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -1438,106 +1540,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-    /**
-     * Ham 模式：请求 AI 从录音转写文本中提取通联日志
-     *
-     * 发送专用提示词给 LLM，让它识别卫星名称、频率、模式、时间等信息，
-     * 输出结构化的通联日志字段。解析后存储到 contactLog 并触发回调。
-     */
-    fun requestContactLog(transcript: String) {
-        if (!apiSettings.isHamModeEnabled()) return
-        if (transcript.isBlank()) return
-
-        isGeneratingContactLog = true
-        contactLog = null
-        onContactLogGenerated?.invoke(null)
-
-        val contactLogPrompt = buildString {
-            appendLine("请分析以下业余卫星通联的录音转写文本，提取通联日志字段。")
-            appendLine()
-            appendLine("请以严格的 JSON 格式输出，字段如下（找不到的字段留空字符串）：")
-            appendLine("  date: 通联日期 YYYY-MM-DD")
-            appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
-            appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
-            appendLine("  satName: 卫星名称（如 SO-50, ISS, AO-91）")
-            appendLine("  callsign: 对方呼号（与地面电台通联时填写）")
-            appendLine("  frequency: 下行频率 MHz（如 436.795）")
-            appendLine("  mode: 调制方式（FM/SSB/CW/USB/LSB/APRS/GMSK）")
-            appendLine("  rstSent: 发射信号报告（如 59, 599）")
-            appendLine("  rstReceived: 接收信号报告")
-            appendLine("  notes: 通联备注")
-            appendLine("  gridLocator: 网格定位")
-            appendLine("  noradId: 卫星 NORAD ID")
-            appendLine("  maxElevation: 最高仰角（度）")
-            appendLine("  result: 通联结果（OK/PARTIAL/NO）")
-            appendLine()
-            appendLine("只输出 JSON 对象，不要其他文字。格式示例：")
-            appendLine("""{"date":"2026-07-15","timeOn":"203000","timeOff":"204500","satName":"SO-50","frequency":"436.795","mode":"FM","rstSent":"59","rstReceived":"57","noradId":"27607","maxElevation":"45","result":"OK"}""")
-            appendLine()
-            appendLine("转写文本：")
-            appendLine(transcript)
-        }
-
-        // 创建独立 session 用于通联日志提取，不干扰用户主对话
-        val session = store.createSession("通联日志")
-        refreshSessions()
-        val sessionId = session.id
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val config = apiSettings.getApiConfig()
-                if (config == null) {
-                    isGeneratingContactLog = false
-                    return@launch
-                }
-                val result = withContext(Dispatchers.IO) {
-                    llm.chatCompletions(
-                        config = config,
-                        system = "你是业余卫星通联日志助手。从通联录音转写文本中提取结构化信息。",
-                        messages = listOf(
-                            ChatMessage(role = Role.USER, content = contactLogPrompt, createdAt = System.currentTimeMillis()),
-                        ),
-                    )
-                }
-                // 解析 JSON 响应
-                val log = parseContactLogJson(result)
-                contactLog = log
-                onContactLogGenerated?.invoke(log)
-            } catch (e: Exception) {
-                DebugLog.w("requestContactLog: AI 提取失败: ${e.message}")
-                contactLog = null
-                onContactLogGenerated?.invoke(null)
-            } finally {
-                isGeneratingContactLog = false
-            }
-        }
-    }
-
-    /** 解析 AI 返回的 JSON 为 HamContactLog */
-    private fun parseContactLogJson(jsonText: String): HamContactLog? = runCatching {
-        val cleaned = jsonText.trim()
-            .replace("```json", "")
-            .replace("```", "")
-            .trim()
-        val obj = org.json.JSONObject(cleaned)
-        HamContactLog(
-            date = obj.optString("date"),
-            timeOn = obj.optString("timeOn"),
-            timeOff = obj.optString("timeOff"),
-            satName = obj.optString("satName"),
-            callsign = obj.optString("callsign"),
-            frequency = obj.optString("frequency"),
-            mode = obj.optString("mode"),
-            rstSent = obj.optString("rstSent"),
-            rstReceived = obj.optString("rstReceived"),
-            notes = obj.optString("notes"),
-            gridLocator = obj.optString("gridLocator"),
-            noradId = obj.optString("noradId"),
-            maxElevation = obj.optString("maxElevation"),
-            result = obj.optString("result"),
-        )
-    }.onFailure { DebugLog.w("parseContactLogJson: 解析失败: ${it.message}") }.getOrNull()
 
     /** 添加系统消息并刷新 UI */
     private fun addSystemMessage(sessionId: String, content: String) {
@@ -2868,15 +2870,70 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         // 连接中断等错误退出时，accumulatedText 里可能已有部分答案，兜底作为最终内容展示
-        val effectiveFinalContent = ctx.finalContent.ifBlank { ctx.accumulatedText }
+        var effectiveFinalContent = ctx.finalContent.ifBlank { ctx.accumulatedText }
+
+        // ★ 硬截断兜底：循环因重试超限/TokenBudget/Guardrail 等原因中断时，
+        // 如果 finalContent 为空但已有工具结果/累积文本，给 LLM 最后一次机会
+        // （无工具 + system nudge）基于已收集信息生成完整最终回答，而非光秃秃地截断。
+        if (ctx.finalContent.isBlank() && !cancelled.get() && effectiveFinalContent.isNotBlank()) {
+            val isFatalError = lastError?.contains("API Key") == true ||
+                    lastError?.contains("余额不足") == true ||
+                    lastError?.contains("访问被拒绝") == true
+            if (!isFatalError) {
+                DebugLog.i("runLoop: finalContent 为空，尝试无工具最终回答兜底")
+                _state.value = _state.value.copy(streamingPhase = "正在生成最终回答…")
+                val finalAnswer = try {
+                    attemptFinalAnswer(ctx)
+                } catch (e: Exception) {
+                    DebugLog.w("runLoop: 最终回答兜底失败: ${e.message}")
+                    ""
+                }
+                if (finalAnswer.isNotBlank()) {
+                    effectiveFinalContent = finalAnswer
+                    lastError = null
+                    DebugLog.i("runLoop: 最终回答兜底成功，长度=${finalAnswer.length}")
+                }
+            }
+        }
+
         return LoopResult(
             finalContent = effectiveFinalContent,
-            finalReasoning = ctx.finalReasoning,
+            finalReasoning = ctx.finalReasoning.ifBlank { ctx.accumulatedReasoning },
             accumulatedText = ctx.accumulatedText,
             accumulatedReasoning = ctx.accumulatedReasoning,
             allToolParts = ctx.allToolParts.toList(),
             wasCancelled = cancelled.get(),
         )
+    }
+
+    /**
+     * 硬截断兜底：当 Agent 循环因重试超限/TokenBudget/Guardrail 等原因中断时，
+     * 给 LLM 最后一次机会（无工具 + system nudge）基于已收集信息生成完整最终回答。
+     *
+     * 不传入任何工具，确保 LLM 只能输出文本，不能继续调用工具。
+     * 如果 API 本身不可用（网络/鉴权），这次调用也会失败，调用方应 try-catch 并 fallback 到 accumulatedText。
+     */
+    private suspend fun attemptFinalAnswer(ctx: LoopContext): String {
+        val sess = store.getSession(ctx.sessionId)
+        val system = if (sess != null) buildSystemPrompt(sess) else ""
+        val nudge = ChatMessage(
+            role = Role.SYSTEM,
+            content = "[system] 你已达到工具调用上限，无法再使用任何工具。" +
+                    "请基于已收集的所有信息，立即给出完整、最终的中文回答。" +
+                    "不要重复工具结果原文，要整合成通顺的回答。",
+        )
+        val messages = ctx.toolMessages + nudge
+        val result = streamLlm(
+            config = ctx.config,
+            system = system,
+            messages = messages,
+            tools = emptyList(),
+            deepThinkingEnabled = false,
+            priorText = ctx.accumulatedText,
+            priorReasoning = ctx.accumulatedReasoning,
+            sessionId = ctx.sessionId,
+        )
+        return result.content
     }
 
     /**
@@ -4322,12 +4379,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getTtsRate(): Float = apiSettings.getTtsRate()
     fun getTtsPitch(): Float = apiSettings.getTtsPitch()
     fun getTtsLocaleTag(): String = apiSettings.getTtsLocaleTag()
-    // ★ Ham 模式（业余卫星过境预测）
-    fun isHamModeEnabled(): Boolean = apiSettings.isHamModeEnabled()
-    fun saveHamModeEnabled(enabled: Boolean) = apiSettings.saveHamModeEnabled(enabled)
-    fun getLastLatitude(): Float? = apiSettings.getLastLatitude()
-    fun getLastLongitude(): Float? = apiSettings.getLastLongitude()
-
     fun isSttEnabled(): Boolean = apiSettings.isSttEnabled()
     fun getSttEngine(): String = apiSettings.getSttEngine()
     fun getSttStreamingMode(): String = apiSettings.getSttStreamingMode()
@@ -5310,22 +5361,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
         file.writeText(md.trim() + "\n", Charsets.UTF_8)
-        file
-    }
-
-    /**
-     * Ham 模式：导出通联日志为 ADIF 格式文件（兼容 QRZ Logbook / LoTW / ClubLog）
-     */
-    suspend fun exportContactLog(log: top.hsyscn.opedrgent.model.HamContactLog): File = withContext(Dispatchers.IO) {
-        val app = getApplication<Application>()
-        val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
-        val safeName = log.satName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(40).ifBlank { "contact" }
-        val file = File(exportsDir, "hamlog_${safeName}_${System.currentTimeMillis()}.adi")
-        val adifContent = buildString {
-            append(top.hsyscn.opedrgent.model.HamContactLog.ADIF_HEADER)
-            append(log.toAdifRecord())
-        }
-        file.writeText(adifContent, Charsets.UTF_8)
         file
     }
 

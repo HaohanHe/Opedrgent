@@ -35,8 +35,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -104,6 +108,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.AutomationKind
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -128,6 +133,8 @@ import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
 import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import top.hsyscn.opedrgent.ui.theme.themeBarBg
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardBackground
@@ -252,8 +259,25 @@ fun SessionScreen(
     Box(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
         var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 900.dp
+            isAtLeastMediumWidth() -> 760.dp
+            else -> Dp.Unspecified
+        }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(modifier = Modifier.fillMaxWidth().fillMaxHeight().widthIn(max = 720.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .consumeWindowInsets(WindowInsets.ime)
+                .then(
+                    if (contentMaxWidth != Dp.Unspecified) {
+                        Modifier.widthIn(max = contentMaxWidth)
+                    } else {
+                        Modifier
+                    }
+                ),
+        ) {
         // Top bar
         Row(
             modifier = Modifier
@@ -492,7 +516,7 @@ fun SessionScreen(
                 OutlinedButton(
                     onClick = { vm.stopGeneration() },
                     modifier = Modifier
-                        .padding(horizontal = 66.dp, vertical = SpacingTokens.xs)
+                        .padding(horizontal = SpacingTokens.xxl, vertical = SpacingTokens.xs)
                         .fillMaxWidth(),
                     shape = ShapeTokens.smallShape,
                     colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -512,9 +536,8 @@ fun SessionScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(start = SpacingTokens.md, end = SpacingTokens.md, bottom = SpacingTokens.md, top = SpacingTokens.xs),
+                    .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                    .padding(start = SpacingTokens.md, end = SpacingTokens.md, top = SpacingTokens.xs),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
@@ -626,10 +649,11 @@ fun SessionScreen(
                         val slashMatches = remember(prompt) {
                             top.hsyscn.opedrgent.utils.SlashCommands.filterByPrefix(prompt.trim())
                         }
+                        val slashDropdownWidth = if (isExpandedWidth()) 360.dp else 280.dp
                         DropdownMenu(
                             expanded = slashMatches.isNotEmpty(),
                             onDismissRequest = { /* 输入变化时自动更新 */ },
-                            modifier = Modifier.width(280.dp),
+                            modifier = Modifier.width(slashDropdownWidth),
                         ) {
                             slashMatches.take(6).forEach { cmd ->
                                 DropdownMenuItem(
