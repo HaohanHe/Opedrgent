@@ -18,10 +18,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Card
@@ -81,6 +84,7 @@ import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -571,10 +575,49 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
         if (expanded) {
             Column(
                 modifier = Modifier.padding(start = SpacingTokens.xl),
-                verticalArrangement = Arrangement.spacedBy(SpacingTokens.xxs),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
             ) {
                 parts.forEach { tp ->
-                    ToolStatusRow(toolPart = tp)
+                    ToolStatusRowWithResults(toolPart = tp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 单个工具调用行 + 该调用的搜索结果详情（展开组时使用）。
+ *
+ * 解决用户反馈："2/2 点进去后只能看见搜索词，看不到具体搜了哪些内容"
+ * 之前 ToolStatusRow 仅显示 "搜索: <query>"，未展示该次调用实际找到的结果。
+ * 现在在查询行下方追加本次调用返回的来源卡片（标题/摘要/域名），与查询视图一致。
+ */
+@Composable
+private fun ToolStatusRowWithResults(toolPart: ToolPart) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val sources = remember(toolPart) {
+        if (toolPart.tool == "web_search" && toolPart.state.status == ToolStateType.COMPLETED) {
+            extractSourcesFromToolParts(listOf(toolPart))
+        } else {
+            emptyList()
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xxs)) {
+        ToolStatusRow(toolPart = toolPart)
+        if (sources.isNotEmpty()) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .heightIn(max = SizeTokens.citationListMaxHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.xxs),
+            ) {
+                sources.forEachIndexed { idx, source ->
+                    SourceLinkCard(
+                        index = idx + 1,
+                        source = source,
+                        onClick = { uriHandler.openUri(source.url) },
+                    )
                 }
             }
         }
@@ -651,8 +694,14 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
             )
         }
         if (expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                sources.take(5).forEachIndexed { idx, source ->
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .heightIn(max = SizeTokens.citationListMaxHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+            ) {
+                sources.forEachIndexed { idx, source ->
                     SourceLinkCard(
                         index = idx + 1,
                         source = source,
