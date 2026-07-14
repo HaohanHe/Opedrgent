@@ -1,0 +1,137 @@
+[
+  {
+    "name": "ISS (ZARYA)",
+    "noradId": 25544,
+    "uplinkMHz": null,
+    "downlinkMHz": "145.800",
+    "modulation": "FM APRS / Cross-band 145.800 downlink / 437.800 uplink",
+    "minElevationDeg": 20,
+    "notes": "国际空间站，携带 APRS 中继(145.800)、SSTV 事件、业余无线电慢扫描电视"
+  },
+  {
+    "name": "SO-50 (SaudiSat-1C)",
+    "noradId": 27607,
+    "uplinkMHz": "145.850",
+    "downlinkMHz": "436.795",
+    "modulation": "FM 亚音 67.0Hz 开启，V/U 转发器",
+    "minElevationDeg": 15,
+    "notes": "至今活跃的 V/U FM 卫星转发器，南美亚音关，需 PL 67Hz"
+  },
+  {
+    "name": "AO-91 (RadFxSat-2 / Fox-1B)",
+    "noradId": 43017,
+    "uplinkMHz": "435.250",
+    "downlinkMHz": "145.960",
+    "modulation": "FM 亚音 67.0Hz，V/U 模式",
+    "minElevationDeg": 15,
+    "notes": "AMSAT Fox-1 系列，健康状态偶有不稳定，线性模式 L band 现在较少用"
+  },
+  {
+    "name": "AO-92 (Fox-1D)",
+    "noradId": 43137,
+    "uplinkMHz": "435.350",
+    "downlinkMHz": "145.880",
+    "modulation": "FM 亚音 67.0Hz，V/U 模式",
+    "minElevationDeg": 15,
+    "notes": "AMSAT Fox-1 系列，含 L band 线性转发器和 S band 实验载荷"
+  },
+  {
+    "name": "PO-101 (Diwata-2)",
+    "noradId": 43678,
+    "uplinkMHz": "145.900",
+    "downlinkMHz": "437.500",
+    "modulation": "FM 亚音 141.3Hz，V/U 模式，APRS 中继",
+    "minElevationDeg": 15,
+    "notes": "菲律宾业余卫星，含 1200bps AFSK APRS 中继(437.500)"
+  },
+  {
+    "name": "FO-29 (JAS-2)",
+    "noradId": 24278,
+    "uplinkMHz": "145.900",
+    "downlinkMHz": "435.800",
+    "modulation": "SSB/CW 线性转发器 + FM 1200bps",
+    "minElevationDeg": 20,
+    "notes": "日本业余卫星，L band / S band 多模式转发器，高仰角过境"
+  },
+  {
+    "name": "CAS-3H (LilacSat-2)",
+    "noradId": 40908,
+    "uplinkMHz": "144.350",
+    "downlinkMHz": "437.225",
+    "modulation": "FM 亚音 67.0Hz，V/U 模式 + SSTV",
+    "minElevationDeg": 10,
+    "notes": "中国业余卫星，含 9600bps GMSK 数据和 SSTV 下传"
+  },
+  {
+    "name": "XW-2A (CAS-3A)",
+    "noradId": 40906,
+    "uplinkMHz": "145.640",
+    "downlinkMHz": "435.030",
+    "modulation": "SSB/CW 线性转发器，V/U 模式",
+    "minElevationDeg": 15,
+    "notes": "希望星座线性转发器，多普勒线性 5-15kHz 需跟踪"
+  },
+  {
+    "name": "RS-44 (DOSAAF-85)",
+    "noradId": 44901,
+    "uplinkMHz": "145.965",
+    "downlinkMHz": "435.670",
+    "modulation": "SSB/CW 线性转发器，V/U 模式",
+    "minElevationDeg": 15,
+    "notes": "俄德合作线性转发器，带宽 12-30kHz，含 CW 信标"
+  },
+  {
+    "name": "CAS-4A (Kaituo-1A)",
+    "noradId": 42761,
+    "uplinkMHz": "145.950",
+    "downlinkMHz": "435.835",
+    "modulation": "SSB/CW 线性转发器，V/U 模式",
+    "minElevationDeg": 15,
+    "notes": "CAS-3/4 系列线性转发器，多普勒 10kHz 需跟踪"
+  },
+  {
+    "name": "LAPAN-A2 (IO-86)",
+    "noradId": 40931,
+    "uplinkMHz": "145.880",
+    "downlinkMHz": "435.880",
+    "modulation": "FM 亚音 88.5Hz，V/U 模式，APRS",
+    "minElevationDeg": 10,
+    "notes": "印度尼西亚业余卫星，含 APRS 中继"
+  },
+  {
+    "name": "JO-97 (JY1Sat)",
+    "noradId": 43803,
+    "uplinkMHz": "145.860",
+    "downlinkMHz": "145.840,
+    "modulation": "FM 亚音 67.0Hz，V/U 模式",
+    "minElevationDeg": 10,
+    "notes": "约旦业余卫星，含 9600bps GMSK 数据"
+  },
+  {
+    "name": "Falconsat-3",
+    "noradId": 30776,
+    "uplinkMHz": "145.840",
+    "downlinkMHz": "435.103",
+    "modulation": "FM 亚音 67.0Hz，V/U 模式，Packet 9k6",
+    "minElevationDeg": 10,
+    "notes": "美军业余卫星，含多模式转发器和 AX.25 9k6 数据"
+  },
+  {
+    "name": "AO-7 (OSCAR 7)",
+    "noradId": 7530,
+    "uplinkMHz": "145.850",
+    "downlinkMHz": "29.400",
+    "modulation": "Mode B 线性转发器 / Mode A FM",
+    "minElevationDeg": 15,
+    "notes": "传奇业余卫星，Mode B(V/U)和 Mode A(2m uplink/10m downlink)双模式"
+  },
+  {
+    "name": "AO-16 (Pacsat)",
+    "noradId": 20439,
+    "uplinkMHz": "145.900",
+    "downlinkMHz": "437.025",
+    "modulation": "FM 亚音 67.0Hz，V/U 模式，Packet 1200bps",
+    "minElevationDeg": 10,
+    "notes": "早期业余 Packet 卫星，DOS 环境"
+  }
+]

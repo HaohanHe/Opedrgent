@@ -4138,6 +4138,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getTtsRate(): Float = apiSettings.getTtsRate()
     fun getTtsPitch(): Float = apiSettings.getTtsPitch()
     fun getTtsLocaleTag(): String = apiSettings.getTtsLocaleTag()
+    // ★ Ham 模式（业余卫星过境预测）
+    fun isHamModeEnabled(): Boolean = apiSettings.isHamModeEnabled()
+    fun saveHamModeEnabled(enabled: Boolean) = apiSettings.saveHamModeEnabled(enabled)
+    fun getLastLatitude(): Float? = apiSettings.getLastLatitude()
+    fun getLastLongitude(): Float? = apiSettings.getLastLongitude()
+
     fun isSttEnabled(): Boolean = apiSettings.isSttEnabled()
     fun getSttEngine(): String = apiSettings.getSttEngine()
     fun getSttStreamingMode(): String = apiSettings.getSttStreamingMode()
@@ -4733,6 +4739,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     val display = geo?.displayName ?: "${loc.first}, ${loc.second}"
                     apiSettings.saveLastLocation(display)
+                    apiSettings.saveLastLatitude(loc.first)
+                    apiSettings.saveLastLongitude(loc.second)
                     geo?.detail?.let { apiSettings.saveLastLocationDetail(it) }
                 }
             } catch (_: Exception) { }
