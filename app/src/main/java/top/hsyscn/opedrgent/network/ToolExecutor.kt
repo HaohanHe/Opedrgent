@@ -525,6 +525,16 @@ class ToolExecutor(
             )
         }
 
+        // 业务逻辑错误（工具自身返回 [ERROR] 前缀的 output 但 error 字段为空）——
+        // 视为 SUCCESS 让 LLM 看到错误说明并转告用户，不触发 Guardrail FATAL_ERROR 拦截。
+        if (errorText.isBlank() && output != null && output.startsWith("[ERROR]")) {
+            return ToolExecutionResult(
+                status = ToolExecutionStatus.SUCCESS,
+                content = output,
+                errorDetail = null,
+            )
+        }
+
         // 安全/权限/SSL 类错误视为致命
         if (lower.contains("securityexception") || lower.contains("security exception") ||
             lower.contains("权限") || lower.contains("permission denied") ||
