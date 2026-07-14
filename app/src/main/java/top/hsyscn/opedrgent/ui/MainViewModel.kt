@@ -2060,8 +2060,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private val agentTools: List<top.hsyscn.opedrgent.network.ToolDefinition> by lazy {
-        listOf(
+    private val agentTools: List<top.hsyscn.opedrgent.network.ToolDefinition>
+        get() = listOf(
             top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "ask_question",
                 description = """向用户提出一个选择题或多个选择题，等待用户选择后根据选择结果继续回答。
@@ -2330,6 +2330,35 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     })
                     put("required", org.json.JSONArray().apply { put("query") })
                 }
+            ),
+        ) + hamModeTools()
+
+    /** Ham 模式下额外暴露的工具（业余卫星过境预测） */
+    private fun hamModeTools(): List<top.hsyscn.opedrgent.network.ToolDefinition> {
+        if (!apiSettings.isHamModeEnabled()) return emptyList()
+        return listOf(
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "satellite_pass",
+                description = "卫星过境预测工具（Ham 模式专用）。action=list 返回支持的业余卫星列表（名称、NORAD ID、频率、调制方式）；action=passes 根据用户位置和当前时间计算未来过境窗口（AOS/LOS时间、最大仰角、方向）。参数：action必填(list或passes)、satellite可选(NORAD ID或卫星名)、hours可选(默认24,最大168)。",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("action", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "操作类型：list=列出业余卫星，passes=计算过境窗口")
+                            put("enum", org.json.JSONArray().apply { put("list"); put("passes") })
+                        })
+                        put("satellite", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "卫星名称或NORAD ID。为空时passes返回所有卫星的过境。")
+                        })
+                        put("hours", org.json.JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "预测时间范围（小时），默认24，最大168。")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("action") })
+                },
             ),
         )
     }
