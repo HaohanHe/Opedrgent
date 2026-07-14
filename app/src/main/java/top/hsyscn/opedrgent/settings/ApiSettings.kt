@@ -321,8 +321,24 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putString("lastLocation", location).apply()
     }
 
+    /** 缓存观测站纬度（十进制度） */
+    fun saveLastLatitude(lat: Double) {
+        prefs.edit().putFloat("lastLat", lat.toFloat()).apply()
+    }
+
+    /** 缓存观测站经度（十进制度） */
+    fun saveLastLongitude(lon: Double) {
+        prefs.edit().putFloat("lastLon", lon.toFloat()).apply()
+    }
+
+    /** 获取缓存的观测站纬度，null 表示无缓存 */
+    fun getLastLatitude(): Float? = if (prefs.contains("lastLat")) prefs.getFloat("lastLat", 0f) else null
+
+    /** 获取缓存的观测站经度，null 表示无缓存 */
+    fun getLastLongitude(): Float? = if (prefs.contains("lastLon")) prefs.getFloat("lastLon", 0f) else null
+
     fun clearLocationCache() {
-        prefs.edit().remove("lastLocation").remove("lastLocationDetail").apply()
+        prefs.edit().remove("lastLocation").remove("lastLocationDetail").remove("lastLat").remove("lastLon").apply()
     }
 
     fun getLastLocationDetail(): String? = prefs.getString("lastLocationDetail", null)?.trim()?.takeIf { it.isNotBlank() }
@@ -368,6 +384,12 @@ class ApiSettings(private val context: Context) {
         }
         if (host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return false
         return true
+    }
+
+    // ★ Ham 模式（业余卫星通联辅助）
+    fun isHamModeEnabled(): Boolean = prefs.getBoolean("hamModeEnabled", false)
+    fun saveHamModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("hamModeEnabled", enabled).apply()
     }
 
     fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
