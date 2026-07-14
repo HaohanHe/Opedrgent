@@ -161,6 +161,22 @@ class ToolCallGuardrail(
     fun getHistory(): List<ToolCallRecord> = synchronized(history) { history.toList() }
 
     /**
+     * 返回最近 N 轮中调用次数 >= threshold 的工具名列表（这些工具可能陷入循环）。
+     * 用于在 agent 循环中只禁用循环的工具，而不影响其他工具。
+     */
+    fun getLoopingTools(recentWindow: Int = 8, threshold: Int = 3): List<String> {
+        synchronized(history) {
+            val recent = history.takeLast(recentWindow)
+            if (recent.isEmpty()) return emptyList()
+            return recent.groupingBy { it.toolName }
+                .eachCount()
+                .filter { it.value >= threshold }
+                .keys
+                .toList()
+        }
+    }
+
+    /**
      * 导出当前 guardrail 状态快照，供 Agent 循环中断后恢复。
      */
     fun exportSnapshot(): top.hsyscn.opedrgent.model.GuardrailSnapshot {
