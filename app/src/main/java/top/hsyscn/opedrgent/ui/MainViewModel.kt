@@ -3057,12 +3057,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         // 若已接近最大轮次，强制最终回答：不传入任何工具，避免模型继续调用工具导致硬截断
-        // ★ 同时检测连续无正文的 tool-only 轮次（搜索死循环）：连续 3 轮无正文+有工具调用 = 强制兜底
-        val forceFinalAnswer = (state.maxRounds - state.roundsUsed) <= 2 || state.consecutiveToolOnlyRounds >= 3
-        val effectiveTools = if (forceFinalAnswer) {
-            DebugLog.w("executeOneRound: forcing final answer for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds} (toolOnly=${state.consecutiveToolOnlyRounds})")
-            emptyList()
-        } else agentTools
+        val approachingMaxRounds = (state.maxRounds - state.roundsUsed) <= 2
+        // ★ 检测循环工具（"谁循环禁谁"而不是全禁）：某工具在最近 N 轮调用 >= 3 次 = 移出可用工具列表
+        val loopingTools = if (approachingMaxRounds) emptyList() else guardrail.getLoopingTools(recentWindow = 8, threshold = 3)
+        val effectiveTools = when {
+            approachingMaxRounds -> {
+                DebugLog.w("executeOneRound: forcing final answer (max rounds) for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds}")
+                emptyList()
+            }
+            loopingTools.isNotEmpty() -> {
+                DebugLog.w("executeOneRound: removing looping tools $loopingTools for ${ctx.config.model} at round ${state.roundsUsed}")
+                agentTools.filter { it.name !in loopingTools }
+            }
+            else -> agentTools
+        }
 
         val result = if (allImages.isNotEmpty()) {
             _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
