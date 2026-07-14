@@ -3057,9 +3057,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         // 若已接近最大轮次，强制最终回答：不传入任何工具，避免模型继续调用工具导致硬截断
-        val forceFinalAnswer = (state.maxRounds - state.roundsUsed) <= 2
+        // ★ 同时检测连续无正文的 tool-only 轮次（搜索死循环）：连续 3 轮无正文+有工具调用 = 强制兜底
+        val forceFinalAnswer = (state.maxRounds - state.roundsUsed) <= 2 || state.consecutiveToolOnlyRounds >= 3
         val effectiveTools = if (forceFinalAnswer) {
-            DebugLog.w("executeOneRound: forcing final answer for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds}")
+            DebugLog.w("executeOneRound: forcing final answer for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds} (toolOnly=${state.consecutiveToolOnlyRounds})")
             emptyList()
         } else agentTools
 
@@ -3117,6 +3118,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         ctx.finalContent = result.content
         ctx.finalReasoning = result.reasoning
+
+        // 记录本轮是否有正文，更新连续 tool-only 计数（用于检测搜索死循环）
+        state.recordRoundResult(
+            hasContent = result.content.isNotBlank(),
+            hasToolCalls = result.toolCalls.isNotEmpty(),
+        )
 
         if (result.content.isNotBlank()) {
             ctx.accumulatedText += (if (ctx.accumulatedText.isNotBlank()) "\n\n" else "") + result.content
