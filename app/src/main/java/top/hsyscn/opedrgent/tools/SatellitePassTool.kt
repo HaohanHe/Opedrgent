@@ -57,13 +57,15 @@ class SatellitePassTool(
         val result = when (action) {
             "list" -> executeList()
             "passes" -> executePasses(satelliteQuery, hours)
-            else -> return errorResult(tp, "无效 action='$action'，仅支持 list 或 passes")
+            else -> "无效 action='$action'，仅支持 list 或 passes"
         }
 
+        // 业务结果统一用 COMPLETED 状态返回（包括"数据库为空"/"无位置"/"TLE获取失败"等业务信息），
+        // 让 LLM 看到错误说明并转告用户，而不是被 ToolCallGuardrail 当作 FATAL_ERROR 拦截。
         return ToolResult(
             toolPart = tp.copy(
                 state = tp.state.copy(
-                    status = if (result.startsWith("[ERROR]")) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                    status = ToolStateType.COMPLETED,
                     output = result,
                     endTime = System.currentTimeMillis(),
                 ),
