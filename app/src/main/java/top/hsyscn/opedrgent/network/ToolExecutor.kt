@@ -19,7 +19,6 @@ import top.hsyscn.opedrgent.tools.InsightSproutTool
 import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
 import top.hsyscn.opedrgent.tools.ReadUrlTool
-import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
 import top.hsyscn.opedrgent.tools.RunIntentTool
 import top.hsyscn.opedrgent.tools.RunJsTool
@@ -37,6 +36,7 @@ import top.hsyscn.opedrgent.tools.StepVisionTool
 import top.hsyscn.opedrgent.tools.StepImageEditTool
 import top.hsyscn.opedrgent.tools.StepImageGenTool
 import top.hsyscn.opedrgent.tools.StepVideoSummaryTool
+import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.tools.HealthTool
 import top.hsyscn.opedrgent.storage.KnowledgeBase
 import top.hsyscn.opedrgent.utils.DebugLog

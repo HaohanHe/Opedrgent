@@ -386,13 +386,13 @@ class ApiSettings(private val context: Context) {
         return true
     }
 
+    fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
+
     // ★ Ham 模式（业余卫星通联辅助）
     fun isHamModeEnabled(): Boolean = prefs.getBoolean("hamModeEnabled", false)
     fun saveHamModeEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("hamModeEnabled", enabled).apply()
     }
-
-    fun isLocalModelEnabled(): Boolean = prefs.getBoolean("localModelEnabled", false)
 
     fun getEditorMode(): String = prefs.getString("editorMode", "richtext") ?: "richtext"
     fun saveEditorMode(mode: String) {

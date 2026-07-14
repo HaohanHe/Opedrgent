@@ -7,10 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,7 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,12 +59,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import top.hsyscn.opedrgent.ui.theme.*
 import top.hsyscn.opedrgent.utils.UserDisplayNameHelper
 import java.text.SimpleDateFormat
@@ -104,7 +107,6 @@ fun HomeDashboardScreen(
     onNavigateToKnowledge: () -> Unit = {},
     onNavigateToInterview: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
-    isLandscape: Boolean = false,
 ) {
     var recentNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var todayCount by remember { mutableStateOf(0) }
@@ -126,142 +128,137 @@ fun HomeDashboardScreen(
         vm.todayNoteCount.collect { todayCount = it }
     }
 
-    @Composable
-    fun PrimaryDashboardContent(modifier: Modifier = Modifier) {
-        LazyColumn(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
-        ) {
-            item {
-                GreetingHeader(onAvatarClick = { /* TODO: profile */ })
-            }
-
-            item {
-                SearchBar(onClick = onNavigateToSearch)
-            }
-
-            item {
-                AiAssistantCard(onTap = onNavigateToAi)
-            }
-
-            item {
-                StatsRow(
-                    todayCount = todayCount,
-                    kbCount = kbCount,
-                    aiCount = aiCount,
-                    onNotesClick = onNavigateToNotes,
-                    onKnowledgeClick = onNavigateToKnowledge,
-                    onAiClick = onNavigateToAi,
-                )
-            }
-
-            item {
-                FeatureDiscoveryGrid(
-                    onInterview = onNavigateToInterview,
-                    onEditorTeam = onOpenEditorTeam,
-                    onVoiceNotes = onNavigateToRecording,
-                    onSprout = onNavigateToNotes,
-                )
-            }
-
-            item {
-                QuickActionsRow(
-                    onNewNote = onNewNote,
-                    onVoiceRecord = onNavigateToRecording,
-                    onImportFile = { onOpenSubScreen("import") },
-                    onInsight = onNavigateToKnowledge,
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
-        }
-    }
-
     Scaffold(
         containerColor = themeBackgroundSecondary(),
     ) { innerPadding ->
-        val contentModifier = Modifier
-            .padding(innerPadding)
-            .padding(horizontal = SizeTokens.screenHorizontalPadding)
-
-        if (isLandscape) {
-            // 横屏/大屏：左右分栏，左侧功能入口，右侧最近笔记，充分利用屏幕空间
-            Row(modifier = Modifier.fillMaxSize()) {
-                PrimaryDashboardContent(
-                    modifier = contentModifier.weight(1f).fillMaxHeight(),
-                )
-                VerticalDivider(
-                    modifier = Modifier.fillMaxHeight(),
-                    thickness = SizeTokens.dividerThickness,
-                    color = themeBorder(),
-                )
-                Box(
-                    modifier = contentModifier
-                        .width(360.dp)
-                        .fillMaxHeight(),
+        // 响应式布局：Expanded 宽度使用双栏，其余宽度单列并限制最大宽度
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 1200.dp
+            isAtLeastMediumWidth() -> 840.dp
+            else -> Dp.Unspecified
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            if (isExpandedWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = contentMaxWidth)
+                        .padding(horizontal = SizeTokens.screenHorizontalPadding),
+                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
                 ) {
-                    RecentNotesSection(
-                        notes = recentNotes,
-                        onNoteClick = onNoteClick,
-                        onViewAll = onNavigateToNotes,
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = contentModifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
-            ) {
-                item {
-                    GreetingHeader(onAvatarClick = { /* TODO: profile */ })
-                }
+                    // 左栏：核心入口（问候、搜索、AI 助手、统计）
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(0.55f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+                    ) {
+                        item { GreetingHeader(onAvatarClick = { /* TODO: profile */ }) }
+                        item { SearchBar(onClick = onNavigateToSearch) }
+                        item { AiAssistantCard(onTap = onNavigateToAi) }
+                        item {
+                            StatsRow(
+                                todayCount = todayCount,
+                                kbCount = kbCount,
+                                aiCount = aiCount,
+                                onNotesClick = onNavigateToNotes,
+                                onKnowledgeClick = onNavigateToKnowledge,
+                                onAiClick = onNavigateToAi,
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
+                    }
 
-                item {
-                    SearchBar(onClick = onNavigateToSearch)
+                    // 右栏：功能发现、快捷操作、最近笔记
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(0.45f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+                    ) {
+                        item {
+                            FeatureDiscoveryGrid(
+                                onInterview = onNavigateToInterview,
+                                onEditorTeam = onOpenEditorTeam,
+                                onVoiceNotes = onNavigateToRecording,
+                                onSprout = onNavigateToNotes,
+                            )
+                        }
+                        item {
+                            QuickActionsRow(
+                                onNewNote = onNewNote,
+                                onVoiceRecord = onNavigateToRecording,
+                                onImportFile = { onOpenSubScreen("import") },
+                                onInsight = onNavigateToKnowledge,
+                            )
+                        }
+                        item {
+                            RecentNotesSection(
+                                notes = recentNotes,
+                                onNoteClick = onNoteClick,
+                                onViewAll = onNavigateToNotes,
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
+                    }
                 }
-
-                item {
-                    AiAssistantCard(onTap = onNavigateToAi)
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (contentMaxWidth != Dp.Unspecified) {
+                                Modifier.widthIn(max = contentMaxWidth)
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .padding(horizontal = SizeTokens.screenHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+                ) {
+                    item { GreetingHeader(onAvatarClick = { /* TODO: profile */ }) }
+                    item { SearchBar(onClick = onNavigateToSearch) }
+                    item { AiAssistantCard(onTap = onNavigateToAi) }
+                    item {
+                        StatsRow(
+                            todayCount = todayCount,
+                            kbCount = kbCount,
+                            aiCount = aiCount,
+                            onNotesClick = onNavigateToNotes,
+                            onKnowledgeClick = onNavigateToKnowledge,
+                            onAiClick = onNavigateToAi,
+                        )
+                    }
+                    item {
+                        FeatureDiscoveryGrid(
+                            onInterview = onNavigateToInterview,
+                            onEditorTeam = onOpenEditorTeam,
+                            onVoiceNotes = onNavigateToRecording,
+                            onSprout = onNavigateToNotes,
+                        )
+                    }
+                    item {
+                        QuickActionsRow(
+                            onNewNote = onNewNote,
+                            onVoiceRecord = onNavigateToRecording,
+                            onImportFile = { onOpenSubScreen("import") },
+                            onInsight = onNavigateToKnowledge,
+                        )
+                    }
+                    item {
+                        RecentNotesSection(
+                            notes = recentNotes,
+                            onNoteClick = onNoteClick,
+                            onViewAll = onNavigateToNotes,
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
                 }
-
-                item {
-                    StatsRow(
-                        todayCount = todayCount,
-                        kbCount = kbCount,
-                        aiCount = aiCount,
-                        onNotesClick = onNavigateToNotes,
-                        onKnowledgeClick = onNavigateToKnowledge,
-                        onAiClick = onNavigateToAi,
-                    )
-                }
-
-                item {
-                    FeatureDiscoveryGrid(
-                        onInterview = onNavigateToInterview,
-                        onEditorTeam = onOpenEditorTeam,
-                        onVoiceNotes = onNavigateToRecording,
-                        onSprout = onNavigateToNotes,
-                    )
-                }
-
-                item {
-                    QuickActionsRow(
-                        onNewNote = onNewNote,
-                        onVoiceRecord = onNavigateToRecording,
-                        onImportFile = { onOpenSubScreen("import") },
-                        onInsight = onNavigateToKnowledge,
-                    )
-                }
-
-                item {
-                    RecentNotesSection(
-                        notes = recentNotes,
-                        onNoteClick = onNoteClick,
-                        onViewAll = onNavigateToNotes,
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
             }
         }
     }

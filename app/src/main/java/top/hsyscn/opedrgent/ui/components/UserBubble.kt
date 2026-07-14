@@ -54,9 +54,14 @@ fun UserBubble(
     var showMenu by remember { mutableStateOf(false) }
     val feedback = LocalFeedbackController.current
 
-    // 读取父容器宽度，计算 75% 作为气泡宽度上限（保持内容自适应行为）
+    // 根据窗口宽度动态调整气泡宽度比例：大屏更窄，避免文字过长
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val maxBubbleWidth = maxWidth * 0.75f
+        val widthFraction = when (rememberWindowSizeInfo().widthSizeClass) {
+            androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Expanded -> 0.55f
+            androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Medium -> 0.65f
+            else -> 0.75f
+        }
+        val maxBubbleWidth = maxWidth * widthFraction
 
         Row(
             modifier = Modifier

@@ -58,6 +58,9 @@ import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.components.NoteDragHandle
+import top.hsyscn.opedrgent.ui.components.dragNoteSource
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import java.text.SimpleDateFormat
 import java.util.*
 import android.content.Intent
@@ -446,14 +449,21 @@ fun NoteListScreen(
         } // Box
     } // noteListContent lambda
 
-    // 根据屏幕方向选择布局
+    // 根据窗口宽度选择布局：Compact 单栏，Medium/Expanded 双栏
     if (isLandscape) {
+        val listWeight = if (isExpandedWidth()) 0.55f else 0.5f
+        val previewWeight = if (isExpandedWidth()) 0.45f else 0.5f
         Row(modifier = Modifier.fillMaxSize().background(themeBackgroundSecondary())) {
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Box(modifier = Modifier.weight(listWeight).fillMaxHeight()) {
                 noteListContent(Modifier.fillMaxSize())
             }
             VerticalDivider(thickness = SizeTokens.borderWidth, color = themeBackgroundMuted())
-            Box(modifier = Modifier.width(SizeTokens.previewPanelWidth).fillMaxHeight().background(themeBackgroundSecondary())) {
+            Box(
+                modifier = Modifier
+                    .weight(previewWeight)
+                    .fillMaxHeight()
+                    .background(themeBackgroundSecondary()),
+            ) {
                 if (previewNote != null) {
                     NotePreviewPanel(
                         note = previewNote!!,
@@ -1173,7 +1183,7 @@ private fun NoteCard(
                 }
             }
 
-            // 右侧 Chevron / 置顶标记
+            // 右侧拖拽手柄 + 置顶标记 + Chevron
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.SpaceBetween,
@@ -1187,6 +1197,8 @@ private fun NoteCard(
                         modifier = Modifier.size(SpacingTokens.lg),
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                NoteDragHandle(modifier = Modifier.dragNoteSource(note))
                 Spacer(Modifier.weight(1f))
                 Icon(
                     Icons.Default.ChevronRight,
