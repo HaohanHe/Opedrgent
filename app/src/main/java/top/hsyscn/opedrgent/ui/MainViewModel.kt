@@ -2928,7 +2928,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             system = system,
             messages = messages,
             tools = emptyList(),
-            deepThinkingEnabled = false,
+            deepThinkingEnabled = true,
             priorText = ctx.accumulatedText,
             priorReasoning = ctx.accumulatedReasoning,
             sessionId = ctx.sessionId,
