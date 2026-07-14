@@ -7,6 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
@@ -15,8 +16,6 @@ import top.hsyscn.opedrgent.tools.satellite.OrbitalData
 import top.hsyscn.opedrgent.tools.satellite.OrbitalObject
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.math.*
 
@@ -120,6 +119,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
     // ==================== action=list ====================
 
     private fun executeList(): String {
+        DebugLog.i("SatellitePassTool: action=list, ${satellites.size} satellites in DB")
         if (satellites.isEmpty()) {
             return "[ERROR] 业余卫星数据库为空"
         }
@@ -259,6 +259,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
      * 返回匹配卫星的名称、NORAD ID 和 TLE 两行数据，LLM 拿到后可传给 action=passes 计算过境。
      */
     private suspend fun executeSearch(satelliteQuery: String): String = withContext(Dispatchers.IO) {
+        DebugLog.i("SatellitePassTool: action=search, query='$satelliteQuery'")
         if (satelliteQuery.isBlank()) {
             return@withContext "[ERROR] search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
         }
@@ -320,11 +321,14 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
 
         val url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
         val fetched = runCatching {
-            val conn = URL(url).openConnection() as HttpURLConnection
-            conn.connectTimeout = 20000
-            conn.readTimeout = 30000 // active 列表较大，超时放宽
-            conn.setRequestProperty("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
-            conn.inputStream.bufferedReader().use { it.readText() }
+            // 使用 HttpClients.longRunning 复用连接池与超时分层配置（替代裸 HttpURLConnection）
+            val req = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
+                .build()
+            HttpClients.longRunning.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string() else null
+            }
         }.getOrNull()
 
         if (!fetched.isNullOrBlank()) {
@@ -402,11 +406,13 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
     private fun fetchTleFromSources(): String? {
         for (url in tleSources) {
             val result = runCatching {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
-                conn.setRequestProperty("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
-                conn.inputStream.bufferedReader().use { it.readText() }
+                val req = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
+                    .build()
+                HttpClients.longRunning.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) resp.body?.string() else null
+                }
             }.getOrNull()
 
             if (!result.isNullOrBlank()) {
@@ -705,18 +711,6 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
     }.getOrDefault(emptyList())
 
     // ==================== 工具方法 ====================
-
-    private fun errorResult(tp: ToolPart, msg: String): ToolResult {
-        return ToolResult(
-            toolPart = tp.copy(
-                state = tp.state.copy(
-                    status = ToolStateType.ERROR,
-                    error = msg,
-                    endTime = System.currentTimeMillis(),
-                ),
-            ),
-        )
-    }
 
     private fun Double.format(decimals: Int): String = String.format("%.${decimals}f", this)
 }

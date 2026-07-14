@@ -308,7 +308,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
     private val sourceFetcher = SourceFetcher(http)
-    private val llm = LlmClient(http)
+    private val llm = LlmClient(HttpClients.streaming)
     private val webSearcher = WebSearcher(http)
     private val webResearchRouter = WebResearchRouter(webSearcher, sourceFetcher)
     val asrManager by lazy { top.hsyscn.opedrgent.stt.AsrManager(app, apiSettings) }
@@ -708,8 +708,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // 先从卫星数据库找匹配卫星，预填充已知字段
         val satMatch = findSatelliteInText(transcript + "\n" + conversationContext)
         val preFilled = HamContactLog(
-            date = java.time.LocalDate.now().toString(),
-            gridLocator = apiSettings.getLastGridLocator() ?: "",
+            date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
+            gridLocator = apiSettings.getMyGridsquare().ifBlank { apiSettings.getLastGridLocator() ?: "" },
             satName = satMatch?.name ?: "",
             frequency = satMatch?.downlinkMHz ?: "",
             mode = satMatch?.modulation ?: "",
@@ -877,9 +877,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val file = File(exportsDir, "hamlog_${safeName}_${System.currentTimeMillis()}.adi")
         val adifContent = buildString {
             append(HamContactLog.ADIF_HEADER)
-            append(log.toAdifRecord())
+            append(log.toAdifRecord(
+                stationCallsign = apiSettings.getStationCallsign(),
+                myGridsquare = apiSettings.getMyGridsquare(),
+            ))
         }
         file.writeText(adifContent, Charsets.UTF_8)
+        file
+    }
+
+    /** Ham 模式：导出通联日志为 CSV 格式文件（备用格式，便于 Excel/日志软件导入） */
+    suspend fun exportContactLogCsv(log: HamContactLog): File = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        val exportsDir = File(app.filesDir, "exports").apply { mkdirs() }
+        val safeName = log.satName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]+"), "_").take(40).ifBlank { "contact" }
+        val file = File(exportsDir, "hamlog_${safeName}_${System.currentTimeMillis()}.csv")
+        val csvContent = buildString {
+            appendLine(HamContactLog.CSV_HEADER)
+            appendLine(log.toCsvRow())
+        }
+        file.writeText(csvContent, Charsets.UTF_8)
         file
     }
 
@@ -891,6 +908,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
         DebugLog.i("MainViewModel init")
+        // 同步用户配置的 thinking_budget 到 LlmClient（影响所有 thinking 模型的思维链长度上限）
+        LlmClient.thinkingBudget = apiSettings.getThinkingBudget()
 
         // Curator: 启动时非阻塞检查是否需要运行维护（空闲触发）
         viewModelScope.launch(Dispatchers.IO) {
@@ -4444,7 +4463,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         asrManager.close()
         sproutCache.clear()
         tts.shutdown()
-        DebugLog.i("MainViewModel: onCleared - STT/发芽资源已释放")
+        // 释放 ToolExecutor 持有的 WebViewAgent 及各工具内部资源，避免 Activity 销毁后 WebView 泄露
+        runCatching { toolExecutor.destroy() }
+            .onFailure { DebugLog.w("MainViewModel: toolExecutor.destroy() failed: ${it.message}") }
+        DebugLog.i("MainViewModel: onCleared - STT/发芽/工具资源已释放")
     }
 
     fun saveSettings(baseUrl: String, apiKey: String, model: String): Boolean {

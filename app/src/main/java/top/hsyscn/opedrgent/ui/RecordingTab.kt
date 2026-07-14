@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -1252,10 +1253,13 @@ fun RecordingTab(
     // ==================== 通联日志对话框 ====================
     var showContactLogDialog by remember { mutableStateOf(false) }
     var currentContactLog by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
+    // 编辑草稿独立于对话框生命周期：对话框关闭后草稿保留，可重新打开继续编辑（修复 dismiss 后状态丢失问题）
+    var editDraft by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
 
     LaunchedEffect(vm.contactLog) {
         if (vm.contactLog != null && vm.apiSettings.isHamModeEnabled()) {
             currentContactLog = vm.contactLog
+            editDraft = vm.contactLog
             showContactLogDialog = true
         }
     }
@@ -1279,98 +1283,156 @@ fun RecordingTab(
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconLg))
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text("正在生成通联日志…", color = themeTextGrey())
             }
         }
     }
 
-    if (showContactLogDialog && currentContactLog != null) {
-        val log = currentContactLog!!
-        // 可编辑字段状态
-        var satName by remember(log) { mutableStateOf(log.satName) }
-        var date by remember(log) { mutableStateOf(log.date) }
-        var timeOn by remember(log) { mutableStateOf(log.timeOn) }
-        var timeOff by remember(log) { mutableStateOf(log.timeOff) }
-        var callsign by remember(log) { mutableStateOf(log.callsign) }
-        var frequency by remember(log) { mutableStateOf(log.frequency) }
-        var mode by remember(log) { mutableStateOf(log.mode) }
-        var rstSent by remember(log) { mutableStateOf(log.rstSent) }
-        var rstReceived by remember(log) { mutableStateOf(log.rstReceived) }
-        var maxElevation by remember(log) { mutableStateOf(log.maxElevation) }
-        var notes by remember(log) { mutableStateOf(log.notes) }
-        var gridLocator by remember(log) { mutableStateOf(log.gridLocator) }
-        var noradId by remember(log) { mutableStateOf(log.noradId) }
-        var result by remember(log) { mutableStateOf(log.result) }
+    // 对话框关闭后，若仍有草稿，提供重新打开入口（修复 dismiss 后无法重开问题）
+    if (!showContactLogDialog && editDraft != null && vm.apiSettings.isHamModeEnabled()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
+            colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(SpacingTokens.sm)
+                    .clickable { showContactLogDialog = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Satellite,
+                    contentDescription = null,
+                    tint = AccentOrange,
+                    modifier = Modifier.size(SizeTokens.iconSm),
+                )
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text(
+                    text = "通联日志草稿（${editDraft?.satName?.takeIf { it.isNotBlank() } ?: "未命名"}）",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = themeTextDark(),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { showContactLogDialog = true }) {
+                    Text("查看/编辑")
+                }
+            }
+        }
+    }
 
-        val editedLog = HamContactLog(
-            satName = satName, date = date, timeOn = timeOn, timeOff = timeOff,
-            callsign = callsign, frequency = frequency, mode = mode,
-            rstSent = rstSent, rstReceived = rstReceived, maxElevation = maxElevation,
-            notes = notes, gridLocator = gridLocator, noradId = noradId, result = result,
-        )
+    if (showContactLogDialog && editDraft != null) {
+        val log = editDraft!!
+        val satMissing = log.satName.isBlank()
+        val dateMissing = log.date.isBlank()
 
         AlertDialog(
             onDismissRequest = { showContactLogDialog = false },
             title = { Text("通联日志") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    OutlinedTextField(value = satName, onValueChange = { satName = it }, label = { Text("卫星 *") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("日期 *") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = timeOn, onValueChange = { timeOn = it }, label = { Text("开始时间 (UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = timeOff, onValueChange = { timeOff = it }, label = { Text("结束时间 (UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = callsign, onValueChange = { callsign = it }, label = { Text("对方呼号") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = frequency, onValueChange = { frequency = it }, label = { Text("频率 MHz") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = mode, onValueChange = { mode = it }, label = { Text("调制方式") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = rstSent, onValueChange = { rstSent = it }, label = { Text("发射报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = rstReceived, onValueChange = { rstReceived = it }, label = { Text("接收报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = maxElevation, onValueChange = { maxElevation = it }, label = { Text("最大仰角") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = result, onValueChange = { result = it }, label = { Text("通联结果") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = gridLocator, onValueChange = { gridLocator = it }, label = { Text("QTH网格") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = noradId, onValueChange = { noradId = it }, label = { Text("NORAD ID") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.satName, onValueChange = { editDraft = log.copy(satName = it) }, label = { Text("卫星 *") }, isError = satMissing, supportingText = if (satMissing) { { Text("必填") } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.date, onValueChange = { editDraft = log.copy(date = it) }, label = { Text("日期 * (YYYY-MM-DD, UTC)") }, isError = dateMissing, supportingText = if (dateMissing) { { Text("必填") } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.timeOn, onValueChange = { editDraft = log.copy(timeOn = it) }, label = { Text("开始时间 (HHMMSS, UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.timeOff, onValueChange = { editDraft = log.copy(timeOff = it) }, label = { Text("结束时间 (HHMMSS, UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.callsign, onValueChange = { editDraft = log.copy(callsign = it) }, label = { Text("对方呼号") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.frequency, onValueChange = { editDraft = log.copy(frequency = it) }, label = { Text("频率 MHz") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.mode, onValueChange = { editDraft = log.copy(mode = it) }, label = { Text("调制方式") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.rstSent, onValueChange = { editDraft = log.copy(rstSent = it) }, label = { Text("发射报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.rstReceived, onValueChange = { editDraft = log.copy(rstReceived = it) }, label = { Text("接收报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.maxElevation, onValueChange = { editDraft = log.copy(maxElevation = it) }, label = { Text("最大仰角") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.result, onValueChange = { editDraft = log.copy(result = it) }, label = { Text("通联结果 (OK/PARTIAL/NO)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.gridLocator, onValueChange = { editDraft = log.copy(gridLocator = it) }, label = { Text("QTH网格") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.notes, onValueChange = { editDraft = log.copy(notes = it) }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.noradId, onValueChange = { editDraft = log.copy(noradId = it) }, label = { Text("NORAD ID") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                 }
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     OutlinedButton(onClick = {
                         scope.launch {
-                            val file = vm.exportContactLog(editedLog)
-                            top.hsyscn.opedrgent.ui.shareFile(
-                                context, vm.getPackageNameForShare(context), file, "text/plain",
+                            runCatching {
+                                val file = vm.exportContactLog(log)
+                                top.hsyscn.opedrgent.ui.shareFile(
+                                    context, vm.getPackageNameForShare(context), file, "text/plain",
+                                )
+                            }.fold(
+                                onSuccess = {
+                                    showContactLogDialog = false
+                                    snackbar.showSnackbar("ADIF 已导出")
+                                },
+                                onFailure = { e ->
+                                    DebugLog.e("RecordingTab", "ADIF 导出失败: ${e.message}", e)
+                                    snackbar.showSnackbar("ADIF 导出失败: ${e.message ?: "未知错误"}")
+                                },
                             )
                         }
-                        showContactLogDialog = false
                     }) {
                         Text("ADIF")
                     }
-                    Button(onClick = {
+                    OutlinedButton(onClick = {
                         scope.launch {
-                            vm.createNoteFromText(
-                                title = "通联日志 ${editedLog.satName} ${editedLog.date}",
-                                content = buildString {
-                                    appendLine("## 通联日志")
-                                    if (editedLog.satName.isNotBlank()) appendLine("- 卫星: ${editedLog.satName}")
-                                    if (editedLog.date.isNotBlank()) appendLine("- 日期: ${editedLog.date}")
-                                    if (editedLog.timeOn.isNotBlank()) appendLine("- 开始: ${editedLog.timeOn}")
-                                    if (editedLog.timeOff.isNotBlank()) appendLine("- 结束: ${editedLog.timeOff}")
-                                    if (editedLog.callsign.isNotBlank()) appendLine("- 对方呼号: ${editedLog.callsign}")
-                                    if (editedLog.frequency.isNotBlank()) appendLine("- 频率: ${editedLog.frequency} MHz")
-                                    if (editedLog.mode.isNotBlank()) appendLine("- 模式: ${editedLog.mode}")
-                                    if (editedLog.rstSent.isNotBlank()) appendLine("- 发射报告: ${editedLog.rstSent}")
-                                    if (editedLog.rstReceived.isNotBlank()) appendLine("- 接收报告: ${editedLog.rstReceived}")
-                                    if (editedLog.maxElevation.isNotBlank()) appendLine("- 最大仰角: ${editedLog.maxElevation}°")
-                                    if (editedLog.result.isNotBlank()) appendLine("- 结果: ${editedLog.result}")
-                                    if (editedLog.gridLocator.isNotBlank()) appendLine("- QTH网格: ${editedLog.gridLocator}")
-                                    if (editedLog.notes.isNotBlank()) appendLine("- 备注: ${editedLog.notes}")
-                                    if (editedLog.noradId.isNotBlank()) appendLine("- NORAD ID: ${editedLog.noradId}")
-                                }.trimEnd(),
+                            runCatching {
+                                val file = vm.exportContactLogCsv(log)
+                                top.hsyscn.opedrgent.ui.shareFile(
+                                    context, vm.getPackageNameForShare(context), file, "text/csv",
+                                )
+                            }.fold(
+                                onSuccess = {
+                                    showContactLogDialog = false
+                                    snackbar.showSnackbar("CSV 已导出")
+                                },
+                                onFailure = { e ->
+                                    DebugLog.e("RecordingTab", "CSV 导出失败: ${e.message}", e)
+                                    snackbar.showSnackbar("CSV 导出失败: ${e.message ?: "未知错误"}")
+                                },
                             )
                         }
-                        showContactLogDialog = false
-                        scope.launch { snackbar.showSnackbar("已保存为笔记") }
                     }) {
+                        Text("CSV")
+                    }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    vm.createNoteFromText(
+                                        title = "通联日志 ${log.satName} ${log.date}",
+                                        content = buildString {
+                                            appendLine("## 通联日志")
+                                            if (log.satName.isNotBlank()) appendLine("- 卫星: ${log.satName}")
+                                            if (log.date.isNotBlank()) appendLine("- 日期: ${log.date}")
+                                            if (log.timeOn.isNotBlank()) appendLine("- 开始: ${log.timeOn}")
+                                            if (log.timeOff.isNotBlank()) appendLine("- 结束: ${log.timeOff}")
+                                            if (log.callsign.isNotBlank()) appendLine("- 对方呼号: ${log.callsign}")
+                                            if (log.frequency.isNotBlank()) appendLine("- 频率: ${log.frequency} MHz")
+                                            if (log.mode.isNotBlank()) appendLine("- 模式: ${log.mode}")
+                                            if (log.rstSent.isNotBlank()) appendLine("- 发射报告: ${log.rstSent}")
+                                            if (log.rstReceived.isNotBlank()) appendLine("- 接收报告: ${log.rstReceived}")
+                                            if (log.maxElevation.isNotBlank()) appendLine("- 最大仰角: ${log.maxElevation}°")
+                                            if (log.result.isNotBlank()) appendLine("- 结果: ${top.hsyscn.opedrgent.model.HamContactLog.normalizeResult(log.result)}")
+                                            if (log.gridLocator.isNotBlank()) appendLine("- QTH网格: ${log.gridLocator}")
+                                            if (log.notes.isNotBlank()) appendLine("- 备注: ${log.notes}")
+                                            if (log.noradId.isNotBlank()) appendLine("- NORAD ID: ${log.noradId}")
+                                        }.trimEnd(),
+                                    )
+                                }.fold(
+                                    onSuccess = {
+                                        showContactLogDialog = false
+                                        snackbar.showSnackbar("已保存为笔记")
+                                    },
+                                    onFailure = { e ->
+                                        DebugLog.e("RecordingTab", "保存笔记失败: ${e.message}", e)
+                                        snackbar.showSnackbar("保存失败: ${e.message ?: "未知错误"}")
+                                    },
+                                )
+                            }
+                        },
+                        enabled = !satMissing && !dateMissing,
+                    ) {
                         Text("保存")
                     }
                 }
