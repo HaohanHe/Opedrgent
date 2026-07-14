@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Satellite
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
@@ -1054,6 +1055,7 @@ fun RecordingTab(
                                     selectedMode = recordingMode,
                                     capturedPhotos = capturedPhotos,
                                     identifiedSpeakerName = identifiedSpeakerName,
+                                    hamModeEnabled = vm.apiSettings.isHamModeEnabled(),
                                     onCopy = {
                                         clipboard.setText(AnnotatedString(result.fullText))
                                         scope.launch { snackbar.showSnackbar("已复制") }
@@ -1074,10 +1076,13 @@ fun RecordingTab(
                                         vm.sendUserMessage(structuredPrompt)
                                         scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_sent_to_ai)) }
                                     },
+                                    onConvertToContactLog = {
+                                        vm.requestContactLog(result.fullText)
+                                        scope.launch { snackbar.showSnackbar("正在生成通联日志…") }
+                                    },
                                     onDiscardAutoSave = {
                                         scope.launch {
                                             vm.deleteNote(autoSavedNoteId)
-                                            autoSaved = false
                                             autoSavedNoteId = 0L
                                             savedToNote = false
                                             snackbar.showSnackbar(context.getString(R.string.msg_save_undone))
@@ -1180,6 +1185,100 @@ fun RecordingTab(
                 )
             }
         }
+    }
+
+    // ==================== 通联日志对话框 ====================
+    var showContactLogDialog by remember { mutableStateOf(false) }
+    var currentContactLog by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
+
+    // 观察 ViewModel 中的 contactLog 变化
+    LaunchedEffect(vm.contactLog) {
+        if (vm.contactLog != null && vm.apiSettings.isHamModeEnabled()) {
+            currentContactLog = vm.contactLog
+            showContactLogDialog = true
+        }
+    }
+
+    if (showContactLogDialog && currentContactLog != null) {
+        val log = currentContactLog!!
+        AlertDialog(
+            onDismissRequest = { showContactLogDialog = false },
+            title = { Text("通联日志") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    log.run {
+                        if (satName.isNotBlank()) LabeledField("卫星", satName)
+                        if (date.isNotBlank()) LabeledField("日期", date)
+                        if (timeOn.isNotBlank()) LabeledField("开始时间", timeOn)
+                        if (timeOff.isNotBlank()) LabeledField("结束时间", timeOff)
+                        if (frequency.isNotBlank()) LabeledField("频率", frequency)
+                        if (mode.isNotBlank()) LabeledField("模式", mode)
+                        if (rstSent.isNotBlank()) LabeledField("发射报告", rstSent)
+                        if (rstReceived.isNotBlank()) LabeledField("接收报告", rstReceived)
+                        if (maxElevation.isNotBlank()) LabeledField("最大仰角", "${maxElevation}°")
+                        if (notes.isNotBlank()) LabeledField("备注", notes)
+                        if (noradId.isNotBlank()) LabeledField("NORAD ID", noradId)
+                        if (gridLocator.isNotBlank()) LabeledField("网格", gridLocator)
+                        if (result.isNotBlank()) LabeledField("结果", result)
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                    OutlinedButton(onClick = {
+                        // TODO: 下载 CSV
+                        showContactLogDialog = false
+                    }) {
+                        Text("CSV")
+                    }
+                    Button(onClick = {
+                        scope.launch {
+                            vm.createNoteFromText(
+                                title = "通联日志 ${log.satName} ${log.date}",
+                                content = buildString {
+                                    appendLine("## 通联日志")
+                                    log.run {
+                                        if (satName.isNotBlank()) appendLine("- 卫星: $satName")
+                                        if (date.isNotBlank()) appendLine("- 日期: $date")
+                                        if (timeOn.isNotBlank()) appendLine("- 开始: $timeOn")
+                                        if (timeOff.isNotBlank()) appendLine("- 结束: $timeOff")
+                                        if (frequency.isNotBlank()) appendLine("- 频率: $frequency MHz")
+                                        if (mode.isNotBlank()) appendLine("- 模式: $mode")
+                                        if (rstSent.isNotBlank()) appendLine("- 发射报告: $rstSent")
+                                        if (rstReceived.isNotBlank()) appendLine("- 接收报告: $rstReceived")
+                                        if (maxElevation.isNotBlank()) appendLine("- 最大仰角: ${maxElevation}°")
+                                        if (notes.isNotBlank()) appendLine("- 备注: $notes")
+                                        if (noradId.isNotBlank()) appendLine("- NORAD ID: $noradId")
+                                        if (gridLocator.isNotBlank()) appendLine("- 网格: $gridLocator")
+                                        if (result.isNotBlank()) appendLine("- 结果: $result")
+                                    }
+                                }.trimEnd(),
+                            )
+                        }
+                        showContactLogDialog = false
+                        scope.launch { snackbar.showSnackbar("已保存为笔记") }
+                    }) {
+                        Text("保存")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showContactLogDialog = false }) {
+                    Text("关闭")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun LabeledField(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = themeTextDark())
     }
 }
 
@@ -1669,10 +1768,12 @@ private fun TranscriptResultCard(
     selectedMode: RecordingMode,
     capturedPhotos: List<CapturedPhoto>,
     identifiedSpeakerName: String? = null,
+    hamModeEnabled: Boolean = false,
     onCopy: () -> Unit,
     onNavigateToNotes: () -> Unit,
     onSave: () -> Unit,
     onAiSummary: () -> Unit,
+    onConvertToContactLog: () -> Unit,
     onDiscardAutoSave: () -> Unit,
     onContinueRecording: () -> Unit,
 ) {
@@ -1878,6 +1979,21 @@ private fun TranscriptResultCard(
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
+                }
+            }
+
+            // ★ Ham 模式：通联日志按钮
+            if (hamModeEnabled) {
+                Spacer(Modifier.height(SpacingTokens.md))
+                Button(
+                    onClick = onConvertToContactLog,
+                    shape = ShapeTokens.mediumShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                ) {
+                    Icon(Icons.Default.Satellite, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(SpacingTokens.sm))
+                    Text("转成通联日志", fontWeight = FontWeight.Medium)
                 }
             }
 
