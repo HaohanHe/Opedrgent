@@ -394,6 +394,27 @@ class ApiSettings(private val context: Context) {
         prefs.edit().putBoolean("hamModeEnabled", enabled).apply()
     }
 
+    /** 本台呼号（ADIF STATION_CALLSIGN）。Ham 模式下用于每条 QSO 记录。 */
+    fun getStationCallsign(): String = prefs.getString("hamStationCallsign", "")?.trim() ?: ""
+    fun saveStationCallsign(callsign: String) {
+        prefs.edit().putString("hamStationCallsign", callsign.trim().uppercase()).apply()
+    }
+
+    /** 本台 QTH 梅登海格网格（ADIF MY_GRIDSQUARE，如 PM01ab）。 */
+    fun getMyGridsquare(): String = prefs.getString("hamMyGridsquare", "")?.trim() ?: ""
+    fun saveMyGridsquare(grid: String) {
+        prefs.edit().putString("hamMyGridsquare", grid.trim().uppercase()).apply()
+    }
+
+    /**
+     * Thinking 模型思维链 token 预算（SiliconFlow enable_thinking 的 thinking_budget）。
+     * 默认 4096，可在设置中调整。0 表示不限制（由模型默认值决定）。
+     */
+    fun getThinkingBudget(): Int = prefs.getInt("thinkingBudget", 4096).coerceIn(0, 32768)
+    fun saveThinkingBudget(budget: Int) {
+        prefs.edit().putInt("thinkingBudget", budget.coerceIn(0, 32768)).apply()
+    }
+
     fun getEditorMode(): String = prefs.getString("editorMode", "richtext") ?: "richtext"
     fun saveEditorMode(mode: String) {
         prefs.edit().putString("editorMode", mode).apply()

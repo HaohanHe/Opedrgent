@@ -586,7 +586,7 @@ class ToolExecutor(
         return regex.find(message)?.groupValues?.get(1)?.toIntOrNull()
     }
 
-    @Deprecated("内部辅助方法，已迁移到ToolSet")
+    /** Fallback：未注册工具的错误响应。仍在 [executeBody] 末尾作为兜底使用，非废弃方法。 */
     private fun unknownTool(tp: ToolPart): ToolResult {
         DebugLog.w("Unknown tool: ${tp.tool}")
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "未知工具：${tp.tool}", endTime = System.currentTimeMillis())))
