@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -124,6 +125,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -163,6 +165,9 @@ import top.hsyscn.opedrgent.ui.theme.themeActionItemBg
 import top.hsyscn.opedrgent.ui.theme.CoralRed
 import top.hsyscn.opedrgent.ui.theme.CoralLight
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
+import top.hsyscn.opedrgent.ui.components.isLandscape
 
 private val SelectedBorder = CoralRed
 
@@ -408,8 +413,6 @@ fun RecordingTab(
             savedToNote = vm.savedToNote
         }
     }
-
-    // 状态变化时同步回 ViewModel
     LaunchedEffect(recordingState) { vm.recordingState = recordingState }
     LaunchedEffect(recordingMode) { vm.recordingMode = recordingMode }
     LaunchedEffect(transcriptResult) { vm.transcriptResult = transcriptResult }
@@ -456,8 +459,8 @@ fun RecordingTab(
         startTime.value = System.currentTimeMillis()
 
         // 启动流式识别
-        val isBatchMode = vm.getSttStreamingMode() == "batch"
         val isStreamingModelSelected = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
+        val isBatchMode = !isStreamingModelSelected && vm.getSttStreamingMode() == "batch"
         if (!isBatchMode) {
             scope.launch {
                 try {
@@ -813,11 +816,26 @@ fun RecordingTab(
         containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 980.dp
+            isAtLeastMediumWidth() -> 760.dp
+            else -> Dp.Unspecified
+        }
         Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            Box(
+                modifier = Modifier.then(
+                    if (contentMaxWidth != Dp.Unspecified) {
+                        Modifier.widthIn(max = contentMaxWidth)
+                    } else {
+                        Modifier
+                    }
+                ),
+            ) {
             when {
                 // ==================== 录音中 / 暂停 ====================
                 recordingState == RecordingState.RECORDING || recordingState == RecordingState.PAUSED -> {
@@ -1031,24 +1049,40 @@ fun RecordingTab(
 
                 // ==================== 完成，显示结果 ====================
                 recordingState == RecordingState.DONE -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
+                    val doneMaxWidth = when {
+                        isExpandedWidth() -> 840.dp
+                        isAtLeastMediumWidth() -> 720.dp
+                        else -> Dp.Unspecified
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopCenter,
                     ) {
-                        // 顶部标题
-                        Text(
-                        text = stringResource(R.string.recording_title),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.headlineLarge,
-                        modifier = Modifier.padding(start = SpacingTokens.xl, top = SpacingTokens.lg, bottom = SpacingTokens.sm),
-                    )
-
-                        // 模式标签
-                        Row(
-                            modifier = Modifier.padding(horizontal = SpacingTokens.xl),
-                            verticalAlignment = Alignment.CenterVertically,
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .then(
+                                    if (doneMaxWidth != Dp.Unspecified) {
+                                        Modifier.widthIn(max = doneMaxWidth)
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
                         ) {
+                            // 顶部标题
+                            Text(
+                                text = stringResource(R.string.recording_title),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.headlineLarge,
+                                modifier = Modifier.padding(start = SpacingTokens.xl, top = SpacingTokens.lg, bottom = SpacingTokens.sm),
+                            )
+
+                            // 模式标签
+                            Row(
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xl),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                             Icon(
                                 imageVector = recordingMode.icon,
                                 contentDescription = null, // 装饰性图标，文本已说明
@@ -1106,6 +1140,7 @@ fun RecordingTab(
                                     onDiscardAutoSave = {
                                         scope.launch {
                                             vm.deleteNote(autoSavedNoteId)
+                                            autoSaved = false
                                             autoSavedNoteId = 0L
                                             savedToNote = false
                                             snackbar.showSnackbar(context.getString(R.string.msg_save_undone))
@@ -1130,6 +1165,7 @@ fun RecordingTab(
                         }
 
                         Spacer(Modifier.height(SpacingTokens.xl))
+                        }
                     }
                 }
 
@@ -1207,6 +1243,7 @@ fun RecordingTab(
                         .align(Alignment.Center),
                 )
             }
+            }
         }
     }
 
@@ -1214,7 +1251,6 @@ fun RecordingTab(
     var showContactLogDialog by remember { mutableStateOf(false) }
     var currentContactLog by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
 
-    // 观察 ViewModel 中的 contactLog 变化
     LaunchedEffect(vm.contactLog) {
         if (vm.contactLog != null && vm.apiSettings.isHamModeEnabled()) {
             currentContactLog = vm.contactLog
@@ -1222,24 +1258,20 @@ fun RecordingTab(
         }
     }
 
-    // 通联日志生成结果提示
     var lastGenRequest by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) { lastGenRequest = System.currentTimeMillis() }
     LaunchedEffect(vm.isGeneratingContactLog) {
         if (vm.isGeneratingContactLog) {
             lastGenRequest = System.currentTimeMillis()
         } else {
-            // 生成完成
             val elapsed = System.currentTimeMillis() - lastGenRequest
             if (elapsed > 1000 && vm.contactLog == null) {
-                // 超过1秒但结果为空 = 失败
                 scope.launch { snackbar.showSnackbar("通联日志生成失败，请重试") }
             }
         }
     }
 
-    // 通联日志生成中提示
-    if (vm.isGeneratingContactLog && showContactLogDialog == false) {
+    if (vm.isGeneratingContactLog && !showContactLogDialog) {
         Box(
             modifier = Modifier.fillMaxWidth().padding(SpacingTokens.md),
             contentAlignment = Alignment.Center,
@@ -1355,48 +1387,68 @@ private fun IdleModeSelection(
     isSttEnabled: Boolean,
     onSttDisabled: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = SpacingTokens.xl),
-    ) {
-        Spacer(Modifier.height(SpacingTokens.xl))
+    val landscape = isLandscape()
+    val isMediumOrExpanded = isAtLeastMediumWidth()
+
+    val titleSection: @Composable () -> Unit = {
         Text(
-                        text = stringResource(R.string.recording_select_mode),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = themeTextDark(),
-                    )
-                    Spacer(Modifier.height(SpacingTokens.xs))
-                    Text(
-                        text = stringResource(R.string.recording_select_mode_desc),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = themeTextGrey(),
-                    )
-        Spacer(Modifier.height(SpacingTokens.xl))
-
-        // 模式卡片
-        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
-            ModeCard(
-                vm = vm,
-                mode = RecordingMode.RECORDING,
-                isSelected = selectedMode == RecordingMode.RECORDING,
-                onClick = { onModeSelected(RecordingMode.RECORDING) },
-                modifier = Modifier.weight(1f),
-            )
-            ModeCard(
-                vm = vm,
-                mode = RecordingMode.INTERNAL,
-                isSelected = selectedMode == RecordingMode.INTERNAL,
-                onClick = { onModeSelected(RecordingMode.INTERNAL) },
-                modifier = Modifier.weight(1f),
-            )
+            text = stringResource(R.string.recording_select_mode),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineLarge,
+            color = themeTextDark(),
+        )
+        Spacer(Modifier.height(SpacingTokens.xs))
+        Text(
+            text = stringResource(R.string.recording_select_mode_desc),
+            style = MaterialTheme.typography.bodyLarge,
+            color = themeTextGrey(),
+        )
+    }
+    val modeCardsSection: @Composable () -> Unit = {
+        if (landscape && isMediumOrExpanded) {
+            // 横屏大屏：卡片垂直堆叠，避免两个大方块并排成“鼻孔”。
+            Column(
+                modifier = Modifier.widthIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+            ) {
+                ModeCard(
+                    vm = vm,
+                    mode = RecordingMode.RECORDING,
+                    isSelected = selectedMode == RecordingMode.RECORDING,
+                    onClick = { onModeSelected(RecordingMode.RECORDING) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ModeCard(
+                    vm = vm,
+                    mode = RecordingMode.INTERNAL,
+                    isSelected = selectedMode == RecordingMode.INTERNAL,
+                    onClick = { onModeSelected(RecordingMode.INTERNAL) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md, Alignment.CenterHorizontally),
+            ) {
+                ModeCard(
+                    vm = vm,
+                    mode = RecordingMode.RECORDING,
+                    isSelected = selectedMode == RecordingMode.RECORDING,
+                    onClick = { onModeSelected(RecordingMode.RECORDING) },
+                    modifier = Modifier.weight(1f),
+                )
+                ModeCard(
+                    vm = vm,
+                    mode = RecordingMode.INTERNAL,
+                    isSelected = selectedMode == RecordingMode.INTERNAL,
+                    onClick = { onModeSelected(RecordingMode.INTERNAL) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-
-        Spacer(Modifier.weight(1f))
-
-        // 底部大录音按钮
+    }
+    val controlsSection: @Composable () -> Unit = {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1416,11 +1468,11 @@ private fun IdleModeSelection(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.cd_start_recording),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(36.dp),
-                    )
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = stringResource(R.string.cd_start_recording),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(36.dp),
+                )
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             Text(
@@ -1430,7 +1482,6 @@ private fun IdleModeSelection(
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
 
-            // 导入音视频按钮
             OutlinedButton(
                 onClick = {
                     if (isSttEnabled) {
@@ -1441,10 +1492,40 @@ private fun IdleModeSelection(
                 },
                 modifier = Modifier.padding(bottom = SpacingTokens.xxl),
             ) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text("导入音视频", style = MaterialTheme.typography.bodyLarge)
             }
+        }
+    }
+
+    if (landscape && isMediumOrExpanded) {
+        // 横屏大屏：整体按居中单列排布，卡片垂直堆叠，彻底消灭左右大方块。
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = SpacingTokens.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl, Alignment.CenterVertically),
+        ) {
+            titleSection()
+            modeCardsSection()
+            controlsSection()
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = SpacingTokens.xl),
+        ) {
+            Spacer(Modifier.height(SpacingTokens.xl))
+            titleSection()
+            Spacer(Modifier.height(SpacingTokens.xl))
+            modeCardsSection()
+            Spacer(Modifier.weight(1f))
+            controlsSection()
         }
     }
 }
@@ -1459,9 +1540,16 @@ private fun ModeCard(
 ) {
     val borderColor = if (isSelected) SelectedBorder else Color.Transparent
     val bgColor = if (isSelected) themeCoralLight() else MaterialTheme.colorScheme.surface
+    val landscape = isLandscape()
     Card(
         modifier = modifier
-            .aspectRatio(1.25f)
+            .then(
+                if (landscape) {
+                    Modifier.heightIn(min = 120.dp, max = 148.dp)
+                } else {
+                    Modifier.aspectRatio(1.25f)
+                },
+            )
             .border(2.dp, borderColor, ShapeTokens.largeShape)
             .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select), onClick = onClick),
         shape = ShapeTokens.largeShape,
@@ -1523,12 +1611,10 @@ private fun RecordingScreen(
         String.format("%02d:%02d", m, s)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = SpacingTokens.lg),
-    ) {
-        // 顶部模式标签
+    val landscape = isLandscape()
+    val isMediumOrExpanded = isAtLeastMediumWidth()
+
+    val modeInfoBar: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1556,12 +1642,11 @@ private fun RecordingScreen(
                 color = themeTextGrey(),
             )
         }
+    }
 
-        // 实时转录区域
+    val transcriptCard: @Composable (Modifier) -> Unit = { cardModifier ->
         Card(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = cardModifier,
             shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1601,10 +1686,9 @@ private fun RecordingScreen(
                 }
             }
         }
+    }
 
-        Spacer(Modifier.height(SpacingTokens.lg))
-
-        // 计时器 + 波形
+    val timerAndWave: @Composable () -> Unit = {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1618,10 +1702,9 @@ private fun RecordingScreen(
             Spacer(Modifier.height(SpacingTokens.sm))
             WaveformBars(amplitude = amplitude, isRecording = state == RecordingState.RECORDING, color = CoralRed)
         }
+    }
 
-        Spacer(Modifier.height(SpacingTokens.lg))
-
-        // 控制按钮行：取消 [大圆按钮] 完成
+    val controlButtons: @Composable () -> Unit = {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -1693,10 +1776,9 @@ private fun RecordingScreen(
                 Text(stringResource(R.string.action_done), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
         }
+    }
 
-        Spacer(Modifier.height(SpacingTokens.md))
-
-        // 底部工具行
+    val toolRow: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1718,6 +1800,56 @@ private fun RecordingScreen(
                     snackbarHostState.showSnackbar(context.getString(R.string.msg_note_point_added))
                 }
             })
+        }
+    }
+
+    if (landscape && isMediumOrExpanded) {
+        // 横屏大屏：左侧实时转录，右侧固定宽度控制面板，避免元素被横向拉伸。
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = SpacingTokens.lg),
+            horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xl, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                modeInfoBar()
+                Spacer(Modifier.height(SpacingTokens.md))
+                Box(modifier = Modifier.weight(1f)) {
+                    transcriptCard(Modifier.fillMaxSize())
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 260.dp, max = 340.dp)
+                    .fillMaxHeight()
+                    .padding(vertical = SpacingTokens.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                timerAndWave()
+                controlButtons()
+                toolRow()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = SpacingTokens.lg),
+        ) {
+            modeInfoBar()
+            transcriptCard(Modifier.weight(1f).fillMaxWidth())
+            Spacer(Modifier.height(SpacingTokens.lg))
+            timerAndWave()
+            Spacer(Modifier.height(SpacingTokens.lg))
+            controlButtons()
+            Spacer(Modifier.height(SpacingTokens.md))
+            toolRow()
         }
     }
 }

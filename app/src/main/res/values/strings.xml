@@ -120,6 +120,13 @@
     <string name="settings_local_model">本地模型</string>
     <string name="settings_advanced">高级设置</string>
     <string name="settings_about">关于</string>
+    <string name="settings_section_model">模型配置</string>
+    <string name="settings_section_voice">语音设置</string>
+    <string name="settings_section_memory">知识与记忆</string>
+    <string name="settings_section_features">功能</string>
+    <string name="settings_section_import_export">导入导出</string>
+    <string name="settings_section_about">关于</string>
+    <string name="settings_save_settings">保存设置</string>
 
     <!-- Note types -->
     <string name="note_type_text">文本</string>
@@ -427,6 +434,9 @@
     <string name="note_editor_saved_ago">已保存 %s</string>
     <string name="note_editor_word_count">%d 字</string>
     <string name="note_editor_reading_minutes">阅读约 %d 分钟</string>
+    <string name="note_editor_image_inserted">图片已插入</string>
+    <string name="note_editor_image_insert_failed">插入图片失败: %s</string>
+    <string name="cd_drag_handle">拖拽分享</string>
     <string name="note_editor_core_insight">核心洞察</string>
     <string name="note_editor_action_suggestion">行动建议</string>
     <string name="note_editor_related_concepts">相关概念</string>

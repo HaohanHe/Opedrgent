@@ -25,6 +25,7 @@ object SizeTokens {
     val folderItemHeight = 60.dp
     val folderGridMaxHeight = 120.dp
     val previewPanelWidth = 400.dp
+    val settingsDrawerWidth = 220.dp
     val textFieldWidthSm = 100.dp
 
     // 知识图谱节点尺寸

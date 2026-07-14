@@ -28,6 +28,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -106,8 +107,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
@@ -128,6 +131,9 @@ import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
 import top.hsyscn.opedrgent.ui.collectAsStateCompat
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
+import top.hsyscn.opedrgent.ui.components.rememberWindowSizeInfo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -208,13 +214,30 @@ private fun InterviewSetupScreen(
         containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 840.dp
+            isAtLeastMediumWidth() -> 640.dp
+            else -> Dp.Unspecified
+        }
+        Box(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxSize()
-                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
-            verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (contentMaxWidth != Dp.Unspecified) {
+                            Modifier.widthIn(max = contentMaxWidth)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+            ) {
             Text(
                 text = "选择面试模式，直接开始对话",
                 fontWeight = FontWeight.SemiBold,
@@ -294,6 +317,7 @@ private fun InterviewSetupScreen(
                         Text("开始自定义场景", fontWeight = FontWeight.SemiBold)
                     }
                 }
+            }
             }
         }
     }
@@ -845,11 +869,28 @@ private fun InterviewSessionScreen(
         containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 900.dp
+            isAtLeastMediumWidth() -> 720.dp
+            else -> Dp.Unspecified
+        }
+        Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (contentMaxWidth != Dp.Unspecified) {
+                            Modifier.widthIn(max = contentMaxWidth)
+                        } else {
+                            Modifier
+                        }
+                    ),
+            ) {
             // ── 进度条 ──
             if (config != null && interviewState.questionCount > 0) {
                 LinearProgressIndicator(
@@ -927,6 +968,7 @@ private fun InterviewSessionScreen(
                     onShowTextInput = { showTextInput = true },
                 )
             }
+        }
         }
     }
 
@@ -1101,35 +1143,42 @@ private fun InterviewBubble(message: DialogueTurn) {
             }
         }
 
-        // 消息气泡
-        Box(
-            modifier = Modifier
-                .widthIn(max = 280.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = if (isInterviewer) ShapeTokens.extraSmall else ShapeTokens.large,
-                        topEnd = if (isInterviewer) ShapeTokens.large else ShapeTokens.extraSmall,
-                        bottomStart = ShapeTokens.large,
-                        bottomEnd = ShapeTokens.large,
+        // 消息气泡：根据窗口宽度动态限制最大宽度
+        val bubbleWidthFraction = when (rememberWindowSizeInfo().widthSizeClass) {
+            WindowWidthSizeClass.Expanded -> 0.45f
+            WindowWidthSizeClass.Medium -> 0.55f
+            else -> 0.75f
+        }
+        BoxWithConstraints {
+            val maxBubbleWidth = maxWidth * bubbleWidthFraction
+            Box(
+                modifier = Modifier
+                    .widthIn(max = maxBubbleWidth)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = if (isInterviewer) ShapeTokens.extraSmall else ShapeTokens.large,
+                            topEnd = if (isInterviewer) ShapeTokens.large else ShapeTokens.extraSmall,
+                            bottomStart = ShapeTokens.large,
+                            bottomEnd = ShapeTokens.large,
+                        )
                     )
-                )
-                .background(
-                    if (isInterviewer) androidx.compose.ui.graphics.SolidColor(themeCardWhite()) else Brush.linearGradient(
-                        colors = listOf(UserBubbleStart, UserBubbleStart)
+                    .background(
+                        if (isInterviewer) androidx.compose.ui.graphics.SolidColor(themeCardWhite()) else Brush.linearGradient(
+                            colors = listOf(UserBubbleStart, UserBubbleStart)
+                        )
                     )
+                    .shadow(
+                        elevation = if (isInterviewer) 1.dp else 2.dp,
+                        shape = ShapeTokens.largeShape,
+                    )
+                    .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
+            ) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isInterviewer) themeTextDark() else MaterialTheme.colorScheme.onPrimary,
                 )
-                .shadow(
-                    elevation = if (isInterviewer) 1.dp else 2.dp,
-                    shape = ShapeTokens.largeShape,
-                )
-                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
-        ) {
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodyLarge,
-                
-                color = if (isInterviewer) themeTextDark() else MaterialTheme.colorScheme.onPrimary,
-            )
+            }
         }
 
         if (!isInterviewer) {
@@ -1480,30 +1529,46 @@ private fun InterviewReportScreen(
         containerColor = themeBgGray(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        if (report == null) {
-            // 报告生成中
-            Box(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 900.dp
+            isAtLeastMediumWidth() -> 720.dp
+            else -> Dp.Unspecified
+        }
+        val reportInnerModifier = if (contentMaxWidth != Dp.Unspecified) {
+            Modifier.widthIn(max = contentMaxWidth)
+        } else {
+            Modifier
+        }
+        Box(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize(),
+            contentAlignment = if (report == null) Alignment.Center else Alignment.TopCenter,
+        ) {
+            if (report == null) {
+                // 报告生成中
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(reportInnerModifier),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
+                    ) {
+                        CircularProgressIndicator(color = AccentBlue)
+                        Text("正在生成面试报告...", color = themeTextGrey())
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(reportInnerModifier),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
                 ) {
-                    CircularProgressIndicator(color = AccentBlue)
-                    Text("正在生成面试报告...", color = themeTextGrey())
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
-            ) {
                 // ── 总分 + 判定 ──
                 item {
                     ScoreCard(report = report)
@@ -1611,6 +1676,7 @@ private fun InterviewReportScreen(
             }
         }
     }
+}
 }
 
 // ── 评分卡片 ──
