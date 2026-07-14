@@ -9,12 +9,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,6 +41,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -44,6 +49,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 
 /**
  * 首次使用引导。
@@ -167,16 +173,26 @@ fun OnboardingScreen(
             )
         }
 
+        val onboardingMaxWidth = if (isAtLeastMediumWidth()) 560.dp else Dp.Unspecified
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = SpacingTokens.lg),
+                .then(
+                    if (onboardingMaxWidth != Dp.Unspecified) {
+                        Modifier.fillMaxHeight().widthIn(max = onboardingMaxWidth)
+                    } else {
+                        Modifier.fillMaxSize()
+                    }
+                )
+                .align(Alignment.Center)
+                .padding(horizontal = SpacingTokens.lg)
+                .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // 顶部跳过按钮
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(top = SpacingTokens.lg),
             ) {
                 TextButton(

@@ -27,9 +27,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalClipboardManager
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.core.net.toUri
+import top.hsyscn.opedrgent.ui.components.dropContentTarget
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.max
@@ -209,6 +215,40 @@ fun NoteEditorScreen(
         content = EditorUtils.insertFormatting(content, prefix, suffix)
     }
 
+    /**
+     * 在光标位置插入拖入的文本。
+     */
+    fun insertDroppedText(text: String) {
+        val cursorPos = content.selection.start.coerceIn(0, content.text.length)
+        val newText = buildString {
+            append(content.text.substring(0, cursorPos))
+            append(text)
+            append(content.text.substring(cursorPos))
+        }
+        val newCursor = (cursorPos + text.length).coerceAtMost(newText.length)
+        content = TextFieldValue(newText, TextRange(newCursor))
+    }
+
+    /**
+     * 保存拖入的图片到应用私有目录，并在光标位置插入 Markdown 图片链接。
+     */
+    suspend fun insertDroppedImage(uri: Uri) {
+        try {
+            val fileName = "dropped_${System.currentTimeMillis()}.jpg"
+            val destDir = java.io.File(context.filesDir, "note_images").apply { mkdirs() }
+            val destFile = java.io.File(destDir, fileName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                destFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            insertDroppedText("\n![图片](${destFile.toUri()})\n")
+            snackbarHostState.showSnackbar(context.getString(R.string.note_editor_image_inserted))
+        } catch (e: Exception) {
+            snackbarHostState.showSnackbar(context.getString(R.string.note_editor_image_insert_failed, e.message ?: ""))
+        }
+    }
+
     LaunchedEffect(noteId) {
         if (noteId != null) {
             val existing = repository.getNoteById(noteId)
@@ -276,9 +316,25 @@ fun NoteEditorScreen(
             },
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
+            val contentMaxWidth = when {
+                isExpandedWidth() -> 980.dp
+                isAtLeastMediumWidth() -> 760.dp
+                else -> Dp.Unspecified
+            }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    .then(
+                        if (contentMaxWidth != Dp.Unspecified) {
+                            Modifier.widthIn(max = contentMaxWidth)
+                        } else {
+                            Modifier.fillMaxWidth()
+                        }
+                    )
                     .padding(top = padding.calculateTopPadding())
                     .background(MaterialTheme.colorScheme.background)
             ) {
@@ -983,7 +1039,9 @@ fun NoteEditorScreen(
 
                 // 元信息行 — 浮动在内容区域底部
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
                     tonalElevation = 2.dp,
                 ) {
@@ -1010,6 +1068,7 @@ fun NoteEditorScreen(
                         }
                     }
                 }
+            }
             }
         }
 
@@ -1144,9 +1203,25 @@ fun NoteEditorScreen(
             },
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
+        val contentMaxWidth = when {
+            isExpandedWidth() -> 980.dp
+            isAtLeastMediumWidth() -> 760.dp
+            else -> Dp.Unspecified
+        }
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .then(
+                    if (contentMaxWidth != Dp.Unspecified) {
+                        Modifier.widthIn(max = contentMaxWidth)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    }
+                )
                 .padding(padding)
                 .imePadding()
                 .background(MaterialTheme.colorScheme.background)
@@ -1251,18 +1326,26 @@ fun NoteEditorScreen(
                 )
             }
 
-            // 内容输入/预览
-            if (isPreviewMode) {
+            // 内容输入/预览（支持跨应用拖入文本/图片）
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .dropContentTarget(
+                        onTextDropped = { insertDroppedText(it) },
+                        onImageDropped = { scope.launch { insertDroppedImage(it) } },
+                    ),
+            ) {
+                if (isPreviewMode) {
                 // Markdown 预览模式
                 MarkdownPreview(
                     content = content.text,
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
-            } else if (editorMode == "richtext") {
+                } else if (editorMode == "richtext") {
                 // 富文本编辑模式（Notally 风格）
                 RichTextEditor(
                     initialText = content.text,
@@ -1274,8 +1357,7 @@ fun NoteEditorScreen(
                         spansJson = newSpans
                     },
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                     placeholder = stringResource(R.string.note_editor_format_hint),
                 )
@@ -1290,8 +1372,7 @@ fun NoteEditorScreen(
                     ),
                     cursorBrush = SolidColor(MaterialTheme.customColors.accentBlue),
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md)
                         .onPreviewKeyEvent { keyEvent ->
                             val keyCode = keyEvent.nativeKeyEvent.keyCode
@@ -1403,9 +1484,11 @@ fun NoteEditorScreen(
                         }
                     }
                 }
-
             }
+            }
+
             Surface(
+                modifier = Modifier.navigationBarsPadding(),
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 tonalElevation = 2.dp,
             ) {
@@ -1434,8 +1517,9 @@ fun NoteEditorScreen(
                 }
             }
         }
+        }
         }  // end else (编辑模式)
-    }
+}
 
     // AI 操作弹窗（编辑模式专用）
     if (showAiMenu && noteId != null) {

@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -91,8 +92,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -157,6 +156,8 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.components.InputMode
 import top.hsyscn.opedrgent.ui.components.InputModeBar
 import top.hsyscn.opedrgent.ui.components.RecordingState
+import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
+import top.hsyscn.opedrgent.ui.components.isLandscape
 
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
 import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
@@ -339,14 +340,15 @@ fun AppRoot(
         return
     }
 
-    val activity = LocalContext.current as? android.app.Activity
-    @OptIn(androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi::class)
-    val windowSizeClass = activity?.let { calculateWindowSizeClass(it) }
-    val isLandscape = windowSizeClass?.widthSizeClass != WindowWidthSizeClass.Compact
+    // 统一使用 WindowSizeUtils：基于 LocalConfiguration 实时计算，避免 Activity 不重建时尺寸不刷新。
+    // 只有“横屏 + 宽度至少 Medium”才走宽屏布局（左侧 Rail + 页面双栏）。
+    val isWideLandscape = isLandscape() && isAtLeastMediumWidth()
+    val useNavigationRail = isWideLandscape
 
     CompositionLocalProvider(LocalFeedbackController provides feedbackController) {
-    Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        if (isLandscape) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (useNavigationRail) {
             NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
                 val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val navSelectedLabelColor = MaterialTheme.colorScheme.primary
@@ -396,7 +398,7 @@ fun AppRoot(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                if (!isLandscape) {
+                if (!useNavigationRail) {
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp,
@@ -535,8 +537,8 @@ fun AppRoot(
                     onClearAiSearch = { vm.clearAiSearch() },
                     searchHistory = vm.getSearchHistory(),
                     onClearSearchHistory = { vm.clearSearchHistory() },
-                    isLandscape = isLandscape,
-                )
+                    isLandscape = isWideLandscape,
+                        )
                 "noteGraph" -> NoteGraphScreen(
                     repository = vm.noteRepository,
                     onNoteClick = { noteId -> subScreen = "noteReader_$noteId" },
@@ -624,7 +626,6 @@ fun AppRoot(
                                 subScreen = "interview"
                             },
                             onNavigateToSearch = { selectedTab = MainTab.NOTES },
-                            isLandscape = isLandscape,
                         )
                         MainTab.NOTES -> NoteListScreen(
                             repository = vm.noteRepository,
@@ -658,7 +659,7 @@ fun AppRoot(
                             onClearAiSearch = { vm.clearAiSearch() },
                             searchHistory = vm.getSearchHistory(),
                             onClearSearchHistory = { vm.clearSearchHistory() },
-                            isLandscape = isLandscape,
+                            isLandscape = isWideLandscape,
                         )
                         MainTab.RECORDING -> RecordingTab(
                             vm = vm,
@@ -673,7 +674,7 @@ fun AppRoot(
                             },
                             onSessionDeselected = { selectedSessionId = null },
                             onOpenSubScreen = { subScreen = it },
-                            isLandscape = isLandscape,
+                            isLandscape = isWideLandscape,
                         )
                         MainTab.SETTINGS -> SettingsScreen(
                             vm = vm,
@@ -810,8 +811,9 @@ fun AppRoot(
             }
         }
         }
-    }
-    }
+    } // Row
+    } // Box
+    } // CompositionLocalProvider
 }
 
 @Composable
