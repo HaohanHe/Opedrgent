@@ -1,0 +1,92 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="36" width="840" height="50">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>学术与技术支撑</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="92" width="800" height="48">
+      <content textType="body" textAlign="center" color="rgba(30,58,95,1)" fontSize="14" bold="true">
+        <p>“信息不是知识，知识不是智慧，智慧不是远见——但信息是这一切的第一步。”</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="138" width="800" height="22">
+      <content textType="caption" textAlign="center" color="rgba(148,163,184,1)" fontSize="10">
+        <p>—— Arthur C. Clarke, 2003</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="170" width="840" height="28" rx="8">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </shape>
+    <table topLeftX="60" topLeftY="170" width="840" height="260">
+      <colgroup>
+        <col width="120"/>
+        <col width="250"/>
+        <col width="470"/>
+      </colgroup>
+      <tr height="28">
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>领域</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>关键来源</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>说明</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>轨道预报</p></content></td>
+        <td><content textType="caption"><p>Hoots &amp; Roehrich, 1980; Vallado et al., 2006</p></content></td>
+        <td><content textType="caption"><p>SGP4/SDP4 是 NASA 与 USSPACECOM 采用的行业标准解析轨道传播模型</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>TLE 数据</p></content></td>
+        <td><content textType="caption"><p>CelesTrak / Space-Track / AMSAT</p></content></td>
+        <td><content textType="caption"><p>Two-Line Element Sets 由 18 SDS 拟合观测生成，是 SGP4 的标准输入</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>业余卫星</p></content></td>
+        <td><content textType="caption"><p>AMSAT / HamCQ / seeku.site</p></content></td>
+        <td><content textType="caption"><p>SO-50、AO-91、ISS 等 FM 转发器频率、亚音与操作参数</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>端侧 AI</p></content></td>
+        <td><content textType="caption"><p>IDC 2026; 中国信通院 2025; IEEE SDS 2025</p></content></td>
+        <td><content textType="caption"><p>45%+ 企业推理将发生在设备端；端侧模型本地化、轻量化已成产业共识</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>隐私合规</p></content></td>
+        <td><content textType="caption"><p>欧盟 AI 法案 / 个保法</p></content></td>
+        <td><content textType="caption"><p>涉及位置、生物特征等敏感信息的 AI 处理“原则上应在本地完成”</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>工程实现</p></content></td>
+        <td><content textType="caption"><p>python-sgp4 / sgp4 crate</p></content></td>
+        <td><content textType="caption"><p>经官方 C++ 代码验证，位置误差低于 0.1 mm 相对标准实现</p></content></td>
+      </tr>
+    </table>
+    <shape type="text" topLeftX="60" topLeftY="438" width="840" height="22">
+      <content textType="caption" textAlign="left" color="rgba(148,163,184,1)" fontSize="9">
+        <p>补充：Zhan et al. (2026) PRISM (AAAI) 提出云-边协同的隐私感知路由；Kaplan Erol et al. (2026) EarthSight (arXiv) 研究低延迟卫星智能。</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="465" width="840" height="24">
+      <content textType="caption" textAlign="left" color="rgba(148,163,184,1)" fontSize="9">
+        <p>数据来源：CelesTrak、AMSAT、HamCQ、IDC《2026 全球边缘 AI 市场洞察》、中国信通院 2025、IEEE SDS 2025</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>展示学术与工程基础，用权威来源与名言增强可信度。</p>
+    </content>
+  </note>
+</slide>

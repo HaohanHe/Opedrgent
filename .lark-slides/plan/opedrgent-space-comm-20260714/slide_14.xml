@@ -1,0 +1,90 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>技术实现：从 TLE 到过境窗口</p>
+      </content>
+    </shape>
+    <whiteboard topLeftX="60" topLeftY="110" width="840" height="200">
+      <mermaid>
+        <![CDATA[
+flowchart LR
+    A[CelesTrak TLE] --> B[SGP4/SDP4 轨道模型]
+    B --> C[观测站位置]
+    C --> D[AOS / LOS / 最大仰角 / 方位 / 频率]
+        ]]>
+      </mermaid>
+    </whiteboard>
+    <shape type="text" topLeftX="80" topLeftY="320" width="800" height="60">
+      <content textType="body" textAlign="center" color="rgba(30,58,95,1)" fontSize="14">
+        <p>代码实现：SatellitePassTool.kt 内置 ham_satellites.json 卫星数据库，
+通过位置服务获取经纬度，自动完成轨道预报与自然语言回复。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="140" topLeftY="390" width="160" height="32" rx="8">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.12)"/>
+      </fill>
+      <border color="rgba(245,158,11,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="140" topLeftY="396" width="160" height="24">
+      <content textType="caption" textAlign="center" color="rgba(180,83,9,1)" fontSize="12">
+        <p>SatellitePassTool.kt</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="320" topLeftY="390" width="160" height="32" rx="8">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.12)"/>
+      </fill>
+      <border color="rgba(245,158,11,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="320" topLeftY="396" width="160" height="24">
+      <content textType="caption" textAlign="center" color="rgba(180,83,9,1)" fontSize="12">
+        <p>ham_satellites.json</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="500" topLeftY="390" width="160" height="32" rx="8">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.12)"/>
+      </fill>
+      <border color="rgba(245,158,11,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="500" topLeftY="396" width="160" height="24">
+      <content textType="caption" textAlign="center" color="rgba(180,83,9,1)" fontSize="12">
+        <p>ApiSettings.kt</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="680" topLeftY="390" width="160" height="32" rx="8">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.12)"/>
+      </fill>
+      <border color="rgba(245,158,11,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="680" topLeftY="396" width="160" height="24">
+      <content textType="caption" textAlign="center" color="rgba(180,83,9,1)" fontSize="12">
+        <p>MainViewModel.kt</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="445" width="800" height="40">
+      <content textType="caption" textAlign="center" color="rgba(148,163,184,1)" fontSize="10">
+        <p>学术依据：Hoots &amp; Roehrich (1980) Spacetrack Report No. 3; Vallado et al. (2006) Revisiting Spacetrack Report #3; TLE 数据来自 CelesTrak / Space-Track。</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>展示技术路径与源码文件引用，回应学术比赛对工程实现的关注。</p>
+    </content>
+  </note>
+</slide>

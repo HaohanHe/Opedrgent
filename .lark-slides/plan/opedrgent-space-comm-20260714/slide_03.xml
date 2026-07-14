@@ -1,0 +1,32 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="linear-gradient(135deg,rgba(11,26,46,1) 0%,rgba(30,58,95,1) 100%)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="text" topLeftX="80" topLeftY="140" width="800" height="150">
+      <content textType="title" textAlign="center" color="rgba(248,250,252,1)" fontSize="40" bold="true">
+        <p>“任何足够先进的科技，
+皆与魔法无异。”</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="310" width="800" height="40">
+      <content textType="body" textAlign="center" color="rgba(203,213,225,1)" fontSize="16">
+        <p>—— Arthur C. Clarke，《克拉克三定律》，1962</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="380" width="800" height="60">
+      <content textType="body" textAlign="center" color="rgba(245,158,11,1)" fontSize="16">
+        <p>1945 年，克拉克在《Wireless World》预言地球同步通信卫星；
+今天，端侧 AI 让每个人都能把“魔法”装进口袋。</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>用克拉克名言建立科技史语境：从通信卫星到端侧 AI，技术一直在把“不可能”变为日常。</p>
+    </content>
+  </note>
+</slide>

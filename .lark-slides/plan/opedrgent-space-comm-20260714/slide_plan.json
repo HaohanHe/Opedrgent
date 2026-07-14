@@ -1,0 +1,301 @@
+{
+  "presentation_goal": "向 2026 国际空间通信挑战赛评委展示 Opedrgent 作为端侧 AI 知识工作站，以及其 Ham 模式在业余卫星通联中的创新应用价值，争取‘匠造空间通信’赛项认可。",
+  "audience": "空间通信、业余无线电、航天教育领域的专家评委，关注技术创新性、工程可行性与应用场景。",
+  "theme_style": "深空科技风：以深海军蓝为主色，橙色为强调色，浅灰白为内容页底色，营造航天器控制台与端侧 AI 的科技感。",
+  "visual_system": {
+    "background_strategy": "普通内容页使用浅灰白（#F8FAFC）纯色背景；封面、章节转场、结语页使用深空渐变（#0B1A2E → #1E3A5F）。",
+    "motif": "左侧垂直强调条 + 圆角卡片 + 圆形图标底；关键结论使用橙色高亮标签。",
+    "color_roles": {
+      "primary": "rgba(11,26,46,1) — 标题、深色背景、主结构",
+      "secondary": "rgba(30,58,95,1) — 卡片边框、辅助图形、深色页装饰",
+      "accent": "rgba(245,158,11,1) — 关键数字、强调标签、图标填充",
+      "background_light": "rgba(248,250,252,1)",
+      "text_dark": "rgba(30,41,59,1)",
+      "text_light": "rgba(248,250,252,1)"
+    }
+  },
+  "typography_constraints": {
+    "title_max_lines": 2,
+    "body_max_lines_per_box": 3,
+    "footer_max_lines": 1,
+    "long_text_handling": "长文本拆分为多个卡片或表格；引用页只保留一句核心引用与简短出处。"
+  },
+  "verification_plan": {
+    "check_background_consistency": true,
+    "check_text_fit": true,
+    "check_visual_focus": true,
+    "check_asset_rendering": true
+  },
+  "slides": [
+    {
+      "page": 1,
+      "title": "Opedrgent：端侧 AI 知识工作站 · 空间通信智能助手",
+      "key_message": "一个把手机变成端侧 AI 助手的软件作品，并已延伸至业余卫星通联场景。",
+      "layout_type": "title-cover",
+      "visual_focus": "深空渐变背景 + 火箭图标 + 轨道装饰",
+      "asset_need": {
+        "asset_type": "infographic",
+        "purpose": "封面视觉冲击力，传达航天与 AI 主题",
+        "suggested_query": "deep space rocket orbit minimalist illustration no text",
+        "fallback_if_missing": "用 SVG 绘制抽象行星、轨道环与火箭图标，背景使用深空渐变。"
+      },
+      "text_density": "low",
+      "speaker_intent": "建立第一印象，点明作品定位与参赛赛道。"
+    },
+    {
+      "page": 2,
+      "title": "汇报提纲",
+      "key_message": "今天的分享分为四条主线：背景、产品、空间通信应用、竞赛价值。",
+      "layout_type": "process-flow",
+      "visual_focus": "四步时间线卡片",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "为每个章节提供语义图标",
+        "suggested_query": "rocket brain satellite trophy icons",
+        "fallback_if_missing": "使用 IconPark 的 rocket、brain、radar、chart-line 图标配合编号节点。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "让评委快速把握演讲结构。"
+    },
+    {
+      "page": 3,
+      "title": "“任何足够先进的科技，皆与魔法无异。”",
+      "key_message": "从 Arthur C. Clarke 的通信卫星预言，到端侧 AI 让“魔法”进入每个人的口袋。",
+      "layout_type": "quote-highlight",
+      "visual_focus": "大号引用文字 + Arthur C. Clarke 出处",
+      "asset_need": {
+        "asset_type": "none",
+        "purpose": "引用本身就是视觉焦点",
+        "suggested_query": "",
+        "fallback_if_missing": "使用大字号居中排版与引号装饰图形。"
+      },
+      "text_density": "low",
+      "speaker_intent": "用科技史名言建立语境，引出端侧 AI 的变革意义。"
+    },
+    {
+      "page": 4,
+      "title": "当前 AI 产品的共同困境",
+      "key_message": "云端 AI 在隐私、网络依赖、离线可用性上存在结构性短板。",
+      "layout_type": "two-column",
+      "visual_focus": "三个痛点卡片 + 数据支撑",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "为隐私、延迟、离线三个痛点配图示",
+        "suggested_query": "shield globe offline icons",
+        "fallback_if_missing": "使用 shield、globe、close-one 图标加圆形底色。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "证明端侧 AI 的必要性，为后文铺垫。"
+    },
+    {
+      "page": 5,
+      "title": "两条路：云端 AI vs 端侧 AI",
+      "key_message": "云端算力强大但数据上云；端侧算力已足够，隐私与实时性更优。",
+      "layout_type": "comparison",
+      "visual_focus": "左右对比表格",
+      "asset_need": {
+        "asset_type": "infographic",
+        "purpose": "清晰对比两种部署范式",
+        "suggested_query": "cloud vs edge computing comparison diagram",
+        "fallback_if_missing": "左右两个色块区域，使用对比图标与平行文案。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "把 Opedrgent 的端侧路线讲清楚。"
+    },
+    {
+      "page": 6,
+      "title": "Opedrgent 是什么？",
+      "key_message": "一款完全本地化的 AI 知识工作站：语音、推理、记忆都在设备端完成。",
+      "layout_type": "big-number",
+      "visual_focus": "“0 次云端数据上传”大数字",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "手机/工作站隐喻",
+        "suggested_query": "smartphone ai assistant icon",
+        "fallback_if_missing": "使用 setting-computer 与 brain 图标组合。"
+      },
+      "text_density": "low",
+      "speaker_intent": "一句话定位产品，留下记忆点。"
+    },
+    {
+      "page": 7,
+      "title": "核心闭环：输入 → 理解 → 记忆 → 洞察",
+      "key_message": "从语音输入到知识洞察的全链路本地化能力。",
+      "layout_type": "architecture-diagram",
+      "visual_focus": "横向流程图",
+      "asset_need": {
+        "asset_type": "flow_diagram",
+        "purpose": "展示产品核心数据流",
+        "suggested_query": "input understanding memory insight flowchart",
+        "fallback_if_missing": "使用 Mermaid flowchart LR 绘制四节点流程图。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "让评委理解产品不是聊天工具，而是知识工作流。"
+    },
+    {
+      "page": 8,
+      "title": "核心能力矩阵",
+      "key_message": "语音、纪要、洞察、搜索、协作、声纹、内录，覆盖知识工作全场景。",
+      "layout_type": "two-column",
+      "visual_focus": "8 个能力卡片网格",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "每个能力一个语义图标",
+        "suggested_query": "microphone brain chart-line peoples shield file icons",
+        "fallback_if_missing": "使用 microphone、brain、chart-line、peoples、shield、data-file、radio、setting 图标。"
+      },
+      "text_density": "high",
+      "speaker_intent": "展示产品成熟度与功能广度。"
+    },
+    {
+      "page": 9,
+      "title": "技术底座：全链路本地化",
+      "key_message": "ASR、LLM、记忆三层全部跑在设备端，不依赖云端 API。",
+      "layout_type": "two-column",
+      "visual_focus": "三列技术栈卡片",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "为 ASR、LLM、数据库配图",
+        "suggested_query": "microphone brain database icons",
+        "fallback_if_missing": "使用 microphone、brain、database-config 图标。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "证明本地化不是口号，而是有明确技术栈支撑。"
+    },
+    {
+      "page": 10,
+      "title": "隐私不是功能，是底线",
+      "key_message": "用户数据只存在于自有设备，关闭应用即停止处理，不被用于模型训练。",
+      "layout_type": "quote-highlight",
+      "visual_focus": "盾牌图标 + 核心承诺",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "安全/隐私视觉符号",
+        "suggested_query": "shield lock privacy icon",
+        "fallback_if_missing": "使用 shield 图标并放大作为页面主视觉。"
+      },
+      "text_density": "low",
+      "speaker_intent": "强化差异化卖点，呼应空间通信场景的呼号与位置敏感数据。"
+    },
+    {
+      "page": 11,
+      "title": "第二部分：从知识工作站到空间通信",
+      "key_message": "转折点：设置里的 Ham 模式，让 Opedrgent 进入业余卫星通联领域。",
+      "layout_type": "section-divider",
+      "visual_focus": "大标题 + 卫星/雷达图标",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "章节视觉符号",
+        "suggested_query": "satellite radar space icon",
+        "fallback_if_missing": "使用 radar 与 globe 图标，配合深色背景与橙色强调条。"
+      },
+      "text_density": "low",
+      "speaker_intent": "制造叙事转折，引出 Ham 模式。"
+    },
+    {
+      "page": 12,
+      "title": "Ham 模式：业余卫星通联 Agent",
+      "key_message": "开启 Ham 模式后，AI 获得 satellite_pass 工具，可查询卫星并预测过境。",
+      "layout_type": "image-left-text-right",
+      "visual_focus": "设置开关示意图 + 工具说明",
+      "asset_need": {
+        "asset_type": "screenshot",
+        "purpose": "展示 App 中 Ham 模式开关位置",
+        "suggested_query": "Opedrgent settings Ham mode screenshot",
+        "fallback_if_missing": "使用 setting 图标 + 开关滑块图形示意。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "展示具体功能入口，建立可信度。"
+    },
+    {
+      "page": 13,
+      "title": "satellite_pass 工具能做什么？",
+      "key_message": "list 返回卫星数据库；passes 根据位置计算未来过境窗口。",
+      "layout_type": "two-column",
+      "visual_focus": "两个 action 的对比卡片 + 示例表格",
+      "asset_need": {
+        "asset_type": "infographic",
+        "purpose": "展示两种调用方式",
+        "suggested_query": "satellite pass list and prediction diagram",
+        "fallback_if_missing": "左右两个卡片，分别用列表图标与雷达图标表示 action=list 与 action=passes。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "讲清楚工具接口与输出价值。"
+    },
+    {
+      "page": 14,
+      "title": "技术实现：从 TLE 到过境窗口",
+      "key_message": "CelesTrak TLE + SGP4 轨道模型 + 观测站位置 → AOS/LOS/最大仰角/方位。",
+      "layout_type": "process-flow",
+      "visual_focus": "四步技术流程图",
+      "asset_need": {
+        "asset_type": "flow_diagram",
+        "purpose": "展示轨道预测数据流",
+        "suggested_query": "TLE SGP4 pass prediction flowchart",
+        "fallback_if_missing": "使用 Mermaid flowchart LR 绘制 TLE → SGP4 → 地面站 → 过境窗口。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "展示工程深度，回应学术比赛对技术路径的关注。"
+    },
+    {
+      "page": 15,
+      "title": "学术与技术支撑",
+      "key_message": "项目建立在 SGP4 轨道传播、TLE 数据源、端侧 AI 产业报告与隐私合规框架之上。",
+      "layout_type": "two-column",
+      "visual_focus": "Arthur C. Clarke 名言 + 七行学术来源表",
+      "asset_need": {
+        "asset_type": "paper_figure",
+        "purpose": "引用学术/行业资料增强权威性",
+        "suggested_query": "SGP4 orbital propagation amateur satellite AMSAT CelesTrak",
+        "fallback_if_missing": "使用表格列出关键来源：Hoots & Roehrich 1980、Vallado et al. 2006、CelesTrak、AMSAT、python-sgp4、HamCQ、IDC 2026、中国信通院 2025。"
+      },
+      "text_density": "high",
+      "speaker_intent": "向评委证明我们不是凭空造轮子，而是站在成熟技术栈与权威学术来源上创新。"
+    },
+    {
+      "page": 16,
+      "title": "典型应用场景",
+      "key_message": "从赛前准备到实时通联再到日志生成，覆盖业余卫星操作全周期。",
+      "layout_type": "timeline",
+      "visual_focus": "横向时间线：查询 → 预测 → 准备 → 通联 → 记录",
+      "asset_need": {
+        "asset_type": "flow_diagram",
+        "purpose": "展示用户工作流",
+        "suggested_query": "amateur satellite operation workflow timeline",
+        "fallback_if_missing": "使用编号节点与箭头绘制横向 5 步时间线。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "把功能落到具体场景，增强可感性。"
+    },
+    {
+      "page": 17,
+      "title": "为什么适合“匠造空间通信”？",
+      "key_message": "软件作品 allowed，Opedrgent 以 AI + 卫星数据 + 本地化三大特性契合赛项方向。",
+      "layout_type": "comparison",
+      "visual_focus": "赛项要求 vs 作品能力对照表",
+      "asset_need": {
+        "asset_type": "infographic",
+        "purpose": "直观展示作品与赛项的匹配度",
+        "suggested_query": "competition track alignment infographic",
+        "fallback_if_missing": "使用三列卡片：卫星通信、地面站、信号处理/演示装置，对应作品能力。"
+      },
+      "text_density": "medium",
+      "speaker_intent": "直接回应比赛评审维度，争取认可。"
+    },
+    {
+      "page": 18,
+      "title": "结语：让空间通信的创新，发生在每个人口袋里",
+      "key_message": "Opedrgent 用端侧 AI 降低了业余卫星通联的门槛，期待与各位评委交流。",
+      "layout_type": "conclusion",
+      "visual_focus": "核心口号 + 联系方式",
+      "asset_need": {
+        "asset_type": "icon",
+        "purpose": "结尾视觉符号",
+        "suggested_query": "rocket launch contact icon",
+        "fallback_if_missing": "使用 rocket 图标 + 深空渐变背景，与封面呼应。"
+      },
+      "text_density": "low",
+      "speaker_intent": "收尾并开放提问。"
+    }
+  ]
+}

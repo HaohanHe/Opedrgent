@@ -1,0 +1,41 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="linear-gradient(135deg,rgba(11,26,46,1) 0%,rgba(30,58,95,1) 100%)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="text" topLeftX="80" topLeftY="180" width="800" height="70">
+      <content textType="title" textAlign="left" color="rgba(245,158,11,1)" fontSize="28" bold="true">
+        <p>第二部分</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="260" width="800" height="80">
+      <content textType="title" textAlign="left" color="rgba(248,250,252,1)" fontSize="44" bold="true">
+        <p>从知识工作站
+到空间通信</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="380" width="600" height="60">
+      <content textType="body" textAlign="left" color="rgba(203,213,225,1)" fontSize="18">
+        <p>设置里的 Ham 模式，让 Opedrgent 进入业余卫星通联领域。</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Base/radar.svg" topLeftX="760" topLeftY="160" width="140" height="140">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.2)"/>
+      </fill>
+    </icon>
+    <icon iconType="iconpark/Base/radar.svg" topLeftX="800" topLeftY="200" width="80" height="80">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>章节转场，制造叙事转折，引出 Ham 模式。</p>
+    </content>
+  </note>
+</slide>

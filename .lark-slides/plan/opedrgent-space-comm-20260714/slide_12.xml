@@ -1,0 +1,67 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>Ham 模式：业余卫星通联 Agent</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="80" topLeftY="140" width="360" height="300" rx="8">
+      <fill>
+        <fillColor color="rgba(30,58,95,0.05)"/>
+      </fill>
+      <border color="rgba(203,213,225,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Base/setting.svg" topLeftX="240" topLeftY="170" width="80" height="80">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </icon>
+    <shape type="rect" topLeftX="180" topLeftY="270" width="160" height="50" rx="8">
+      <fill>
+        <fillColor color="rgba(16,185,129,1)"/>
+      </fill>
+    </shape>
+    <shape type="ellipse" topLeftX="320" topLeftY="270" width="50" height="50">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="120" topLeftY="350" width="280" height="40">
+      <content textType="body" textAlign="center" color="rgba(30,58,95,1)" fontSize="15">
+        <p>Ham 模式（业余卫星）
+已开启</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="480" topLeftY="150" width="440" height="40">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="22" bold="true">
+        <p>开启后会发生什么？</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="480" topLeftY="200" width="440" height="220">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="16">
+        <ul>
+          <li><p>请求位置权限，缓存观测站经纬度</p></li>
+          <li><p>系统 Prompt 注入业余卫星通联上下文</p></li>
+          <li><p>AI 获得 satellite_pass 工具调用能力</p></li>
+          <li><p>可用自然语言查询卫星与过境窗口</p></li>
+        </ul>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>展示 Ham 模式入口与开启后的系统级变化，建立可信度。</p>
+    </content>
+  </note>
+</slide>

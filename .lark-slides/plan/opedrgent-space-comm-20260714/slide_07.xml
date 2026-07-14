@@ -1,0 +1,41 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>核心闭环：输入 → 理解 → 记忆 → 洞察</p>
+      </content>
+    </shape>
+    <whiteboard topLeftX="60" topLeftY="120" width="840" height="260">
+      <mermaid>
+        <![CDATA[
+flowchart LR
+    A[语音 / 文字 / 图片 / 链接 / 文件] --> B[ASR + LLM 理解]
+    B --> C[记忆系统]
+    C --> D[洞察引擎]
+    D --> E[笔记 / 纪要 / 发芽报告]
+        ]]>
+      </mermaid>
+    </whiteboard>
+    <shape type="text" topLeftX="80" topLeftY="400" width="800" height="80">
+      <content textType="body" textAlign="center" color="rgba(30,58,95,1)" fontSize="15">
+        <p>每一步都在设备本地完成：Sherpa-ONNX / MiMo ASR 转写、LiteRT-LM 推理、SQLite 三层记忆、Insight Sprout 洞察。</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>用流程图展示产品不是简单聊天机器人，而是完整的端侧知识工作流。</p>
+    </content>
+  </note>
+</slide>

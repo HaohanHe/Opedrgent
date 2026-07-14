@@ -1,0 +1,89 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>Opedrgent 是什么？</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="120" width="840" height="40">
+      <content textType="sub-headline" textAlign="left" color="rgba(30,58,95,1)" fontSize="20">
+        <p>一款完全本地化的 AI 知识工作站</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="180" topLeftY="180" width="160" height="150">
+      <content textType="title" textAlign="left" color="rgba(245,158,11,1)" fontSize="140" bold="true">
+        <p>0</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="360" topLeftY="220" width="420" height="80">
+      <content textType="body" textAlign="left" color="rgba(30,41,59,1)" fontSize="18">
+        <p>次云端数据上传
+语音、推理、记忆全在设备端完成</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="100" topLeftY="380" width="250" height="90" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Hardware/microphone.svg" topLeftX="120" topLeftY="401" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="170" topLeftY="408" width="165" height="34">
+      <content textType="body" textAlign="left" color="rgba(30,41,59,1)" fontSize="15" bold="true">
+        <p>语音转写本地</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="385" topLeftY="380" width="250" height="90" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Health/brain.svg" topLeftX="405" topLeftY="401" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="455" topLeftY="408" width="165" height="34">
+      <content textType="body" textAlign="left" color="rgba(30,41,59,1)" fontSize="15" bold="true">
+        <p>LLM 推理本地</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="670" topLeftY="380" width="250" height="90" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Datas/database-config.svg" topLeftX="690" topLeftY="401" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="740" topLeftY="408" width="165" height="34">
+      <content textType="body" textAlign="left" color="rgba(30,41,59,1)" fontSize="15" bold="true">
+        <p>记忆存储本地</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>一句话定位产品，用“0 次上传”制造记忆点，再列三个本地层级。</p>
+    </content>
+  </note>
+</slide>

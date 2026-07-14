@@ -1,0 +1,36 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="linear-gradient(135deg,rgba(11,26,46,1) 0%,rgba(30,58,95,1) 100%)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="text" topLeftX="80" topLeftY="60" width="800" height="60">
+      <content textType="title" textAlign="center" color="rgba(248,250,252,1)" bold="true">
+        <p>隐私不是功能，是底线</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Safe/shield.svg" topLeftX="416" topLeftY="150" width="128" height="128">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="80" topLeftY="310" width="800" height="90">
+      <content textType="body" textAlign="center" color="rgba(203,213,225,1)" fontSize="18">
+        <p>你的每一次倾诉，都留在你的设备里。
+关闭应用后，所有处理立即停止；数据不会被用于模型训练或服务改进。</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="430" width="800" height="30">
+      <content textType="caption" textAlign="center" color="rgba(245,158,11,1)" fontSize="14">
+        <p>这是代码层面的保证，而非一纸隐私政策。</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>强调隐私是技术架构结果，对涉及呼号、位置、通联记录的卫星场景尤为重要。</p>
+    </content>
+  </note>
+</slide>

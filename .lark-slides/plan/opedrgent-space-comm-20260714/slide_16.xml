@@ -1,0 +1,176 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>典型应用场景</p>
+      </content>
+    </shape>
+    <shape type="ellipse" topLeftX="120" topLeftY="180" width="60" height="60">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="108" topLeftY="198" width="24" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>1</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="255" width="100" height="40">
+      <content textType="body" textAlign="center" color="rgba(11,26,46,1)" fontSize="14" bold="true">
+        <p>查询卫星</p>
+      </content>
+    </shape>
+    <line startX="170" startY="210" endX="250" endY="210">
+      <border color="rgba(245,158,11,1)" width="2"/>
+    </line>
+    <shape type="ellipse" topLeftX="290" topLeftY="180" width="60" height="60">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="278" topLeftY="198" width="24" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>2</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="250" topLeftY="255" width="100" height="40">
+      <content textType="body" textAlign="center" color="rgba(11,26,46,1)" fontSize="14" bold="true">
+        <p>预测过境</p>
+      </content>
+    </shape>
+    <line startX="340" startY="210" endX="420" endY="210">
+      <border color="rgba(245,158,11,1)" width="2"/>
+    </line>
+    <shape type="ellipse" topLeftX="460" topLeftY="180" width="60" height="60">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="448" topLeftY="198" width="24" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>3</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="420" topLeftY="255" width="100" height="40">
+      <content textType="body" textAlign="center" color="rgba(11,26,46,1)" fontSize="14" bold="true">
+        <p>准备设备</p>
+      </content>
+    </shape>
+    <line startX="510" startY="210" endX="590" endY="210">
+      <border color="rgba(245,158,11,1)" width="2"/>
+    </line>
+    <shape type="ellipse" topLeftX="630" topLeftY="180" width="60" height="60">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="618" topLeftY="198" width="24" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>4</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="590" topLeftY="255" width="100" height="40">
+      <content textType="body" textAlign="center" color="rgba(11,26,46,1)" fontSize="14" bold="true">
+        <p>实时通联</p>
+      </content>
+    </shape>
+    <line startX="680" startY="210" endX="760" endY="210">
+      <border color="rgba(245,158,11,1)" width="2"/>
+    </line>
+    <shape type="ellipse" topLeftX="800" topLeftY="180" width="60" height="60">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="788" topLeftY="198" width="24" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>5</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="760" topLeftY="255" width="100" height="40">
+      <content textType="body" textAlign="center" color="rgba(11,26,46,1)" fontSize="14" bold="true">
+        <p>生成日志</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="330" width="200" height="130" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="345" width="170" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="16" bold="true">
+        <p>赛前准备</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="385" width="170" height="65">
+      <content textType="body" textAlign="left" color="rgba(30,58,95,1)" fontSize="13">
+        <p>快速确认频率、调制方式、最低仰角</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="280" topLeftY="330" width="200" height="130" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="295" topLeftY="345" width="170" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="16" bold="true">
+        <p>过境规划</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="295" topLeftY="385" width="170" height="65">
+      <content textType="body" textAlign="left" color="rgba(30,58,95,1)" fontSize="13">
+        <p>提前架设天线，锁定 AOS/LOS</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="500" topLeftY="330" width="200" height="130" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="515" topLeftY="345" width="170" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="16" bold="true">
+        <p>通联辅助</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="515" topLeftY="385" width="170" height="65">
+      <content textType="body" textAlign="left" color="rgba(30,58,95,1)" fontSize="13">
+        <p>语音询问实时方位与多普勒趋势</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="720" topLeftY="330" width="200" height="130" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="735" topLeftY="345" width="170" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="16" bold="true">
+        <p>日志生成</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="735" topLeftY="385" width="170" height="65">
+      <content textType="body" textAlign="left" color="rgba(30,58,95,1)" fontSize="13">
+        <p>自动记录时间/卫星/信号报告</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>把功能落到具体场景，展示覆盖业余卫星操作全周期。</p>
+    </content>
+  </note>
+</slide>

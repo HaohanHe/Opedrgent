@@ -1,0 +1,119 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>satellite_pass 工具能做什么？</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="120" width="430" height="220" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Base/radar.svg" topLeftX="90" topLeftY="145" width="40" height="40">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="145" topLeftY="150" width="320" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>action = list</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="90" topLeftY="195" width="380" height="120">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>返回业余卫星数据库</p></li>
+          <li><p>名称 / NORAD ID / 频率 / 调制方式</p></li>
+          <li><p>最低仰角与备注</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="520" topLeftY="120" width="400" height="220" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Charts/chart-line.svg" topLeftX="550" topLeftY="145" width="40" height="40">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="605" topLeftY="150" width="290" height="30">
+      <content textType="sub-headline" textAlign="left" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>action = passes</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="550" topLeftY="195" width="350" height="120">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>根据观测站位置计算未来窗口</p></li>
+          <li><p>输出 AOS / LOS / 最大仰角 / 方位</p></li>
+          <li><p>给出建议频率与调制方式</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="360" width="840" height="30">
+      <content textType="caption" textAlign="left" color="rgba(30,58,95,1)" fontSize="14" bold="true">
+        <p>示例输出（未来 24h 过境窗口）</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="400" width="840" height="28" rx="8">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </shape>
+    <table topLeftX="60" topLeftY="400" width="840" height="110">
+      <colgroup>
+        <col width="140"/>
+        <col width="180"/>
+        <col width="180"/>
+        <col width="140"/>
+        <col width="120"/>
+        <col width="80"/>
+      </colgroup>
+      <tr height="28">
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>卫星</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>AOS</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>LOS</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>最大仰角</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>方位</p></content></td>
+        <td><content textType="caption" color="rgba(248,250,252,1)" bold="true"><p>频率</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>SO-50</p></content></td>
+        <td><content textType="caption"><p>19:42</p></content></td>
+        <td><content textType="caption"><p>19:54</p></content></td>
+        <td><content textType="caption"><p>38°</p></content></td>
+        <td><content textType="caption"><p>NE</p></content></td>
+        <td><content textType="caption"><p>436.795</p></content></td>
+      </tr>
+      <tr height="28">
+        <td><content textType="caption"><p>ISS</p></content></td>
+        <td><content textType="caption"><p>20:15</p></content></td>
+        <td><content textType="caption"><p>20:28</p></content></td>
+        <td><content textType="caption"><p>62°</p></content></td>
+        <td><content textType="caption"><p>NW</p></content></td>
+        <td><content textType="caption"><p>145.800</p></content></td>
+      </tr>
+    </table>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>讲清楚 satellite_pass 两个 action 的实际输出，用表格让信息可感。</p>
+    </content>
+  </note>
+</slide>

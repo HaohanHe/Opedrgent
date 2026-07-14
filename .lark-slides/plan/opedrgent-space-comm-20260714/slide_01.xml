@@ -1,0 +1,43 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="linear-gradient(135deg,rgba(11,26,46,1) 0%,rgba(30,58,95,1) 100%)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="text" topLeftX="80" topLeftY="150" width="800" height="110">
+      <content textType="title" textAlign="left" color="rgba(248,250,252,1)" fontSize="40" bold="true">
+        <p>Opedrgent：端侧 AI 知识工作站 · 空间通信智能助手</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="280" width="800" height="50">
+      <content textType="body" textAlign="left" color="rgba(203,213,225,1)" fontSize="18">
+        <p>一款完全本地化的 Android AI 助手，现已延伸至业余卫星通联场景</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="340" width="800" height="30">
+      <content textType="caption" textAlign="left" color="rgba(245,158,11,1)" fontSize="14">
+        <p>2026 国际空间通信挑战赛 · 匠造空间通信赛道</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Travel/rocket.svg" topLeftX="780" topLeftY="80" width="120" height="120">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <whiteboard topLeftX="0" topLeftY="300" width="960" height="240">
+<svg xmlns="http://www.w3.org/2000/svg">
+  <circle cx="400" cy="420" r="60" fill="none" stroke="rgba(245,158,11,0.25)" stroke-width="2"/>
+  <circle cx="400" cy="420" r="100" fill="none" stroke="rgba(245,158,11,0.15)" stroke-width="2"/>
+  <circle cx="400" cy="420" r="140" fill="none" stroke="rgba(245,158,11,0.08)" stroke-width="2"/>
+  <circle cx="520" cy="380" r="8" fill="rgba(245,158,11,0.6)"/>
+</svg>
+    </whiteboard>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>开场：介绍 Opedrgent 定位，点明参赛赛道。强调‘端侧’与‘空间通信’两个关键词。</p>
+    </content>
+  </note>
+</slide>

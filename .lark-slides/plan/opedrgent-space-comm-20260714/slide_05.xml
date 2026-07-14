@@ -1,0 +1,77 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>两条路：云端 AI vs 端侧 AI</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="80" topLeftY="130" width="380" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(30,58,95,0.08)"/>
+      </fill>
+      <border color="rgba(30,58,95,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="100" topLeftY="150" width="340" height="40">
+      <content textType="sub-headline" textAlign="left" color="rgba(30,58,95,1)" fontSize="22" bold="true">
+        <p>云端 AI</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="100" topLeftY="210" width="340" height="210">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="15">
+        <ul>
+          <li><p>算力强大，模型规模大</p></li>
+          <li><p>主动推荐，云端知识库</p></li>
+          <li><p>数据需上传，依赖网络</p></li>
+          <li><p>延迟与隐私存在天花板</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="500" topLeftY="130" width="380" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(245,158,11,0.08)"/>
+      </fill>
+      <border color="rgba(245,158,11,1)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="520" topLeftY="150" width="340" height="40">
+      <content textType="sub-headline" textAlign="left" color="rgba(180,83,9,1)" fontSize="22" bold="true">
+        <p>端侧 AI（Opedrgent）</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="520" topLeftY="210" width="340" height="210">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="15">
+        <ul>
+          <li><p>数据不出设备，隐私安全</p></li>
+          <li><p>毫秒级响应，断网可用</p></li>
+          <li><p>利用手机 NPU/GPU 算力</p></li>
+          <li><p>个人知识库随身携带</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="ellipse" topLeftX="440" topLeftY="250" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="416" topLeftY="262" width="48" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>VS</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>对比云端与端侧，突出 Opedrgent 选择端侧的理由：隐私、实时、离线。</p>
+    </content>
+  </note>
+</slide>

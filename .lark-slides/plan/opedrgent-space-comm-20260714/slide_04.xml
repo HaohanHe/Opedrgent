@@ -1,0 +1,107 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>当前 AI 产品的共同困境</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="70" topLeftY="140" width="260" height="220" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Safe/shield.svg" topLeftX="176" topLeftY="160" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="85" topLeftY="225" width="230" height="32">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="17" bold="true">
+        <p>隐私泄露风险</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="85" topLeftY="265" width="230" height="75">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="13">
+        <ul>
+          <li><p>对话、文档、位置上传云端</p></li>
+          <li><p>合规与敏感数据外泄隐患</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="360" topLeftY="140" width="260" height="220" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Travel/globe.svg" topLeftX="466" topLeftY="160" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="375" topLeftY="225" width="230" height="32">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="17" bold="true">
+        <p>网络依赖与延迟</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="375" topLeftY="265" width="230" height="75">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="13">
+        <ul>
+          <li><p>50–200 ms 网络往返</p></li>
+          <li><p>野外/应急场景不可靠</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="650" topLeftY="140" width="260" height="220" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Character/close-one.svg" topLeftX="756" topLeftY="160" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="665" topLeftY="225" width="230" height="32">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="17" bold="true">
+        <p>离线不可用</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="665" topLeftY="265" width="230" height="75">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="13">
+        <ul>
+          <li><p>断网即失去 AI 能力</p></li>
+          <li><p>关键任务无法保障</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="420" width="800" height="30">
+      <content textType="caption" textAlign="center" color="rgba(30,58,95,1)" fontSize="12">
+        <p>据 IDC《2026 全球边缘 AI 市场洞察》，超过 45% 的企业级 AI 推理请求将在设备端完成。</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="455" width="800" height="24">
+      <content textType="caption" textAlign="center" color="rgba(148,163,184,1)" fontSize="10">
+        <p>来源：IDC, 2026; 中国信通院《端侧大模型数据治理法律要点研究》, 2025</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>通过三个痛点与 IDC 数据，论证端侧 AI 是真实刚需。</p>
+    </content>
+  </note>
+</slide>

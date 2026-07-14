@@ -1,0 +1,149 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>汇报提纲</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="80" topLeftY="140" width="180" height="260" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="ellipse" topLeftX="100" topLeftY="160" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="100" topLeftY="166" width="36" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>01</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Travel/rocket.svg" topLeftX="146" topLeftY="210" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="95" topLeftY="280" width="150" height="36">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>背景与问题</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="95" topLeftY="325" width="150" height="50">
+      <content textType="body" textAlign="center" color="rgba(30,41,59,1)" fontSize="13">
+        <p>云端 AI 困境与端侧路径</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="285" topLeftY="140" width="180" height="260" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="ellipse" topLeftX="305" topLeftY="160" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="305" topLeftY="166" width="36" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>02</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Health/brain.svg" topLeftX="351" topLeftY="210" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="300" topLeftY="280" width="150" height="36">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>产品与能力</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="300" topLeftY="325" width="150" height="50">
+      <content textType="body" textAlign="center" color="rgba(30,41,59,1)" fontSize="13">
+        <p>端侧 AI 知识工作站</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="490" topLeftY="140" width="180" height="260" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="ellipse" topLeftX="510" topLeftY="160" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="510" topLeftY="166" width="36" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>03</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Base/radar.svg" topLeftX="556" topLeftY="210" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="505" topLeftY="280" width="150" height="36">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>Ham 模式</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="505" topLeftY="325" width="150" height="50">
+      <content textType="body" textAlign="center" color="rgba(30,41,59,1)" fontSize="13">
+        <p>业余卫星通联 Agent</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="695" topLeftY="140" width="180" height="260" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <shape type="ellipse" topLeftX="715" topLeftY="160" width="36" height="36">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="715" topLeftY="166" width="36" height="24">
+      <content textType="caption" textAlign="center" color="rgba(255,255,255,1)" fontSize="14" bold="true">
+        <p>04</p>
+      </content>
+    </shape>
+    <icon iconType="iconpark/Charts/chart-line.svg" topLeftX="761" topLeftY="210" width="48" height="48">
+      <fill>
+        <fillColor color="rgba(30,58,95,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="710" topLeftY="280" width="150" height="36">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="18" bold="true">
+        <p>竞赛价值</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="710" topLeftY="325" width="150" height="50">
+      <content textType="body" textAlign="center" color="rgba(30,41,59,1)" fontSize="13">
+        <p>契合“匠造空间通信”</p>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>让评委快速把握结构：背景 → 产品 → Ham 模式 → 竞赛价值。</p>
+    </content>
+  </note>
+</slide>

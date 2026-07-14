@@ -1,0 +1,100 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>为什么适合“匠造空间通信”？</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="130" width="270" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Travel/globe.svg" topLeftX="167" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="75" topLeftY="230" width="240" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>卫星通信</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="275" width="240" height="150">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>覆盖业余卫星数据库</p></li>
+          <li><p>频率/调制方式查询</p></li>
+          <li><p>符合业余无线电规范</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="365" topLeftY="130" width="270" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Base/radar.svg" topLeftX="472" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="380" topLeftY="230" width="240" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>地面站</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="380" topLeftY="275" width="240" height="150">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>过境预测 AOS/LOS</p></li>
+          <li><p>观测站位置感知</p></li>
+          <li><p>可作为地面站辅助终端</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="670" topLeftY="130" width="270" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Hardware/microphone.svg" topLeftX="777" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="685" topLeftY="230" width="240" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>演示装置</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="685" topLeftY="275" width="240" height="150">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>AI 语音交互演示</p></li>
+          <li><p>端侧隐私安全架构</p></li>
+          <li><p>软件+硬件可扩展</p></li>
+        </ul>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>直接回应赛项评审维度：卫星通信、地面站、演示装置。</p>
+    </content>
+  </note>
+</slide>

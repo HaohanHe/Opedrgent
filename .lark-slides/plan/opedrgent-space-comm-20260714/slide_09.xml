@@ -1,0 +1,103 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style>
+    <fill>
+      <fillColor color="rgba(248,250,252,1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="8" height="540">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="40" width="840" height="60">
+      <content textType="title" textAlign="left" color="rgba(11,26,46,1)" bold="true">
+        <p>技术底座：全链路本地化</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="80" topLeftY="130" width="260" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Hardware/microphone.svg" topLeftX="182" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="100" topLeftY="230" width="220" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>语音转写</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="100" topLeftY="275" width="220" height="160">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>Sherpa-ONNX 离线</p></li>
+          <li><p>MiMo ASR 在线</p></li>
+          <li><p>27 种方言支持</p></li>
+          <li><p>音频不离开设备</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="370" topLeftY="130" width="260" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Health/brain.svg" topLeftX="472" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="390" topLeftY="230" width="220" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>AI 推理</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="390" topLeftY="275" width="220" height="160">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>LiteRT-LM 本地模型</p></li>
+          <li><p>OpenAI/Anthropic 双协议</p></li>
+          <li><p>NPU/GPU 加速</p></li>
+          <li><p>断网完整可用</p></li>
+        </ul>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="660" topLeftY="130" width="260" height="320" rx="8">
+      <fill>
+        <fillColor color="rgba(255,255,255,1)"/>
+      </fill>
+      <border color="rgba(226,232,240,1)" width="1"/>
+    </shape>
+    <icon iconType="iconpark/Datas/database-config.svg" topLeftX="762" topLeftY="155" width="56" height="56">
+      <fill>
+        <fillColor color="rgba(245,158,11,1)"/>
+      </fill>
+    </icon>
+    <shape type="text" topLeftX="680" topLeftY="230" width="220" height="34">
+      <content textType="sub-headline" textAlign="center" color="rgba(11,26,46,1)" fontSize="20" bold="true">
+        <p>记忆系统</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="680" topLeftY="275" width="220" height="160">
+      <content textType="body" color="rgba(30,41,59,1)" fontSize="14">
+        <ul>
+          <li><p>SQLite 三层架构</p></li>
+          <li><p>HippocampusIndex</p></li>
+          <li><p>语义检索</p></li>
+          <li><p>项目/会话/全局</p></li>
+        </ul>
+      </content>
+    </shape>
+
+  </data>
+  <note>
+    <content textType="body">
+      <p>讲清楚本地化的三层技术底座，让评委知道不是概念。</p>
+    </content>
+  </note>
+</slide>
