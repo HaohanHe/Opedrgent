@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Satellite
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.SmartToy
@@ -172,6 +173,8 @@ fun SettingsScreen(
     var ttsPitch by rememberSaveable { mutableStateOf(vm.getTtsPitch()) }
     var ttsLocaleTag by rememberSaveable { mutableStateOf(vm.getTtsLocaleTag()) }
     var sttEnabled by rememberSaveable { mutableStateOf(vm.isSttEnabled()) }
+    // ★ Ham 模式（业余卫星过境预测）
+    var hamEnabled by rememberSaveable { mutableStateOf(vm.isHamModeEnabled()) }
     var sttEngine by rememberSaveable { mutableStateOf(vm.getSttEngine()) }
     var sttStreamingMode by rememberSaveable { mutableStateOf(vm.getSttStreamingMode()) }
     var hrEnabled by rememberSaveable { mutableStateOf(vm.isHrEnabled()) }
@@ -1343,7 +1346,15 @@ fun SettingsScreen(
                             vm.saveDynamicColorEnabled(it)
                             (context as? Activity)?.recreate()
                         },
-                        showDivider = false,
+                    )
+
+                    // ★ Ham 模式：业余卫星过境预测工具
+                    SettingSwitchRow(
+                        title = "Ham 模式（业余卫星）",
+                        subtitle = "开启后启用卫星过境工具",
+                        checked = hamEnabled,
+                        onCheckedChange = { hamEnabled = it },
+                        icon = Icons.Default.Satellite,
                     )
 
                     HorizontalDivider(color = themeBorder())
@@ -1912,6 +1923,7 @@ fun SettingsScreen(
                     vm.saveDeepThinking(deepThinkingEnabled)
                     vm.saveCalendarEnabled(calendarEnabled)
                     vm.saveHealthEnabled(healthEnabled)
+                    vm.saveHamModeEnabled(hamEnabled)
                     vm.saveJinaApiKey(jinaApiKey.takeIf { it.isNotBlank() })
                     vm.saveTavilyApiKey(tavilyApiKey.takeIf { it.isNotBlank() })
                     vm.saveBraveApiKey(braveApiKey.takeIf { it.isNotBlank() })
