@@ -395,6 +395,29 @@ fun RecordingTab(
         }
     }
 
+    // ==================== ViewModel 双向同步（跨页面存活） ====================
+    // 首次组合时从 ViewModel 恢复状态（用户切页面回来后触发）
+    LaunchedEffect(Unit) {
+        if (vm.recordingState != null) {
+            recordingState = vm.recordingState
+            recordingMode = vm.recordingMode
+            transcriptResult = vm.transcriptResult
+            elapsedSeconds = vm.recordingElapsedSeconds
+            playbackAudioUri = vm.playbackAudioUri
+            autoSavedNoteId = vm.autoSavedNoteId
+            savedToNote = vm.savedToNote
+        }
+    }
+
+    // 状态变化时同步回 ViewModel
+    LaunchedEffect(recordingState) { vm.recordingState = recordingState }
+    LaunchedEffect(recordingMode) { vm.recordingMode = recordingMode }
+    LaunchedEffect(transcriptResult) { vm.transcriptResult = transcriptResult }
+    LaunchedEffect(playbackAudioUri) { vm.playbackAudioUri = playbackAudioUri }
+    LaunchedEffect(autoSavedNoteId) { vm.autoSavedNoteId = autoSavedNoteId }
+    LaunchedEffect(savedToNote) { vm.savedToNote = savedToNote }
+    LaunchedEffect(elapsedSeconds) { vm.recordingElapsedSeconds = elapsedSeconds }
+
     // 波形动画条（独立 Composable，不触发 RecordingTab 重组）
 
     // 实时转录文本自动滚动（仅在文本增长时滚动到底，回退修正时不滚动避免抖动）
@@ -1196,6 +1219,36 @@ fun RecordingTab(
         if (vm.contactLog != null && vm.apiSettings.isHamModeEnabled()) {
             currentContactLog = vm.contactLog
             showContactLogDialog = true
+        }
+    }
+
+    // 通联日志生成结果提示
+    var lastGenRequest by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) { lastGenRequest = System.currentTimeMillis() }
+    LaunchedEffect(vm.isGeneratingContactLog) {
+        if (vm.isGeneratingContactLog) {
+            lastGenRequest = System.currentTimeMillis()
+        } else {
+            // 生成完成
+            val elapsed = System.currentTimeMillis() - lastGenRequest
+            if (elapsed > 1000 && vm.contactLog == null) {
+                // 超过1秒但结果为空 = 失败
+                scope.launch { snackbar.showSnackbar("通联日志生成失败，请重试") }
+            }
+        }
+    }
+
+    // 通联日志生成中提示
+    if (vm.isGeneratingContactLog && showContactLogDialog == false) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(SpacingTokens.md),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text("正在生成通联日志…", color = themeTextGrey())
+            }
         }
     }
 
