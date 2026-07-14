@@ -129,8 +129,10 @@ class ToolExecutor(
         register(StepImageEditTool(context))
         register(StepImageGenTool())
         register(StepVideoSummaryTool(context, llm, apiSettings))
-        // ★ Ham 模式：业余卫星过境预测工具（始终注册，LLM 仅在 Ham 模式开启时通过 agentTools 看到）
-        register(SatellitePassTool(context, apiSettings))
+        // ★ Ham 模式：Spec 要求条件注册 — 仅在 Ham 模式启用时注册 SatellitePassTool
+        if (apiSettings.isHamModeEnabled()) {
+            register(SatellitePassTool(context, apiSettings))
+        }
         // Health Connect 运动健康数据读取工具
         register(HealthTool(context))
     }
