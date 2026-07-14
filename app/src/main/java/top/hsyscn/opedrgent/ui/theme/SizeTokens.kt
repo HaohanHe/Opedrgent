@@ -28,6 +28,9 @@ object SizeTokens {
     val settingsDrawerWidth = 220.dp
     val textFieldWidthSm = 100.dp
 
+    // 列表最大高度（用于内嵌可滚动区域，避免占满整屏）
+    val citationListMaxHeight = 320.dp
+
     // 知识图谱节点尺寸
     val graphNodeBaseRadius = 5.dp
     val graphNodeMaxExtraRadius = 3.dp

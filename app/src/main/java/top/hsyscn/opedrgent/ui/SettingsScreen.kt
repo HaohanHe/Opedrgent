@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Satellite
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsBrightness
@@ -204,6 +205,7 @@ fun SettingsScreen(
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
+    var hamModeEnabled by rememberSaveable { mutableStateOf(vm.isHamModeEnabled()) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
     var calendarEnabled by rememberSaveable { mutableStateOf(vm.isCalendarEnabled()) }
     var healthEnabled by rememberSaveable { mutableStateOf(vm.isHealthEnabled()) }
@@ -1464,6 +1466,26 @@ fun SettingsScreen(
                             }
                         },
                     )
+                    // ★ Ham 模式：业余卫星通联辅助（需要位置感知）
+                    SettingSwitchRow(
+                        title = "Ham 模式（业余卫星）",
+                        subtitle = if (hamModeEnabled) "已开启 — 自动启用位置感知以计算卫星过境" else "开启后可预测卫星过境、生成通联日志",
+                        checked = hamModeEnabled,
+                        icon = Icons.Default.Satellite,
+                        onCheckedChange = {
+                            if (it) {
+                                // Ham 模式开启时，必须同时启用位置感知
+                                hamModeEnabled = true
+                                locationEnabled = true
+                                vm.saveHamModeEnabled(true)
+                                vm.saveLocationEnabled(true)
+                                locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            } else {
+                                hamModeEnabled = false
+                                vm.saveHamModeEnabled(false)
+                            }
+                        },
+                    )
                     SettingSwitchRow(
                         title = stringResource(R.string.settings_deep_thinking),
                         subtitle = stringResource(R.string.settings_deep_thinking_desc),
@@ -1954,6 +1976,7 @@ fun SettingsScreen(
                     vm.saveSttStreamingMode(sttStreamingMode)
                     vm.saveBackgroundRunning(bgRunning)
                     vm.saveLocationEnabled(locationEnabled)
+                    vm.saveHamModeEnabled(hamModeEnabled)
                     vm.saveDebugMode(debugMode)
                     vm.saveDeepThinking(deepThinkingEnabled)
                     vm.saveCalendarEnabled(calendarEnabled)
