@@ -19,6 +19,7 @@ import top.hsyscn.opedrgent.tools.InsightSproutTool
 import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
 import top.hsyscn.opedrgent.tools.ReadUrlTool
+import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.tools.ReverseGeocodeTool
 import top.hsyscn.opedrgent.tools.RunIntentTool
 import top.hsyscn.opedrgent.tools.RunJsTool
@@ -128,6 +129,10 @@ class ToolExecutor(
         register(StepImageEditTool(context))
         register(StepImageGenTool())
         register(StepVideoSummaryTool(context, llm, apiSettings))
+        // ★ Ham 模式：业余卫星过境预测工具（仅在 Ham 模式开启时注册）
+        if (apiSettings.isHamModeEnabled()) {
+            register(SatellitePassTool(context, apiSettings))
+        }
         // Health Connect 运动健康数据读取工具
         register(HealthTool(context))
     }
