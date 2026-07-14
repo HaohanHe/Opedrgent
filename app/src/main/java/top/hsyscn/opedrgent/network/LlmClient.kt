@@ -114,7 +114,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         }
 
         fun isThinkingModel(model: String): Boolean {
-            return THINKING_MODELS.any { model.contains(it) }
+            return THINKING_MODELS.any { model.contains(it, ignoreCase = true) }
         }
 
         fun isDeepSeek(model: String): Boolean {
@@ -286,29 +286,39 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             val isSP = isStepPlan(config.model)
             val isQwen = isQwenThinkingModel(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
+            val isSiliconFlow = config.baseUrl.contains("siliconflow", ignoreCase = true)
             if (isThinkingModel(config.model)) {
                 if (thinkingEnabled || defaultReasoning) {
-                    // DeepSeek: max/high; Step Plan: low/medium/high
-                    if (isDS) {
-                        put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
-                    } else if (isSP) {
-                        put("reasoning_effort", "medium")  // Step Plan 默认 medium（性价比最优）
-                        // StepFun 默认返回 reasoning 字段，设为 deepseek-style 兼容现有解析逻辑
-                        put("reasoning_format", "deepseek-style")
-                    }
-                    if (isQwen) {
-                        // Qwen3.5 系列使用 enable_thinking: true（SiliconFlow API 格式）
+                    if (isSiliconFlow) {
+                        // SiliconFlow: enable_thinking + thinking_budget（官方文档格式）
+                        // thinking_budget 限制思维链长度，防止模型无限思考导致超时
                         put("enable_thinking", true)
+                        put("thinking_budget", 4096)
                     } else {
-                        put("thinking", JSONObject().apply { put("type", "enabled") })
+                        // 其他平台（DeepSeek 官方、StepFun 等）
+                        if (isDS) {
+                            put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
+                        } else if (isSP) {
+                            put("reasoning_effort", "medium")
+                            put("reasoning_format", "deepseek-style")
+                        }
+                        if (isQwen) {
+                            put("enable_thinking", true)
+                        } else {
+                            put("thinking", JSONObject().apply { put("type", "enabled") })
+                        }
                     }
                 } else {
-                    if (isDS) {
-                        put("thinking_mode", "non-thinking")
-                    } else if (isQwen) {
+                    if (isSiliconFlow) {
                         put("enable_thinking", false)
                     } else {
-                        put("thinking", JSONObject().apply { put("type", "disabled") })
+                        if (isDS) {
+                            put("thinking_mode", "non-thinking")
+                        } else if (isQwen) {
+                            put("enable_thinking", false)
+                        } else {
+                            put("thinking", JSONObject().apply { put("type", "disabled") })
+                        }
                     }
                 }
             }
@@ -704,22 +714,30 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             val isDS = isDeepSeek(config.model)
             val isSP = isStepPlan(config.model)
             val defaultReasoning = requiresDefaultReasoning(config.model)
+            val isSiliconFlow = config.baseUrl.contains("siliconflow", ignoreCase = true)
             if (isThinkingModel(config.model)) {
                 if (thinkingEnabled || defaultReasoning) {
-                    // DeepSeek: max/high; Step Plan: low/medium/high
-                    if (isDS) {
-                        put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
-                    } else if (isSP) {
-                        put("reasoning_effort", "medium")  // Step Plan 默认 medium（性价比最优）
-                        // StepFun 默认返回 reasoning 字段，设为 deepseek-style 兼容现有解析逻辑
-                        put("reasoning_format", "deepseek-style")
-                    }
-                    put("thinking", JSONObject().apply { put("type", "enabled") })
-                } else {
-                    if (isDS) {
-                        put("thinking_mode", "non-thinking")
+                    if (isSiliconFlow) {
+                        put("enable_thinking", true)
+                        put("thinking_budget", 4096)
                     } else {
-                        put("thinking", JSONObject().apply { put("type", "disabled") })
+                        if (isDS) {
+                            put("reasoning_effort", if (tools.isNotEmpty()) "max" else "high")
+                        } else if (isSP) {
+                            put("reasoning_effort", "medium")
+                            put("reasoning_format", "deepseek-style")
+                        }
+                        put("thinking", JSONObject().apply { put("type", "enabled") })
+                    }
+                } else {
+                    if (isSiliconFlow) {
+                        put("enable_thinking", false)
+                    } else {
+                        if (isDS) {
+                            put("thinking_mode", "non-thinking")
+                        } else {
+                            put("thinking", JSONObject().apply { put("type", "disabled") })
+                        }
                     }
                 }
             }

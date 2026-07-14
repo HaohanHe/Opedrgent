@@ -92,6 +92,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -136,6 +137,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.NoteType
+import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.stt.EngineType
 import top.hsyscn.opedrgent.stt.MeetingSegment
 import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
@@ -1286,38 +1288,57 @@ fun RecordingTab(
 
     if (showContactLogDialog && currentContactLog != null) {
         val log = currentContactLog!!
+        // 可编辑字段状态
+        var satName by remember(log) { mutableStateOf(log.satName) }
+        var date by remember(log) { mutableStateOf(log.date) }
+        var timeOn by remember(log) { mutableStateOf(log.timeOn) }
+        var timeOff by remember(log) { mutableStateOf(log.timeOff) }
+        var callsign by remember(log) { mutableStateOf(log.callsign) }
+        var frequency by remember(log) { mutableStateOf(log.frequency) }
+        var mode by remember(log) { mutableStateOf(log.mode) }
+        var rstSent by remember(log) { mutableStateOf(log.rstSent) }
+        var rstReceived by remember(log) { mutableStateOf(log.rstReceived) }
+        var maxElevation by remember(log) { mutableStateOf(log.maxElevation) }
+        var notes by remember(log) { mutableStateOf(log.notes) }
+        var gridLocator by remember(log) { mutableStateOf(log.gridLocator) }
+        var noradId by remember(log) { mutableStateOf(log.noradId) }
+        var result by remember(log) { mutableStateOf(log.result) }
+
+        val editedLog = HamContactLog(
+            satName = satName, date = date, timeOn = timeOn, timeOff = timeOff,
+            callsign = callsign, frequency = frequency, mode = mode,
+            rstSent = rstSent, rstReceived = rstReceived, maxElevation = maxElevation,
+            notes = notes, gridLocator = gridLocator, noradId = noradId, result = result,
+        )
+
         AlertDialog(
             onDismissRequest = { showContactLogDialog = false },
             title = { Text("通联日志") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    log.run {
-                        if (satName.isNotBlank()) LabeledField("卫星", satName)
-                        if (date.isNotBlank()) LabeledField("日期", date)
-                        if (timeOn.isNotBlank()) LabeledField("开始时间", timeOn)
-                        if (timeOff.isNotBlank()) LabeledField("结束时间", timeOff)
-                        if (frequency.isNotBlank()) LabeledField("频率", frequency)
-                        if (mode.isNotBlank()) LabeledField("模式", mode)
-                        if (rstSent.isNotBlank()) LabeledField("发射报告", rstSent)
-                        if (rstReceived.isNotBlank()) LabeledField("接收报告", rstReceived)
-                        if (maxElevation.isNotBlank()) LabeledField("最大仰角", "${maxElevation}°")
-                        if (notes.isNotBlank()) LabeledField("备注", notes)
-                        if (noradId.isNotBlank()) LabeledField("NORAD ID", noradId)
-                        if (gridLocator.isNotBlank()) LabeledField("网格", gridLocator)
-                        if (result.isNotBlank()) LabeledField("结果", result)
-                    }
+                    OutlinedTextField(value = satName, onValueChange = { satName = it }, label = { Text("卫星 *") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("日期 *") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = timeOn, onValueChange = { timeOn = it }, label = { Text("开始时间 (UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = timeOff, onValueChange = { timeOff = it }, label = { Text("结束时间 (UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = callsign, onValueChange = { callsign = it }, label = { Text("对方呼号") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = frequency, onValueChange = { frequency = it }, label = { Text("频率 MHz") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = mode, onValueChange = { mode = it }, label = { Text("调制方式") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = rstSent, onValueChange = { rstSent = it }, label = { Text("发射报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = rstReceived, onValueChange = { rstReceived = it }, label = { Text("接收报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = maxElevation, onValueChange = { maxElevation = it }, label = { Text("最大仰角") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = result, onValueChange = { result = it }, label = { Text("通联结果") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = gridLocator, onValueChange = { gridLocator = it }, label = { Text("QTH网格") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = noradId, onValueChange = { noradId = it }, label = { Text("NORAD ID") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                 }
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     OutlinedButton(onClick = {
                         scope.launch {
-                            val file = vm.exportContactLog(log)
+                            val file = vm.exportContactLog(editedLog)
                             top.hsyscn.opedrgent.ui.shareFile(
-                                context,
-                                vm.getPackageNameForShare(context),
-                                file,
-                                "text/plain",
+                                context, vm.getPackageNameForShare(context), file, "text/plain",
                             )
                         }
                         showContactLogDialog = false
@@ -1327,24 +1348,23 @@ fun RecordingTab(
                     Button(onClick = {
                         scope.launch {
                             vm.createNoteFromText(
-                                title = "通联日志 ${log.satName} ${log.date}",
+                                title = "通联日志 ${editedLog.satName} ${editedLog.date}",
                                 content = buildString {
                                     appendLine("## 通联日志")
-                                    log.run {
-                                        if (satName.isNotBlank()) appendLine("- 卫星: $satName")
-                                        if (date.isNotBlank()) appendLine("- 日期: $date")
-                                        if (timeOn.isNotBlank()) appendLine("- 开始: $timeOn")
-                                        if (timeOff.isNotBlank()) appendLine("- 结束: $timeOff")
-                                        if (frequency.isNotBlank()) appendLine("- 频率: $frequency MHz")
-                                        if (mode.isNotBlank()) appendLine("- 模式: $mode")
-                                        if (rstSent.isNotBlank()) appendLine("- 发射报告: $rstSent")
-                                        if (rstReceived.isNotBlank()) appendLine("- 接收报告: $rstReceived")
-                                        if (maxElevation.isNotBlank()) appendLine("- 最大仰角: ${maxElevation}°")
-                                        if (notes.isNotBlank()) appendLine("- 备注: $notes")
-                                        if (noradId.isNotBlank()) appendLine("- NORAD ID: $noradId")
-                                        if (gridLocator.isNotBlank()) appendLine("- 网格: $gridLocator")
-                                        if (result.isNotBlank()) appendLine("- 结果: $result")
-                                    }
+                                    if (editedLog.satName.isNotBlank()) appendLine("- 卫星: ${editedLog.satName}")
+                                    if (editedLog.date.isNotBlank()) appendLine("- 日期: ${editedLog.date}")
+                                    if (editedLog.timeOn.isNotBlank()) appendLine("- 开始: ${editedLog.timeOn}")
+                                    if (editedLog.timeOff.isNotBlank()) appendLine("- 结束: ${editedLog.timeOff}")
+                                    if (editedLog.callsign.isNotBlank()) appendLine("- 对方呼号: ${editedLog.callsign}")
+                                    if (editedLog.frequency.isNotBlank()) appendLine("- 频率: ${editedLog.frequency} MHz")
+                                    if (editedLog.mode.isNotBlank()) appendLine("- 模式: ${editedLog.mode}")
+                                    if (editedLog.rstSent.isNotBlank()) appendLine("- 发射报告: ${editedLog.rstSent}")
+                                    if (editedLog.rstReceived.isNotBlank()) appendLine("- 接收报告: ${editedLog.rstReceived}")
+                                    if (editedLog.maxElevation.isNotBlank()) appendLine("- 最大仰角: ${editedLog.maxElevation}°")
+                                    if (editedLog.result.isNotBlank()) appendLine("- 结果: ${editedLog.result}")
+                                    if (editedLog.gridLocator.isNotBlank()) appendLine("- QTH网格: ${editedLog.gridLocator}")
+                                    if (editedLog.notes.isNotBlank()) appendLine("- 备注: ${editedLog.notes}")
+                                    if (editedLog.noradId.isNotBlank()) appendLine("- NORAD ID: ${editedLog.noradId}")
                                 }.trimEnd(),
                             )
                         }

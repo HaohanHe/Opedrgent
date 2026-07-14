@@ -1,0 +1,422 @@
+package top.hsyscn.opedrgent.tools.satellite
+
+// SGP4/SDP4 orbital object abstract base class.
+// Algorithm source: PREDICT v2.2.5, ported from Look4Sat by Arty Bishop.
+
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.asin
+import kotlin.math.atan
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+abstract class OrbitalObject(val data: OrbitalData) {
+
+    private val position = Vector4()
+    private val velocity = Vector4()
+    private var orbitalPos = OrbitalPos()
+    private var eclipseDepth = 0.0
+    private var gsPosTheta = 0.0
+    private var julUTC = 0.0
+    private var perigee = 0.0
+    var qoms24 = 0.0
+    var s4 = 0.0
+
+    // Pre-allocated reusable vectors to avoid GC pressure in hot loops
+    private val obsPos = Vector4()
+    private val obsVel = Vector4()
+    private val rangeVector = Vector4()
+    private val rgvelVector = Vector4()
+    private val squintVector = Vector4()
+
+    // Cached observer position data to avoid recalculation when observer hasn't moved
+    private var cachedGsLat = Double.NaN
+    private var cachedGsLon = Double.NaN
+    private var cachedGsAlt = Double.NaN
+    private var cachedSinLat = 0.0
+    private var cachedCosLat = 0.0
+    private var cachedObsC = 0.0
+    private var cachedObsSq = 0.0
+    private var cachedObsAchFactor = 0.0
+    private var cachedObsZFactor = 0.0
+
+    // Cache for julian epoch to avoid recomputing every call
+    private val julEpoch: Double = juliandDateOfEpoch(data.epoch)
+
+    fun willBeSeen(pos: GeoPos): Boolean {
+        return if (data.meanmo < 1e-8) false
+        else {
+            val sma = 331.25 * exp(ln(MIN_PER_DAY / data.meanmo) * (2.0 / 3.0))
+            val apogee = sma * (1.0 + data.eccn) - EARTH_RADIUS
+            var lin = data.incl
+            if (lin >= 90.0) lin = 180.0 - lin
+            acos(EARTH_RADIUS / (apogee + EARTH_RADIUS)) + lin * DEG2RAD > abs(pos.latitude * DEG2RAD)
+        }
+    }
+
+    fun getPosition(pos: GeoPos, time: Long): OrbitalPos {
+        orbitalPos = OrbitalPos()
+        // Date/time at which the position and velocity were calculated
+        julUTC = calcCurrentDaynum(time) + 2444238.5
+        // Calculate time since epoch in minutes
+        val tsince = (julUTC - julEpoch) * MIN_PER_DAY
+        calculateSDP4orSGP4(tsince)
+        // Scale position and velocity vectors to km and km/sec
+        convertSatState(position, velocity)
+        // Calculate velocity of satellite
+        magnitude(velocity)
+        // Angles in rads, dist in km, vel in km/S. Calculate sat Az, El, Range and Range-rate.
+        calculateObs(julUTC, position, velocity, pos, squintVector)
+        calculateLatLonAlt(julUTC)
+        orbitalPos.time = time
+        orbitalPos.eclipsed = isEclipsed()
+        orbitalPos.eclipseDepth = eclipseDepth
+        return orbitalPos
+    }
+
+    /**
+     * Lightweight elevation-only check for pass finding. Avoids full lat/lon/alt,
+     * eclipse, and squint calculations that aren't needed when just searching for
+     * horizon crossings.
+     */
+    fun getElevation(pos: GeoPos, time: Long): Double {
+        julUTC = calcCurrentDaynum(time) + 2444238.5
+        val tsince = (julUTC - julEpoch) * MIN_PER_DAY
+        calculateSDP4orSGP4(tsince)
+        convertSatState(position, velocity)
+        magnitude(velocity)
+        calculateObs(julUTC, position, velocity, pos, squintVector)
+        return orbitalPos.elevation
+    }
+
+    /**
+     * Full position calculation that also populates azimuth, altitude, etc.
+     * Used when we need all fields (AOS/LOS refinement, track computation).
+     */
+    fun getFullPosition(pos: GeoPos, time: Long): OrbitalPos {
+        orbitalPos = OrbitalPos()
+        julUTC = calcCurrentDaynum(time) + 2444238.5
+        val tsince = (julUTC - julEpoch) * MIN_PER_DAY
+        calculateSDP4orSGP4(tsince)
+        convertSatState(position, velocity)
+        magnitude(velocity)
+        calculateObs(julUTC, position, velocity, pos, squintVector)
+        calculateLatLonAlt(julUTC)
+        orbitalPos.time = time
+        return orbitalPos
+    }
+
+    private fun calcCurrentDaynum(now: Long): Double {
+        val then = 315446400000 // time in millis on 31Dec79 00:00:00 UTC (daynum 0)
+        return (now - then) / 1000.0 / 60.0 / 60.0 / 24.0
+    }
+
+    private fun juliandDateOfEpoch(epoch: Double): Double {
+        var year = floor(epoch * 1E-3)
+        val day = (epoch * 1E-3 - year) * 1000.0
+        year = if (year < 57) year + 2000 else year + 1900
+        return julianDateOfYear(year) + day
+    }
+
+    internal fun julianDateOfYear(theYear: Double): Double {
+        val aYear = theYear - 1
+        var i = floor(aYear / 100).toLong()
+        val a = i
+        i = a / 4
+        val b = 2 - a + i
+        i = floor(365.25 * aYear).toLong()
+        i += (30.6001 * 14).toLong()
+        return i + 1720994.5 + b
+    }
+
+    private fun calculateSDP4orSGP4(tsince: Double) {
+        if (data.isDeepSpace) (this as DeepSpaceObject).calculateSDP4(tsince)
+        else (this as NearEarthObject).calculateSGP4(tsince)
+    }
+
+    // Converts the sat position and velocity vectors to km and km/sec
+    private fun convertSatState(pos: Vector4, vel: Vector4) {
+        scaleVector(EARTH_RADIUS, pos)
+        scaleVector(EARTH_RADIUS * MIN_PER_DAY / SEC_PER_DAY, vel)
+    }
+
+    // Calculates the topocentric coordinates of the object with ECI pos and vel at time
+    private fun calculateObs(
+        julianUTC: Double,
+        positionVector: Vector4,
+        velocityVector: Vector4,
+        gsPos: GeoPos,
+        squintVector: Vector4
+    ) {
+        calculateUserPosVel(julianUTC, gsPos, obsPos, obsVel)
+        rangeVector.setXYZ(
+            positionVector.x - obsPos.x,
+            positionVector.y - obsPos.y,
+            positionVector.z - obsPos.z
+        )
+        // Save these values globally for calculating squint angles later
+        squintVector.setXYZ(rangeVector.x, rangeVector.y, rangeVector.z)
+        rgvelVector.setXYZ(
+            velocityVector.x - obsVel.x,
+            velocityVector.y - obsVel.y,
+            velocityVector.z - obsVel.z
+        )
+        magnitude(rangeVector)
+        val sinLat = cachedSinLat
+        val cosLat = cachedCosLat
+        val sinTheta = sin(gsPosTheta)
+        val cosTheta = cos(gsPosTheta)
+        val topS = sinLat * cosTheta * rangeVector.x + sinLat * sinTheta * rangeVector.y - cosLat * rangeVector.z
+        val topE = -sinTheta * rangeVector.x + cosTheta * rangeVector.y
+        val topZ = cosLat * cosTheta * rangeVector.x + cosLat * sinTheta * rangeVector.y + sinLat * rangeVector.z
+        var azim = atan(-topE / topS)
+        if (topS > 0.0) azim += PI
+        if (azim < 0.0) azim += TWO_PI
+        orbitalPos.azimuth = azim
+        orbitalPos.elevation = asin(topZ / rangeVector.w)
+        orbitalPos.distance = rangeVector.w
+        orbitalPos.distanceRate = dot(rangeVector, rgvelVector) / rangeVector.w
+        var elevation = orbitalPos.elevation / TWO_PI * 360.0
+        if (elevation > 90) elevation = 180 - elevation
+        orbitalPos.aboveHorizon = elevation - 0 > EPSILON
+    }
+
+    // Returns the ECI position and velocity of the observer
+    private fun calculateUserPosVel(
+        time: Double,
+        gsPos: GeoPos,
+        obsPos: Vector4,
+        obsVel: Vector4
+    ) {
+        val mFactor = 7.292115E-5
+        gsPosTheta = mod2PI(thetaGJD(time) + DEG2RAD * gsPos.longitude)
+
+        // Cache trig and position factors when observer position changes
+        if (gsPos.latitude != cachedGsLat || gsPos.longitude != cachedGsLon || gsPos.altitude != cachedGsAlt) {
+            cachedGsLat = gsPos.latitude
+            cachedGsLon = gsPos.longitude
+            cachedGsAlt = gsPos.altitude
+            cachedSinLat = sin(DEG2RAD * gsPos.latitude)
+            cachedCosLat = cos(DEG2RAD * gsPos.latitude)
+            cachedObsC = invert(sqrt(1.0 + FLAT_FACT * (FLAT_FACT - 2) * sqr(cachedSinLat)))
+            cachedObsSq = sqr(1.0 - FLAT_FACT) * cachedObsC
+            cachedObsAchFactor = (EARTH_RADIUS * cachedObsC + gsPos.altitude / 1000.0) * cachedCosLat
+            cachedObsZFactor = (EARTH_RADIUS * cachedObsSq + gsPos.altitude / 1000.0) * cachedSinLat
+        }
+
+        obsPos.setXYZ(
+            cachedObsAchFactor * cos(gsPosTheta),
+            cachedObsAchFactor * sin(gsPosTheta),
+            cachedObsZFactor
+        )
+        obsVel.setXYZ(-mFactor * obsPos.y, mFactor * obsPos.x, 0.0)
+        magnitude(obsPos)
+        magnitude(obsVel)
+    }
+
+    // Calculate the geodetic position of an object given its ECI pos and time
+    private fun calculateLatLonAlt(time: Double) {
+        orbitalPos.theta = atan2(position.y, position.x)
+        orbitalPos.longitude = mod2PI(orbitalPos.theta - thetaGJD(time))
+        val r = sqrt(sqr(position.x) + sqr(position.y))
+        val e2 = FLAT_FACT * (2.0 - FLAT_FACT)
+        orbitalPos.latitude = atan2(position.z, r)
+        var phi: Double
+        var c: Double
+        var i = 0
+        var converged: Boolean
+        do {
+            phi = orbitalPos.latitude
+            c = invert(sqrt(1.0 - e2 * sqr(sin(phi))))
+            orbitalPos.latitude = atan2(position.z + EARTH_RADIUS * c * e2 * sin(phi), r)
+            converged = abs(orbitalPos.latitude - phi) < EPSILON
+        } while (i++ < 10 && !converged)
+        orbitalPos.altitude = r / cos(orbitalPos.latitude) - EARTH_RADIUS * c
+        var temp = orbitalPos.latitude
+        if (temp > PI_2) {
+            temp -= TWO_PI
+            orbitalPos.latitude = temp
+        }
+    }
+
+    internal fun calculatePosAndVel(
+        rk: Double, uk: Double, xnodek: Double,
+        xinck: Double, rdotk: Double, rfdotk: Double
+    ) {
+        // Orientation vectors
+        val sinuk = sin(uk)
+        val cosuk = cos(uk)
+        val sinik = sin(xinck)
+        val cosik = cos(xinck)
+        val sinnok = sin(xnodek)
+        val cosnok = cos(xnodek)
+        val xmx = -sinnok * cosik
+        val xmy = cosnok * cosik
+        val ux = xmx * sinuk + cosnok * cosuk
+        val uy = xmy * sinuk + sinnok * cosuk
+        val uz = sinik * sinuk
+        val vx = xmx * cosuk - cosnok * sinuk
+        val vy = xmy * cosuk - sinnok * sinuk
+        val vz = sinik * cosuk
+        // Position and velocity
+        position.setXYZ(ux, uy, uz)
+        position.multiply(rk)
+        velocity.x = rdotk * ux + rfdotk * vx
+        velocity.y = rdotk * uy + rfdotk * vy
+        velocity.z = rdotk * uz + rfdotk * vz
+    }
+
+    internal class Vector4(
+        var w: Double = 0.0,
+        var x: Double = 0.0,
+        var y: Double = 0.0,
+        var z: Double = 0.0
+    ) {
+
+        fun multiply(multiplier: Double) {
+            x *= multiplier
+            y *= multiplier
+            z *= multiplier
+        }
+
+        fun setXYZ(xValue: Double, yValue: Double, zValue: Double) {
+            x = xValue
+            y = yValue
+            z = zValue
+        }
+    }
+
+    internal fun sqr(arg: Double): Double {
+        return arg * arg
+    }
+
+    internal fun invert(value: Double): Double {
+        return 1.0 / value
+    }
+
+    // Solves Keplers' Equation
+    internal fun converge(temp: DoubleArray, axn: Double, ayn: Double, capu: Double) {
+        var converged = false
+        var i = 0
+        do {
+            temp[7] = sin(temp[2])
+            temp[8] = cos(temp[2])
+            temp[3] = axn * temp[7]
+            temp[4] = ayn * temp[8]
+            temp[5] = axn * temp[8]
+            temp[6] = ayn * temp[7]
+            val epw = (capu - temp[4] + temp[3] - temp[2]) / (1.0 - temp[5] - temp[6]) + temp[2]
+            if (abs(epw - temp[2]) <= EPSILON) converged = true else temp[2] = epw
+        } while (i++ < 10 && !converged)
+    }
+
+    internal fun calculatePhase(xlt: Double, xnode: Double, omgadf: Double) {
+        var phaseValue = xlt - xnode - omgadf + TWO_PI
+        if (phaseValue < 0.0) phaseValue += TWO_PI
+        orbitalPos.phase = mod2PI(phaseValue)
+    }
+
+    // Sets perigee and checks and adjusts the calculation if the perigee is less tan 156KM
+    internal fun setPerigee(perigee: Double) {
+        this.perigee = perigee
+        checkPerigee()
+    }
+
+    // Checks and adjusts the calculation if the perigee is less tan 156KM
+    private fun checkPerigee() {
+        s4 = 1.012229
+        qoms24 = 1.880279E-09
+        if (perigee < 156.0) {
+            s4 = if (perigee <= 98.0) 20.0 else perigee - 78.0
+            qoms24 = ((120 - s4) / EARTH_RADIUS).pow(4.0)
+            s4 = s4 / EARTH_RADIUS + 1.0
+        }
+    }
+
+    // Checks if the satellite is in sunlight
+    private fun isEclipsed(): Boolean {
+        val sunVector = calculateSunVector()
+        val sdEarth = asin(EARTH_RADIUS / position.w)
+        val rho = subtract(sunVector, position)
+        val sdSun = asin(SOLAR_RADIUS / rho.w)
+        val earth = scalarNegMultiply(position)
+        val delta = angle(sunVector, earth)
+        eclipseDepth = sdEarth - sdSun - delta
+        return if (sdEarth < sdSun) false else eclipseDepth >= 0
+    }
+
+    private fun calculateSunVector(): Vector4 {
+        val mjd = julUTC - 2415020.0
+        val year = 1900 + mjd / 365.25
+        val solTime = (mjd + deltaET(year) / SEC_PER_DAY) / 36525.0
+        val mTemp = modulus(35999.04975 * solTime, 360.0)
+        val m = radians(
+            modulus(358.47583 + mTemp - (0.000150 + 0.0000033 * solTime) * sqr(solTime), 360.0)
+        )
+        val lTemp = modulus(36000.76892 * solTime, 360.0)
+        val l = radians(
+            modulus(279.69668 + lTemp + 0.0003025 * sqr(solTime), 360.0)
+        )
+        val e = 0.01675104 - (0.0000418 + 0.000000126 * solTime) * solTime
+        val c = radians(
+            ((1.919460 - (0.004789 + 0.000014 * solTime) * solTime) * sin(m))
+                + ((0.020094 - 0.000100 * solTime) * sin(2 * m)) + 0.000293 * sin(3 * m)
+        )
+        val o = radians(modulus(259.18 - 1934.142 * solTime, 360.0))
+        val lsa = modulus(l + c - radians(0.00569 - 0.00479 * sin(o)), TWO_PI)
+        val nu = modulus(m + c, TWO_PI)
+        var r = (1.0000002 * (1.0 - sqr(e)) / (1.0 + e * cos(nu)))
+        val eps = radians(
+            23.452294 - (0.0130125 + (0.00000164 - 0.000000503 * solTime) * solTime)
+                * solTime + 0.00256 * cos(o)
+        )
+        r *= ASTRONOMICAL_UNIT
+        return Vector4(r, r * cos(lsa), r * sin(lsa) * cos(eps), r * sin(lsa) * sin(eps))
+    }
+
+    private fun subtract(v1: Vector4, v2: Vector4): Vector4 {
+        val v3 = Vector4()
+        v3.x = v1.x - v2.x
+        v3.y = v1.y - v2.y
+        v3.z = v1.z - v2.z
+        magnitude(v3)
+        return v3
+    }
+
+    private fun scalarNegMultiply(vector: Vector4): Vector4 {
+        val neg = -1.0
+        return Vector4(vector.w * abs(neg), vector.x * neg, vector.y * neg, vector.z * neg)
+    }
+
+    private fun angle(v1: Vector4, v2: Vector4): Double {
+        magnitude(v1)
+        magnitude(v2)
+        return acos(dot(v1, v2) / (v1.w * v2.w))
+    }
+
+    private fun radians(degrees: Double): Double {
+        return degrees * DEG2RAD
+    }
+
+    // Calculates the dot product of two vectors
+    private fun dot(v1: Vector4, v2: Vector4): Double {
+        return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+    }
+
+    // Calculates scalar magnitude of a vector4 argument
+    private fun magnitude(v: Vector4) {
+        v.w = sqrt(sqr(v.x) + sqr(v.y) + sqr(v.z))
+    }
+
+    // Multiplies the vector v1 by the scalar k
+    private fun scaleVector(k: Double, v: Vector4) {
+        v.multiply(k)
+        magnitude(v)
+    }
+}

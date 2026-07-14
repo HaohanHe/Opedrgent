@@ -10,6 +10,9 @@ import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.tools.satellite.GeoPos
+import top.hsyscn.opedrgent.tools.satellite.OrbitalData
+import top.hsyscn.opedrgent.tools.satellite.OrbitalObject
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.net.HttpURLConnection
@@ -22,10 +25,13 @@ import kotlin.math.*
  *
  * 业余卫星通联辅助：
  * - action=list：返回内置业余卫星列表（名称、NORAD ID、频率、调制方式）
- * - action=passes：基于用户缓存位置 + Celestrak TLE 计算未来过境窗口
+ * - action=search：从 Celestrak 拉取全部活跃卫星 TLE，按名称/NORAD ID 搜索（用于未预置卫星）
+ * - action=passes：基于用户缓存位置 + TLE 计算未来过境窗口（支持预置匹配或直接传入 tle_line1/tle_line2）
  *
- * 星历来源：Celestrak amateur.txt（https://celestrak.org/NORAD/elements/amateur.txt）
- * 轨道传播：简化 SGP4（J2 摄动 + 地球扁率），精度满足业余卫星过境预报需求
+ * 星历来源（多源 fallback）：Celestrak gp.php?GROUP=amateur（主源）-> AMSAT nasabare（备用）-> Celestrak amateur.txt（旧 URL 兜底）
+ * 活跃卫星搜索源：Celestrak gp.php?GROUP=active&FORMAT=tle
+ * 过境搜索：粗扫+精扫二阶策略（参考 Look4Sat getLeoPass），1/4 轨道周期回退 + 60s/30s 粗扫 + 500ms 精扫
+ * 轨道传播：完整 SGP4/SDP4 算法（移植自 Look4Sat/PREDICT v2.2.5），含 J2/J3/J4 摄动、BSTAR 大气阻力、GMST 地球自转修正
  */
 class SatellitePassTool(
     private val context: Context,
@@ -34,11 +40,40 @@ class SatellitePassTool(
 
     private val satellites: List<HamSatellite> by lazy { loadSatelliteDatabase() }
 
+    /** 公开访问卫星数据库，供通联日志等模块查询 */
+    fun satelliteDb(): List<HamSatellite> = satellites
+
     override fun getTools(): Map<String, ToolBinding> {
         return mapOf(
             "satellite_pass" to ToolBinding(
                 name = "satellite_pass",
-                description = """卫星过境预测工具（Ham 模式专用）。当用户询问业余卫星通联相关问题时必须调用此工具，包括但不限于：(1) 询问"能打什么卫星"/"哪些卫星过境"/" satellite pass"时；(2) 询问某颗卫星的"频率"/"调制方式"/"转发器信息"时（如"SO-50 的频率是多少"）；(3) 询问"什么时候能通联"/"过境时间"/"什么时候过境"时；(4) 用户提到具体卫星名称（如 SO-50, ISS, AO-91, FO-29, Diwata-2）并询问通联信息时；(5) 询问设备匹配（如"IC-9700 能打什么卫星"）时。action=list 返回所有业余卫星列表（含名称/NORAD ID/上下行频率/调制方式/最低仰角）；action=passes 根据用户当前位置的经纬度计算指定卫星未来 N 小时内的过境窗口（AOS时间/LOS时间/最大仰角/方向/频率），未指定卫星时返回所有卫星过境。参数：action(必填, "list"|"passes")、satellite(可选, 卫星名称或NORAD ID)、hours(可选, 整数小时, 默认24, 最大168)。注意：必须先获取用户位置权限并调用位置服务获取经纬度，否则 passes 计算会失败。""",
+                description = """卫星过境预测工具（Ham 模式专用）。
+
+*** 调用优先级（强制）：用户提到 ANY 卫星名称/编号（如 AO-7, Fox-1B, CAS-3H）或询问"能打什么卫星"/"过境时间"/"频率"时，必须 FIRST 调用此工具。禁止在调用此工具前使用 web_search 搜索卫星信息；TLE 星历和卫星参数均由工具内部从 Celestrak 实时获取，外部搜索无法获得过境数据。***
+
+支持三个 action：
+
+1) action=list - 返回内置业余卫星列表（AO-7, SO-50, CAS-3H 等），每颗卫星同时返回 AMSAT 编号和 NORAD ID，以及频率/调制方式。
+2) action=search - 从 Celestrak 拉取全部活跃卫星 TLE，按名称或 NORAD ID 搜索。用于用户提到的非预置卫星（如学校参与的立方星、某次通联过的特殊卫星等预置列表里没有的）。
+3) action=passes - 根据用户缓存的经纬度 + TLE 计算过境窗口（AOS/LOS/最大仰角/方向/频率/制式）。
+
+*** 两条工作流 ***
+
+A) 预置卫星（list 能查到的，如 AO-7, SO-50, CAS-3H）：
+   action=list -> action=passes(satellite=名称或NORAD ID)
+
+B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"北邮参与的那个卫星"/"跟日本学校通联过的"）：
+   action=search(satellite=用户提到的名称或NORAD ID) -> 从返回结果拿到 TLE_LINE1/TLE_LINE2 -> action=passes(satellite=名称, tle_line1=..., tle_line2=...)
+   注意：search 返回的 TLE 两行必须原样传给 passes 的 tle_line1/tle_line2 参数，不要截断或修改；若 search 返回多条匹配，让用户确认是哪一颗后再传 TLE。
+
+参数说明：
+- action(必填, "list"|"search"|"passes")
+- satellite(可选, 卫星名称或 NORAD ID；list 不需要；search 必填；passes 可选，传名称走预置匹配，传 tle_line1/tle_line2 时作为显示名)
+- hours(可选, 整数小时, 默认24, 最大168；仅 passes 用)
+- tle_line1(可选, TLE 第一行, 以 '1 ' 开头；仅 passes 用, 与 tle_line2 配对, 通常来自 search 结果)
+- tle_line2(可选, TLE 第二行, 以 '2 ' 开头；仅 passes 用, 与 tle_line1 配对, 通常来自 search 结果)
+
+注意：passes 依赖用户位置缓存，需设置中开启位置权限。""",
                 invoker = { tp, config, sp, ups -> executeSatellitePass(tp, config, sp, ups) },
             ),
         )
@@ -53,11 +88,20 @@ class SatellitePassTool(
         val action = tp.state.input["action"]?.trim()?.lowercase() ?: "list"
         val satelliteQuery = tp.state.input["satellite"]?.trim()
         val hours = (tp.state.input["hours"]?.toIntOrNull() ?: 24).coerceIn(1, 168)
+        val tleLine1 = tp.state.input["tle_line1"]?.trim()
+        val tleLine2 = tp.state.input["tle_line2"]?.trim()
 
         val result = when (action) {
             "list" -> executeList()
-            "passes" -> executePasses(satelliteQuery, hours)
-            else -> "无效 action='$action'，仅支持 list 或 passes"
+            "passes" -> executePasses(satelliteQuery, hours, tleLine1, tleLine2)
+            "search" -> {
+                if (satelliteQuery.isNullOrBlank()) {
+                    "[ERROR] action=search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
+                } else {
+                    executeSearch(satelliteQuery)
+                }
+            }
+            else -> "无效 action='$action'，仅支持 list、passes 或 search"
         }
 
         // 业务结果统一用 COMPLETED 状态返回（包括"数据库为空"/"无位置"/"TLE获取失败"等业务信息），
@@ -83,7 +127,9 @@ class SatellitePassTool(
             appendLine("## 业余卫星列表（共 ${satellites.size} 颗）")
             appendLine()
             satellites.forEach { sat ->
-                appendLine("- **${sat.name}** (NORAD ${sat.noradId})")
+                // AMSAT 编号（AO-73 等）和 NORAD ID（39444 等）同时返回，模型可任选其一调用 passes
+                val oscarStr = if (sat.oscar != null) "${sat.oscar} / " else ""
+                appendLine("- **${sat.name}** (${oscarStr}NORAD ${sat.noradId})")
                 if (sat.uplinkMHz != null) appendLine("  上行: ${sat.uplinkMHz} MHz")
                 if (sat.downlinkMHz != null) appendLine("  下行: ${sat.downlinkMHz} MHz")
                 appendLine("  调制: ${sat.modulation}")
@@ -96,13 +142,54 @@ class SatellitePassTool(
 
     // ==================== action=passes ====================
 
-    private suspend fun executePasses(satelliteQuery: String?, hours: Int): String = withContext(Dispatchers.IO) {
+    private suspend fun executePasses(
+        satelliteQuery: String?,
+        hours: Int,
+        tleLine1: String?,
+        tleLine2: String?,
+    ): String = withContext(Dispatchers.IO) {
         val lat = apiSettings.getLastLatitude()?.toDouble()
         val lon = apiSettings.getLastLongitude()?.toDouble()
         if (lat == null || null == lon) {
             return@withContext "[ERROR] 未获取到用户位置。请先在设置中开启位置权限并刷新位置。"
         }
 
+        val now = System.currentTimeMillis()
+        val endTime = now + hours * 3600_000L
+
+        // 模式 A：用户直接传入 TLE 两行（通常来自 action=search 的结果），跳过 ham_satellites.json 匹配
+        if (!tleLine1.isNullOrBlank() && !tleLine2.isNullOrBlank()) {
+            val l1 = tleLine1.trim()
+            val l2 = tleLine2.trim()
+            if (!l1.startsWith("1 ") || !l2.startsWith("2 ")) {
+                return@withContext "[ERROR] TLE 格式错误：tle_line1 应以 '1 ' 开头，tle_line2 应以 '2 ' 开头。"
+            }
+            val noradId = l1.substring(2, 7).trim().toIntOrNull() ?: -1
+            val tleName = satelliteQuery?.takeIf { it.isNotBlank() } ?: "NORAD $noradId"
+            val tle = TleEntry(name = tleName, line1 = l1, line2 = l2)
+            val minEl = 10.0 // 未预置卫星使用默认最低仰角 10°
+            return@withContext try {
+                val satPasses = computePasses(tle, lat, lon, now, endTime, minEl)
+                if (satPasses.isEmpty()) {
+                    "未来 $hours 小时内，${tle.name} 在您的位置（${lat.format(2)}°, ${lon.format(2)}°）无仰角 > ${minEl.format(0)}° 的过境窗口。"
+                } else {
+                    buildString {
+                        appendLine("## 卫星过境预报（用户传入 TLE）")
+                        appendLine("卫星: ${tle.name} (NORAD $noradId) | 观测站: ${lat.format(2)}°, ${lon.format(2)}° | 未来 $hours 小时")
+                        appendLine("最低仰角阈值: ${minEl.format(0)}°（未预置卫星默认值，无频率/调制信息）")
+                        appendLine()
+                        satPasses.forEach { p ->
+                            appendLine("- ${p}")
+                        }
+                    }.trimEnd()
+                }
+            } catch (e: Exception) {
+                DebugLog.w("SatellitePassTool: 计算用户传入 TLE 过境失败: ${e.message}")
+                "[ERROR] 计算过境失败: ${e.message}"
+            }
+        }
+
+        // 模式 B：走原逻辑（ham_satellites.json 匹配 + fetchTleMap）
         val targetSats = if (satelliteQuery.isNullOrBlank()) {
             satellites
         } else {
@@ -110,10 +197,14 @@ class SatellitePassTool(
             val matched = if (id != null) {
                 satellites.filter { it.noradId == id }
             } else {
-                satellites.filter { it.name.contains(satelliteQuery, ignoreCase = true) }
+                // 匹配 AMSAT 编号（如 AO-7）或名称（如 Fox-1B）
+                satellites.filter {
+                    it.name.contains(satelliteQuery, ignoreCase = true) ||
+                    (it.oscar != null && it.oscar.equals(satelliteQuery, ignoreCase = true))
+                }
             }
             if (matched.isEmpty()) {
-                return@withContext "[ERROR] 未找到匹配 '$satelliteQuery' 的业余卫星。可用卫星: ${satellites.joinToString { "${it.name}(${it.noradId})" }}"
+                return@withContext "[ERROR] 未找到匹配 '$satelliteQuery' 的预置业余卫星。可用卫星: ${satellites.joinToString { "${it.name}(${it.noradId})" }}。若要查找非预置卫星，请先 action=search 获取 TLE，再以 tle_line1/tle_line2 传入 action=passes。"
             }
             matched
         }
@@ -122,9 +213,6 @@ class SatellitePassTool(
         if (tleMap.isEmpty()) {
             return@withContext "[ERROR] 无法获取卫星星历（TLE）。请检查网络连接，或稍后重试。"
         }
-
-        val now = System.currentTimeMillis()
-        val endTime = now + hours * 3600_000L
 
         val passes = mutableListOf<String>()
         for (sat in targetSats) {
@@ -136,6 +224,7 @@ class SatellitePassTool(
                 val satPasses = computePasses(tle, lat, lon, now, endTime, sat.minElevationDeg.toDouble())
                 if (satPasses.isNotEmpty()) {
                     passes.add("### ${sat.name} (NORAD ${sat.noradId})")
+                    if (sat.oscar != null) passes.add("AMSAT: ${sat.oscar}")
                     if (sat.uplinkMHz != null) passes.add("上行: ${sat.uplinkMHz} MHz")
                     if (sat.downlinkMHz != null) passes.add("下行: ${sat.downlinkMHz} MHz")
                     passes.add("调制: ${sat.modulation}")
@@ -162,9 +251,112 @@ class SatellitePassTool(
         }.trimEnd()
     }
 
+    // ==================== action=search ====================
+
+    /**
+     * 从 celestrak 拉取全部活跃卫星 TLE（GROUP=active），按名称或 NORAD ID 搜索匹配的卫星。
+     * 用于查询未预置在 ham_satellites.json 中的卫星（如学校参与的立方星、通联过的特殊卫星等）。
+     * 返回匹配卫星的名称、NORAD ID 和 TLE 两行数据，LLM 拿到后可传给 action=passes 计算过境。
+     */
+    private suspend fun executeSearch(satelliteQuery: String): String = withContext(Dispatchers.IO) {
+        if (satelliteQuery.isBlank()) {
+            return@withContext "[ERROR] search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
+        }
+
+        val activeTleText = fetchActiveTleText()
+        if (activeTleText.isNullOrBlank()) {
+            return@withContext "[ERROR] 无法获取活跃卫星 TLE 数据。请检查网络连接，或稍后重试。"
+        }
+
+        val allTle = parseTleText(activeTleText)
+        if (allTle.isEmpty()) {
+            return@withContext "[ERROR] 活跃卫星 TLE 数据解析为空。"
+        }
+
+        val noradIdQuery = satelliteQuery.trim().toIntOrNull()
+        val matched: List<TleEntry> = if (noradIdQuery != null) {
+            // 按 NORAD ID 精确匹配
+            listOfNotNull(allTle[noradIdQuery])
+        } else {
+            // 按名称模糊匹配（大小写不敏感）
+            allTle.values.filter { it.name.contains(satelliteQuery, ignoreCase = true) }
+        }
+
+        if (matched.isEmpty()) {
+            return@withContext "[ERROR] 在活跃卫星中未找到匹配 '$satelliteQuery' 的卫星。请确认名称或 NORAD ID 是否正确。"
+        }
+
+        // 限制返回数量，避免 TLE 数据过多撑爆上下文
+        val limited = matched.take(20)
+        buildString {
+            appendLine("## 卫星搜索结果（共 ${matched.size} 条匹配，显示前 ${limited.size} 条）")
+            appendLine()
+            limited.forEach { tle ->
+                val noradId = tle.line1.substring(2, 7).trim().toIntOrNull() ?: -1
+                appendLine("### ${tle.name} (NORAD $noradId)")
+                appendLine("TLE_LINE1: ${tle.line1}")
+                appendLine("TLE_LINE2: ${tle.line2}")
+                appendLine()
+            }
+            appendLine("---")
+            appendLine("提示：将上述 TLE_LINE1/TLE_LINE2 传入 action=passes（参数 tle_line1/tle_line2）即可计算该卫星的过境窗口。")
+        }.trimEnd()
+    }
+
+    /**
+     * 拉取 celestrak 全部活跃卫星 TLE（GROUP=active），用于 action=search。
+     * 使用独立缓存（tle_active.txt，与 amateur 缓存分离，避免相互覆盖），24 小时有效。
+     */
+    private suspend fun fetchActiveTleText(): String? = withContext(Dispatchers.IO) {
+        val cacheFile = File(context.cacheDir, "tle_active.txt")
+        val metaFile = File(context.cacheDir, "tle_active_meta.txt")
+        val now = System.currentTimeMillis()
+        val cacheValid = cacheFile.exists() && metaFile.exists() &&
+                (now - metaFile.readText().trim().toLongOrNull().let { it ?: 0L }) < TimeUnit.HOURS.toMillis(24)
+
+        if (cacheValid) {
+            runCatching { cacheFile.readText() }.getOrNull()?.let { return@withContext it }
+        }
+
+        val url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
+        val fetched = runCatching {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 20000
+            conn.readTimeout = 30000 // active 列表较大，超时放宽
+            conn.setRequestProperty("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
+            conn.inputStream.bufferedReader().use { it.readText() }
+        }.getOrNull()
+
+        if (!fetched.isNullOrBlank()) {
+            runCatching {
+                cacheFile.writeText(fetched)
+                metaFile.writeText(now.toString())
+            }
+            return@withContext fetched
+        }
+
+        // 拉取失败，回退到过期缓存
+        if (cacheFile.exists()) {
+            return@withContext runCatching { cacheFile.readText() }.getOrNull()
+        }
+        null
+    }
+
     // ==================== TLE 获取与缓存 ====================
 
     private data class TleEntry(val name: String, val line1: String, val line2: String)
+
+    /**
+     * TLE 多源 fallback 列表（依次尝试，第一个成功即用）：
+     * 1. celestrak gp.php?GROUP=amateur&FORMAT=tle（主源，推荐）
+     * 2. amsat nasabare.txt（AMSAT 备用源）
+     * 3. celestrak amateur.txt（旧 URL 兜底）
+     */
+    private val tleSources = listOf(
+        "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
+        "https://amsat.org/tle/current/nasabare.txt",
+        "https://celestrak.org/NORAD/elements/amateur.txt",
+    )
 
     private suspend fun fetchTleMap(): Map<Int, TleEntry> = withContext(Dispatchers.IO) {
         val cacheFile = File(context.cacheDir, "tle_amateur.txt")
@@ -180,13 +372,8 @@ class SatellitePassTool(
         }
 
         val tleText = rawText ?: run {
-            val fetched = runCatching {
-                val conn = URL("https://celestrak.org/NORAD/elements/amateur.txt").openConnection() as HttpURLConnection
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
-                conn.setRequestProperty("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
-                conn.inputStream.bufferedReader().use { it.readText() }
-            }.getOrNull()
+            // 多源 fallback：依次尝试 tleSources 中的源，第一个成功即用
+            val fetched = fetchTleFromSources()
 
             if (fetched != null) {
                 runCatching {
@@ -195,6 +382,7 @@ class SatellitePassTool(
                 }
                 fetched
             } else if (cacheFile.exists()) {
+                // 所有源都失败，回退到过期缓存
                 runCatching { cacheFile.readText() }.getOrNull()
             } else {
                 null
@@ -206,6 +394,28 @@ class SatellitePassTool(
         }
 
         parseTleText(tleText)
+    }
+
+    /**
+     * 依次尝试 [tleSources] 中的源，返回第一个非空 TLE 文本；全部失败返回 null。
+     */
+    private fun fetchTleFromSources(): String? {
+        for (url in tleSources) {
+            val result = runCatching {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.setRequestProperty("User-Agent", "Opedrgent/1.1 (amateur radio satellite tool)")
+                conn.inputStream.bufferedReader().use { it.readText() }
+            }.getOrNull()
+
+            if (!result.isNullOrBlank()) {
+                DebugLog.i("SatellitePassTool: TLE 源获取成功: $url")
+                return result
+            }
+            DebugLog.w("SatellitePassTool: TLE 源失败或为空: $url")
+        }
+        return null
     }
 
     private fun parseTleText(text: String): Map<Int, TleEntry> {
@@ -231,7 +441,7 @@ class SatellitePassTool(
         return result
     }
 
-    // ==================== 卫星过境计算（简化 SGP4） ====================
+    // ==================== 卫星过境计算（SGP4/SDP4） ====================
 
     private data class PassWindow(
         val aosUtc: Long,
@@ -249,60 +459,127 @@ class SatellitePassTool(
         endTimeUtcMs: Long,
         minElevationDeg: Double,
     ): List<String> {
-        val elements = parseTleElements(tle) ?: return emptyList()
-        val obsLat = Math.toRadians(obsLatDeg)
-        val obsLon = Math.toRadians(obsLonDeg)
+        val orbitalData = parseTleToOrbitalData(tle) ?: return emptyList()
+        // OrbitalObject init 块计算量大（SGP4/SDP4 系数），每个 TLE 只创建一次
+        val orbitalObject = orbitalData.getObject()
+        val geoPos = GeoPos(latitude = obsLatDeg, longitude = obsLonDeg)
 
-        val stepSeconds = 30
-        val totalSeconds = ((endTimeUtcMs - startTimeUtcMs) / 1000).toInt()
+        // 轨道周期（分钟）= 1440 / meanMotion（meanMotion 单位 revs/day）
+        // 参考 Look4Sat getLeoPass：用 meanMotion 推算轨道周期，回退 1/4 周期作为搜索起点
+        val meanMotion = orbitalData.meanmo.coerceAtLeast(0.0001)
+        val orbitalPeriodMin = 1440.0 / meanMotion
+        val quarterOrbitMs = (orbitalPeriodMin / 4.0).toLong() * 60L * 1000L
+
         val passes = mutableListOf<PassWindow>()
+        // 步骤 1：回退 1/4 轨道周期作为搜索起点（处理当前正在过境中的边缘情况）
+        var cursor = startTimeUtcMs - quarterOrbitMs
 
-        var inPass = false
-        var passStart = 0L
-        var maxEl = 0.0
-        var maxElTime = 0L
-        var passDirection = ""
+        // 防御性迭代上限，防止 SGP4 精度问题或传播持续失败导致死循环
+        val maxIterations = 500
+        var iterationCount = 0
 
-        for (s in 0..totalSeconds step stepSeconds) {
-            val t = startTimeUtcMs + s * 1000L
-            val elapsedMinutes = (t - elements.epoch) / 60000.0
+        while (cursor < endTimeUtcMs && iterationCount < maxIterations) {
+            iterationCount++
 
-            val pos = propagateSgp4(elements, elapsedMinutes) ?: continue
-            val (satLat, satLon, altKm) = pos
-
-            val elevation = computeElevation(obsLat, obsLon, satLat, satLon, altKm)
-
-            if (elevation >= minElevationDeg) {
-                if (!inPass) {
-                    inPass = true
-                    passStart = t
-                    maxEl = elevation
-                    maxElTime = t
-                    passDirection = if (s > 0) {
-                        val prevT = t - stepSeconds * 1000L
-                        val prevElapsed = (prevT - elements.epoch) / 60000.0
-                        val prevPos = propagateSgp4(elements, prevElapsed)
-                        if (prevPos != null) {
-                            val prevEl = computeElevation(obsLat, obsLon, prevPos.lat, prevPos.lon, prevPos.altKm)
-                            if (elevation >= prevEl) "升段" else "降段"
-                        } else "升段"
-                    } else "升段"
-                } else {
-                    if (elevation > maxEl) {
-                        maxEl = elevation
-                        maxElTime = t
-                    }
+            // 步骤 2：若当前已在过境中（仰角 >= minElevation），30s 步长前进到 LOS，然后跳 3/4 轨道周期
+            val startElev = elevationAt(orbitalObject, geoPos, cursor)
+            if (startElev != null && startElev >= minElevationDeg) {
+                var safety = 0
+                while (cursor < endTimeUtcMs && safety < 10000) {
+                    safety++
+                    cursor += 30_000L
+                    val e = elevationAt(orbitalObject, geoPos, cursor)
+                    if (e == null || e < minElevationDeg) break
                 }
-            } else {
-                if (inPass) {
-                    passes.add(PassWindow(passStart, t, maxEl, maxElTime, passDirection))
-                    inPass = false
-                    maxEl = 0.0
+                cursor += quarterOrbitMs * 3
+                continue
+            }
+
+            // 步骤 3：粗扫找 AOS（60s 步长，直到仰角 >= minElevation）
+            var maxEl = 0.0
+            var aosFound = false
+            var safety = 0
+            while (cursor < endTimeUtcMs && safety < 20000) {
+                safety++
+                cursor += 60_000L
+                val e = elevationAt(orbitalObject, geoPos, cursor)
+                if (e == null) continue
+                if (e > maxEl) maxEl = e
+                if (e >= minElevationDeg) {
+                    aosFound = true
+                    break
                 }
             }
-        }
-        if (inPass) {
-            passes.add(PassWindow(passStart, endTimeUtcMs, maxEl, maxElTime, passDirection))
+            if (!aosFound || cursor >= endTimeUtcMs) break
+
+            // 步骤 4：精扫细化 AOS（500ms 步长）
+            cursor -= 60_000L // 回退一步
+            var aosTime = -1L
+            safety = 0
+            while (cursor < endTimeUtcMs && safety < 200000) {
+                safety++
+                cursor += 500L
+                val e = elevationAt(orbitalObject, geoPos, cursor)
+                if (e == null) continue
+                if (e > maxEl) maxEl = e
+                if (e >= minElevationDeg) {
+                    aosTime = cursor
+                    break
+                }
+            }
+            if (aosTime < 0) break
+
+            // 步骤 5：粗扫找 LOS（30s 步长），同时追踪最大仰角
+            safety = 0
+            while (cursor < endTimeUtcMs && safety < 10000) {
+                safety++
+                cursor += 30_000L
+                val e = elevationAt(orbitalObject, geoPos, cursor)
+                if (e == null) break
+                if (e > maxEl) maxEl = e
+                if (e < minElevationDeg) break
+            }
+
+            // 步骤 6：精扫细化 LOS（500ms 步长）
+            cursor -= 30_000L // 回退一步
+            var losTime = -1L
+            safety = 0
+            while (cursor < endTimeUtcMs && safety < 200000) {
+                safety++
+                cursor += 500L
+                val e = elevationAt(orbitalObject, geoPos, cursor)
+                if (e == null) break
+                if (e > maxEl) maxEl = e
+                if (e < minElevationDeg) {
+                    losTime = cursor
+                    break
+                }
+            }
+            if (losTime < 0) {
+                // 没找到 LOS（到 endTime 仍在过境中，或传播失败），用 endTime 作为 LOS
+                losTime = endTimeUtcMs
+            }
+
+            // 步骤 7：TCA（最大仰角时刻）= (AOS + LOS) / 2
+            val tcaTime = (aosTime + losTime) / 2
+
+            // 只记录 AOS >= startTime 的过境（未来过境）；
+            // AOS < startTime 说明是回退期间找到的过去过境，跳过记录但仍从 LOS 继续搜索下一个
+            if (aosTime >= startTimeUtcMs) {
+                val direction = computePassDirection(orbitalObject, geoPos, aosTime)
+                passes.add(
+                    PassWindow(
+                        aosUtc = aosTime,
+                        losUtc = losTime,
+                        maxElevationDeg = maxEl,
+                        maxElevationTimeUtc = tcaTime,
+                        direction = direction,
+                    ),
+                )
+            }
+
+            // 步骤 8：从 LOS + 3/4 轨道周期开始找下一个过境
+            cursor = losTime + quarterOrbitMs * 3
         }
 
         return passes.map { p ->
@@ -317,158 +594,86 @@ class SatellitePassTool(
         }
     }
 
+    /**
+     * 计算 [timeUtcMs] 时刻的卫星仰角（度），使用完整 SGP4/SDP4 轨道传播。
+     * OrbitalObject.getElevation() 返回弧度，此处转为度。
+     * 返回 null 表示传播失败或结果无效（NaN/Infinity）。
+     */
+    private fun elevationAt(
+        orbitalObject: OrbitalObject,
+        geoPos: GeoPos,
+        timeUtcMs: Long,
+    ): Double? {
+        return try {
+            val elevRad = orbitalObject.getElevation(geoPos, timeUtcMs)
+            val elevDeg = Math.toDegrees(elevRad)
+            if (elevDeg.isNaN() || elevDeg.isInfinite()) null else elevDeg
+        } catch (e: Exception) {
+            DebugLog.w("SatellitePassTool: getElevation 失败: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 判断过境方向（升段/降段）：比较 AOS 时刻与前一分钟的仰角。
+     */
+    private fun computePassDirection(
+        orbitalObject: OrbitalObject,
+        geoPos: GeoPos,
+        aosTime: Long,
+    ): String {
+        val aosEl = elevationAt(orbitalObject, geoPos, aosTime) ?: return "升段"
+        val prevEl = elevationAt(orbitalObject, geoPos, aosTime - 60_000L) ?: return "升段"
+        return if (aosEl >= prevEl) "升段" else "降段"
+    }
+
     // ==================== TLE 解析 ====================
 
-    private data class OrbitalElements(
-        val noradId: Int,
-        val epoch: Long, // epoch in millis UTC
-        val meanMotion: Double,
-        val eccentricity: Double,
-        val inclination: Double,
-        val raan: Double,
-        val argPerigee: Double,
-        val meanAnomaly: Double,
-        val bstar: Double,
-    )
-
-    private fun parseTleElements(tle: TleEntry): OrbitalElements? = runCatching {
-        val l1 = tle.line1
-        val l2 = tle.line2
-        val noradId = l1.substring(2, 7).trim().toInt()
-
-        // Epoch: YYDDD.DDDDDDDD
-        val epochYear = l1.substring(18, 20).trim().toInt()
-        val epochDayOfYear = l1.substring(20, 32).trim().toDouble()
-        val fullYear = if (epochYear < 57) 2000 + epochYear else 1900 + epochYear
-
-        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-        cal.clear()
-        cal.set(fullYear, 0, 1, 0, 0, 0)
-        val epochMillis = cal.getTimeInMillis() + ((epochDayOfYear - 1) * 86400000L).toLong()
-
-        val meanMotion = l2.substring(52, 63).trim().toDouble() // revs/day
-        val eccentricity = "0." + l2.substring(26, 33).trim()
-        val inclination = l2.substring(8, 16).trim().toDouble()
-        val raan = l2.substring(17, 25).trim().toDouble()
-        val argPerigee = l2.substring(34, 42).trim().toDouble()
-        val meanAnomaly = l2.substring(43, 51).trim().toDouble()
-
-        // BSTAR drag term
-        val bstarStr = l1.substring(53, 61).trim()
-        val bstar = parseScientific(bstarStr) ?: 0.0
-
-        OrbitalElements(
-            noradId = noradId,
-            epoch = epochMillis,
-            meanMotion = meanMotion,
-            eccentricity = eccentricity.toDouble(),
-            inclination = Math.toRadians(inclination),
-            raan = Math.toRadians(raan),
-            argPerigee = Math.toRadians(argPerigee),
-            meanAnomaly = Math.toRadians(meanAnomaly),
-            bstar = bstar,
+    /**
+     * 将 TLE 两行字符串解析为 OrbitalData，用于 SGP4/SDP4 轨道传播。
+     * 解析逻辑移植自 Look4Sat DataParser.parseTLE()，修正了 BSTAR 指数偏移 bug。
+     */
+    private fun parseTleToOrbitalData(tle: TleEntry): OrbitalData? = runCatching {
+        val line1 = tle.line1
+        val line2 = tle.line2
+        OrbitalData(
+            name = tle.name,
+            epoch = line1.substring(18, 32).toDouble(),
+            meanmo = line2.substring(52, 63).toDouble(),
+            eccn = line2.substring(26, 33).toDouble() / 1e7,
+            incl = line2.substring(8, 16).toDouble(),
+            raan = line2.substring(17, 25).toDouble(),
+            argper = line2.substring(34, 42).toDouble(),
+            meanan = line2.substring(43, 51).toDouble(),
+            catnum = line1.substring(2, 7).trim().toInt(),
+            bstar = parseBstar(line1),
+            ndot = line1.substring(33, 43).trim().toDouble()
         )
     }.onFailure { DebugLog.w("SatellitePassTool: TLE 解析失败: ${it.message}") }.getOrNull()
 
-    private fun parseScientific(s: String): Double? {
-        // Format: 12345-6 or 12345+6 meaning 0.12345e-6 or 0.12345e+6
-        if (s.length < 7) return null
-        val mantissa = s.substring(0, 5)
-        val sign = s[5]
-        val exp = s.substring(6)
-        val value = mantissa.toDoubleOrNull() ?: return null
-        val exponent = exp.toIntOrNull() ?: return null
+    /**
+     * 解析 TLE 第 1 行的 BSTAR 大气阻力项。
+     * BSTAR 字段位于 positions 53-60（8 字符），格式 " MMMMMSE"：
+     * - position 53: 前导空格
+     * - positions 54-58: 5 位尾数（MMMMM）
+     * - position 59: 符号（+/-）
+     * - position 60: 指数（E，1 位数字）
+     * 实际值 = (MMMMM / 100000) * 10^(±E) = MMMMM * 10^(-5 ± E)
+     */
+    private fun parseBstar(line1: String): Double {
+        val mantissa = line1.substring(53, 59).trim().toDoubleOrNull() ?: return 0.0
+        val sign = line1[59]
+        val exponent = line1.substring(60, 61).toIntOrNull() ?: return 0.0
         val signedExp = if (sign == '-') -exponent else exponent
-        return value * 10.0.pow(signedExp - 4) // mantissa is 0.xxxxx
-    }
-
-    // ==================== 简化 SGP4 传播 ====================
-
-    private data class SatPosition(val lat: Double, val lon: Double, val altKm: Double)
-
-    private fun propagateSgp4(el: OrbitalElements, minutesFromEpoch: Double): SatPosition? = runCatching {
-        val deg2rad = PI / 180.0
-        val xke = 0.07436691613317341 // sqrt(GM) in Earth radii^1.5/min
-        val mu = 398600.4418 // km^3/s^2
-        val re = 6378.135 // km
-        val j2 = 0.001082629
-
-        // Mean motion in rad/min
-        val n0 = el.meanMotion * 2.0 * PI / 1440.0
-        val a1 = (xke / n0).pow(2.0 / 3.0) // semi-major axis in Earth radii
-
-        // J2 perturbation on mean motion and RAAN/argPerigee
-        val cosi = cos(el.inclination)
-        val theta2 = cosi * cosi
-        val x3thm1 = 3.0 * theta2 - 1.0
-        val a1j2 = a1 * (1.0 - 1.5 * j2 * x3thm1 / (a1 * a1) * sqrt(1.0 - el.eccentricity * el.eccentricity))
-
-        // Simplified: propagate mean anomaly
-        val n = n0
-        val M = el.meanAnomaly + n * minutesFromEpoch
-
-        // Solve Kepler's equation (Newton's method)
-        var E = M
-        for (i in 0 until 50) {
-            val dE = (E - el.eccentricity * sin(E) - M) / (1.0 - el.eccentricity * cos(E))
-            E -= dE
-            if (abs(dE) < 1e-12) break
-        }
-        val sinE = sin(E)
-        val cosE = cos(E)
-        val ecosE = el.eccentricity * cosE
-        val denom = 1.0 - ecosE
-        val a = a1j2 * re // km
-        val r = a * denom
-        val xOrb = a * (cosE - el.eccentricity)
-        val yOrb = a * sqrt(1.0 - el.eccentricity * el.eccentricity) * sinE
-
-        // RAAN precession due to J2
-        val raanDot = -1.5 * j2 * n0 * cosi / ((1.0 - el.eccentricity * el.eccentricity).pow(2.0))
-        val argPerigeeDot = 0.75 * j2 * n0 * (5.0 * theta2 - 1.0) / ((1.0 - el.eccentricity * el.eccentricity).pow(2.0))
-
-        val raan = el.raan + raanDot * minutesFromEpoch
-        val argP = el.argPerigee + argPerigeeDot * minutesFromEpoch
-
-        // Position in ECI
-        val u = argP + M // argument of latitude approximation
-        val xEci = r * (cos(raan) * cos(u) - sin(raan) * sin(u) * cosi)
-        val yEci = r * (sin(raan) * cos(u) + cos(raan) * sin(u) * cosi)
-        val zEci = r * sin(u) * sin(el.inclination)
-
-        // Convert ECI to lat/lon (simplified, ignoring Earth rotation rate for short passes)
-        val thetaGMST = 0.0 // simplified
-        val xEcef = xEci * cos(thetaGMST) + yEci * sin(thetaGMST)
-        val yEcef = -xEci * sin(thetaGMST) + yEci * cos(thetaGMST)
-        val zEcef = zEci
-
-        val lat = atan2(zEcef, sqrt(xEcef * xEcef + yEcef * yEcef))
-        val lon = atan2(yEcef, xEcef)
-        val altKm = r - re
-
-        SatPosition(Math.toDegrees(lat), Math.toDegrees(lon), altKm)
-    }.onFailure { DebugLog.w("SatellitePassTool: SGP4 传播失败: ${it.message}") }.getOrNull()
-
-    private fun computeElevation(
-        obsLat: Double, obsLon: Double,
-        satLat: Double, satLon: Double, satAltKm: Double,
-    ): Double {
-        val re = 6378.135
-        val dLat = satLat - obsLat
-        val dLon = satLon - obsLon
-        val a = sin(dLat / 2).pow(2) + cos(obsLat) * cos(satLat) * sin(dLon / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        val groundDistKm = re * c
-        val slantRange = sqrt(groundDistKm * groundDistKm + satAltKm * satAltKm + 2 * groundDistKm * satAltKm * sin(PI / 2))
-        val elevation = asin((satAltKm + re * (1 - cos(groundDistKm / re))) / slantRange)
-        return Math.toDegrees(elevation)
+        return mantissa * 10.0.pow(signedExp - 5)
     }
 
     // ==================== 卫星数据库加载 ====================
 
-    private data class HamSatellite(
+    data class HamSatellite(
         val name: String,
         val noradId: Int,
+        val oscar: String?,
         val uplinkMHz: String?,
         val downlinkMHz: String?,
         val modulation: String,
@@ -484,6 +689,7 @@ class SatellitePassTool(
             HamSatellite(
                 name = obj.getString("name"),
                 noradId = obj.getInt("noradId"),
+                oscar = if (obj.isNull("oscar")) null else obj.getString("oscar"),
                 uplinkMHz = if (obj.isNull("uplinkMHz")) null else obj.getString("uplinkMHz"),
                 downlinkMHz = if (obj.isNull("downlinkMHz")) null else obj.getString("downlinkMHz"),
                 modulation = obj.getString("modulation"),
@@ -491,7 +697,12 @@ class SatellitePassTool(
                 notes = obj.optString("notes", ""),
             )
         }
-    }.getOrElse { emptyList() }
+    }.onFailure { e ->
+        // 关键修复：之前 getOrElse { emptyList() } 会吞掉 JSON 解析异常，
+        // 导致 executeList() 返回"[ERROR] 业余卫星数据库为空"，LLM 误以为没有卫星
+        // 而反复 web_search 浪费数分钟。现在必须打印错误日志便于排查。
+        DebugLog.e("SatellitePassTool: ham_satellites.json 加载失败: ${e.javaClass.simpleName}: ${e.message}")
+    }.getOrDefault(emptyList())
 
     // ==================== 工具方法 ====================
 
