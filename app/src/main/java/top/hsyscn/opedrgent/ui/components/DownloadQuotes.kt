@@ -218,7 +218,6 @@ object DownloadQuotes {
         DownloadQuote("当某件事足够重要时，即使成功率不高，你也要去做。", "马斯克"),
         DownloadQuote("你见过凌晨四点的洛杉矶吗？", "科比"),
         DownloadQuote("今天很残酷，明天更残酷，而后天会很美好。", "马云"),
-        DownloadQuote("世界给我们的财富，就是努力，不努力将一无所有。", "任正非"),
         DownloadQuote("其实地上本没有路，走的人多了，也便成了路。", "鲁迅"),
         DownloadQuote("人生应该如蜡烛一样，从顶燃到底，一直都是光明的。", "萧楚女"),
         DownloadQuote("天才出于勤奋。", "高尔基"),

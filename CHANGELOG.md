@@ -1,4 +1,38 @@
-# Opedrgent 1.0 更新日志 / Release Notes
+# Opedrgent 更新日志 / Release Notes
+
+## 1.1sat
+
+### 新增 / New
+
+- **Ham 模式通联日志智能化**：录音转写后自动预填充卫星名称/频率/调制方式/QTH 网格，AI 仅补漏（信号报告、呼号等），对话框可编辑、可导出 ADIF/CSV。
+  **Ham Mode Smart Contact Log**: Auto-fills satellite name/frequency/modulation/QTH from satellite DB after transcription; AI only fills gaps. Dialog supports editing and ADIF/CSV export.
+- **Ham 模式本台呼号/QTH 网格设置**：新增 `STATION_CALLSIGN` / `MY_GRIDSQUARE` 两个 ADIF 规范字段，写入每条 QSO 记录。
+  **Ham Mode Station Settings**: Added `STATION_CALLSIGN` and `MY_GRIDSQUARE` (ADIF 3.1 fields) to every QSO record.
+- **thinking_budget 可配置**：用户可在设置中调整思维链 token 预算（默认 4096，范围 0-32768），影响所有 thinking 模型的推理长度。
+  **Configurable thinking_budget**: User-adjustable thinking chain token budget (default 4096, range 0-32768) for all thinking models.
+
+### 修复 / Fixes
+
+- **ADIF 导出格式修正**：`PROGRAMID` 长度 8→9（实际 9 字符），头部裸文本加 `#` 前缀，字段尾部空格改换行分隔。
+  **ADIF Export Fix**: `PROGRAMID` length 8→9, header plain text prefixed with `#`, field trailing spaces replaced with newlines.
+- **WebView 内存泄露修复**：`MainViewModel.onCleared()` 新增 `toolExecutor.destroy()`，释放 WebViewAgent 及各工具内部资源。
+  **WebView Leak Fix**: `MainViewModel.onCleared()` now calls `toolExecutor.destroy()` to release WebViewAgent and tool resources.
+- **thinking 模型 reasoning 多轮丢失修复**：`chatCompletionsWithTools` 补 `reasoning_content` 解析与多轮回传，非流式工具调用路径也能展示思维链。
+  **Reasoning Loss Fix**: `chatCompletionsWithTools` now parses and round-trips `reasoning_content`, showing reasoning in non-streaming tool calls.
+- **通联日志对话框状态丢失修复**：编辑草稿独立于对话框生命周期，dismiss 后仍可重开继续编辑，必填字段（卫星/日期）高亮校验。
+  **Contact Log Dialog Fix**: Edit draft survives dialog dismiss; dialog can be reopened. Required fields (satellite/date) show inline validation.
+- **网络超时分层配置**：`READ_TIMEOUT` 600→60s 用于常规请求，LLM 请求改用 `HttpClients.streaming`（5min readTimeout + 10min callTimeout）。
+  **Network Timeout Layering**: `READ_TIMEOUT` 600→60s for normal requests; LLM requests now use `HttpClients.streaming` (5min readTimeout + 10min callTimeout).
+- **SatellitePassTool 清理**：删除 `errorResult` 死代码，补 list/search 分支 DebugLog，两处 `HttpURLConnection` 改为 `HttpClients.longRunning`。
+  **SatellitePassTool Cleanup**: Removed dead `errorResult`, added list/search DebugLog, replaced two `HttpURLConnection` with `HttpClients.longRunning`.
+- **ToolExecutor 错误 @Deprecated 标记移除**：`unknownTool` 是有效 fallback，非废弃方法，移除错误注解。
+  **ToolExecutor Fix**: Removed incorrect `@Deprecated` on `unknownTool` (valid fallback, not deprecated).
+- **requestContactLog 时区修正**：通联日期改用 UTC 时区，与 ADIF 规范一致。
+  **requestContactLog Timezone Fix**: Contact date now uses UTC, matching ADIF spec.
+- **通联结果枚举约束**：新增 `normalizeResult()` 将任意输入归一化为 OK/PARTIAL/NO，兼容中英文同义词。
+  **Contact Result Enum**: Added `normalizeResult()` to normalize any input to OK/PARTIAL/NO, with Chinese/English synonym support.
+
+---
 
 ## 1.0.0
 
@@ -40,5 +74,5 @@
 
 ---
 
-**版本号 / Version**: 1.0.0  
-**构建状态 / Build Status**: `./gradlew assembleRelease` 通过 / `BUILD SUCCESSFUL`
+**版本号 / Version**: 1.1sat  
+**构建状态 / Build Status**: `./gradlew assembleDebug` 通过 / `BUILD SUCCESSFUL`
