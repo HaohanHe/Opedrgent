@@ -51,6 +51,23 @@ An open-source Android AI assistant built with Jetpack Compose and Kotlin.
 - **KeepAlive Service** — Background keep-alive service
   **KeepAlive Service** — 后台保活服务
 
+### Ham Mode (Satellite Communication) / Ham 模式（业余卫星通联）
+
+- **Satellite Pass Prediction** — SGP4/SDP4 orbital propagation (full J2/J3/J4 perturbations, BSTAR atmospheric drag, GMST correction, deep-space SDP4), coarse-scan + fine-scan two-stage algorithm
+  **卫星过境预测** — SGP4/SDP4 完整轨道传播（J2/J3/J4 摄动、BSTAR 大气阻力、GMST 修正、深空 SDP4），粗扫+精扫二阶策略
+- **Multi-Source TLE Fallback** — Celestrak → AMSAT → legacy URL cascading TLE fetching with 24-hour local caching
+  **多源 TLE Fallback** — Celestrak → AMSAT → 旧 URL 三级级联 TLE 获取，24 小时本地缓存
+- **Built-in Satellite Database** — 16 amateur satellites (ISS, SO-50, AO-91/92, FO-29, CAS-3H, RS-44, etc.) with uplink/downlink frequencies, modulation modes, and min elevation angles
+  **内置卫星数据库** — 16 颗业余卫星（ISS、SO-50、AO-91/92、FO-29、CAS-3H、RS-44 等），含上下行频率、调制方式、最低仰角
+- **Active Satellite Search** — Fetch all active satellite TLEs from Celestrak, queryable by name or NORAD ID for non-preset satellites
+  **活跃卫星搜索** — 从 Celestrak 拉取全部活跃卫星 TLE，支持按名称或 NORAD ID 搜索预置列表外的卫星
+- **Smart Contact Log** — Post-transcription auto-fill from satellite DB (name/frequency/modulation), AI fills gaps only (RST, callsign, result), editable dialog with validation, ADIF/CSV export
+  **智能通联日志** — 转写后从卫星数据库自动预填充（名称/频率/调制），AI 仅补漏（信号报告/呼号/结果），对话框可编辑校验，导出 ADIF/CSV
+- **ADIF 3.1.4 Export** — Standard ADIF format compatible with QRZLOG / LoTW / ClubLog, with configurable station callsign and QTH gridsquare
+  **ADIF 3.1.4 导出** — 标准 ADIF 格式，兼容 QRZLOG / LoTW / ClubLog，可配置本台呼号和 QTH 网格
+- **Configurable thinking_budget** — User-adjustable thinking chain token budget for all thinking models
+  **可配置 thinking_budget** — 用户可调整所有 thinking 模型的思维链 token 预算
+
 ### Skill System (V2) / 技能系统（V2）
 
 - **SKILL.md Standard Frontmatter** — Complete metadata: name / description / version / category / require-secret
@@ -188,8 +205,19 @@ app/src/main/java/top/hsyscn/opedrgent/
 │   ├── GenerateReportTool.kt    # generate_report - Report generation
 │   ├── ReverseGeocodeTool.kt    # reverse_geocode - Reverse geocoding
 │   ├── OpenBrowserTool.kt       # open_browser - Open browser
+│   ├── SatellitePassTool.kt     # satellite_pass - Satellite pass prediction (Ham mode)
 │   └── prompts/                 # Per-tool prompt templates
 │
+├── tools/satellite/             # SGP4/SDP4 orbital mechanics (ported from Look4Sat)
+│   ├── Constants.kt             # Physical constants (J2/J3/J4, GMST, Earth radius, etc.)
+│   ├── OrbitalMath.kt           # Math helpers (kepler equation, rotations, coordinate transforms)
+│   ├── OrbitalData.kt           # TLE parsing to orbital elements
+│   ├── NearEarthObject.kt       # SGP4 propagation for near-earth orbits
+│   ├── DeepSpaceObject.kt       # SDP4 propagation for deep-space orbits
+│   ├── OrbitalObject.kt         # Unified orbital state interface
+│   ├── GeoPos.kt                # Geodetic position handling
+│   └── OrbitalPos.kt            # Orbital position output
+
 ├── stt/                         # Speech-to-text module
 │   ├── AsrManager.kt            # ASR manager (unified entry point)
 │   ├── SpeechEngine.kt          # Speech engine interface
@@ -437,20 +465,13 @@ User(SkillsScreen) -> Import(SKILL.md) -> SkillLoader(parse & store)
 ## Assets Structure / Assets 结构
 
 ```
-assets/skills/
-├── calculate-hash/              # JS Skill: Hash calculator / 哈希计算器
-│   ├── SKILL.md                 #   Frontmatter metadata / Frontmatter 元数据
-│   └── scripts/index.html       #   Web Crypto API impl / Web Crypto API 实现
-├── mood-tracker-lite/           # JS Skill: Mood tracker / 心情追踪器
-│   ├── SKILL.md                 #   Frontmatter metadata / Frontmatter 元数据
-│   ├── scripts/index.html       #   CRUD + trend analysis / CRUD + 趋势分析
-│   └── assets/dashboard.html    #   Interactive dashboard / 交互式仪表盘
-├── critical-inquiry.md          # Text Skill: Critical inquiry / 批判性探究
-├── insight-sprout.md            # Text Skill: Knowledge sprout / 知识发芽
-├── insight-review.md            # Text Skill: Insight review / 洞察评审
-├── text-refine.md               # Text Skill: Text refinement / 文本精炼
-├── mimo-tts.md                  # Text Skill: TTS voice / TTS 语音
-└── multi-agent-collaboration.md # Text Skill: Multi-agent collaboration / 多智能体协作
+assets/
+├── skills/
+│   ├── calculate-hash/              # JS Skill: Hash calculator / 哈希计算器
+│   ├── mood-tracker-lite/           # JS Skill: Mood tracker / 心情追踪器
+│   ├── ...
+│   └── multi-agent-collaboration.md # Text Skill: Multi-agent collaboration / 多智能体协作
+└── ham_satellites.json              # Amateur satellite database (16 entries) / 业余卫星数据库（16 颗）
 ```
 
 ## Documentation / 文档
