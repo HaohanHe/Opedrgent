@@ -251,7 +251,7 @@ private fun InterviewSetupScreen(
                 color = themeTextGrey(),
             )
 
-            // ===== 阶跃星辰 Step 3.7 Flash 推荐横幅 =====
+            // ===== 全双工语音模型配置横幅 =====
             StepRecommendationBanner(
                 onUseStepEngine = { apiKey, model, voice ->
                     onStart(
@@ -371,19 +371,13 @@ private fun StepRecommendationBanner(
             modifier = Modifier.padding(SpacingTokens.lg),
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
         ) {
-            // 标题行：品牌 + 推荐 tag
+            // 标题行：功能说明 + 支持标签
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
             ) {
                 Text(
-                    text = "Step",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = InterviewPurple, // 阶跃紫
-                )
-                Text(
-                    text = "Audio 2.5",
+                    text = stringResource(R.string.interview_full_duplex_title),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onPrimary,
@@ -391,9 +385,9 @@ private fun StepRecommendationBanner(
 
                 Spacer(Modifier.weight(1f))
 
-                // 推荐标签
+                // 已支持标签
                 Text(
-                    text = "RECOMMENDED",
+                    text = stringResource(R.string.interview_full_duplex_supported),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary,
@@ -407,12 +401,11 @@ private fun StepRecommendationBanner(
                 )
             }
 
-            // 核心优势描述
+            // 核心说明
             Text(
-                text = "StepAudio 2.5 Realtime — 副语言感知 + Zero-shot 音色复刻 + Global/Inline 双语境控制，ASR+LLM+TTS 一体化 WebSocket",
+                text = stringResource(R.string.interview_full_duplex_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = InterviewTextMuted,
-                
             )
 
             if (!showConfig) {
@@ -428,7 +421,7 @@ private fun StepRecommendationBanner(
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("配置 API Key 并使用", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.interview_full_duplex_config), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 // 展开状态：API Key + 模型/音色选择
@@ -561,7 +554,7 @@ private fun StepRecommendationBanner(
                     Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
-                        text = if (canStart) "使用 StepAudio 2.5 开始面试" else "请先输入 API Key",
+                        text = if (canStart) stringResource(R.string.interview_full_duplex_start) else stringResource(R.string.interview_full_duplex_input_key),
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyLarge,
                     )

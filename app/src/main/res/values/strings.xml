@@ -294,6 +294,15 @@
     <string name="settings_model_recommended">推荐</string>
     <string name="settings_delete_model_cd">删除模型</string>
     <string name="settings_preparing">准备中…</string>
+
+    <!-- 面试模式 -->
+    <string name="interview_full_duplex_title">全双工语音模型</string>
+    <string name="interview_full_duplex_subtitle">面试模式需要支持全双工实时语音对话的模型，可配置任意兼容的实时语音引擎</string>
+    <string name="interview_full_duplex_config">配置实时语音引擎</string>
+    <string name="interview_full_duplex_start">开始实时语音面试</string>
+    <string name="interview_full_duplex_input_key">请先输入 API Key</string>
+    <string name="interview_full_duplex_supported">已支持</string>
+
     <string name="settings_tts_section">TTS 朗读</string>
     <string name="settings_tts_engine">TTS 引擎</string>
     <string name="settings_system_tts">系统 TTS</string>

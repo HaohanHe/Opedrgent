@@ -55,16 +55,15 @@ class StepRealtimeClient(
         private const val TAG = "StepRealtime"
         private const val WS_URL = "wss://api.stepfun.com/v1/realtime"
 
-        /** 支持的模型列表 */
+        /** 支持的模型列表（全双工实时语音模型） */
         val SUPPORTED_MODELS = listOf(
-            "stepaudio-2.5-realtime", // 推荐：专门为实时语音设计，副语言感知+音色复刻
-            "step-3.7-flash",         // 多模态推理模型（通用 Agent 场景）
-            "stepaudio-2-realtime",   // step-audio-2 实时版
+            "stepaudio-2.5-realtime", // 支持全双工实时语音对话
+            "stepaudio-2-realtime",   // 实时语音版
             "step-1o-audio",          // 多模态音频
             "step-audio-r1.1",        // 推理增强版
         )
 
-        /** 默认推荐模型 — 使用专门的语音大模型 */
+        /** 默认模型 — 使用专门的语音大模型 */
         const val RECOMMENDED_MODEL = "stepaudio-2.5-realtime"
 
         /** 支持的音色列表 */

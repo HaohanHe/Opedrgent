@@ -307,8 +307,8 @@ data class InterviewReport(
  * @param customInstructions 用户额外的自由格式指令
  * @param ttsScenario TTS 语音场景（控制语音风格）
  * @param stepApiKey 阶跃星辰 API Key（使用 StepRealtime 引擎时必填）
- * @param stepModel 阶跃星辰模型名称（默认 step-3.7-flash）
- * @param stepVoice 阶跃星辰音色 ID（默认 linjiajiejie）
+ * @param stepModel 实时语音模型名称（默认 stepaudio-2.5-realtime，需支持全双工语音对话）
+ * @param stepVoice 实时语音音色 ID（默认 linjiajiejie）
  */
 data class InterviewConfig(
     val type: InterviewType = InterviewType.JOB_INTERVIEW,
