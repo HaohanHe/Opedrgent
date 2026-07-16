@@ -302,6 +302,9 @@
     <string name="interview_full_duplex_start">开始实时语音面试</string>
     <string name="interview_full_duplex_input_key">请先输入 API Key</string>
     <string name="interview_full_duplex_supported">已支持</string>
+    <string name="interview_api_key_label">API Key</string>
+    <string name="interview_model_label">模型 ID</string>
+    <string name="interview_voice_label">音色 ID</string>
 
     <string name="settings_tts_section">TTS 朗读</string>
     <string name="settings_tts_engine">TTS 引擎</string>

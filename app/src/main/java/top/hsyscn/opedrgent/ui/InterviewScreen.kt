@@ -64,7 +64,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -92,7 +91,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -115,7 +113,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.interview.InterviewConfig
-import top.hsyscn.opedrgent.interview.StepRealtimeClient
 import top.hsyscn.opedrgent.interview.InterviewPhase
 import top.hsyscn.opedrgent.interview.InterviewReport
 import top.hsyscn.opedrgent.interview.InterviewType
@@ -252,8 +249,8 @@ private fun InterviewSetupScreen(
             )
 
             // ===== 全双工语音模型配置横幅 =====
-            StepRecommendationBanner(
-                onUseStepEngine = { apiKey, model, voice ->
+            RealtimeVoiceBanner(
+                onStartEngine = { apiKey, model, voice ->
                     onStart(
                         InterviewConfig(
                             type = InterviewType.JOB_INTERVIEW, // 默认，用户后续可切换
@@ -334,36 +331,33 @@ private fun difficultyFromInt(level: Int): DifficultyLevel = when {
     else -> DifficultyLevel.EXPERT
 }
 
-// ── 阶跃星辰 StepAudio 2.5 Realtime 推荐横幅 ──
+// ── 全双工语音引擎配置横幅 ──
 
 /**
- * 面试模式顶部的推荐横幅 — 引导用户使用阶跃星辰 StepAudio 2.5 Realtime 实时语音引擎。
+ * 面试模式顶部的全双工语音引擎配置横幅。
  *
  * 展示：
- * - 推荐卡片（品牌色 + 核心优势说明）
+ * - 功能说明卡片
  * - API Key 输入框
- * - 模型选择下拉（默认 stepaudio-2.5-realtime）
- * - 音色选择下拉
- * - "使用 Step 引擎开始" 按钮
+ * - 模型 ID 输入框（默认 stepaudio-2.5-realtime，可改为任意支持全双工的实时语音模型）
+ * - 音色 ID 输入框（默认 linjiajiejie，可改为对应模型支持的任意音色）
+ * - "开始实时语音面试" 按钮
  */
 @Composable
-private fun StepRecommendationBanner(
-    onUseStepEngine: (apiKey: String, model: String, voice: String) -> Unit,
+private fun RealtimeVoiceBanner(
+    onStartEngine: (apiKey: String, model: String, voice: String) -> Unit,
 ) {
     var showConfig by rememberSaveable { mutableStateOf(false) }
     var apiKey by rememberSaveable { mutableStateOf("") }
-    // 默认选中 stepaudio-2.5-realtime（索引 0，因为已排到第一位）
-    var selectedModelIndex by rememberSaveable { mutableIntStateOf(0) }
-    var selectedVoiceIndex by rememberSaveable { mutableIntStateOf(0) }
-
-    val models = StepRealtimeClient.SUPPORTED_MODELS
-    val voices = StepRealtimeClient.SUPPORTED_VOICES
+    // 默认模型/音色仅作为示例占位，用户可自由输入任意兼容的实时语音模型与音色
+    var modelId by rememberSaveable { mutableStateOf("stepaudio-2.5-realtime") }
+    var voiceId by rememberSaveable { mutableStateOf("linjiajiejie") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(
-            containerColor = InterviewDarkBg, // 深蓝底色，呼应阶跃星辰品牌
+            containerColor = InterviewDarkBg,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
@@ -424,11 +418,11 @@ private fun StepRecommendationBanner(
                     Text(stringResource(R.string.interview_full_duplex_config), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                // 展开状态：API Key + 模型/音色选择
+                // 展开状态：API Key + 模型/音色自由输入
                 OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it },
-                    label = { Text("Step API Key", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    label = { Text(stringResource(R.string.interview_api_key_label), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     placeholder = { Text("sk-...", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -442,103 +436,52 @@ private fun StepRecommendationBanner(
                     ),
                 )
 
-                // 模型 + 音色 选择行
+                // 模型 + 音色 自由输入行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 ) {
-                    // 模型选择
-                    Box(modifier = Modifier.weight(1f)) {
-                        var modelExpanded by remember { mutableStateOf(false) }
-                        OutlinedTextField(
-                            value = models.getOrNull(selectedModelIndex)?.let {
-                            it.removePrefix("step").removePrefix("audio")
-                                .replace("-", " ")
-                                .split(" ")
-                                .joinToString(" ") { word ->
-                                    if (word.isNotEmpty()) word[0].uppercase() + word.drop(1) else ""
-                                }
-                        } ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Model", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                            trailingIcon = {
-                                IconButton({ modelExpanded = !modelExpanded }) {
-                                    Icon(Icons.Default.ArrowDropDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ShapeTokens.smallShape,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = InterviewPurple,
-                                unfocusedBorderColor = InterviewBorder,
-                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                        )
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = modelExpanded,
-                            onDismissRequest = { modelExpanded = false },
-                            modifier = Modifier.background(InterviewInputBg),
-                        ) {
-                            models.forEachIndexed { index, name ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary) },
-                                    onClick = {
-                                        selectedModelIndex = index
-                                        modelExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
+                    OutlinedTextField(
+                        value = modelId,
+                        onValueChange = { modelId = it },
+                        label = { Text(stringResource(R.string.interview_model_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("stepaudio-2.5-realtime", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = ShapeTokens.smallShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = InterviewPurple,
+                            unfocusedBorderColor = InterviewBorder,
+                            cursorColor = InterviewPurple,
+                            focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    )
 
-                    // 音色选择
-                    Box(modifier = Modifier.weight(1f)) {
-                        var voiceExpanded by remember { mutableStateOf(false) }
-                        OutlinedTextField(
-                            value = voices.getOrNull(selectedVoiceIndex)?.second ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Voice", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                            trailingIcon = {
-                                IconButton({ voiceExpanded = !voiceExpanded }) {
-                                    Icon(Icons.Default.ArrowDropDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ShapeTokens.smallShape,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = InterviewPurple,
-                                unfocusedBorderColor = InterviewBorder,
-                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                        )
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = voiceExpanded,
-                            onDismissRequest = { voiceExpanded = false },
-                            modifier = Modifier.background(InterviewInputBg),
-                        ) {
-                            voices.forEachIndexed { index, (_, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary) },
-                                    onClick = {
-                                        selectedVoiceIndex = index
-                                        voiceExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
+                    OutlinedTextField(
+                        value = voiceId,
+                        onValueChange = { voiceId = it },
+                        label = { Text(stringResource(R.string.interview_voice_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("linjiajiejie", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = ShapeTokens.smallShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = InterviewPurple,
+                            unfocusedBorderColor = InterviewBorder,
+                            cursorColor = InterviewPurple,
+                            focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    )
                 }
 
                 // 启动按钮
-                val canStart = apiKey.isNotBlank()
+                val canStart = apiKey.isNotBlank() && modelId.isNotBlank() && voiceId.isNotBlank()
                 Button(
                     onClick = {
                         if (canStart) {
-                            onUseStepEngine(apiKey.trim(), models[selectedModelIndex], voices[selectedVoiceIndex].first)
+                            onStartEngine(apiKey.trim(), modelId.trim(), voiceId.trim())
                         }
                     },
                     enabled = canStart,
