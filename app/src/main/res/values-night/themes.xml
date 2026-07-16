@@ -2,5 +2,8 @@
 <resources>
 
     <!-- 暗黑模式：使用框架 Material 深色主题作为启动窗口背景，与 Compose 主题保持一致。 -->
-    <style name="Theme.Opedrgent" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.Opedrgent" parent="android:Theme.Material.NoActionBar">
+        <!-- 窗口背景色：确保 Compose 首次渲染前窗口已有深色背景色，避免首次安装黑屏 -->
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

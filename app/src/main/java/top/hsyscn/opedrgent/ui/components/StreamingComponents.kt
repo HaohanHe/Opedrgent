@@ -35,14 +35,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,8 +74,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.debounce
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.ReasoningPart
@@ -86,32 +82,8 @@ import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
-
-private const val STREAMING_PACE_MS = 64L
-private const val MAX_STEP = 24
-private val WORD_SNAP = Regex("""[\s.,!?;:)\]]""")
-
-private fun adaptiveStep(totalLen: Int): Int = when {
-    totalLen <= 12 -> 2
-    totalLen <= 48 -> 4
-    totalLen <= 96 -> 8
-    else -> minOf(MAX_STEP, (totalLen / 8).coerceAtLeast(1))
-}
-
-private fun snapToWord(text: String, start: Int, end: Int): Int {
-    val max = minOf(text.length, end + 8)
-    for (i in end until max) {
-        if (i < text.length && WORD_SNAP.containsMatchIn(text[i].toString())) {
-            return i + 1
-        }
-    }
-    return end.coerceAtMost(text.length)
-}
 
 @Composable
 fun StreamingCard(
@@ -120,51 +92,8 @@ fun StreamingCard(
     toolParts: List<ToolPart>,
     phase: String = "",
 ) {
-    var displayText by remember(text.isNotEmpty()) { mutableStateOf("") }
-    var isComplete by remember(text.isNotEmpty()) { mutableStateOf(false) }
-    // Track previous text length to detect genuinely new messages (text reset) vs character increments
-    var lastTextLen by remember { mutableStateOf(0) }
-
-    // Use Unit key to avoid restarting coroutine on every character update.
-    // Manually check for new message (text length decreased) inside.
-    LaunchedEffect(Unit) {
-        snapshotFlow { text }
-            .collect { currentText ->
-                when {
-                    currentText.length < lastTextLen -> {
-                        displayText = currentText
-                        isComplete = false
-                        lastTextLen = currentText.length
-                    }
-                    currentText.length > lastTextLen -> {
-                        isComplete = false
-                        val newPart = currentText.substring(lastTextLen.coerceAtMost(displayText.length))
-                        val totalLen = currentText.length
-                        var idx = 0
-                        while (idx < newPart.length) {
-                            val baseStep = adaptiveStep(totalLen)
-                            val end = (idx + baseStep).coerceAtMost(newPart.length)
-                            val snapped = snapToWord(newPart, idx, end)
-                            val chunk = newPart.substring(idx, snapped)
-                            displayText += chunk
-                            idx = snapped
-                            delay(STREAMING_PACE_MS)
-                        }
-                        lastTextLen = currentText.length
-                    }
-                }
-            }
-    }
-
-    LaunchedEffect(Unit) {
-        snapshotFlow { text to lastTextLen }
-            .debounce(100)
-            .collect { (currentText, currentLastLen) ->
-                if (currentText.isNotEmpty() && !isComplete && currentLastLen >= currentText.length) {
-                    isComplete = true
-                }
-            }
-    }
+    // 直接显示流式文本，不再做额外的打字机效果，确保正文与上游 state 同步实时展示。
+    val displayText = text
 
     val hasText = displayText.trim().isNotEmpty()
     val hasReasoning = reasoning.isNotEmpty()
@@ -212,7 +141,7 @@ fun StreamingCard(
             if (hasReasoning) {
                 MessageBodyThinking(
                     thinkingText = reasoning,
-                    isComplete = hasText || isComplete,
+                    isComplete = hasText,
                 )
             }
 
@@ -225,27 +154,16 @@ fun StreamingCard(
             }
 
             if (hasText) {
-                if (isComplete) {
-                    // UI 层不做截断 —— ContextCompressor 在上游已按模型上下文窗口控制大小
+                // 流式过程中也使用 Markdown 渲染，确保表格、加粗、链接等格式实时正确展示。
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            stateDescription = aiReplyingLabel
+                            liveRegion = LiveRegionMode.Polite
+                        }
+                ) {
                     StreamingMarkdownText(text = displayText, maxChars = Int.MAX_VALUE)
-                } else {
-                    // 流式文本容器：stateDescription + liveRegion 让 Talkback 在回复开始时播报，
-                    // 容器语义不随内部 Text 逐字增长而变化，避免频繁打断。
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics {
-                                stateDescription = aiReplyingLabel
-                                liveRegion = LiveRegionMode.Polite
-                            }
-                    ) {
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = themeTextDark(),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
                 }
             }
         }

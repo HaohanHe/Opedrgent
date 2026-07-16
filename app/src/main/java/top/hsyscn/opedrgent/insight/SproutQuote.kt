@@ -32,8 +32,8 @@ data class SproutConfig(
     val outputLength: SproutOutputLength = SproutOutputLength.MEDIUM,
     val preferredDomains: List<String> = emptyList(),
     val useContext: Boolean = false,
-    val maxPhaseTimeoutSeconds: Int = 30,
-    val totalTimeoutSeconds: Int = 120,
+    val maxPhaseTimeoutSeconds: Int = 90,
+    val totalTimeoutSeconds: Int = 600,
     val enableWebSearch: Boolean = false, // 是否启用联网搜索增强（Phase 2.5）
     val includeQuotes: Boolean = true, // 是否生成金句回响
 )

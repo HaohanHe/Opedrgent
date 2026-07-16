@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.tools.satellite
 
 // Orbital position result data class.
 // Algorithm source: PREDICT v2.2.5, ported from Look4Sat by Arty Bishop.
+// Look4Sat is licensed under GPL-3.0 (https://github.com/rt-bishop/Look4Sat).
 
 import kotlin.math.acos
 import kotlin.math.asin

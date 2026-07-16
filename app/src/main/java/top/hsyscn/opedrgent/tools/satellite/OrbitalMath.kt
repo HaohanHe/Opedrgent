@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.tools.satellite
 
 // SGP4/SDP4 orbital math utilities.
 // Algorithm source: PREDICT v2.2.5, ported from Look4Sat by Arty Bishop.
+// Look4Sat is licensed under GPL-3.0 (https://github.com/rt-bishop/Look4Sat).
 
 import kotlin.math.abs
 import kotlin.math.atan2

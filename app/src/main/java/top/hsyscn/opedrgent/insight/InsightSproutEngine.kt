@@ -148,7 +148,7 @@ class InsightSproutEngine(
         // ====== 阶段2.5: 联网增强（如果有webSearcher且历史学家参与了）======
         var webEnhancedData = emptyList<SproutEnhancedConnection>()
         if (_webSearcher != null && template.voices.contains(SproutVoice.HISTORIAN) && config.enableWebSearch) {
-            runCatchingWithRecovery("联网增强", 15_000L) {
+            runCatchingWithRecovery("联网增强", 60_000L) {
                 val seedKeywords = extractSearchKeywords(rawSeedsJson)
                 require(seedKeywords.isNotEmpty()) { "无有效搜索关键词" }
                 val searchResults = _webSearcher!!(seedKeywords.joinToString(" "), 5)
@@ -273,7 +273,7 @@ class InsightSproutEngine(
         config: SproutConfig,
     ): SproutTemplate {
         // 模板选择对用户透明：LLM 根据内容自动推荐
-        return runCatchingWithRecovery("模板选择", 10_000L) {
+        return runCatchingWithRecovery("模板选择", 45_000L) {
             val prompt = """你是一位分析策略专家。根据以下信息，为本次分析选择最佳的分析模板。
 
 ## 输入文本摘要
