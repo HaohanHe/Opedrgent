@@ -186,6 +186,13 @@ private val projects = listOf(
         license = "GPL-3.0 License",
         url = "https://github.com/OmGodse/Notally",
     ),
+    // ── 卫星与轨道力学 ──
+    OpenSourceProject(
+        name = "Look4Sat",
+        description = "Android 业余卫星追踪应用，SGP4/SDP4 轨道传播算法移植来源",
+        license = "GPL-3.0 License",
+        url = "https://github.com/rt-bishop/Look4Sat",
+    ),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

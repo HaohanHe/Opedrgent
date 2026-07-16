@@ -4117,7 +4117,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val seenToolIdx = mutableSetOf<Int>()
 
         var lastFlushTime = 0L
-        val throttleIntervalMs = 30L
+        val throttleIntervalMs = 100L
 
         kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
             var completed = false
@@ -4281,7 +4281,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val seenToolIdx = mutableSetOf<Int>()
 
         var lastFlushTime = 0L
-        val throttleIntervalMs = 30L
+        val throttleIntervalMs = 100L
 
         kotlinx.coroutines.suspendCancellableCoroutine<StreamResult> { continuation ->
             var completed = false

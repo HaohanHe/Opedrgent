@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.tools.satellite
 
 // SGP4/SDP4 orbital prediction constants.
 // Algorithm source: PREDICT v2.2.5, ported from Look4Sat by Arty Bishop.
+// Look4Sat is licensed under GPL-3.0 (https://github.com/rt-bishop/Look4Sat).
 
 const val ASTRONOMICAL_UNIT = 1.49597870691E8
 const val DEG2RAD = 0.017453292519943295

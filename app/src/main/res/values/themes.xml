@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Opedrgent" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Opedrgent" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 窗口背景色：确保 Compose 首次渲染前窗口已有背景色，避免首次安装黑屏 -->
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
 </resources>

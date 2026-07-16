@@ -129,10 +129,10 @@ class ToolExecutor(
         register(StepImageEditTool(context))
         register(StepImageGenTool())
         register(StepVideoSummaryTool(context, llm, apiSettings))
-        // ★ Ham 模式：Spec 要求条件注册 — 仅在 Ham 模式启用时注册 SatellitePassTool
-        if (apiSettings.isHamModeEnabled()) {
-            register(SatellitePassTool(context, apiSettings))
-        }
+        // ★ Ham 模式：始终注册 SatellitePassTool 实现。
+        // 工具定义的暴露（是否让模型看到）由 MainViewModel.hamModeTools() 动态控制，
+        // 这样用户中途开启 Ham 模式后，模型能看到工具定义且调用不会失败（避免重启 App 才生效）。
+        register(SatellitePassTool(context, apiSettings))
         // Health Connect 运动健康数据读取工具
         register(HealthTool(context))
     }

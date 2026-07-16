@@ -31,6 +31,8 @@ import kotlin.math.*
  * 活跃卫星搜索源：Celestrak gp.php?GROUP=active&FORMAT=tle
  * 过境搜索：粗扫+精扫二阶策略（参考 Look4Sat getLeoPass），1/4 轨道周期回退 + 60s/30s 粗扫 + 500ms 精扫
  * 轨道传播：完整 SGP4/SDP4 算法（移植自 Look4Sat/PREDICT v2.2.5），含 J2/J3/J4 摄动、BSTAR 大气阻力、GMST 地球自转修正
+ *
+ * ★ 开源合规：SGP4/SDP4 算法移植自 Look4Sat（https://github.com/rt-bishop/Look4Sat），Look4Sat 采用 GPL-3.0 许可证。
  */
 class SatellitePassTool(
     private val context: Context,

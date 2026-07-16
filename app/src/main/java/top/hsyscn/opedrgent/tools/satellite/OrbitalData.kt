@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.tools.satellite
 
 // TLE orbital data wrapper with deep-space classification.
 // Algorithm source: PREDICT v2.2.5, ported from Look4Sat by Arty Bishop.
+// Look4Sat is licensed under GPL-3.0 (https://github.com/rt-bishop/Look4Sat).
 
 data class OrbitalData(
     val name: String,
