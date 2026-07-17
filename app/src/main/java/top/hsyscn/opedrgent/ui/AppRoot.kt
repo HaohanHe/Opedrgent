@@ -269,7 +269,11 @@ fun AppRoot(
         FeedbackController(snackbarHostState, scope)
     }
 
-    // 全局返回键处理：子页面 -> 返回上一层；非首页 Tab -> 回到首页；首页 -> 双击退出
+    // 统一使用 WindowSizeUtils：基于 LocalConfiguration 实时计算，避免 Activity 不重建时尺寸不刷新。
+    // 只有“横屏 + 宽度至少 Medium”才走宽屏布局（左侧 Rail + 页面双栏）。
+    val isWideLandscape = isLandscape() && isAtLeastMediumWidth()
+
+    // 全局返回键处理：子页面 -> 返回上一层；AI 具体对话 -> AI 会话列表；非首页 Tab -> 回到首页；首页 -> 双击退出
     var lastBackPressedTime by remember { mutableLongStateOf(0L) }
     BackHandler {
         when {
@@ -282,6 +286,10 @@ fun AppRoot(
                     subScreen == "noteGraph" -> "notes"
                     else -> null
                 }
+            }
+            selectedSessionId != null && !isWideLandscape -> {
+                // 竖屏 AI 具体对话：返回会话列表，而不是直接回到首页
+                selectedSessionId = null
             }
             selectedTab != MainTab.HOME -> {
                 selectedTab = MainTab.HOME
@@ -340,9 +348,6 @@ fun AppRoot(
         return
     }
 
-    // 统一使用 WindowSizeUtils：基于 LocalConfiguration 实时计算，避免 Activity 不重建时尺寸不刷新。
-    // 只有“横屏 + 宽度至少 Medium”才走宽屏布局（左侧 Rail + 页面双栏）。
-    val isWideLandscape = isLandscape() && isAtLeastMediumWidth()
     val useNavigationRail = isWideLandscape
 
     CompositionLocalProvider(LocalFeedbackController provides feedbackController) {
