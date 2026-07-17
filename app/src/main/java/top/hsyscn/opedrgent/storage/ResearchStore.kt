@@ -22,10 +22,13 @@ import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolExecutionStatus
+import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
 class ResearchStore(context: Context) {
     private val file = File(context.filesDir, "research_store.json")
+    private val backupFile = File(context.filesDir, "research_store.json.bak")
+    private val tempFile = File(context.filesDir, "research_store.json.tmp")
     private val checkpointDir = File(context.filesDir, "research_checkpoints").apply { mkdirs() }
     private val lock = Any()
     private var sessions: List<ResearchSession>? = null
@@ -125,8 +128,8 @@ class ResearchStore(context: Context) {
                 updatedAt = now,
                 sources = session.sources + source,
             )
-            appendToSession(sessionId, "sources", serializeSource(source), now)
             all[idx] = next
+            saveAllInternal(all)
             sessions = all
             return next
         }
@@ -164,8 +167,8 @@ class ResearchStore(context: Context) {
                 updatedAt = now,
                 messages = session.messages + message,
             )
-            appendToSession(sessionId, "messages", serializeMessage(message), now)
             all[idx] = next
+            saveAllInternal(all)
             sessions = all
             return next
         }
@@ -218,8 +221,8 @@ class ResearchStore(context: Context) {
                 updatedAt = now,
                 artifacts = session.artifacts + artifact,
             )
-            appendToSession(sessionId, "artifacts", serializeArtifact(artifact), now)
             all[idx] = next
+            saveAllInternal(all)
             sessions = all
             return next
         }
@@ -325,13 +328,32 @@ class ResearchStore(context: Context) {
     }
 
     private fun loadAllInternal(): List<ResearchSession> {
-        if (!file.exists()) return emptyList()
-        val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return emptyList()
-        val root = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
-        val sessions = root.optJSONArray("sessions") ?: return emptyList()
-        return (0 until sessions.length()).mapNotNull { i ->
+        // 尝试加载主文件；若主文件无效则从 .bak 备份恢复
+        val main = loadFromFile(file)
+        if (main != null) return main
+        DebugLog.w("ResearchStore", "主文件无效，尝试从备份恢复")
+        val backup = loadFromFile(backupFile)
+        if (backup != null) {
+            // 尝试把有效备份写回主文件，恢复一致性
+            runCatching {
+                file.writeText(backupFile.readText(Charsets.UTF_8), Charsets.UTF_8)
+                DebugLog.i("ResearchStore", "已从备份恢复主文件")
+            }
+            return backup
+        }
+        return emptyList()
+    }
+
+    private fun loadFromFile(target: File): List<ResearchSession>? {
+        if (!target.exists()) return null
+        val text = runCatching { target.readText(Charsets.UTF_8) }.getOrNull()
+        if (text.isNullOrBlank()) return null
+        val root = runCatching { JSONObject(text) }.getOrNull() ?: return null
+        val sessions = root.optJSONArray("sessions") ?: return null
+        val parsed = (0 until sessions.length()).mapNotNull { i ->
             parseSession(sessions.optJSONObject(i) ?: return@mapNotNull null)
         }
+        return parsed
     }
 
     private fun saveAllInternal(sessions: List<ResearchSession>) {
@@ -339,49 +361,32 @@ class ResearchStore(context: Context) {
         val arr = JSONArray()
         sessions.forEach { arr.put(serializeSession(it)) }
         root.put("sessions", arr)
-        file.writeText(root.toString(), Charsets.UTF_8)
-    }
+        val jsonText = root.toString()
 
-    // ==================== 增量追加写入辅助方法 ====================
-
-    private fun loadRootJson(): JSONObject {
-        if (!file.exists()) {
-            return JSONObject().apply { put("sessions", JSONArray()) }
+        // 1. 保留上一份有效数据为 .bak（原子备份）
+        if (file.exists() && file.length() > 0L) {
+            runCatching {
+                file.inputStream().use { input ->
+                    backupFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
         }
-        val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: ""
-        if (text.isBlank()) {
-            return JSONObject().apply { put("sessions", JSONArray()) }
+        // 2. 先写入临时文件
+        runCatching {
+            tempFile.writeText(jsonText, Charsets.UTF_8)
+            // 3. 原子替换为主文件
+            if (tempFile.exists() && tempFile.length() > 0L) {
+                tempFile.renameTo(file)
+            } else {
+                // 临时文件写入失败，直接写主文件
+                file.writeText(jsonText, Charsets.UTF_8)
+            }
+        }.onFailure {
+            // 原子写入失败，降级为直接覆盖主文件
+            file.writeText(jsonText, Charsets.UTF_8)
         }
-        return runCatching { JSONObject(text) }.getOrNull()
-            ?: JSONObject().apply { put("sessions", JSONArray()) }
-    }
-
-    private fun saveRootJson(root: JSONObject) {
-        file.writeText(root.toString(), Charsets.UTF_8)
-    }
-
-    private fun findSessionIndexInRoot(root: JSONObject, sessionId: String): Int {
-        val arr = root.optJSONArray("sessions") ?: return -1
-        for (i in 0 until arr.length()) {
-            val obj = arr.optJSONObject(i) ?: continue
-            if (obj.optString("id") == sessionId) return i
-        }
-        return -1
-    }
-
-    private fun appendToSession(sessionId: String, arrayKey: String, item: JSONObject, now: Long) {
-        val root = loadRootJson()
-        val sessionIdx = findSessionIndexInRoot(root, sessionId)
-        if (sessionIdx < 0) {
-            saveAllInternal(ensureLoaded())
-            return
-        }
-        val sessionObj = root.getJSONArray("sessions").getJSONObject(sessionIdx)
-        val arr = sessionObj.optJSONArray(arrayKey) ?: JSONArray()
-        arr.put(item)
-        sessionObj.put(arrayKey, arr)
-        sessionObj.put("updatedAt", now)
-        saveRootJson(root)
     }
 
     private fun parseSession(obj: JSONObject): ResearchSession? {

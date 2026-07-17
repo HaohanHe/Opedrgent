@@ -520,8 +520,9 @@ fun RecordingTab(
                         isStreamingActive = true
                         vm.asrManager.startStreaming().collect { state ->
                             when (state) {
-                                is StreamingRecognitionState.Recognizing -> streamingText = state.partialText
-                                is StreamingRecognitionState.FinalResult -> streamingText = state.text
+                                // 直接写入 ViewModel，确保切 Tab 后新 Composable 仍能观察到最新文本
+                                is StreamingRecognitionState.Recognizing -> vm.recordingStreamingText = state.partialText
+                                is StreamingRecognitionState.FinalResult -> vm.recordingStreamingText = state.text
                                 is StreamingRecognitionState.Error -> DebugLog.e("RecordingTab", "流式错误: ${state.message}")
                                 else -> {}
                             }

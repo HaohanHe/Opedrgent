@@ -287,8 +287,8 @@ fun AppRoot(
                     else -> null
                 }
             }
-            selectedSessionId != null && !isWideLandscape -> {
-                // 竖屏 AI 具体对话：返回会话列表，而不是直接回到首页
+            selectedSessionId != null -> {
+                // AI 具体对话：返回会话列表，而不是直接回到首页
                 selectedSessionId = null
             }
             selectedTab != MainTab.HOME -> {
