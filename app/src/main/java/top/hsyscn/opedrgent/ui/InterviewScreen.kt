@@ -64,6 +64,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,6 +106,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -349,6 +353,7 @@ private fun RealtimeVoiceBanner(
 ) {
     var showConfig by rememberSaveable { mutableStateOf(false) }
     var apiKey by rememberSaveable { mutableStateOf("") }
+    var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
     // 默认模型/音色仅作为示例占位，用户可自由输入任意兼容的实时语音模型与音色
     var modelId by rememberSaveable { mutableStateOf("stepaudio-2.5-realtime") }
     var voiceId by rememberSaveable { mutableStateOf("linjiajiejie") }
@@ -427,6 +432,16 @@ private fun RealtimeVoiceBanner(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeTokens.smallShape,
+                    visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                            Icon(
+                                imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (apiKeyVisible) "隐藏 API Key" else "显示 API Key",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = InterviewPurple,
                         unfocusedBorderColor = InterviewBorder,

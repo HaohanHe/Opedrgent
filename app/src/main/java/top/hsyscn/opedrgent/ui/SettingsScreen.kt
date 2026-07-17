@@ -69,6 +69,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -124,6 +126,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import top.hsyscn.opedrgent.R
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -187,6 +191,7 @@ fun SettingsScreen(
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
     var apiKey by rememberSaveable { mutableStateOf(vm.getApiKey() ?: "") }
+    var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
     var ttsEnabled by rememberSaveable { mutableStateOf(vm.isTtsEnabled()) }
     var ttsAuto by rememberSaveable { mutableStateOf(vm.isTtsAutoSpeak()) }
     var ttsRate by rememberSaveable { mutableStateOf(vm.getTtsRate()) }
@@ -216,8 +221,11 @@ fun SettingsScreen(
     var deepThinkingEnabled by rememberSaveable { mutableStateOf(vm.isDeepThinking()) }
     var autoGenerateNoteTitle by rememberSaveable { mutableStateOf(vm.isAutoGenerateNoteTitle()) }
     var jinaApiKey by rememberSaveable { mutableStateOf(vm.getJinaApiKey() ?: "") }
+    var jinaApiKeyVisible by rememberSaveable { mutableStateOf(false) }
     var tavilyApiKey by rememberSaveable { mutableStateOf(vm.getTavilyApiKey() ?: "") }
+    var tavilyApiKeyVisible by rememberSaveable { mutableStateOf(false) }
     var braveApiKey by rememberSaveable { mutableStateOf(vm.getBraveApiKey() ?: "") }
+    var braveApiKeyVisible by rememberSaveable { mutableStateOf(false) }
     var searchProviderOrder by rememberSaveable { mutableStateOf(vm.getSearchProviderOrder()) }
     var showModelSelector by rememberSaveable { mutableStateOf(false) }
     var showMemoryWarning by remember { mutableStateOf<String?>(null) }
@@ -479,6 +487,16 @@ fun SettingsScreen(
                             label = { Text("API Key") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (apiKeyVisible) "隐藏 API Key" else "显示 API Key",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                         )
 
                         OutlinedTextField(
@@ -487,6 +505,16 @@ fun SettingsScreen(
                             label = { Text("Jina API Key (可选)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            visualTransformation = if (jinaApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { jinaApiKeyVisible = !jinaApiKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (jinaApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (jinaApiKeyVisible) "隐藏 Jina API Key" else "显示 Jina API Key",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                         )
                     }
 
@@ -1630,6 +1658,16 @@ fun SettingsScreen(
                             label = { Text("Tavily API Key（AI专用搜索，免费1000次/月）") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            visualTransformation = if (tavilyApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { tavilyApiKeyVisible = !tavilyApiKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (tavilyApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (tavilyApiKeyVisible) "隐藏 Tavily API Key" else "显示 Tavily API Key",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                         )
                         OutlinedTextField(
                             value = braveApiKey,
@@ -1637,6 +1675,16 @@ fun SettingsScreen(
                             label = { Text("Brave Search API Key") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            visualTransformation = if (braveApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { braveApiKeyVisible = !braveApiKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (braveApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (braveApiKeyVisible) "隐藏 Brave API Key" else "显示 Brave API Key",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                         )
                         OutlinedTextField(
                             value = searchProviderOrder,
