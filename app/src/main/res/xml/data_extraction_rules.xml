@@ -1,19 +1,61 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Android 12+ 数据备份与恢复规则。
+   cloudBackup：Google 云端备份（用户登录 Google 账号后自动触发）。
+   deviceTransfer：同账号设备间迁移（如换机）。
+   敏感设置（API Key 等）排除在外；会话数据包含在内。
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="sharedpref" path="opedrgent_settings.xml" />
+        <!-- API Key、WebDAV 密码、MCP 认证头等敏感信息不参与云端备份 -->
         <exclude domain="sharedpref" path="opedrgent_secure.xml" />
-        <exclude domain="file" path="research_store.json" />
+        <exclude domain="sharedpref" path="opedrgent_webdav.xml" />
+        <exclude domain="sharedpref" path="mcp_servers.xml" />
+
+        <!-- 用户设置与数据需要备份：卸载重装后可恢复 -->
+        <include domain="sharedpref" path="opedrgent_settings.xml" />
+        <include domain="sharedpref" path="opedrgent_memory.xml" />
+        <include domain="sharedpref" path="opedrgent_skills.xml" />
+        <include domain="sharedpref" path="opedrgent_automations.xml" />
+        <include domain="sharedpref" path="opedrgent_todos.xml" />
+        <include domain="sharedpref" path="opedrgent_skill_loader.xml" />
+        <include domain="sharedpref" path="opedrgent_user.xml" />
+        <include domain="sharedpref" path="opedrgent_locale.xml" />
+        <include domain="sharedpref" path="note_search_history.xml" />
+        <include domain="sharedpref" path="voiceprint_prefs.xml" />
+        <include domain="sharedpref" path="vocabulary.xml" />
+
+        <!-- 会话数据需要备份：卸载重装后可恢复 -->
+        <include domain="file" path="research_store.json" />
+        <include domain="file" path="research_store.json.bak" />
+
+        <!-- 导出目录不参与备份 -->
         <exclude domain="file" path="exports" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- API Key、WebDAV 密码、MCP 认证头等敏感信息不参与设备间迁移 -->
+        <exclude domain="sharedpref" path="opedrgent_secure.xml" />
+        <exclude domain="sharedpref" path="opedrgent_webdav.xml" />
+        <exclude domain="sharedpref" path="mcp_servers.xml" />
+
+        <!-- 用户设置与数据需要备份：换机后可恢复 -->
+        <include domain="sharedpref" path="opedrgent_settings.xml" />
+        <include domain="sharedpref" path="opedrgent_memory.xml" />
+        <include domain="sharedpref" path="opedrgent_skills.xml" />
+        <include domain="sharedpref" path="opedrgent_automations.xml" />
+        <include domain="sharedpref" path="opedrgent_todos.xml" />
+        <include domain="sharedpref" path="opedrgent_skill_loader.xml" />
+        <include domain="sharedpref" path="opedrgent_user.xml" />
+        <include domain="sharedpref" path="opedrgent_locale.xml" />
+        <include domain="sharedpref" path="note_search_history.xml" />
+        <include domain="sharedpref" path="voiceprint_prefs.xml" />
+        <include domain="sharedpref" path="vocabulary.xml" />
+
+        <!-- 会话数据需要备份：换机后可恢复 -->
+        <include domain="file" path="research_store.json" />
+        <include domain="file" path="research_store.json.bak" />
+
+        <!-- 导出目录不参与备份 -->
+        <exclude domain="file" path="exports" />
     </device-transfer>
-    -->
 </data-extraction-rules>
