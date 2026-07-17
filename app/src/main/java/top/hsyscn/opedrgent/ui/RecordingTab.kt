@@ -345,7 +345,7 @@ fun RecordingTab(
     var showBackConfirmDialog by remember { mutableStateOf(false) }
     var recordingState by remember { mutableStateOf<RecordingState?>(null) }
     var elapsedSeconds by remember { mutableIntStateOf(0) }
-    var amplitude by remember { mutableFloatStateOf(0f) }
+    var amplitude by remember { mutableFloatStateOf(vm.recordingAmplitude) }
     var transcriptResult by remember { mutableStateOf<MeetingTranscriptResult?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
@@ -364,9 +364,9 @@ fun RecordingTab(
     // 声纹识别结果
     var identifiedSpeakerName by remember { mutableStateOf<String?>(null) }
 
-    // 实时流式转录文本
-    var streamingText by remember { mutableStateOf("") }
-    var isStreamingActive by remember { mutableStateOf(false) }
+    // 实时流式转录文本（跨页面持久化到 ViewModel，避免切 Tab 丢失）
+    var streamingText by remember { mutableStateOf(vm.recordingStreamingText) }
+    var isStreamingActive by remember { mutableStateOf(vm.recordingIsStreamingActive) }
     val transcriptScrollState = rememberScrollState()
     // 记录上次的文本长度，只在文本变长时才自动滚动到底部，
     // 避免模型回退修正时文本变短导致滚动位置来回跳（上下抖动）
@@ -377,9 +377,10 @@ fun RecordingTab(
     val partnerPrefs = context.invisiblePartnerDataStore.data.collectAsState(initial = null).value
     val autoSaveEnabled = partnerPrefs?.get(autoSaveKey) ?: true
 
-    val audioRecord = remember { mutableStateOf<AudioRecord?>(null) }
-    val tempFilePath = remember { mutableStateOf<String?>(null) }
-    var systemAudioRecorder by remember { mutableStateOf<SystemAudioRecorder?>(null) }
+    // 录音核心对象托管到 ViewModel，切 Tab 不销毁
+    val audioRecord = remember { mutableStateOf(vm.audioRecordRef) }
+    val tempFilePath = remember { mutableStateOf(vm.recordingTempFilePath) }
+    var systemAudioRecorder by remember { mutableStateOf(vm.systemAudioRecorderRef) }
 
     // 悬浮窗回调接线
     DisposableEffect(Unit) {
@@ -414,6 +415,12 @@ fun RecordingTab(
             playbackAudioUri = vm.playbackAudioUri
             autoSavedNoteId = vm.autoSavedNoteId
             savedToNote = vm.savedToNote
+            streamingText = vm.recordingStreamingText
+            isStreamingActive = vm.recordingIsStreamingActive
+            amplitude = vm.recordingAmplitude
+            audioRecord.value = vm.audioRecordRef
+            tempFilePath.value = vm.recordingTempFilePath
+            systemAudioRecorder = vm.systemAudioRecorderRef
         }
     }
     LaunchedEffect(recordingState) { vm.recordingState = recordingState }
@@ -423,6 +430,29 @@ fun RecordingTab(
     LaunchedEffect(autoSavedNoteId) { vm.autoSavedNoteId = autoSavedNoteId }
     LaunchedEffect(savedToNote) { vm.savedToNote = savedToNote }
     LaunchedEffect(elapsedSeconds) { vm.recordingElapsedSeconds = elapsedSeconds }
+    LaunchedEffect(streamingText) { vm.recordingStreamingText = streamingText }
+    LaunchedEffect(isStreamingActive) { vm.recordingIsStreamingActive = isStreamingActive }
+    LaunchedEffect(amplitude) { vm.recordingAmplitude = amplitude }
+    LaunchedEffect(audioRecord.value) { vm.audioRecordRef = audioRecord.value }
+    LaunchedEffect(tempFilePath.value) { vm.recordingTempFilePath = tempFilePath.value }
+    LaunchedEffect(systemAudioRecorder) { vm.systemAudioRecorderRef = systemAudioRecorder }
+
+    // 反向同步：后台协程更新 ViewModel 后，把最新流式文本同步回本地 UI 状态
+    LaunchedEffect(vm.recordingStreamingText) {
+        if (streamingText != vm.recordingStreamingText) {
+            streamingText = vm.recordingStreamingText
+        }
+    }
+    LaunchedEffect(vm.recordingIsStreamingActive) {
+        if (isStreamingActive != vm.recordingIsStreamingActive) {
+            isStreamingActive = vm.recordingIsStreamingActive
+        }
+    }
+    LaunchedEffect(vm.recordingAmplitude) {
+        if (amplitude != vm.recordingAmplitude) {
+            amplitude = vm.recordingAmplitude
+        }
+    }
 
     // 波形动画条（独立 Composable，不触发 RecordingTab 重组）
 
@@ -465,7 +495,7 @@ fun RecordingTab(
         val isStreamingModelSelected = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
         val isBatchMode = !isStreamingModelSelected && vm.getSttStreamingMode() == "batch"
         if (!isBatchMode) {
-            scope.launch {
+            vm.backgroundScope.launch {
                 try {
                     // 检查当前缓存的引擎是否与用户选择的模型类型匹配（流式 vs 非流式）
                     // 不匹配时强制重新初始化，避免切换模型后仍使用旧的缓存引擎
@@ -507,14 +537,15 @@ fun RecordingTab(
             DebugLog.i("RecordingTab", "批量识别模式，跳过实时流式 ASR")
         }
 
-        // 录音读取协程
-        scope.launch {
+        // 录音读取协程：放到 ViewModel 的 backgroundScope，切 Tab 后继续录音
+        vm.backgroundScope.launch {
             withContext(Dispatchers.IO) {
                 val bufferSize = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 val buffer = ShortArray(bufferSize / 2)
                 FileOutputStream(tempFile).use { fos ->
-                    while (isActive && recordingState != RecordingState.DONE && recordingState != RecordingState.PROCESSING) {
-                        if (recordingState == RecordingState.PAUSED) {
+                    // 使用 ViewModel 状态判断，避免 Composable 重建后闭包状态不一致
+                    while (isActive && vm.recordingState != RecordingState.DONE && vm.recordingState != RecordingState.PROCESSING) {
+                        if (vm.recordingState == RecordingState.PAUSED) {
                             delay(100)
                             continue
                         }
@@ -526,9 +557,9 @@ fun RecordingTab(
                                 sum += buffer[i].toLong() * buffer[i].toLong()
                             }
                             val rms = kotlin.math.sqrt(sum.toDouble() / read).toFloat()
-                            amplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
+                            vm.recordingAmplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
 
-                            if (isStreamingActive) {
+                            if (vm.recordingIsStreamingActive) {
                                 val floats = FloatArray(read) { i -> buffer[i] / 32768.0f }
                                 feedAudioToEngine(vm.asrManager.getCachedEngine(), floats)
                             }

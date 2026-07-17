@@ -384,6 +384,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     @Volatile var audioRecordRef: AudioRecord? = null
     /** SystemAudioRecorder 引用 */
     @Volatile var systemAudioRecorderRef: SystemAudioRecorder? = null
+    /** 当前录音临时 PCM 文件路径 */
+    var recordingTempFilePath by mutableStateOf<String?>(null)
+    /** 实时流式转写文本（录音期间跨页面保留） */
+    var recordingStreamingText by mutableStateOf("")
+    /** 是否正在流式识别中 */
+    var recordingIsStreamingActive by mutableStateOf(false)
+    /** 当前录音振幅（0~1） */
+    var recordingAmplitude by mutableStateOf(0f)
     /** 录音自动保存的笔记 ID */
     var autoSavedNoteId by mutableStateOf(0L)
     /** 是否已保存到笔记 */
