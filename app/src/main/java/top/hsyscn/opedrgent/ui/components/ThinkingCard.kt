@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -119,7 +120,7 @@ fun ThinkingCard(
                     )
                     .clip(ShapeTokens.smallShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
-                    .heightIn(max = 400.dp)
+                    .heightIn(max = SizeTokens.expandedContentMaxHeight)
                     .verticalScroll(rememberScrollState())
                     .padding(SpacingTokens.md),
             ) {

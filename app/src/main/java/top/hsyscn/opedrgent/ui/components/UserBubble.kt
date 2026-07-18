@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
+import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -89,10 +90,10 @@ fun UserBubble(
                         .wrapContentWidth(Alignment.End),
                 ) {
                     val bubbleShape = RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 8.dp,
-                        bottomStart = 16.dp,
-                        bottomEnd = 16.dp,
+                        topStart = ShapeTokens.medium,
+                        topEnd = ShapeTokens.icon,
+                        bottomStart = ShapeTokens.medium,
+                        bottomEnd = ShapeTokens.medium,
                     )
                     Box(
                         modifier = Modifier

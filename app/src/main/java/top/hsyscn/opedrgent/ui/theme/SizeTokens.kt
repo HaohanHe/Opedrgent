@@ -28,6 +28,16 @@ object SizeTokens {
     val settingsDrawerWidth = 220.dp
     val textFieldWidthSm = 100.dp
 
+    // 对话框/弹窗尺寸
+    val dialogMinWidth = 300.dp
+
+    // 输入框尺寸
+    val textFieldMinHeight = 48.dp
+    val textFieldMaxHeight = 120.dp
+
+    // 展开内容区最大高度
+    val expandedContentMaxHeight = 400.dp
+
     // 列表最大高度（用于内嵌可滚动区域，避免占满整屏）
     val citationListMaxHeight = 320.dp
 
@@ -64,4 +74,5 @@ object ElevationTokens {
     val sm = 1.dp
     val md = 3.dp
     val lg = 6.dp
+    val xl = 8.dp
 }
