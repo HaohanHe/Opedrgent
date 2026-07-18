@@ -260,8 +260,8 @@ fun SessionScreen(
         var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
         val contentMaxWidth = when {
-            isExpandedWidth() -> 900.dp
-            isAtLeastMediumWidth() -> 760.dp
+            isExpandedWidth() -> SizeTokens.sessionContentMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.sessionContentMaxWidthMedium
             else -> Dp.Unspecified
         }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
