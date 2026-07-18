@@ -175,7 +175,7 @@ fun NoteSproutScreen(
                             onDismissRequest = { showMenu = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("重新发芽") },
+                                text = { Text(stringResource(R.string.note_editor_regenerate_sprout)) },
                                 onClick = {
                                     showMenu = false
                                     doSprout(
@@ -190,16 +190,16 @@ fun NoteSproutScreen(
                                         onSuccess = { article = it },
                                     )
                                 },
-                                leadingIcon = { Icon(Icons.Default.Refresh, "重新发芽") },
+                                leadingIcon = { Icon(Icons.Default.Refresh, stringResource(R.string.note_editor_regenerate_sprout)) },
                                 enabled = !isGenerating,
                             )
                             DropdownMenuItem(
-                                text = { Text("编辑笔记") },
+                                text = { Text(stringResource(R.string.note_editor_edit)) },
                                 onClick = { showMenu = false; onEditNote() },
-                                leadingIcon = { Icon(Icons.Default.Edit, "编辑笔记") },
+                                leadingIcon = { Icon(Icons.Default.Edit, stringResource(R.string.note_editor_edit)) },
                             )
                             DropdownMenuItem(
-                                text = { Text("复制报告") },
+                                text = { Text(stringResource(R.string.sprout_copy_report)) },
                                 onClick = {
                                     showMenu = false
                                     val reportText = article?.toMarkdown() ?: ""
@@ -207,35 +207,35 @@ fun NoteSproutScreen(
                                         clipboardManager.setText(AnnotatedString(reportText))
                                     }
                                 },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, "复制报告") },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, stringResource(R.string.sprout_copy_report)) },
                                 enabled = article != null,
                             )
                             DropdownMenuItem(
-                                text = { Text("添加标签") },
+                                text = { Text(stringResource(R.string.note_action_add_tag)) },
                                 onClick = {
                                     feedback.showFeedback(context.getString(R.string.msg_feature_under_development))
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, "添加标签") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, stringResource(R.string.note_action_add_tag)) },
                             )
                             DropdownMenuItem(
-                                text = { Text("复制全文") },
+                                text = { Text(stringResource(R.string.sprout_action_copy_full)) },
                                 onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     val text = article?.toMarkdownText() ?: ""
-                                    ClipData.newPlainText("发芽报告", text).let { clipboard.setPrimaryClip(it) }
+                                    ClipData.newPlainText(context.getString(R.string.sprout_report_title), text).let { clipboard.setPrimaryClip(it) }
                                     feedback.showFeedback(context.getString(R.string.msg_copied_to_clipboard))
                                     showMenu = false
                                 },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, "复制全文") },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, stringResource(R.string.sprout_action_copy_full)) },
                             )
                             DropdownMenuItem(
-                                text = { Text("导出 Markdown") },
+                                text = { Text(stringResource(R.string.sprout_dao_chu_markdown)) },
                                 onClick = {
                                     showMenu = false
                                     val text = article?.toMarkdownText() ?: ""
                                     if (text.isBlank()) {
-                                        feedback.showFeedback("没有可导出的内容")
+                                        feedback.showFeedback(context.getString(R.string.sprout_mei_you_ke_dao_chu_de_nei_rong))
                                         return@DropdownMenuItem
                                     }
                                     // Android 10+ 直接写外部存储需要 MANAGE_EXTERNAL_STORAGE 或 Scoped Storage；
@@ -246,7 +246,7 @@ fun NoteSproutScreen(
                                             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
                                         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                     if (!canWriteLegacy && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                        feedback.showFeedback("Android 11+ 请授予所有文件访问权限后导出")
+                                        feedback.showFeedback(context.getString(R.string.sprout_android_11_qing_shou_yu_suo))
                                         return@DropdownMenuItem
                                     }
                                     isExporting = true
@@ -255,16 +255,16 @@ fun NoteSproutScreen(
                                             val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
                                             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                                             File(dir, fileName).writeText(text)
-                                            feedback.showFeedback("已导出到下载目录: $fileName")
+                                            feedback.showFeedback(context.getString(R.string.sprout_yi_dao_chu_dao_xia_zai_mu_lu_1, fileName))
                                         } catch (e: Exception) {
-                                            feedback.showFeedback("导出失败: ${e.message}")
+                                            feedback.showFeedback(context.getString(R.string.note_action_export_failed, e.message ?: ""))
                                         } finally {
                                             isExporting = false
                                         }
                                     }
                                 },
                                 enabled = !isExporting && article != null,
-                                leadingIcon = { Icon(Icons.Default.FileDownload, "导出 Markdown") },
+                                leadingIcon = { Icon(Icons.Default.FileDownload, stringResource(R.string.sprout_dao_chu_markdown)) },
                             )
                         }
                     }
@@ -472,7 +472,7 @@ private fun SproutArticleContent(
                 onClick = {
                     scope.launch {
                         if (!appendMutex.tryLock()) {
-                            feedback.showFeedback("操作正在进行中，请稍候")
+                            feedback.showFeedback(context.getString(R.string.sprout_cao_zuo_zheng_zai_jin_xing))
                             return@launch
                         }
                         val reportText = article.toPlainText()
@@ -481,9 +481,9 @@ private fun SproutArticleContent(
                             withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 repository.quickCreate(reportText)
                             }
-                            feedback.showFeedback("已追加为新笔记")
+                            feedback.showFeedback(context.getString(R.string.sprout_yi_zhui_jia_wei_xin_bi_ji))
                         } catch (e: Exception) {
-                            feedback.showFeedback("追加失败: ${e.message}")
+                            feedback.showFeedback(context.getString(R.string.sprout_zhui_jia_shi_bai_1, e.message ?: ""))
                         } finally {
                             onAppendStateChange(false)
                             appendMutex.unlock()
@@ -492,9 +492,9 @@ private fun SproutArticleContent(
                 },
                 enabled = !isAppending,
             ) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, "追加笔记", Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, stringResource(R.string.note_action_append), Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("追加笔记")
+                Text(stringResource(R.string.note_action_append))
             }
 
             // 分享
@@ -504,14 +504,14 @@ private fun SproutArticleContent(
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, shareText)
-                        putExtra(Intent.EXTRA_SUBJECT, "发芽报告")
+                        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.sprout_report_title))
                     }
-                    context.startActivity(Intent.createChooser(intent, "分享"))
+                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.action_share)))
                 },
             ) {
-                Icon(Icons.Default.Share, "分享", Modifier.size(16.dp))
+                Icon(Icons.Default.Share, stringResource(R.string.action_share), Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("分享")
+                Text(stringResource(R.string.action_share))
             }
 
             // 基于此再发芽
@@ -522,9 +522,9 @@ private fun SproutArticleContent(
                 },
                 enabled = !isRefreshing,
             ) {
-                Icon(Icons.Default.AutoAwesome, "再发芽", Modifier.size(16.dp))
+                Icon(Icons.Default.AutoAwesome, stringResource(R.string.sprout_zai_fa_ya), Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("再发芽")
+                Text(stringResource(R.string.sprout_zai_fa_ya))
             }
         }
 
@@ -547,7 +547,7 @@ private fun ReportHeader(dateStr: String, modelName: String) {
             color = Color.Transparent,
         ) {
             Text(
-                text = "  发芽报告  ",
+                text = stringResource(R.string.sprout_fa_ya_bao_gao),
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
@@ -558,7 +558,7 @@ private fun ReportHeader(dateStr: String, modelName: String) {
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Description, "日期", tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.Description, stringResource(R.string.sprout_ri_qi), tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
             Text(dateStr, style = MaterialTheme.typography.labelSmall, color = themeSproutMetaText())
         }
     }
@@ -591,7 +591,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
     ) {
         Column(Modifier.padding(bottom = SpacingTokens.lg)) {
             Text(
-                text = section.title.ifEmpty { "${String.format("%02d", index + 1)}. 未命名洞察" },
+                text = section.title.ifEmpty { stringResource(R.string.sprout_index_1_wei_ming_ming_dong_cha, index + 1) },
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
@@ -704,7 +704,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
 
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("行动建议", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+            Text(stringResource(R.string.note_editor_action_suggestion), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
             if (items.isNotEmpty()) Text("${completedCount}/${items.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentBlue)
         }
         if (items.isNotEmpty()) {
@@ -719,7 +719,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    contentDescription = if (done) "已完成" else "未完成",
+                    contentDescription = if (done) stringResource(R.string.state_completed) else stringResource(R.string.sprout_wei_wan_cheng),
                     tint = if (done) MaterialTheme.customColors.successGreen else MaterialTheme.colorScheme.outline)
                 Text(item, style = MaterialTheme.typography.bodyMedium,
                     color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -735,7 +735,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
 @Composable
 private fun ConceptsSection(concepts: List<String>) {
     Column {
-        Text("相关概念", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+        Text(stringResource(R.string.note_editor_related_concepts), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
         Spacer(Modifier.height(SpacingTokens.sm))
         // 直接用简单的 Wrap 样式展示
         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.wrapContentHeight()) {
@@ -908,10 +908,10 @@ private fun SproutLoadingView() {
 @Composable
 private fun SproutErrorView(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Default.ErrorOutline, "错误", Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
-        Spacer(Modifier.height(SpacingTokens.lg)); Text("发芽失败", style = MaterialTheme.typography.titleMedium)
+        Icon(Icons.Default.ErrorOutline, stringResource(R.string.msg_body_cd_error), Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+        Spacer(Modifier.height(SpacingTokens.lg)); Text(stringResource(R.string.sprout_error_title), style = MaterialTheme.typography.titleMedium)
         Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = SpacingTokens.xxl))
-        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onRetry) { Icon(Icons.Default.Refresh, "重试"); Spacer(Modifier.width(SpacingTokens.sm)); Text("重试") }
+        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onRetry) { Icon(Icons.Default.Refresh, stringResource(R.string.action_retry)); Spacer(Modifier.width(SpacingTokens.sm)); Text(stringResource(R.string.action_retry)) }
     }
 }
 
@@ -919,9 +919,9 @@ private fun SproutErrorView(message: String, onRetry: () -> Unit) {
 private fun SproutEmptyView(onGenerate: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("*", style = MaterialTheme.typography.displayLarge); Spacer(Modifier.height(SpacingTokens.lg))
-        Text("还没有发芽报告", style = MaterialTheme.typography.titleMedium)
-        Text("让 AI 帮你深度分析这篇笔记", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, "开始发芽"); Spacer(Modifier.width(SpacingTokens.sm)); Text("开始发芽") }
+        Text(stringResource(R.string.sprout_empty_title), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.sprout_empty_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onGenerate) { Icon(Icons.Default.AutoAwesome, stringResource(R.string.sprout_start)); Spacer(Modifier.width(SpacingTokens.sm)); Text(stringResource(R.string.sprout_start)) }
     }
 }
 

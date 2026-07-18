@@ -91,7 +91,7 @@ fun NoteShareScreen(
                 title = { Text(stringResource(R.string.title_share_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -138,11 +138,11 @@ fun NoteShareScreen(
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 AssistChip(
                                     onClick = {},
-                                    label = { Text("AI 已转换", style = MaterialTheme.typography.labelSmall) },
+                                    label = { Text(stringResource(R.string.note_share_ai_yi_zhuan_huan), style = MaterialTheme.typography.labelSmall) },
                                     leadingIcon = {
                                         Icon(
                                             Icons.Default.AutoAwesome,
-                                            contentDescription = "AI 已转换",
+                                            contentDescription = stringResource(R.string.note_share_ai_yi_zhuan_huan),
                                             modifier = Modifier.size(14.dp),
                                         )
                                     },
@@ -178,21 +178,21 @@ fun NoteShareScreen(
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 val clip = ClipData.newPlainText("note", aiConvertedContent)
                                 clipboard.setPrimaryClip(clip)
-                                feedback.showFeedback("已复制转换内容")
+                                feedback.showFeedback(context.getString(R.string.note_share_yi_fu_zhi_zhuan_huan_nei_rong))
                             },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "复制", modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy), modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("复制", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.action_copy), style = MaterialTheme.typography.labelSmall)
                         }
                         OutlinedButton(
                             onClick = { onClearConversion() },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "恢复原文", modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.note_share_hui_fu_yuan_wen), modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("恢复原文", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.note_share_hui_fu_yuan_wen), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -202,7 +202,7 @@ fun NoteShareScreen(
 
             // AI 风格转换区域
             Text(
-                text = "AI 风格转换",
+                text = stringResource(R.string.note_share_ai_feng_ge_zhuan_huan),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -215,25 +215,25 @@ fun NoteShareScreen(
                 FilterChip(
                     selected = aiStyle == "xiaohongshu",
                     onClick = { aiStyle = if (aiStyle == "xiaohongshu") null else "xiaohongshu" },
-                    label = { Text("小红书") },
+                    label = { Text(stringResource(R.string.note_share_xiao_hong_shu)) },
                     leadingIcon = if (aiStyle == "xiaohongshu") {
-                        { Icon(Icons.Default.Check, contentDescription = "已选中", modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
                     } else null,
                 )
                 FilterChip(
                     selected = aiStyle == "wechat",
                     onClick = { aiStyle = if (aiStyle == "wechat") null else "wechat" },
-                    label = { Text("公众号") },
+                    label = { Text(stringResource(R.string.note_share_gong_zhong_hao)) },
                     leadingIcon = if (aiStyle == "wechat") {
-                        { Icon(Icons.Default.Check, contentDescription = "已选中", modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
                     } else null,
                 )
                 FilterChip(
                     selected = aiStyle == "moments",
                     onClick = { aiStyle = if (aiStyle == "moments") null else "moments" },
-                    label = { Text("朋友圈") },
+                    label = { Text(stringResource(R.string.note_share_peng_you_quan)) },
                     leadingIcon = if (aiStyle == "moments") {
-                        { Icon(Icons.Default.Check, contentDescription = "已选中", modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
                     } else null,
                 )
             }
@@ -254,11 +254,11 @@ fun NoteShareScreen(
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("AI 转换中...")
+                    Text(stringResource(R.string.note_share_ai_zhuan_huan_zhong))
                 } else {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = "AI 转换", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.note_share_ai_zhuan_huan), modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("AI 转换")
+                    Text(stringResource(R.string.note_share_ai_zhuan_huan))
                 }
             }
 
@@ -266,7 +266,7 @@ fun NoteShareScreen(
 
             // 分享平台网格
             Text(
-                text = "分享到平台",
+                text = stringResource(R.string.note_share_fen_xiang_dao_ping_tai),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -310,7 +310,7 @@ fun NoteShareScreen(
 
             // 分享格式选项
             Text(
-                text = "分享格式",
+                text = stringResource(R.string.note_share_fen_xiang_ge_shi),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -462,14 +462,14 @@ private fun shareToPlatform(context: Context, note: Note, platform: SharePlatfor
                 putExtra(Intent.EXTRA_SUBJECT, note.title)
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
-            context.startActivity(Intent.createChooser(intent, "分享笔记"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.note_action_share_note_title)))
         }
         else -> {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
-            context.startActivity(Intent.createChooser(intent, "分享到${platform.name}"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.note_share_fen_xiang_dao_1, platform.name)))
         }
     }
 }
@@ -509,7 +509,7 @@ private fun shareAsFormat(context: Context, note: Note, format: ShareFormat, ove
                 putExtra(Intent.EXTRA_SUBJECT, note.title)
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
-            context.startActivity(Intent.createChooser(intent, "分享HTML"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.note_share_fen_xiang_html)))
         }
     }
 }

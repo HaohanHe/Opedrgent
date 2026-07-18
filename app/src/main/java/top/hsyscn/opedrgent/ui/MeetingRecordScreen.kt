@@ -143,6 +143,7 @@ import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import android.content.Context
 
 /** Tab 类型定义（参考opedrgent 4-Tab 系统） */
 enum class TranscriptTab(val displayName: String) {
@@ -226,7 +227,7 @@ fun MeetingRecordScreen(
 
         val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-            snackbar.showSnackbar("无法初始化录音设备")
+            snackbar.showSnackbar(context.getString(R.string.msg_record_init_failed))
             return@LaunchedEffect
         }
 
@@ -338,7 +339,7 @@ fun MeetingRecordScreen(
                     var showMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.cd_more))
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -346,7 +347,7 @@ fun MeetingRecordScreen(
                         ) {
                             // 下载音频
                             DropdownMenuItem(
-                                text = { Text("下载录音文件") },
+                                text = { Text(stringResource(R.string.meeting_xia_zai_lu_yin_wen_jian)) },
                                 onClick = {
                                     showMenu = false
                                     transcriptResult?.audioFilePath?.let { path ->
@@ -393,7 +394,7 @@ fun MeetingRecordScreen(
                         try {
                             val pcmPath = tempFilePath.value
                             if (pcmPath == null) {
-                                snackbar.showSnackbar("录音文件不存在")
+                                snackbar.showSnackbar(context.getString(R.string.msg_recording_file_not_found))
                                 isProcessing = false
                                 recordingState = RecordingState.DONE
                                 return@launch
@@ -427,7 +428,7 @@ fun MeetingRecordScreen(
                             }
                         } catch (e: Exception) {
                             DebugLog.e("MeetingRecord", "处理失败: ${e.message}", e)
-                            snackbar.showSnackbar("处理失败: ${e.message}")
+                            snackbar.showSnackbar(context.getString(R.string.recording_processing_failed_generic, e.message))
                         } finally {
                             isProcessing = false
                             recordingState = RecordingState.DONE
@@ -475,14 +476,14 @@ fun MeetingRecordScreen(
                                 )
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Text(
-                                    text = "转录完成",
+                                    text = stringResource(R.string.meeting_zhuan_lu_wan_cheng),
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = TextPrimary,
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
-                                    text = "${result.segments.size} 段 · ${result.speakers.size} 人 · ${TranscriptTimeFormatter.formatDuration(result.durationMs)}",
+                                    text = stringResource(R.string.meeting_1_duan_2_ren_3, result.segments.size, result.speakers.size, TranscriptTimeFormatter.formatDuration(result.durationMs)),
                                     color = themeTextGrey(),
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -641,7 +642,7 @@ fun MeetingRecordScreen(
                                 ) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(SpacingTokens.sm))
-                                    Text("复制", fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.action_copy), fontWeight = FontWeight.Medium)
                                 }
                                 Button(
                                     onClick = { onSendToChat(result.fullText) },
@@ -651,7 +652,7 @@ fun MeetingRecordScreen(
                                 ) {
                                     Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(SpacingTokens.sm))
-                                    Text("AI 总结", fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
                                 }
                             }
                         }
@@ -765,7 +766,7 @@ private fun AudioPlayerBar(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "暂停" else "播放",
+                        contentDescription = if (isPlaying) stringResource(R.string.action_pause) else stringResource(R.string.cd_play),
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -986,7 +987,7 @@ private fun SentenceItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "跳转到 ${TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs)}",
+                        contentDescription = stringResource(R.string.meeting_tiao_zhuan_dao_1, TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs)),
                         tint = if (isPlaying) playingColor else normalMetaColor.copy(alpha = 0.6f),
                         modifier = Modifier.size(20.dp).padding(SpacingTokens.xxs),
                     )
@@ -1021,12 +1022,12 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 .padding(vertical = 40.dp),
         ) {
             Text(
-                text = "暂无智能总结",
+                text = stringResource(R.string.meeting_zan_wu_zhi_neng_zong_jie),
                 color = themeTextGrey(),
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                text = "切换到「文字记录」查看完整转录文本",
+                text = stringResource(R.string.meeting_qie_huan_dao_wen_zi_ji_lu_cha),
                 color = themeTextGrey().copy(alpha = 0.6f),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = SpacingTokens.xs),
@@ -1041,13 +1042,13 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
     ) {
         // 📑 录音信息
         item {
-            Text(text = "\uD83D\uDCD1 智能总结", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.meeting_ud83d_udcd1_zhi_neng_zong_jie), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         item {
-            Text(text = "录音信息", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(text = stringResource(R.string.meeting_lu_yin_xin_xi), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(SpacingTokens.sm))
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
-                summaryInfoLine("时长", summary.metaInfo.duration)
+                summaryInfoLine(stringResource(R.string.stt_result_duration_label), summary.metaInfo.duration)
                 summaryInfoLine("参与人数", "${summary.metaInfo.participantCount} 人")
                 summaryInfoLine("内容类型", summary.metaInfo.contentType)
             }
@@ -1056,7 +1057,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         // 录音总结段落
         item {
             Spacer(Modifier.height(SpacingTokens.sm))
-            Text(text = "录音总结", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(text = stringResource(R.string.meeting_lu_yin_zong_jie), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
         }
         items(summary.summarySections, key = { it.title + "_" + it.content.hashCode() }) { section ->
             Spacer(Modifier.height(SpacingTokens.sm))
@@ -1070,7 +1071,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.chapters.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = "\uD83D\uDCC5 章节概要", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_ud83d_udcc5_zhang_jie_gai_yao), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.chapters) { chapter ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1105,7 +1106,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.quotes.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = "\u2728 金句精选", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_u2728_jin_ju_jing_xuan), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.quotes, key = { it.text + "_" + it.category }) { quote ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1126,7 +1127,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.actionItems.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = "\uD83D\uDCCB 待办事项", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_ud83d_udccb_dai_ban_shi_xiang), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(summary.actionItems) { item ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1194,9 +1195,9 @@ private fun AdditionalNotesContent(
                     .fillMaxWidth()
                     .padding(vertical = 40.dp),
             ) {
-                Text(text = "暂无追加的笔记", color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.meeting_zan_wu_zhui_jia_de_bi_ji), color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text = "在此处添加您对录音内容的补充笔记和想法",
+                    text = stringResource(R.string.meeting_zai_ci_chu_tian_jia_nin_dui),
                     color = themeTextGrey().copy(alpha = 0.6f),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = SpacingTokens.xs),
@@ -1214,7 +1215,7 @@ private fun AdditionalNotesContent(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(SpacingTokens.sm))
-                        Text("添加笔记", color = AccentPurple, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.note_editor_add_note), color = AccentPurple, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
@@ -1274,7 +1275,7 @@ private fun AdditionalNotesContent(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("追加笔记...", color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.meeting_zhui_jia_bi_ji), color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
@@ -1333,7 +1334,7 @@ private fun NoteItemCard(
                             )
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "跳转到该时刻",
+                                contentDescription = stringResource(R.string.meeting_tiao_zhuan_dao_gai_shi_ke),
                                 tint = AccentPurple,
                                 modifier = Modifier.size(16.dp),
                             )
@@ -1353,7 +1354,7 @@ private fun NoteItemCard(
 
                 // 编辑按钮
                 IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = themeTextGrey(), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = themeTextGrey(), modifier = Modifier.size(16.dp))
                 }
                 // 删除按钮
                 IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
@@ -1382,7 +1383,7 @@ private fun NoteItemCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
                     ) {
-                        Text("确定删除这条笔记？", color = DeleteConfirmRed, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.meeting_que_ding_shan_chu_zhe_tiao_bi), color = DeleteConfirmRed, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Surface(shape = ShapeTokens.smallShape, color = Color.Transparent, onClick = { showDeleteConfirm = false }) {
                             Text(stringResource(R.string.action_cancel), color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
                         }
@@ -1413,7 +1414,7 @@ private fun NoteInputArea(
     Column(modifier = Modifier.fillMaxWidth()) {
         // 提示文字
         Text(
-            text = if (isEditing) "编辑笔记" else "新建笔记",
+            text = if (isEditing) stringResource(R.string.note_editor_edit) else stringResource(R.string.note_editor_new),
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleSmall,
             color = TextPrimary,
@@ -1424,7 +1425,7 @@ private fun NoteInputArea(
         OutlinedTextField(
             value = inputText,
             onValueChange = onInputChange,
-            placeholder = { Text("记录你的想法、要点或待办事项...", color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.bodyLarge) },
+            placeholder = { Text(stringResource(R.string.meeting_ji_lu_ni_de_xiang_fa_yao_dian), color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.bodyLarge) },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 80.dp, max = 160.dp),
@@ -1440,7 +1441,7 @@ private fun NoteInputArea(
         if (segments.isNotEmpty()) {
             Spacer(Modifier.height(SpacingTokens.sm))
             Text(
-                text = "关联到录音位置（可选，点击选择）",
+                text = stringResource(R.string.meeting_guan_lian_dao_lu_yin_wei_zhi),
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
@@ -1478,7 +1479,7 @@ private fun NoteInputArea(
                 onClick = onCancel,
             ) {
                 Text(
-                    text = "取消",
+                    text = stringResource(R.string.action_cancel),
                     color = themeTextGrey(),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
@@ -1496,7 +1497,7 @@ private fun NoteInputArea(
                 },
             ) {
                 Text(
-                    text = if (isEditing) "保存修改" else "保存笔记",
+                    text = if (isEditing) stringResource(R.string.meeting_bao_cun_xiu_gai) else stringResource(R.string.recording_save_note),
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.bodyLarge,
@@ -1698,13 +1699,13 @@ private suspend fun downloadToDownloads(
 
             val sizeKB = destFile.length() / 1024
             DebugLog.i("MeetingRecord", "音频已下载到: ${destFile.absolutePath} (${sizeKB}KB)")
-            snackbar.showSnackbar("已保存到 Download/$destName")
+            snackbar.showSnackbar(context.getString(R.string.meeting_yi_bao_cun_dao_download_1, destName))
         } catch (e: SecurityException) {
             DebugLog.w("MeetingRecord", "下载失败(权限): ${e.message}")
-            snackbar.showSnackbar("下载失败: 请授予存储权限")
+            snackbar.showSnackbar(context.getString(R.string.meeting_xia_zai_shi_bai_qing_shou_yu))
         } catch (e: Exception) {
             DebugLog.e("MeetingRecord", "下载失败: ${e.message}", e)
-            snackbar.showSnackbar("下载失败: ${e.message}")
+            snackbar.showSnackbar(context.getString(R.string.meeting_xia_zai_shi_bai_1, e.message))
         }
     }
 }
@@ -1733,7 +1734,7 @@ private fun shareAudioFile(
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(
-            android.content.Intent.createChooser(intent, "分享会议录音")
+            android.content.Intent.createChooser(intent, context.getString(R.string.meeting_fen_xiang_hui_yi_lu_yin))
         )
     } catch (e: Exception) {
         // FileProvider 未配置或 URI 异常，降级为纯文本
@@ -1750,6 +1751,6 @@ private fun shareTextOnly(context: android.content.Context, text: String) {
         putExtra(android.content.Intent.EXTRA_TEXT, "[Opedrgent 会议转录]\n\n$text")
     }
     context.startActivity(
-        android.content.Intent.createChooser(intent, "分享转录文本")
+        android.content.Intent.createChooser(intent, context.getString(R.string.meeting_fen_xiang_zhuan_lu_wen_ben))
     )
 }

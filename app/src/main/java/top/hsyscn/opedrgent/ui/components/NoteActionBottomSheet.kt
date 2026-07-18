@@ -25,10 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.ExportFormat
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.exportNoteToFile
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,18 +64,18 @@ fun NoteActionBottomSheet(
             if (showExportSubmenu) {
                 // 导出子菜单
                 ListItem(
-                    headlineContent = { Text("选择导出格式", style = MaterialTheme.typography.titleSmall) },
+                    headlineContent = { Text(stringResource(R.string.note_action_choose_export_format), style = MaterialTheme.typography.titleSmall) },
                     leadingContent = {
                         IconButton(onClick = { showExportSubmenu = false }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                         }
                     },
                 )
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("导出为 TXT") },
+                    headlineContent = { Text(stringResource(R.string.note_action_export_txt)) },
                     leadingContent = {
-                        Icon(Icons.Default.Description, "导出为 TXT", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_txt), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         scope.launch {
@@ -88,18 +90,18 @@ fun NoteActionBottomSheet(
                                     ))
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "分享笔记"))
+                                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.note_action_share_note_title)))
                             } catch (e: Exception) {
-                                feedback.showFeedback("导出失败: ${e.message}")
+                                feedback.showFeedback(context.getString(R.string.note_action_export_failed, e.message ?: ""))
                             }
                             onDismiss()
                         }
                     },
                 )
                 ListItem(
-                    headlineContent = { Text("导出为 Markdown") },
+                    headlineContent = { Text(stringResource(R.string.note_action_export_markdown)) },
                     leadingContent = {
-                        Icon(Icons.Default.Description, "导出为 Markdown", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_markdown), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         scope.launch {
@@ -114,9 +116,9 @@ fun NoteActionBottomSheet(
                                     ))
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "分享笔记"))
+                                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.note_action_share_note_title)))
                             } catch (e: Exception) {
-                                feedback.showFeedback("导出失败: ${e.message}")
+                                feedback.showFeedback(context.getString(R.string.note_action_export_failed, e.message ?: ""))
                             }
                             onDismiss()
                         }
@@ -125,109 +127,109 @@ fun NoteActionBottomSheet(
             } else {
                 // 主菜单
                 ListItem(
-                    headlineContent = { Text("笔记操作", style = MaterialTheme.typography.titleSmall) },
+                    headlineContent = { Text(stringResource(R.string.note_action_title), style = MaterialTheme.typography.titleSmall) },
                 )
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("编辑") },
+                    headlineContent = { Text(stringResource(R.string.action_edit)) },
                     leadingContent = {
-                        Icon(Icons.Default.Edit, "编辑", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Edit, stringResource(R.string.cd_edit), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onEdit() },
                 )
                 ListItem(
-                    headlineContent = { Text("分享") },
+                    headlineContent = { Text(stringResource(R.string.action_share)) },
                     leadingContent = {
-                        Icon(Icons.Default.Share, "分享", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Share, stringResource(R.string.cd_share), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onShare() },
                 )
                 ListItem(
-                    headlineContent = { Text("追加笔记") },
+                    headlineContent = { Text(stringResource(R.string.note_action_append)) },
                     leadingContent = {
-                        Icon(Icons.Default.AddCircleOutline, "追加笔记", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AddCircleOutline, stringResource(R.string.note_action_cd_append), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAppend() },
                 )
                 ListItem(
-                    headlineContent = { Text("导出") },
+                    headlineContent = { Text(stringResource(R.string.action_export)) },
                     leadingContent = {
-                        Icon(Icons.Default.FileDownload, "导出", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.FileDownload, stringResource(R.string.note_action_cd_export), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     trailingContent = {
-                        Icon(Icons.Default.ChevronRight, "进入导出子菜单", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.ChevronRight, stringResource(R.string.note_action_cd_enter_export_submenu), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     },
                     modifier = Modifier.clickable { showExportSubmenu = true },
                 )
                 ListItem(
-                    headlineContent = { Text("复制总结") },
+                    headlineContent = { Text(stringResource(R.string.note_action_copy_summary)) },
                     leadingContent = {
-                        Icon(Icons.Default.ContentCopy, "复制总结", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.ContentCopy, stringResource(R.string.note_action_cd_copy_summary), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         val summary = note.summary.ifBlank { note.content.take(200) }
                         clipboardManager.setText(AnnotatedString(summary))
-                        feedback.showFeedback("已复制总结到剪贴板")
+                        feedback.showFeedback(context.getString(R.string.note_action_summary_copied))
                         onDismiss()
                     },
                 )
                 ListItem(
-                    headlineContent = { Text("复制文字记录") },
+                    headlineContent = { Text(stringResource(R.string.note_action_copy_full_text)) },
                     leadingContent = {
-                        Icon(Icons.Default.CopyAll, "复制全文", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.CopyAll, stringResource(R.string.note_action_cd_copy_full_text), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         clipboardManager.setText(AnnotatedString(note.content))
-                        feedback.showFeedback("已复制全文到剪贴板")
+                        feedback.showFeedback(context.getString(R.string.note_action_full_text_copied))
                         onDismiss()
                     },
                 )
                 ListItem(
-                    headlineContent = { Text("纠错") },
+                    headlineContent = { Text(stringResource(R.string.note_action_correct)) },
                     leadingContent = {
-                        Icon(Icons.Default.Spellcheck, "纠错", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(Icons.Default.Spellcheck, stringResource(R.string.note_action_cd_correct), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onCorrect() },
                 )
                 ListItem(
-                    headlineContent = { Text("笔记发芽") },
+                    headlineContent = { Text(stringResource(R.string.note_action_sprout)) },
                     leadingContent = {
-                        Icon(Icons.Default.AutoAwesome, "笔记发芽", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AutoAwesome, stringResource(R.string.note_action_cd_sprout), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onSprout() },
                 )
                 ListItem(
-                    headlineContent = { Text("添加到知识库") },
+                    headlineContent = { Text(stringResource(R.string.note_action_add_to_kb)) },
                     leadingContent = {
-                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, "添加到知识库", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.note_action_cd_add_to_kb), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddToKnowledgeBase() },
                 )
                 ListItem(
-                    headlineContent = { Text("添加标签") },
+                    headlineContent = { Text(stringResource(R.string.note_action_add_tag)) },
                     leadingContent = {
-                        Icon(Icons.AutoMirrored.Filled.Label, "添加标签", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(Icons.AutoMirrored.Filled.Label, stringResource(R.string.note_action_cd_add_tag), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddTag() },
                 )
                 ListItem(
-                    headlineContent = { Text(if (note.isPinned) "取消置顶" else "置顶") },
+                    headlineContent = { Text(stringResource(if (note.isPinned) R.string.note_action_unpin else R.string.note_action_pin)) },
                     leadingContent = {
-                        Icon(Icons.Default.PushPin, if (note.isPinned) "取消置顶" else "置顶", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.PushPin, stringResource(if (note.isPinned) R.string.note_action_cd_unpin else R.string.note_action_cd_pin), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onTogglePin() },
                 )
                 ListItem(
-                    headlineContent = { Text("在对话中讨论") },
+                    headlineContent = { Text(stringResource(R.string.note_action_discuss_in_chat)) },
                     leadingContent = {
-                        Icon(Icons.Default.ChatBubbleOutline, "在对话中讨论", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.ChatBubbleOutline, stringResource(R.string.note_action_cd_discuss_in_chat), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onSendToChat() },
                 )
                 ListItem(
-                    headlineContent = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                    headlineContent = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingContent = {
-                        Icon(Icons.Default.Delete, "删除", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Delete, stringResource(R.string.cd_delete), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
                     },
                     modifier = Modifier.clickable { onDismiss(); onDelete() },
                 )

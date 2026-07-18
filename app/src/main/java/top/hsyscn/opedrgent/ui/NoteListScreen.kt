@@ -66,6 +66,8 @@ import java.util.*
 import android.content.Intent
 import android.net.Uri
 import top.hsyscn.opedrgent.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 
 /**
  * 笔记列表页（Doubao 风格重设计）。
@@ -107,6 +109,7 @@ fun NoteListScreen(
     onClearSearchHistory: () -> Unit = {},
     isLandscape: Boolean = false,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var selectedNoteId by remember { mutableStateOf<Long?>(null) }
@@ -241,7 +244,7 @@ fun NoteListScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "搜索历史",
+                                stringResource(R.string.note_list_sou_suo_li_shi),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = themeForegroundMuted(),
                             )
@@ -250,7 +253,7 @@ fun NoteListScreen(
                                 onClick = onClearSearchHistory,
                                 contentPadding = PaddingValues(),
                             ) {
-                                Text("清除", style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
+                                Text(stringResource(R.string.kb_qing_chu), style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
                             }
                         }
                         Row(
@@ -261,7 +264,7 @@ fun NoteListScreen(
                                 AssistChip(
                                     onClick = {
                                         searchQuery = historyItem
-                                        val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
+                                        val nlKeywords = listOf(context.getString(R.string.settings_about), context.getString(R.string.note_list_ti_dao), context.getString(R.string.note_list_you_guan), context.getString(R.string.note_list_bao_han), context.getString(R.string.note_list_she_ji), context.getString(R.string.note_editor_discuss), context.getString(R.string.note_list_tan_dao), context.getString(R.string.note_list_shuo_dao))
                                         if (nlKeywords.any { historyItem.contains(it) }) {
                                             isAiSearchActive = true
                                             onAiSearch(historyItem)
@@ -336,7 +339,7 @@ fun NoteListScreen(
                             CircularProgressIndicator(color = themePrimary())
                             Spacer(Modifier.height(SpacingTokens.sm))
                             Text(
-                                "AI 正在理解您的搜索意图...",
+                                stringResource(R.string.note_list_ai_zheng_zai_li_jie_nin_de),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeForegroundMuted(),
                             )
@@ -367,7 +370,7 @@ fun NoteListScreen(
                         if (pinnedNotes.isNotEmpty()) {
                             item(key = "pinned_header") {
                                 Text(
-                                    text = "置顶",
+                                    text = stringResource(R.string.note_action_cd_pin),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = themeForegroundMuted(),
                                     modifier = Modifier.padding(bottom = SpacingTokens.sm),
@@ -472,7 +475,7 @@ fun NoteListScreen(
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("选择一条笔记预览", color = themeForegroundMuted())
+                        Text(stringResource(R.string.note_list_xuan_ze_yi_tiao_bi_ji_yu_lan), color = themeForegroundMuted())
                     }
                 }
             }
@@ -507,7 +510,7 @@ private fun NoteHeader(
             }
         }
         Text(
-            text = "笔记",
+            text = stringResource(R.string.tab_notes),
             style = MaterialTheme.typography.headlineLarge,
             color = themeForeground(),
             modifier = Modifier.weight(1f),
@@ -581,7 +584,7 @@ private fun DoubaoSearchBar(
                 Box(modifier = Modifier.weight(1f)) {
                     if (query.isEmpty()) {
                         Text(
-                            "搜索笔记…",
+                            stringResource(R.string.note_list_sou_suo_bi_ji),
                             style = MaterialTheme.typography.bodyMedium,
                             color = themeForegroundMuted(),
                         )
@@ -663,7 +666,7 @@ private fun TagFilterChips(
         FilterChip(
             selected = selectedTag == null,
             onClick = { onTagSelected(null) },
-            label = { Text("全部标签", style = MaterialTheme.typography.labelMedium) },
+            label = { Text(stringResource(R.string.note_list_quan_bu_biao_qian), style = MaterialTheme.typography.labelMedium) },
             colors = FilterChipDefaults.filterChipColors(
                 selectedContainerColor = themePrimary(),
                 selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
@@ -747,9 +750,9 @@ private fun FolderNavigation(
                     )
                 }
             } else {
-                Icon(Icons.Default.Folder, "文件夹", tint = themePrimary(), modifier = Modifier.size(SpacingTokens.lg))
+                Icon(Icons.Default.Folder, stringResource(R.string.note_list_wen_jian_jia), tint = themePrimary(), modifier = Modifier.size(SpacingTokens.lg))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("文件夹", style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
+                Text(stringResource(R.string.note_list_wen_jian_jia), style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
             }
 
             Spacer(Modifier.weight(1f))
@@ -808,16 +811,16 @@ private fun FolderItem(
             )
             Box {
                 IconButton(onClick = { showMenu = true }, modifier = Modifier.size(SizeTokens.iconLg)) {
-                    Icon(Icons.Default.MoreVert, "更多", modifier = Modifier.size(SizeTokens.iconXs))
+                    Icon(Icons.Default.MoreVert, stringResource(R.string.cd_more), modifier = Modifier.size(SizeTokens.iconXs))
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                     DropdownMenuItem(
-                        text = { Text("重命名") },
+                        text = { Text(stringResource(R.string.note_list_zhong_ming_ming)) },
                         onClick = { showMenu = false; onRename() },
                         leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(SpacingTokens.lg)) },
                     )
                     DropdownMenuItem(
-                        text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                         onClick = { showMenu = false; onDelete() },
                         leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(SpacingTokens.lg)) },
                     )
@@ -838,7 +841,7 @@ private fun FolderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (folder != null) "重命名文件夹" else "新建文件夹") },
+        title = { Text(if (folder != null) stringResource(R.string.note_list_zhong_ming_ming_wen_jian_jia) else stringResource(R.string.note_list_xin_jian_wen_jian_jia)) },
         text = {
             Column {
                 OutlinedTextField(
@@ -847,12 +850,12 @@ private fun FolderDialog(
                         name = it
                         isError = it.isBlank() || it.length > 50
                     },
-                    label = { Text("文件夹名称") },
+                    label = { Text(stringResource(R.string.note_list_wen_jian_jia_ming_cheng)) },
                     isError = isError,
                     supportingText = {
                         if (isError) {
                             Text(
-                                text = "名称不能为空且不能超过50个字符",
+                                text = stringResource(R.string.note_list_ming_cheng_bu_neng_wei_kong),
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                             )
@@ -867,12 +870,12 @@ private fun FolderDialog(
                 onClick = { onConfirm(name) },
                 enabled = name.isNotBlank() && name.length <= 50,
             ) {
-                Text("确定")
+                Text(stringResource(R.string.stt_progress_ok))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )
@@ -892,7 +895,7 @@ private fun NotePreviewPanel(
             .padding(SpacingTokens.xl),
     ) {
         Text(
-            text = note.title.ifBlank { "无标题" },
+            text = note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
             style = MaterialTheme.typography.headlineLarge,
             color = themeForeground(),
         )
@@ -940,7 +943,7 @@ private fun NotePreviewPanel(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            Text("（空笔记）", color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.note_list_kong_bi_ji), color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(SpacingTokens.xl))
         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
@@ -949,17 +952,17 @@ private fun NotePreviewPanel(
                 colors = ButtonDefaults.buttonColors(containerColor = themePrimary()),
                 shape = ShapeTokens.smallShape,
             ) {
-                Icon(Icons.Default.Edit, contentDescription = "编辑", modifier = Modifier.size(SpacingTokens.lg))
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), modifier = Modifier.size(SpacingTokens.lg))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("编辑")
+                Text(stringResource(R.string.action_edit))
             }
             OutlinedButton(
                 onClick = onSendToChat,
                 shape = ShapeTokens.smallShape,
             ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "发送到对话", modifier = Modifier.size(SpacingTokens.lg))
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = stringResource(R.string.note_list_fa_song_dao_dui_hua), modifier = Modifier.size(SpacingTokens.lg))
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("发到对话")
+                Text(stringResource(R.string.note_list_fa_dao_dui_hua))
             }
         }
     }
@@ -1044,7 +1047,7 @@ private fun NoteCard(
                     if (relevance != null) {
                         Spacer(Modifier.width(SpacingTokens.sm))
                         Text(
-                            "相关度 ${relevance}%",
+                            stringResource(R.string.note_list_xiang_guan_du_1, relevance),
                             style = MaterialTheme.typography.labelSmall,
                             color = themePrimary(),
                             modifier = Modifier
@@ -1058,7 +1061,7 @@ private fun NoteCard(
 
                 // 标题
                 Text(
-                    text = note.title.ifBlank { "无标题" },
+                    text = note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
                     style = MaterialTheme.typography.titleSmall,
                     color = themeForeground(),
                     maxLines = 1,
@@ -1122,7 +1125,7 @@ private fun NoteCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Link,
-                                contentDescription = "来源链接",
+                                contentDescription = stringResource(R.string.note_editor_source_link),
                                 tint = themePrimary(),
                                 modifier = Modifier.size(SizeTokens.iconMd),
                             )
@@ -1138,7 +1141,7 @@ private fun NoteCard(
                             }
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "打开链接",
+                                contentDescription = stringResource(R.string.cd_open_link),
                                 tint = themeForegroundMuted(),
                                 modifier = Modifier.size(SpacingTokens.lg),
                             )
@@ -1246,13 +1249,13 @@ private fun RecommendationCard(
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "发现关联",
+                    text = stringResource(R.string.note_list_fa_xian_guan_lian),
                     style = MaterialTheme.typography.titleSmall,
                     color = themeForeground(),
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "与「$sourceTitle」相关",
+                    text = stringResource(R.string.note_list_yu_1_xiang_guan, sourceTitle),
                     style = MaterialTheme.typography.labelSmall,
                     color = themeForegroundMuted(),
                 )
@@ -1292,7 +1295,7 @@ private fun RecommendationCard(
                     Spacer(Modifier.width(SizeTokens.sectionGapSm))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = note.title.ifBlank { "无标题" },
+                            text = note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             color = themeForeground(),
@@ -1329,9 +1332,9 @@ private fun EmptyNoteState(onNewNote: () -> Unit) {
                 tint = themeForegroundMuted().copy(alpha = 0.4f),
             )
         },
-        title = "还没有笔记",
-        subtitle = "点击右下角 + 创建第一条笔记，\n或从 AI 对话中保存精彩内容",
-        actionLabel = "写一条笔记",
+        title = stringResource(R.string.home_hai_mei_you_bi_ji),
+        subtitle = stringResource(R.string.note_list_dian_ji_you_xia_jiao_chuang),
+        actionLabel = stringResource(R.string.note_list_xie_yi_tiao_bi_ji),
         onAction = onNewNote,
         modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
     )
@@ -1339,15 +1342,16 @@ private fun EmptyNoteState(onNewNote: () -> Unit) {
 
 // ==================== 工具函数 ====================
 
+@Composable
 private fun noteMetaText(note: Note): String {
     return when (note.sourceType) {
-        SourceType.ASR, SourceType.MEETING_TRANSCRIPT -> "来自录音"
+        SourceType.ASR, SourceType.MEETING_TRANSCRIPT -> stringResource(R.string.note_list_lai_zi_lu_yin)
         else -> {
             val count = if (note.wordCount > 0) note.wordCount else note.content.length
             when {
-                count >= 10000 -> "${count / 10000}万${(count % 10000) / 1000}千字"
-                count >= 1000 -> "${count / 1000},${String.format("%03d", count % 1000)} 字"
-                else -> "$count 字"
+                count >= 10000 -> stringResource(R.string.note_list_count_10000_zi, count / 10000, (count % 10000) / 1000)
+                count >= 1000 -> stringResource(R.string.note_list_count_1000_zi, count / 1000, String.format("%03d", count % 1000))
+                else -> stringResource(R.string.note_list_count_zi, count)
             }
         }
     }

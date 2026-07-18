@@ -285,7 +285,7 @@ fun OnboardingScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "上一页",
+                            contentDescription = stringResource(R.string.onboarding_prev),
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(4.dp))

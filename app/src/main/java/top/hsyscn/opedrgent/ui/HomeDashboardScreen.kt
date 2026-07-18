@@ -304,7 +304,7 @@ private fun GreetingHeader(onAvatarClick: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = "用户头像",
+                contentDescription = stringResource(R.string.home_yong_hu_tou_xiang),
                 tint = themePrimary(),
                 modifier = Modifier.size(SizeTokens.iconMd),
             )
@@ -332,7 +332,7 @@ private fun SearchBar(onClick: () -> Unit) {
             modifier = Modifier.size(SizeTokens.iconMd),
         )
         Text(
-            text = "搜索笔记、对话、知识库…",
+            text = stringResource(R.string.home_sou_suo_bi_ji_dui_hua_zhi_shi),
             style = MaterialTheme.typography.bodyMedium,
             color = themeForegroundMuted(),
         )
@@ -371,7 +371,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                         modifier = Modifier.size(SizeTokens.iconLg),
                     )
                     Text(
-                        text = "AI 智能助手",
+                        text = stringResource(R.string.home_ai_zhi_neng_zhu_shou),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
@@ -383,7 +383,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                 modifier = Modifier.padding(SizeTokens.screenHorizontalPadding),
             ) {
                 Text(
-                    text = "我是你的 AI 助手，可以帮你整理思路、分析问题、深度研究。",
+                    text = stringResource(R.string.home_wo_shi_ni_de_ai_zhu_shou_ke),
                     style = MaterialTheme.typography.bodyMedium,
                     color = themeForegroundSecondary(),
                     modifier = Modifier.padding(bottom = SpacingTokens.lg),
@@ -400,7 +400,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 ) {
                     Text(
-                        text = "输入你的问题…",
+                        text = stringResource(R.string.home_shu_ru_ni_de_wen_ti),
                         style = MaterialTheme.typography.bodyMedium,
                         color = themeForegroundMuted(),
                         modifier = Modifier.weight(1f),
@@ -416,7 +416,7 @@ private fun AiAssistantCard(onTap: () -> Unit) {
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "发送",
+                            contentDescription = stringResource(R.string.action_send),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(SpacingTokens.lg),
                         )
@@ -442,7 +442,7 @@ private fun StatsRow(
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
         StatCard(
-            title = "今日新增",
+            title = stringResource(R.string.home_jin_ri_xin_zeng),
             value = todayCount.toString(),
             icon = Icons.Default.Add,
             iconBg = themePrimarySubtle(),
@@ -451,7 +451,7 @@ private fun StatsRow(
             modifier = Modifier.weight(1f),
         )
         StatCard(
-            title = "知识库",
+            title = stringResource(R.string.cd_knowledge_base),
             value = kbCount.toString(),
             icon = Icons.Default.Book,
             iconBg = themeChipSuccessBg(),
@@ -460,7 +460,7 @@ private fun StatsRow(
             modifier = Modifier.weight(1f),
         )
         StatCard(
-            title = "AI 对话",
+            title = stringResource(R.string.home_ai_dui_hua),
             value = aiCount.toString(),
             icon = Icons.Default.ChatBubble,
             iconBg = themeWarningBg(),
@@ -532,7 +532,7 @@ private fun FeatureDiscoveryGrid(
 ) {
     Column {
         Text(
-            text = "发现新功能",
+            text = stringResource(R.string.home_fa_xian_xin_gong_neng),
             style = MaterialTheme.typography.titleMedium,
             color = themeForeground(),
             modifier = Modifier
@@ -543,16 +543,16 @@ private fun FeatureDiscoveryGrid(
         Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
             Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 FeatureCard(
-                    title = "面试模式",
-                    subtitle = "AI 驱动智能面试",
+                    title = stringResource(R.string.title_interview_mode),
+                    subtitle = stringResource(R.string.home_ai_qu_dong_zhi_neng_mian_shi),
                     icon = Icons.Default.Mic,
                     gradient = themeGradientInterview(),
                     onClick = onInterview,
                     modifier = Modifier.weight(1f),
                 )
                 FeatureCard(
-                    title = "编辑团队",
-                    subtitle = "多角色协同编辑",
+                    title = stringResource(R.string.home_bian_ji_tuan_dui),
+                    subtitle = stringResource(R.string.home_duo_jue_se_xie_tong_bian_ji),
                     icon = Icons.Default.Groups,
                     gradient = themeGradientEditor(),
                     onClick = onEditorTeam,
@@ -561,16 +561,16 @@ private fun FeatureDiscoveryGrid(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 FeatureCard(
-                    title = "语音笔记",
-                    subtitle = "语音转文字记录",
+                    title = stringResource(R.string.home_yu_yin_bi_ji),
+                    subtitle = stringResource(R.string.home_yu_yin_zhuai_wen_zi_ji_lu),
                     icon = Icons.Default.Mic,
                     gradient = themeGradientVoice(),
                     onClick = onVoiceNotes,
                     modifier = Modifier.weight(1f),
                 )
                 FeatureCard(
-                    title = "知识发芽",
-                    subtitle = "发现知识关联",
+                    title = stringResource(R.string.sprout_title),
+                    subtitle = stringResource(R.string.home_fa_xian_zhi_shi_guan_lian),
                     icon = Icons.Default.Spa,
                     gradient = themeGradientSprout(),
                     onClick = onSprout,
@@ -721,13 +721,13 @@ private fun RecentNotesSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "最近笔记",
+                text = stringResource(R.string.home_zui_jin_bi_ji),
                 style = MaterialTheme.typography.titleMedium,
                 color = themeForeground(),
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                text = "查看全部",
+                text = stringResource(R.string.msg_body_view_all),
                 style = MaterialTheme.typography.bodySmall,
                 color = themePrimary(),
                 modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onViewAll),
@@ -798,7 +798,7 @@ private fun RecentNoteRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = note.title.ifBlank { "无标题" },
+                    text = note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
                     style = MaterialTheme.typography.titleSmall,
                     color = themeForeground(),
                     maxLines = 1,
@@ -836,13 +836,13 @@ private fun EmptyRecentNotes(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "还没有笔记",
+            text = stringResource(R.string.home_hai_mei_you_bi_ji),
             style = MaterialTheme.typography.titleMedium,
             color = themeForegroundMuted(),
         )
         Spacer(modifier = Modifier.height(SpacingTokens.sm))
         Text(
-            text = "点击下方快捷操作创建第一条笔记吧",
+            text = stringResource(R.string.home_dian_ji_xia_fang_kuai_jie_cao),
             style = MaterialTheme.typography.bodyMedium,
             color = themeForegroundMuted(),
         )
@@ -876,12 +876,12 @@ private fun EmptyRecentNotes(
                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "试试 AI 智能助手",
+                        text = stringResource(R.string.home_shi_shi_ai_zhi_neng_zhu_shou),
                         style = MaterialTheme.typography.labelLarge,
                         color = themeForeground(),
                     )
                     Text(
-                        text = "输入想法，让 AI 帮你整理成结构化内容",
+                        text = stringResource(R.string.home_shu_ru_xiang_fa_rang_ai_bang),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeForegroundMuted(),
                     )

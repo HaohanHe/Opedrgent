@@ -71,16 +71,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.SproutingState
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 
-private val PHASE_LABELS = mapOf(
-    SproutingState.PHASE1 to ("提取种子" to "正在提取关键信息..."),
-    SproutingState.PHASE2 to ("跨领域关联" to "正在建立知识连接..."),
-    SproutingState.PHASE3 to ("生成洞察" to "正在生成洞察..."),
-    SproutingState.PHASE4 to ("金句回响" to "正在提炼金句..."),
-)
+@Composable
+private fun phaseLabel(state: SproutingState): Pair<String, String> = when (state) {
+    SproutingState.PHASE1 -> stringResource(R.string.sprout_phase_seed) to stringResource(R.string.sprout_phase_seed_progress)
+    SproutingState.PHASE2 -> stringResource(R.string.sprout_phase_connection) to stringResource(R.string.sprout_phase_connection_progress)
+    SproutingState.PHASE3 -> stringResource(R.string.sprout_phase_insight) to stringResource(R.string.sprout_phase_insight_progress)
+    SproutingState.PHASE4 -> stringResource(R.string.sprout_phase_quote) to stringResource(R.string.sprout_phase_quote_progress)
+    else -> "" to ""
+}
 
 @Composable
 fun SproutResultView(
@@ -93,6 +98,7 @@ fun SproutResultView(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     if (markdownReport.isEmpty() && sproutingState == SproutingState.IDLE) return
 
     Card(
@@ -101,7 +107,7 @@ fun SproutResultView(
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "发芽报告视图" }
+            .semantics { contentDescription = context.getString(R.string.sprout_cd_report_view) }
             .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
@@ -144,24 +150,25 @@ fun SproutResultView(
 
 @Composable
 private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = when (sproutingState) {
-                SproutingState.IDLE, SproutingState.DONE -> "知识发芽"
-                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> PHASE_LABELS[sproutingState]?.first ?: "知识发芽"
-                SproutingState.ERROR -> "错误"
-                SproutingState.CANCELLED -> "已取消"
+                SproutingState.IDLE, SproutingState.DONE -> stringResource(R.string.sprout_title)
+                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> phaseLabel(sproutingState).first.ifBlank { stringResource(R.string.sprout_title) }
+                SproutingState.ERROR -> stringResource(R.string.sprout_title_error)
+                SproutingState.CANCELLED -> stringResource(R.string.sprout_title_cancelled)
             },
             style = MaterialTheme.typography.headlineSmall,
         )
         Spacer(Modifier.width(SpacingTokens.sm))
         Text(
             text = when (sproutingState) {
-                SproutingState.IDLE -> "发芽报告"
-                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> PHASE_LABELS[sproutingState]?.second ?: "处理中..."
-                SproutingState.DONE -> "发芽完成"
-                SproutingState.ERROR -> "发芽失败"
-                SproutingState.CANCELLED -> "已取消"
+                SproutingState.IDLE -> stringResource(R.string.sprout_report_title)
+                SproutingState.PHASE1, SproutingState.PHASE2, SproutingState.PHASE3, SproutingState.PHASE4 -> phaseLabel(sproutingState).second.ifBlank { stringResource(R.string.sprout_status_processing) }
+                SproutingState.DONE -> stringResource(R.string.sprout_status_done)
+                SproutingState.ERROR -> stringResource(R.string.sprout_status_failed)
+                SproutingState.CANCELLED -> stringResource(R.string.sprout_title_cancelled)
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
@@ -178,7 +185,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
             onClick = onDismiss,
             modifier = Modifier
                 .size(36.dp)
-                .semantics { contentDescription = "关闭发芽报告" },
+            .semantics { contentDescription = context.getString(R.string.sprout_cd_close_report) },
         ) {
             // 装饰性关闭图标，外层 IconButton 已提供“关闭发芽报告”语义
             Icon(
@@ -193,17 +200,18 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
 
 @Composable
 private fun QualityScoreBadge(score: Int) {
+    val context = LocalContext.current
     val (badgeColor, label) = when {
-        score >= 85 -> Pair(MaterialTheme.colorScheme.primary, "优秀")
-        score >= 70 -> Pair(MaterialTheme.colorScheme.tertiary, "良好")
-        score >= 50 -> Pair(MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f), "一般")
-        else -> Pair(MaterialTheme.colorScheme.error, "需改进")
+        score >= 85 -> Pair(MaterialTheme.colorScheme.primary, stringResource(R.string.quality_score_excellent))
+        score >= 70 -> Pair(MaterialTheme.colorScheme.tertiary, stringResource(R.string.quality_score_good))
+        score >= 50 -> Pair(MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f), stringResource(R.string.quality_score_average))
+        else -> Pair(MaterialTheme.colorScheme.error, stringResource(R.string.quality_score_needs_improvement))
     }
 
     Surface(
         shape = CircleShape,
         color = badgeColor.copy(alpha = 0.15f),
-        modifier = Modifier.semantics { contentDescription = "质量评分 $score 分，$label" },
+        modifier = Modifier.semantics { contentDescription = context.getString(R.string.quality_score_description, score, label) },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -273,7 +281,7 @@ private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) 
                 onClick = onCancel,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
-                Text("取消", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -399,6 +407,7 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
 
 @Composable
 private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long?) {
+    val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(true) }
     val isLongReport = remember(report) { report.length > 500 }
 
@@ -411,11 +420,11 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
                 TextButton(
                     onClick = { expanded = !expanded },
                     modifier = Modifier.semantics {
-                        contentDescription = if (expanded) "收起报告" else "展开报告"
+                        contentDescription = context.getString(if (expanded) R.string.cd_collapse else R.string.cd_expand)
                     },
                 ) {
                     Text(
-                        text = if (expanded) "收起" else "展开",
+                        text = stringResource(if (expanded) R.string.action_collapse else R.string.action_expand),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -424,7 +433,7 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
             Spacer(Modifier.weight(1f))
             if (processingTimeMs != null) {
                 Text(
-                    text = "耗时 ${formatProcessingTime(processingTimeMs)}",
+                    text = stringResource(R.string.sprout_time_cost, formatProcessingTime(processingTimeMs)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -439,7 +448,7 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
                     .fillMaxWidth()
                     .heightIn(max = 400.dp)
                     .verticalScroll(rememberScrollState())
-                    .semantics { contentDescription = "发芽报告内容，共 ${report.length} 个字符" },
+                    .semantics { contentDescription = context.getString(R.string.sprout_cd_report_content, report.length) },
             )
         }
     }
@@ -447,24 +456,25 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
 
 @Composable
 private fun ErrorPhase(onRetry: () -> Unit) {
+    val context = LocalContext.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = SpacingTokens.xl)
-            .semantics { contentDescription = "发芽处理出错" },
+            .semantics { contentDescription = context.getString(R.string.sprout_cd_error) },
     ) {
-        Text(text = "错误", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.error)
+        Text(text = stringResource(R.string.sprout_error_title), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(SpacingTokens.md))
         Text(
-            text = "发芽过程中出现错误",
+            text = stringResource(R.string.sprout_error_desc),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.height(SpacingTokens.xs))
         Text(
-            text = "请检查网络连接或稍后重试",
+            text = stringResource(R.string.sprout_error_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -474,26 +484,27 @@ private fun ErrorPhase(onRetry: () -> Unit) {
             shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = "重试", modifier = Modifier.size(18.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.action_retry), modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text("重试", fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.action_retry), fontWeight = FontWeight.Medium)
         }
     }
 }
 
 @Composable
 private fun CancelledPhase(onRestart: () -> Unit) {
+    val context = LocalContext.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = SpacingTokens.xl)
-            .semantics { contentDescription = "发芽已取消" },
+            .semantics { contentDescription = context.getString(R.string.sprout_cd_cancelled) },
     ) {
-        Text(text = "已取消", style = MaterialTheme.typography.displaySmall)
+        Text(text = stringResource(R.string.sprout_title_cancelled), style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(SpacingTokens.md))
         Text(
-            text = "已取消",
+            text = stringResource(R.string.sprout_title_cancelled),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -503,15 +514,16 @@ private fun CancelledPhase(onRestart: () -> Unit) {
             onClick = onRestart,
             shape = ShapeTokens.mediumShape,
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = "重新开始", modifier = Modifier.size(18.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.sprout_action_restart), modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text("重新开始", fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.sprout_action_restart), fontWeight = FontWeight.Medium)
         }
     }
 }
 
 @Composable
 private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
+    val context = LocalContext.current
     var copyFeedbackShown by remember { mutableStateOf(false) }
 
     Row(
@@ -527,25 +539,25 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
-                .semantics { contentDescription = "复制全文" },
+                .semantics { contentDescription = context.getString(R.string.sprout_action_copy_full) },
         ) {
             if (copyFeedbackShown) {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "已复制",
+                    contentDescription = stringResource(R.string.sprout_action_copied),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("已复制", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.sprout_action_copied), fontWeight = FontWeight.Medium)
             } else {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "复制全文",
+                    contentDescription = stringResource(R.string.sprout_action_copy_full),
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("复制全文", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.sprout_action_copy_full), fontWeight = FontWeight.Medium)
             }
         }
 
@@ -556,15 +568,15 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
-                .semantics { contentDescription = "继续追问" },
+                .semantics { contentDescription = context.getString(R.string.sprout_action_continue_chat) },
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Chat,
-                contentDescription = "继续追问",
+                contentDescription = stringResource(R.string.sprout_action_continue_chat),
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text("继续追问", fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.sprout_action_continue_chat), fontWeight = FontWeight.Medium)
         }
     }
 }

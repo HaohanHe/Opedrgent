@@ -127,8 +127,8 @@ fun ImportFileScreen(
                 }
 
                 if (content.isBlank()) {
-                    importError = "文件内容为空"
-                    snackbarHostState.showSnackbar("文件内容为空")
+                    importError = context.getString(R.string.import_file_wen_jian_nei_rong_wei_kong)
+                    snackbarHostState.showSnackbar(context.getString(R.string.import_file_wen_jian_nei_rong_wei_kong))
                     return@launch
                 }
 
@@ -146,15 +146,15 @@ fun ImportFileScreen(
                     type = noteType
                 )
 
-                snackbarHostState.showSnackbar("导入成功")
+                snackbarHostState.showSnackbar(context.getString(R.string.msg_import_success))
 
                 // 延迟一下让用户看到成功提示，然后跳转
                 kotlinx.coroutines.delay(500)
                 onImportSuccess(-1)
 
             } catch (e: Exception) {
-                importError = "导入失败: ${e.message}"
-                snackbarHostState.showSnackbar("导入失败: ${e.message}")
+                importError = context.getString(R.string.import_file_dao_ru_shi_bai_1, e.message ?: "")
+                snackbarHostState.showSnackbar(context.getString(R.string.import_file_dao_ru_shi_bai_1, e.message ?: ""))
             } finally {
                 isImporting = false
             }
@@ -188,13 +188,13 @@ fun ImportFileScreen(
 
             // 说明文字
             Text(
-                text = "选择要导入的文件",
+                text = stringResource(R.string.import_file_xuan_ze_yao_dao_ru_de_wen_jian),
                 style = MaterialTheme.typography.titleLarge,
                 color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(SpacingTokens.sm))
             Text(
-                text = "支持文本文件(.txt)、PDF、图片等格式\n导入后将自动创建为笔记",
+                text = stringResource(R.string.import_file_zhi_chi_wen_ben_wen_jian_txt),
                 style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
             )
@@ -209,8 +209,8 @@ fun ImportFileScreen(
                 // 文本文件
                 ImportFileTypeCard(
                     icon = Icons.Default.Description,
-                    title = "文本文件",
-                    description = ".txt, .md 等纯文本格式",
+                    title = stringResource(R.string.import_file_wen_ben_wen_jian),
+                    description = stringResource(R.string.import_file_txt_md_deng_chun_wen_ben_ge),
                     onClick = {
                         filePickerLauncher.launch(arrayOf("text/*"))
                     },
@@ -245,7 +245,7 @@ fun ImportFileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ShapeTokens.mediumShape,
             ) {
-                Text("选择其他类型文件", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.import_file_xuan_ze_qi_ta_lei_xing_wen), style = MaterialTheme.typography.labelLarge)
             }
 
             Spacer(modifier = Modifier.height(SpacingTokens.xxl))
@@ -264,7 +264,7 @@ fun ImportFileScreen(
                         ) {
                             CircularProgressIndicator(color = AccentBlue)
                             Spacer(modifier = Modifier.height(SpacingTokens.lg))
-                            Text("正在导入...", color = themeTextGrey())
+                            Text(stringResource(R.string.import_file_zheng_zai_dao_ru), color = themeTextGrey())
                             importedFileName?.let { name ->
                                 Text(name, style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                             }
@@ -281,7 +281,7 @@ fun ImportFileScreen(
                             modifier = Modifier.padding(SpacingTokens.xl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("导入失败", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.msg_import_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(SpacingTokens.sm))
                             Text(importError!!, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
                         }
@@ -297,12 +297,12 @@ fun ImportFileScreen(
                             modifier = Modifier.padding(SpacingTokens.xl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("导入成功", style = MaterialTheme.typography.titleMedium, color = SuccessGreen)
+                            Text(stringResource(R.string.msg_import_success), style = MaterialTheme.typography.titleMedium, color = SuccessGreen)
                             Spacer(modifier = Modifier.height(SpacingTokens.sm))
                             Text(importedFileName ?: "", style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
                             Spacer(modifier = Modifier.height(SpacingTokens.md))
                             TextButton(onClick = onBack) {
-                                Text("返回")
+                                Text(stringResource(R.string.action_back))
                             }
                         }
                     }

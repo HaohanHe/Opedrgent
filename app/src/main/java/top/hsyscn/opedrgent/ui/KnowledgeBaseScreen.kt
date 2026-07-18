@@ -186,12 +186,12 @@ fun KnowledgeBaseScreen(
                     if (result.success) {
                         refreshDocuments(knowledgeBase, targetKbId) { documents = it }
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
-                        snackbar.showSnackbar("已添加: ${result.document?.title}")
+                        snackbar.showSnackbar(context.getString(R.string.kb_yi_tian_jia_1, result.document?.title))
                     } else {
-                        snackbar.showSnackbar("添加失败: ${result.error}")
+                        snackbar.showSnackbar(context.getString(R.string.kb_tian_jia_shi_bai_1, result.error))
                     }
                 } catch (e: Exception) {
-                    snackbar.showSnackbar("添加失败: ${e.message}")
+                    snackbar.showSnackbar(context.getString(R.string.kb_tian_jia_shi_bai_1, e.message))
                 } finally {
                     isLoading = false
                 }
@@ -284,7 +284,7 @@ fun KnowledgeBaseScreen(
                                         knowledgeBase.getAllKnowledgeBases()
                                     }
                                     isSyncing = false
-                                    snackbar.showSnackbar("知识库同步已完成")
+                                    snackbar.showSnackbar(context.getString(R.string.kb_zhi_shi_ku_tong_bu_yi_wan))
                                 }
                             },
                             enabled = !isSyncing,
@@ -297,7 +297,7 @@ fun KnowledgeBaseScreen(
                                     color = themePrimary(),
                                 )
                             } else {
-                                Icon(Icons.Default.Sync, contentDescription = "同步", tint = themeForegroundMuted(), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.kb_tong_bu), tint = themeForegroundMuted(), modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(Modifier.width(SpacingTokens.sm))
@@ -307,13 +307,13 @@ fun KnowledgeBaseScreen(
                             modifier = Modifier.size(32.dp),
                             shape = CircleShape,
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "新建知识库", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.kb_new), modifier = Modifier.size(18.dp))
                         }
                         Spacer(Modifier.width(SpacingTokens.sm))
                     }
                     if (selectedKbId != null) {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序", tint = themeForegroundMuted())
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.kb_sort_label), tint = themeForegroundMuted())
                         }
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             SortBy.entries.forEach { sort ->
@@ -348,7 +348,7 @@ fun KnowledgeBaseScreen(
                     containerColor = themePrimary(),
                     shape = CircleShape,
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "添加文件", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(R.string.kb_tian_jia_wen_jian), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
         },
@@ -397,7 +397,7 @@ fun KnowledgeBaseScreen(
                 },
                 onDocClick = { doc ->
                     // 打开文档详情（后续可扩展为内置预览或 LLM 摘要）
-                    scope.launch { snackbar.showSnackbar("文档: ${doc.title} (${doc.fileType}, ${doc.fileSizeBytes}字节)") }
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.kb_wen_dang_1_2_3, doc.title, doc.fileType, doc.fileSizeBytes)) }
                 },
             )
         }
@@ -426,7 +426,7 @@ fun KnowledgeBaseScreen(
                     scope.launch {
                         knowledgeBase.createKnowledgeBase(name, newDesc, newVisibility, selectedColor)
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
-                        snackbar.showSnackbar("知识库「$name」创建成功")
+                        snackbar.showSnackbar(context.getString(R.string.kb_zhi_shi_ku_1_chuang_jian, name))
                         showCreateKbDialog = false
                     }
                 }) { Text(stringResource(R.string.action_confirm)) }
@@ -446,7 +446,7 @@ fun KnowledgeBaseScreen(
                         supportingText = {
                             if (nameError) {
                                 Text(
-                                    text = "名称不能为空",
+                                    text = stringResource(R.string.kb_ming_cheng_bu_neng_wei_kong),
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                                 )
@@ -470,7 +470,7 @@ fun KnowledgeBaseScreen(
                             )
                         }
                     }
-                    Text("封面颜色", style = MaterialTheme.typography.bodySmall, color = themeForegroundMuted())
+                    Text(stringResource(R.string.kb_cover_color), style = MaterialTheme.typography.bodySmall, color = themeForegroundMuted())
                     Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                         colors.forEach { color ->
                             Surface(
@@ -505,7 +505,7 @@ fun KnowledgeBaseScreen(
                     scope.launch {
                         knowledgeBase.updateKnowledgeBase(kb.id, editName, editDesc, editVis)
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
-                        snackbar.showSnackbar("知识库已更新")
+                        snackbar.showSnackbar(context.getString(R.string.kb_zhi_shi_ku_yi_geng_xin))
                         showEditKbDialog = false
                         editingKb = null
                     }
@@ -517,8 +517,8 @@ fun KnowledgeBaseScreen(
             title = { Text(stringResource(R.string.kb_edit_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
-                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("描述") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text(stringResource(R.string.kb_name_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text(stringResource(R.string.kb_desc_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Visibility.entries.forEach { v ->
                             FilterChip(selected = editVis == v, onClick = { editVis = v }, label = { Text(v.label, style = MaterialTheme.typography.bodySmall) })
@@ -541,7 +541,7 @@ fun KnowledgeBaseScreen(
                         val kb = kbToDelete!!
                         knowledgeBase.deleteKnowledgeBase(kb.id)
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
-                        snackbar.showSnackbar("已删除: ${kb.name}")
+                        snackbar.showSnackbar(context.getString(R.string.kb_yi_shan_chu_1, kb.name))
                         showDeleteKbConfirm = false
                         kbToDelete = null
                     }
@@ -551,7 +551,7 @@ fun KnowledgeBaseScreen(
                 TextButton(onClick = { showDeleteKbConfirm = false; kbToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
             },
             title = { Text(stringResource(R.string.kb_delete_title)) },
-            text = { Text("确定要删除「${kbToDelete!!.name}」吗？其中的所有文档也将被删除。此操作不可撤销。") },
+            text = { Text(stringResource(R.string.kb_que_ding_yao_shan_chu_1_ma_qi, kbToDelete!!.name)) },
         )
     }
 
@@ -609,12 +609,12 @@ private fun KbGridView(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("搜索知识库...", color = themeForegroundMuted()) },
+            placeholder = { Text(stringResource(R.string.kb_sou_suo_zhi_shi_ku), color = themeForegroundMuted()) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
@@ -643,7 +643,7 @@ private fun KbGridView(
         // 统计信息
         val totalDocs = filteredKbs.sumOf { it.documentCount }
         Text(
-            text = "共 ${filteredKbs.size} 个知识库，$totalDocs 篇文档",
+            text = stringResource(R.string.kb_gong_1_ge_zhi_shi_ku_2_pian, filteredKbs.size, totalDocs),
             style = MaterialTheme.typography.labelMedium,
             color = themeForegroundMuted(),
             modifier = Modifier.padding(bottom = 16.dp),
@@ -675,7 +675,7 @@ private fun KbGridView(
                         modifier = Modifier.size(64.dp),
                     )
                 },
-                title = "未找到匹配的知识库",
+                title = stringResource(R.string.kb_no_match),
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -761,7 +761,7 @@ private fun KbCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "${info.documentCount} 篇文档" + if (info.totalSizeBytes > 0) " · ${formatFileSize(info.totalSizeBytes)}" else "",
+                        stringResource(R.string.kb_1_pian_wen_dang, info.documentCount) + if (info.totalSizeBytes > 0) " · ${formatFileSize(info.totalSizeBytes)}" else "",
                         style = MaterialTheme.typography.bodySmall,
                         color = themeForegroundMuted(),
                         maxLines = 1,
@@ -832,14 +832,14 @@ private fun NewKbCard(
                 )
                 Icon(
                     Icons.Default.Add,
-                    contentDescription = "新建",
+                    contentDescription = stringResource(R.string.cd_new),
                     tint = themeForegroundMuted(),
                     modifier = Modifier.size(20.dp),
                 )
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "新建知识库",
+                stringResource(R.string.kb_new),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
                 color = themeForegroundMuted(),
@@ -877,7 +877,7 @@ private fun DocumentListView(
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "清除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
                     }
                 }
             },
@@ -900,7 +900,7 @@ private fun DocumentListView(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            val filters = listOf(null to "全部", "pdf" to "PDF", "txt" to "文本", "jpg" to "图片", "docx" to "Docx")
+            val filters = listOf(null to stringResource(R.string.graph_filter_all), "pdf" to "PDF", "txt" to stringResource(R.string.kb_filter_text), "jpg" to stringResource(R.string.kb_filter_image), "docx" to "Docx")
             filters.forEach { (type, label) ->
                 FilterChip(
                     selected = filterType == type,
@@ -919,7 +919,7 @@ private fun DocumentListView(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.sm)) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = themePrimary())
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("正在导入...", color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.import_file_zheng_zai_dao_ru), color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
@@ -1022,7 +1022,7 @@ private fun DocumentCard(
                 )
 
                 Text(
-                    "来源: ${document.fileName} · $dateStr",
+                    stringResource(R.string.kb_lai_yuan_1_2, document.fileName, dateStr),
                     color = themeForegroundMuted().copy(alpha = 0.8f),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -1032,7 +1032,7 @@ private fun DocumentCard(
             }
 
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, contentDescription = "删除", tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_delete), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
             }
         }
     }

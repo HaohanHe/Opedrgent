@@ -110,7 +110,7 @@ fun ExportScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             Text(
-                text = "会话导出",
+                text = stringResource(R.string.export_hui_hua_dao_chu),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
@@ -118,8 +118,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.Description,
-                title = "导出为 Markdown",
-                description = "完整的会话记录，包含所有消息和工具调用结果",
+                title = stringResource(R.string.note_action_cd_export_markdown),
+                description = stringResource(R.string.export_wan_zheng_de_hui_hua_ji_lu),
                 onClick = {
                     scope.launch {
                         val file = vm.exportMarkdown()
@@ -134,8 +134,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.AutoMirrored.Filled.TextSnippet,
-                title = "导出纯文本",
-                description = "仅导出用户和 AI 的对话内容",
+                title = stringResource(R.string.export_dao_chu_chun_wen_ben),
+                description = stringResource(R.string.export_jin_dao_chu_yong_hu_he_ai_de),
                 onClick = {
                     scope.launch {
                         val file = vm.exportChatMarkdown()
@@ -150,15 +150,15 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.FileDownload,
-                title = "导出上下文包",
-                description = "包含会话、记忆、笔记、来源的完整上下文",
+                title = stringResource(R.string.export_dao_chu_shang_xia_wen_bao),
+                description = stringResource(R.string.export_bao_han_hui_hua_ji_yi_bi_ji),
                 onClick = {
                     scope.launch {
                         val file = vm.exportContextZip()
                         if (file != null) {
                             shareFile(context, vm.getPackageNameForShare(context), file, "application/zip")
                         } else {
-                            snackbar.showSnackbar("没有可导出的上下文")
+                            snackbar.showSnackbar(context.getString(R.string.export_mei_you_ke_dao_chu_de_shang))
                         }
                     }
                 },
@@ -171,7 +171,7 @@ fun ExportScreen(
             Spacer(Modifier.height(SpacingTokens.xl))
 
             Text(
-                text = "复制到剪贴板",
+                text = stringResource(R.string.export_fu_zhi_dao_jian_tie_ban),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
@@ -179,8 +179,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.ContentCopy,
-                title = "复制 Markdown",
-                description = "将会话内容复制为 Markdown 格式",
+                title = stringResource(R.string.export_fu_zhi_markdown),
+                description = stringResource(R.string.export_jiang_hui_hua_nei_rong_fu_zhi),
                 onClick = {
                     scope.launch {
                         val file = vm.exportMarkdown()
@@ -198,8 +198,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.ContentCopy,
-                title = "复制纯文本",
-                description = "将对话内容复制为纯文本格式",
+                title = stringResource(R.string.export_fu_zhi_chun_wen_ben),
+                description = stringResource(R.string.export_jiang_dui_hua_nei_rong_fu_zhi),
                 onClick = {
                     scope.launch {
                         val file = vm.exportChatMarkdown()
@@ -222,7 +222,7 @@ fun ExportScreen(
             Spacer(Modifier.height(SpacingTokens.xl))
 
             Text(
-                text = "分享",
+                text = stringResource(R.string.action_share),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
@@ -230,8 +230,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.IosShare,
-                title = "分享 Markdown 文件",
-                description = "通过微信、邮件等分享 .md 文件",
+                title = stringResource(R.string.export_fen_xiang_markdown_wen_jian),
+                description = stringResource(R.string.export_tong_guo_wei_xin_you_jian),
                 onClick = {
                     scope.launch {
                         val file = vm.exportMarkdown()
@@ -246,8 +246,8 @@ fun ExportScreen(
 
             ExportOptionCard(
                 icon = Icons.Default.Html,
-                title = "生成 HTML",
-                description = "将会话转为 HTML 文件，可在浏览器中查看",
+                title = stringResource(R.string.export_sheng_cheng_html),
+                description = stringResource(R.string.export_jiang_hui_hua_zhuan_wei_html),
                 onClick = {
                     scope.launch {
                         val file = vm.exportMarkdown()

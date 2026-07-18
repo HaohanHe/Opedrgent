@@ -102,7 +102,7 @@ fun AutomationsScreen(onBack: () -> Unit) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = a.name, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = "${a.kind.name} · ${a.intervalMinutes} 分钟",
+                                text = stringResource(R.string.automation_1_2_fen_zhong, a.kind.name, a.intervalMinutes),
                                 modifier = Modifier.padding(top = SpacingTokens.xs),
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -110,10 +110,10 @@ fun AutomationsScreen(onBack: () -> Unit) {
                             if (a.executionCount > 0) {
                                 val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
                                 val lastRun = remember(a.lastExecutedAt, timeFmt) {
-                                    if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else "未知"
+                                    if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else context.getString(R.string.tool_state_unknown)
                                 }
                                 Text(
-                                    text = "已执行 ${a.executionCount} 次 · 最近: $lastRun",
+                                    text = stringResource(R.string.automation_yi_zhi_xing_1_ci_zui_jin_2, a.executionCount, lastRun),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = themeTextGrey(),
                                     modifier = Modifier.padding(top = SpacingTokens.xxs),
@@ -121,7 +121,7 @@ fun AutomationsScreen(onBack: () -> Unit) {
                             }
                             if (a.lastError != null) {
                                 Text(
-                                    text = "最近错误: ${a.lastError}",
+                                    text = stringResource(R.string.automation_zui_jin_cuo_wu_1, a.lastError),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.error,
                                     maxLines = 1,
@@ -204,17 +204,17 @@ private fun CreateAutomationDialog(
                 } else {
                     onCreatePrompt(name, i, prompt)
                 }
-            }) { Text("创建") }
+            }) { Text(stringResource(R.string.action_create)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-        title = { Text("新建自动化") },
+        title = { Text(stringResource(R.string.automation_xin_jian_zi_dong_hua)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text("周期分钟数（>=15）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.kb_name_label)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text(stringResource(R.string.automation_zhou_qi_fen_zhong_shu_15)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                    Button(onClick = { kind = AutomationKind.HEARTBEAT_NOTES.name }, modifier = Modifier.weight(1f)) { Text("心跳整理") }
-                    Button(onClick = { kind = AutomationKind.RUN_PROMPT.name }, modifier = Modifier.weight(1f)) { Text("定时 Prompt") }
+                    Button(onClick = { kind = AutomationKind.HEARTBEAT_NOTES.name }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.automation_type_heartbeat)) }
+                    Button(onClick = { kind = AutomationKind.RUN_PROMPT.name }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.automation_type_prompt)) }
                 }
                 if (kind == AutomationKind.RUN_PROMPT.name) {
                     OutlinedTextField(
@@ -225,7 +225,7 @@ private fun CreateAutomationDialog(
                         minLines = 4,
                     )
                 } else {
-                    Text("心跳整理：周期性生成/更新 Session Notes。")
+                    Text(stringResource(R.string.automation_xin_tiao_zheng_li_zhou_qi))
                 }
             }
         },
@@ -264,11 +264,11 @@ private fun EditAutomationDialog(
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         },
-        title = { Text("编辑自动化") },
+        title = { Text(stringResource(R.string.automation_bian_ji_zi_dong_hua)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text("周期分钟数（>=15）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.kb_name_label)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = interval, onValueChange = { interval = it }, label = { Text(stringResource(R.string.automation_zhou_qi_fen_zhong_shu_15)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 if (automation.kind == AutomationKind.RUN_PROMPT) {
                     OutlinedTextField(
                         value = prompt,
@@ -278,10 +278,10 @@ private fun EditAutomationDialog(
                         minLines = 4,
                     )
                 } else {
-                    Text("类型：心跳整理")
+                    Text(stringResource(R.string.automation_lei_xing_xin_tiao_zheng_li))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "启用", modifier = Modifier.weight(1f))
+                    Text(text = stringResource(R.string.action_enable), modifier = Modifier.weight(1f))
                     Switch(
                         checked = automation.enabled,
                         onCheckedChange = { onSave(automation.copy(enabled = it, updatedAt = System.currentTimeMillis())) },

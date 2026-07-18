@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- EditorAdditionalNotesTab -->
+    <string name="note_editor_additional_notes_hint">在此处添加对笔记内容的补充和批注</string>
+    <string name="note_editor_add_note">添加笔记</string>
+    <string name="note_editor_append_note_hint">追加笔记…</string>
+    <string name="note_editor_cd_add_note">添加笔记</string>
+    <string name="note_editor_edit_note">编辑笔记</string>
+    <string name="note_editor_new_note">新建笔记</string>
+    <string name="note_editor_no_additional_notes">暂无追加笔记</string>
+    <string name="note_editor_note_placeholder">记录你的想法…</string>
+
+    <!-- EditorNoteItemCard -->
+    <string name="note_editor_delete_this_note_confirm">删除这条笔记?</string>
+
+    <!-- NoteActionBottomSheet -->
+    <string name="note_action_add_tag">添加标签</string>
+    <string name="note_action_add_to_kb">添加到知识库</string>
+    <string name="note_action_append">追加笔记</string>
+    <string name="note_action_choose_export_format">选择导出格式</string>
+    <string name="note_action_copy_full_text">复制文字记录</string>
+    <string name="note_action_copy_summary">复制总结</string>
+    <string name="note_action_correct">纠错</string>
+    <string name="note_action_cd_add_tag">添加标签</string>
+    <string name="note_action_cd_add_to_kb">添加到知识库</string>
+    <string name="note_action_cd_append">追加笔记</string>
+    <string name="note_action_cd_copy_full_text">复制文字记录</string>
+    <string name="note_action_cd_copy_summary">复制总结</string>
+    <string name="note_action_cd_correct">纠错</string>
+    <string name="note_action_cd_discuss_in_chat">在对话中讨论</string>
+    <string name="note_action_cd_enter_export_submenu">进入导出子菜单</string>
+    <string name="note_action_cd_export">导出</string>
+    <string name="note_action_cd_export_markdown">导出为 Markdown</string>
+    <string name="note_action_cd_export_txt">导出为 TXT</string>
+    <string name="note_action_cd_pin">置顶</string>
+    <string name="note_action_cd_sprout">笔记发芽</string>
+    <string name="note_action_cd_unpin">取消置顶</string>
+    <string name="note_action_discuss_in_chat">在对话中讨论</string>
+    <string name="note_action_export_failed">导出失败: %1$s</string>
+    <string name="note_action_export_markdown">导出为 Markdown</string>
+    <string name="note_action_export_txt">导出为 TXT</string>
+    <string name="note_action_full_text_copied">已复制全文到剪贴板</string>
+    <string name="note_action_pin">置顶</string>
+    <string name="note_action_share_note_title">分享笔记</string>
+    <string name="note_action_sprout">笔记发芽</string>
+    <string name="note_action_summary_copied">已复制总结到剪贴板</string>
+    <string name="note_action_title">笔记操作</string>
+    <string name="note_action_unpin">取消置顶</string>
+
+    <!-- SproutResultView -->
+    <string name="quality_score_average">一般</string>
+    <string name="quality_score_description">质量评分 %1$d 分，%2$s</string>
+    <string name="quality_score_excellent">优秀</string>
+    <string name="quality_score_good">良好</string>
+    <string name="quality_score_needs_improvement">需改进</string>
+    <string name="sprout_action_continue_chat">继续追问</string>
+    <string name="sprout_action_copy_full">复制全文</string>
+    <string name="sprout_action_copied">已复制</string>
+    <string name="sprout_action_restart">重新开始</string>
+    <string name="sprout_cd_cancelled">发芽已取消</string>
+    <string name="sprout_cd_close_report">关闭发芽报告</string>
+    <string name="sprout_cd_error">发芽处理出错</string>
+    <string name="sprout_cd_report_content">发芽报告内容，共 %1$d 个字符</string>
+    <string name="sprout_cd_report_view">发芽报告视图</string>
+    <string name="sprout_error_desc">发芽过程中出现错误</string>
+    <string name="sprout_error_hint">请检查网络连接或稍后重试</string>
+    <string name="sprout_phase_connection_progress">正在建立知识连接…</string>
+    <string name="sprout_phase_insight_progress">正在生成洞察…</string>
+    <string name="sprout_phase_quote_progress">正在提炼金句…</string>
+    <string name="sprout_phase_seed_progress">正在提取关键信息…</string>
+    <string name="sprout_report_title">发芽报告</string>
+    <string name="sprout_status_done">发芽完成</string>
+    <string name="sprout_status_failed">发芽失败</string>
+    <string name="sprout_status_processing">处理中…</string>
+    <string name="sprout_time_cost">耗时 %1$s</string>
+    <string name="sprout_title">知识发芽</string>
+    <string name="sprout_title_cancelled">已取消</string>
+    <string name="sprout_title_error">错误</string>
+
+    <!-- StreamingComponents -->
+    <string name="question_tool_answer_prefix">回答：%1$s</string>
+    <string name="question_tool_default_prompt">请选择：</string>
+    <string name="question_tool_multi_select_hint">（多选）</string>
+    <string name="streaming_action_hide_thinking">收起思考过程</string>
+    <string name="streaming_action_show_thinking">查看思考过程</string>
+    <string name="streaming_cd_sources">参考来源</string>
+    <string name="streaming_cd_thinking">思考</string>
+    <string name="streaming_label_assistant">助手</string>
+    <string name="streaming_sources_count">参考 %1$d 个来源</string>
+    <string name="streaming_thinking_default">正在思考</string>
+    <string name="tool_name_knowledge_base">知识库</string>
+    <string name="tool_name_read_url">阅读</string>
+    <string name="tool_name_speech_to_text">语音转文字</string>
+    <string name="tool_name_web_search">搜索</string>
+    <string name="tool_state_cd">工具状态</string>
+    <string name="tool_state_completed">完成</string>
+    <string name="tool_state_error_prefix">错误：%1$s</string>
+    <string name="tool_state_error_with_message">错误：%1$s</string>
+    <string name="tool_state_parameters_prefix">参数：%1$s</string>
+    <string name="tool_state_partial_timeout_with_message">部分超时：%1$s</string>
+    <string name="tool_state_pending">等待执行…</string>
+    <string name="tool_state_read_completed">读取完成</string>
+    <string name="tool_state_reading_url">正在读取：%1$s</string>
+    <string name="tool_state_running">执行中…</string>
+    <string name="tool_state_search_completed">搜索完成</string>
+    <string name="tool_state_searched_query">搜索：%1$s</string>
+    <string name="tool_state_searching_with_query">正在搜索：%1$s</string>
+    <string name="tool_state_source_added">已添加来源</string>
+    <string name="tool_state_timeout">获取超时</string>
+    <string name="tool_state_unknown">未知</string>
+    <string name="action_skip">跳过</string>
+</resources>

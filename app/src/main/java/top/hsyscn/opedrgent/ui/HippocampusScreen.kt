@@ -82,7 +82,7 @@ fun HippocampusScreen(
             },
             actions = {
                 Text(
-                    text = "${items.size} 条",
+                    text = stringResource(R.string.hippocampus_1_tiao, items.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = SpacingTokens.lg),
@@ -97,8 +97,8 @@ fun HippocampusScreen(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("搜索记忆...") },
-            leadingIcon = { Icon(Icons.Default.Search, "搜索") },
+            placeholder = { Text(stringResource(R.string.hippocampus_sou_suo_ji_yi)) },
+            leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.action_search)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -320,8 +320,8 @@ private fun HippocampusItemCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除索引") },
-            text = { Text("确定要删除「${item.title}」的索引条目吗？") },
+            title = { Text(stringResource(R.string.hippocampus_shan_chu_suo_yin)) },
+            text = { Text(stringResource(R.string.hippocampus_que_ding_yao_shan_chu_1_de, item.title)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
@@ -380,19 +380,19 @@ private fun EmptyHippocampusState() {
     ) {
         Icon(
             Icons.Default.Memory,
-            contentDescription = "记忆索引",
+            contentDescription = stringResource(R.string.hippocampus_ji_yi_suo_yin),
             modifier = Modifier.size(SpacingTokens.xxl),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         )
         Spacer(Modifier.height(SpacingTokens.lg))
         Text(
-            "暂无记忆索引",
+            stringResource(R.string.hippocampus_zan_wu_ji_yi_suo_yin),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            "当您创建笔记、对话、录音或完成面试时，\n海马体会自动建立记忆索引",
+            stringResource(R.string.hippocampus_dang_nin_chuang_jian_bi_ji),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )

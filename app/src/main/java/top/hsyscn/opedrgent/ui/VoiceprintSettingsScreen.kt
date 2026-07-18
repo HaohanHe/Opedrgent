@@ -87,7 +87,7 @@ fun VoiceprintSettingsScreen(
                 onClick = onAddVoiceprint,
                 containerColor = AccentBlue,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加声纹", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.voiceprint_add), tint = MaterialTheme.colorScheme.onPrimary)
             }
         },
         containerColor = themeBgGray(),
@@ -99,7 +99,7 @@ fun VoiceprintSettingsScreen(
                 .padding(SpacingTokens.lg),
         ) {
             Text(
-                text = "已注册说话人",
+                text = stringResource(R.string.voiceprint_registered_speakers),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
@@ -134,8 +134,8 @@ fun VoiceprintSettingsScreen(
         val speakerName = speakers.find { it.id == speakerId }?.name ?: ""
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
-            title = { Text("删除声纹") },
-            text = { Text("确定删除说话人 \"$speakerName\" 的声纹数据吗？此操作不可恢复。") },
+            title = { Text(stringResource(R.string.voiceprint_delete_title)) },
+            text = { Text(stringResource(R.string.voiceprint_delete_confirm, speakerName)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -201,12 +201,12 @@ private fun SpeakerCard(
                     horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 ) {
                     Text(
-                        text = "$sampleCount 个样本",
+                        text = stringResource(R.string.voiceprint_sample_count, sampleCount),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
                     Text(
-                        text = if (isSherpa) "Sherpa-ONNX ${embeddingDim}d" else "统计特征 ${embeddingDim}d",
+                        text = if (isSherpa) stringResource(R.string.voiceprint_sherpa_label, embeddingDim) else stringResource(R.string.voiceprint_statistical_label, embeddingDim),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isSherpa) SherpaGreen else StatGrey,
                     )
@@ -238,12 +238,12 @@ private fun EmptySpeakerList() {
             modifier = Modifier.size(64.dp),
         )
         Text(
-            text = "暂无已注册说话人",
+            text = stringResource(R.string.voiceprint_empty),
             style = MaterialTheme.typography.titleMedium,
             color = themeTextGrey(),
         )
         Text(
-            text = "点击右下角 + 按钮添加声纹",
+            text = stringResource(R.string.voiceprint_empty_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey().copy(alpha = 0.7f),
         )

@@ -209,7 +209,7 @@ fun AudioPlayer(
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    contentDescription = stringResource(if (isPlaying) R.string.cd_pause else R.string.cd_play),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(28.dp),
                 )
