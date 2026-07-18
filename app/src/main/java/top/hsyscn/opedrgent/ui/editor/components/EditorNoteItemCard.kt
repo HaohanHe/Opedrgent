@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -68,7 +70,7 @@ fun EditorNoteItemCard(
                 IconButton(onClick = onEdit, modifier = Modifier.size(SpacingTokens.xl)) {
                     Icon(
                         Icons.Default.Edit,
-                        contentDescription = "编辑",
+                        contentDescription = stringResource(R.string.cd_edit),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(SpacingTokens.sm)
                     )
@@ -76,7 +78,7 @@ fun EditorNoteItemCard(
                 IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(SpacingTokens.xl)) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "删除",
+                        contentDescription = stringResource(R.string.cd_delete),
                         tint = MaterialTheme.customColors.dangerRed,
                         modifier = Modifier.size(SpacingTokens.sm)
                     )
@@ -103,7 +105,7 @@ fun EditorNoteItemCard(
                         modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
                     ) {
                         Text(
-                            "删除这条笔记?",
+                            stringResource(R.string.note_editor_delete_this_note_confirm),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.customColors.deleteConfirmRed,
                             modifier = Modifier.weight(1f)
@@ -114,7 +116,7 @@ fun EditorNoteItemCard(
                             onClick = { showConfirm = false }
                         ) {
                             Text(
-                                "取消",
+                                stringResource(R.string.action_cancel),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs)
@@ -126,7 +128,7 @@ fun EditorNoteItemCard(
                             onClick = { onDelete(); showConfirm = false }
                         ) {
                             Text(
-                                "删除",
+                                stringResource(R.string.action_delete),
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onError,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs)

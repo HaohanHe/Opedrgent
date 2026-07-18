@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
@@ -71,12 +73,12 @@ fun EditorAdditionalNotesTab() {
                     .padding(vertical = SpacingTokens.xxl),
             ) {
                 Text(
-                    "暂无追加笔记",
+                    stringResource(R.string.note_editor_no_additional_notes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "在此处添加对笔记内容的补充和批注",
+                    stringResource(R.string.note_editor_additional_notes_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.padding(top = SpacingTokens.xs),
@@ -93,13 +95,13 @@ fun EditorAdditionalNotesTab() {
                     ) {
                         Icon(
                             Icons.Default.Add,
-                            contentDescription = "添加笔记",
+                            contentDescription = stringResource(R.string.note_editor_cd_add_note),
                             tint = AccentPurple,
                             modifier = Modifier.size(SpacingTokens.md)
                         )
                         Spacer(Modifier.width(SpacingTokens.sm))
                         Text(
-                            "添加笔记",
+                            stringResource(R.string.note_editor_add_note),
                             color = AccentPurple,
                             style = MaterialTheme.typography.labelLarge,
                         )
@@ -144,7 +146,7 @@ fun EditorAdditionalNotesTab() {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (editingId != null) "编辑笔记" else "新建笔记",
+                            text = stringResource(if (editingId != null) R.string.note_editor_edit_note else R.string.note_editor_new_note),
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.weight(1f),
                         )
@@ -158,7 +160,7 @@ fun EditorAdditionalNotesTab() {
                         ) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "关闭",
+                                contentDescription = stringResource(R.string.cd_close),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(SpacingTokens.lg)
                             )
@@ -170,7 +172,7 @@ fun EditorAdditionalNotesTab() {
                         onValueChange = { inputText = it },
                         placeholder = {
                             Text(
-                                "记录你的想法...",
+                                stringResource(R.string.note_editor_note_placeholder),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         },
@@ -195,7 +197,7 @@ fun EditorAdditionalNotesTab() {
                             }
                         ) {
                             Text(
-                                "取消",
+                                stringResource(R.string.action_cancel),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
@@ -224,7 +226,7 @@ fun EditorAdditionalNotesTab() {
                             },
                         ) {
                             Text(
-                                text = if (editingId != null) "保存" else "添加",
+                                text = stringResource(if (editingId != null) R.string.action_save else R.string.action_add),
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
@@ -249,13 +251,13 @@ fun EditorAdditionalNotesTab() {
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = "添加笔记",
+                        contentDescription = stringResource(R.string.note_editor_cd_add_note),
                         tint = AccentPurple,
                         modifier = Modifier.size(SpacingTokens.lg)
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
-                        "追加笔记...",
+                        stringResource(R.string.note_editor_append_note_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

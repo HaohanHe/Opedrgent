@@ -113,7 +113,8 @@ fun QuestionDock(
                     } else if (isMultiQuestion) {
                         stringResource(R.string.question_progress_label, currentQuestionIndex + 1, questions.size)
                     } else {
-                        questions[currentQuestionIndex].header
+                        questions[currentQuestionIndex].header.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.question_tool_default_prompt)
                     },
                     style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),

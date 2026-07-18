@@ -495,7 +495,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
             QuestionInfo(
                 question = q.getString("question"),
-                header = q.optString("header", "请选择"),
+                header = q.optString("header", ""),
                 options = options,
                 multiple = q.optBoolean("multiple", false),
                 allowCustom = q.optBoolean("allowCustom", false),
@@ -3383,7 +3383,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 }
                                 QuestionInfo(
                                     question = q.getString("question"),
-                                    header = if (q.has("header")) q.getString("header") else "请选择",
+                                    header = if (q.has("header")) q.getString("header") else "",
                                     options = options,
                                     multiple = q.optBoolean("multiple", false),
                                     allowCustom = q.optBoolean("allowCustom", false),

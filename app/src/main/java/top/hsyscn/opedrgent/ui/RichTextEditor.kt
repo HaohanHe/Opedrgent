@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.SpanRepresentation
 
 /**
@@ -71,7 +73,7 @@ fun RichTextEditor(
     onTextChange: (text: String) -> Unit,
     onSpansChange: (spansJson: String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "开始书写...",
+    placeholder: String = stringResource(R.string.note_editor_start_writing),
     enabled: Boolean = true,
 ) {
     val context = LocalContext.current

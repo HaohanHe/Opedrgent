@@ -868,7 +868,7 @@ fun SessionsScreen(
                     // 消息级搜索结果
                     item {
                         Text(
-                            text = "在 ${state.sessions.size} 个会话中找到 ${state.messageSearchResults.size} 条消息",
+                            text = stringResource(R.string.app_root_zai_1_ge_hui_hua_zhong_zhao, state.sessions.size, state.messageSearchResults.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
@@ -894,7 +894,7 @@ fun SessionsScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                     Text(
-                                        text = if (result.role == Role.USER) "你" else "AI",
+                                        text = if (result.role == Role.USER) stringResource(R.string.app_root_ni) else "AI",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (result.role == Role.USER) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
@@ -952,7 +952,7 @@ fun SessionsScreen(
                 }) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = { TextButton(onClick = { createOpen = false }) { Text(stringResource(R.string.action_cancel)) } },
-            title = { Text("新建研究") },
+            title = { Text(stringResource(R.string.sessions_new_research)) },
             text = {
                 OutlinedTextField(
                     value = title,
@@ -1170,7 +1170,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 actions = {
                     // 统计信息角标
                     Text(
-                        text = "${state.skills.size + gallerySkills.size} 项",
+                        text = stringResource(R.string.app_root_1_xiang, state.skills.size + gallerySkills.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(end = SpacingTokens.sm),
@@ -1424,7 +1424,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
-            title = { Text("从 URL 导入 Skill") },
+            title = { Text(stringResource(R.string.skills_url_import_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Text(
@@ -1446,7 +1446,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (msg.startsWith("导入成功")) MaterialTheme.customColors.successGreen else MaterialTheme.customColors.dangerRed,
+                            color = if (msg.startsWith(stringResource(R.string.msg_import_success))) MaterialTheme.customColors.successGreen else MaterialTheme.customColors.dangerRed,
                         )
                     }
                 }
@@ -1577,7 +1577,7 @@ private fun GallerySkillCard(
                 if (skill.isBuiltIn) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("内置", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(stringResource(R.string.app_root_nei_zhi), style = MaterialTheme.typography.labelSmall) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
                             containerColor = MaterialTheme.customColors.accentBlue.copy(alpha = 0.12f),
@@ -1697,7 +1697,7 @@ fun shareFile(context: android.content.Context, packageName: String, file: File,
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     intent.clipData = android.content.ClipData.newUri(context.contentResolver, "file", uri)
-    val chooser = Intent.createChooser(intent, "分享")
+    val chooser = Intent.createChooser(intent, context.getString(R.string.action_share))
     val ok = chooser.resolveActivity(resolver) != null
     if (ok) {
         runCatching { context.startActivity(chooser) }

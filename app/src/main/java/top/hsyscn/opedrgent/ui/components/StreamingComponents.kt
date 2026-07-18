@@ -118,7 +118,7 @@ fun StreamingCard(
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("助手", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), color = themeTextDark())
+                Text(stringResource(R.string.streaming_label_assistant), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), color = themeTextDark())
                 if (isToolRunning) {
                     CircularProgressIndicator(
                         modifier = Modifier
@@ -279,7 +279,7 @@ fun DoubaoThinkingIndicator(phase: String) {
             )
         }
         Text(
-            text = phase.ifBlank { "正在思考" },
+            text = phase.ifBlank { stringResource(R.string.streaming_thinking_default) },
             style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey(),
         )
@@ -294,13 +294,13 @@ fun ThinkingSection(parts: List<ReasoningPart>) {
         TextButton(onClick = { expanded = !expanded }) {
             Icon(
               imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "思考",
+                contentDescription = stringResource(R.string.streaming_cd_thinking),
                 modifier = Modifier.height(16.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(SpacingTokens.xs))
             Text(
-                if (expanded) "收起思考过程" else "查看思考过程",
+                stringResource(if (expanded) R.string.streaming_action_hide_thinking else R.string.streaming_action_show_thinking),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -333,29 +333,38 @@ fun ToolStatusRow(toolPart: ToolPart) {
         ToolStateType.PARTIAL_TIMEOUT -> Icons.Default.Error
     }
     val statusText = when (toolPart.state.status) {
-        ToolStateType.PENDING -> "等待执行..."
+        ToolStateType.PENDING -> stringResource(R.string.tool_state_pending)
         ToolStateType.RUNNING -> {
             val q = extractCleanQuery(toolPart.state.input)
             val u = toolPart.state.input["url"]
             when {
-                q.isNotBlank() -> "正在搜索: $q"
-                !u.isNullOrBlank() -> "正在读取: ${runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))}"
-                else -> "执行中..."
+                q.isNotBlank() -> stringResource(R.string.tool_state_searching_with_query, q)
+                !u.isNullOrBlank() -> stringResource(
+                    R.string.tool_state_reading_url,
+                    runCatching { java.net.URL(u).host }.getOrDefault(u.take(30))
+                )
+                else -> stringResource(R.string.tool_state_running)
             }
         }
         ToolStateType.COMPLETED -> {
             when (toolPart.tool) {
                 "web_search" -> {
                     val q = extractCleanQuery(toolPart.state.input)
-                    if (q.isNotBlank()) "搜索: $q" else "搜索完成"
+                    if (q.isNotBlank()) stringResource(R.string.tool_state_searched_query, q) else stringResource(R.string.tool_state_search_completed)
                 }
-                "read_url" -> "读取完成"
-                else -> "完成"
+                "read_url" -> stringResource(R.string.tool_state_read_completed)
+                else -> stringResource(R.string.tool_state_completed)
             }
         }
-        ToolStateType.ERROR -> "错误: ${toolPart.state.error?.take(30) ?: "未知"}"
-        ToolStateType.SOURCE_ADDED -> "已添加来源"
-        ToolStateType.PARTIAL_TIMEOUT -> "部分超时: ${toolPart.state.error?.take(30) ?: "获取超时"}"
+        ToolStateType.ERROR -> stringResource(
+            R.string.tool_state_error_with_message,
+            toolPart.state.error?.take(30) ?: stringResource(R.string.tool_state_unknown)
+        )
+        ToolStateType.SOURCE_ADDED -> stringResource(R.string.tool_state_source_added)
+        ToolStateType.PARTIAL_TIMEOUT -> stringResource(
+            R.string.tool_state_partial_timeout_with_message,
+            toolPart.state.error?.take(30) ?: stringResource(R.string.tool_state_timeout)
+        )
     }
 
     Row(
@@ -369,7 +378,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = "工具状态",
+            contentDescription = stringResource(R.string.tool_state_cd),
             modifier = Modifier.size(16.dp),
             tint = when (toolPart.state.status) {
                 ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
@@ -454,7 +463,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
         ) {
             Icon(
                 imageVector = statusIcon,
-                contentDescription = "工具状态",
+                contentDescription = stringResource(R.string.tool_state_cd),
                 modifier = Modifier.size(16.dp),
                 tint = statusColor,
             )
@@ -467,7 +476,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "折叠" else "展开",
+                contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
                 modifier = Modifier.size(16.dp),
                 tint = themeTextGrey(),
             )
@@ -594,19 +603,19 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
         ) {
             Icon(
                 imageVector = Icons.Default.Link,
-                contentDescription = "参考来源",
+                contentDescription = stringResource(R.string.streaming_cd_sources),
                 modifier = Modifier.size(16.dp),
                 tint = themeTextGrey(),
             )
             Text(
-                text = "参考 ${sources.size} 个来源",
+                text = stringResource(R.string.streaming_sources_count, sources.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "折叠" else "展开",
+                contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
                 modifier = Modifier.size(18.dp),
                 tint = themeTextGrey(),
             )
@@ -669,12 +678,13 @@ private fun SourceLinkCard(index: Int, source: SourceLink, onClick: () -> Unit) 
 }
 
 /** 工具名显示映射 */
+@Composable
 private fun toolDisplayName(tool: String): String = when (tool) {
-    "web_search" -> "搜索"
-    "read_url" -> "阅读"
-    "step_search" -> "搜索"
-    "step_rag" -> "知识库"
-    "speech_to_text" -> "语音转文字"
+    "web_search" -> stringResource(R.string.tool_name_web_search)
+    "read_url" -> stringResource(R.string.tool_name_read_url)
+    "step_search" -> stringResource(R.string.tool_name_web_search)
+    "step_rag" -> stringResource(R.string.tool_name_knowledge_base)
+    "speech_to_text" -> stringResource(R.string.tool_name_speech_to_text)
     else -> tool
 }
 
@@ -748,7 +758,7 @@ fun ToolCard(toolPart: ToolPart) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = statusIcon,
-                    contentDescription = "工具状态",
+                    contentDescription = stringResource(R.string.tool_state_cd),
                     modifier = Modifier.size(16.dp),
                     tint = statusColor,
                 )
@@ -770,7 +780,10 @@ fun ToolCard(toolPart: ToolPart) {
                 Spacer(Modifier.height(SpacingTokens.sm))
                 if (toolPart.state.input.isNotEmpty()) {
                     Text(
-                        "参数：${toolPart.state.input.entries.joinToString(", ") { "${it.key}=${it.value}" }}",
+                        stringResource(
+                            R.string.tool_state_parameters_prefix,
+                            toolPart.state.input.entries.joinToString(", ") { "${it.key}=${it.value}" }
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextDark(),
                     )
@@ -786,7 +799,7 @@ fun ToolCard(toolPart: ToolPart) {
                 if (!toolPart.state.error.isNullOrBlank()) {
                     Spacer(Modifier.height(SpacingTokens.xs))
                     Text(
-                        text = "错误：${toolPart.state.error}",
+                        text = stringResource(R.string.tool_state_error_prefix, toolPart.state.error),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -815,12 +828,12 @@ fun QuestionCard(
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             Text(
-                text = question.prompt.ifEmpty { "请选择：" },
+                text = question.prompt.ifEmpty { stringResource(R.string.question_tool_default_prompt) },
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
             if (question.multiSelect) {
-                Text("（多选）", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                Text(stringResource(R.string.question_tool_multi_select_hint), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
             }
             question.options.forEach { opt ->
                 androidx.compose.material3.FilterChip(
@@ -845,12 +858,12 @@ fun QuestionCard(
                         },
                         enabled = selected.isNotEmpty(),
                         shape = ShapeTokens.mediumShape,
-                    ) { Text("确认") }
-                    TextButton(onClick = onDismiss) { Text("跳过") }
+                    ) { Text(stringResource(R.string.action_confirm)) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_skip)) }
                 }
             }
             if (readonly && question.answer != null) {
-                Text("回答：${question.answer}", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.question_tool_answer_prefix, question.answer), style = MaterialTheme.typography.titleSmall)
             }
         }
     }

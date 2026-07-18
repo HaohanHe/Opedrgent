@@ -260,7 +260,7 @@ fun SettingsScreen(
             vm.refreshLocation()
         } else {
             locationEnabled = false
-            scope.launch { snackbar.showSnackbar("未授予位置权限") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_location_permission_denied)) }
         }
     }
     val calendarPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
@@ -270,7 +270,7 @@ fun SettingsScreen(
             vm.saveCalendarEnabled(true)
         } else {
             calendarEnabled = false
-            scope.launch { snackbar.showSnackbar("未授予日历权限") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_wei_shou_yu_ri_li_quan_xian)) }
         }
     }
     val healthPermLauncher = rememberLauncherForActivityResult(
@@ -290,7 +290,7 @@ fun SettingsScreen(
             } else {
                 healthEnabled = false
                 vm.saveHealthEnabled(false)
-                snackbar.showSnackbar("未授予全部健康数据权限")
+                snackbar.showSnackbar(context.getString(R.string.settings_wei_shou_yu_quan_bu_jian_kang))
             }
         }
     }
@@ -302,7 +302,7 @@ fun SettingsScreen(
         } else {
             healthEnabled = false
             vm.saveHealthEnabled(false)
-            scope.launch { snackbar.showSnackbar("未授予活动识别权限") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_wei_shou_yu_huo_dong_shi_bie)) }
         }
     }
 
@@ -351,14 +351,14 @@ fun SettingsScreen(
                     } else {
                         Box {
                             OutlinedTextField(
-                                value = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }?.name ?: "自定义",
+                                value = PROVIDER_PRESETS.firstOrNull { it.baseUrl == baseUrl }?.name ?: stringResource(R.string.settings_provider_custom),
                                 onValueChange = {},
-                                label = { Text("供应商") },
+                                label = { Text(stringResource(R.string.settings_gong_ying_shang)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 readOnly = true,
                                 trailingIcon = {
                                     IconButton(onClick = { providerMenuExpanded = true }) {
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "展开")
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.action_expand))
                                     }
                                 },
                             )
@@ -386,7 +386,7 @@ fun SettingsScreen(
                             supportingText = {
                                 if (baseUrl.isNotBlank() && !baseUrl.startsWith("http")) {
                                     Text(
-                                        text = "URL 需以 http:// 或 https:// 开头",
+                                        text = stringResource(R.string.settings_url_xu_yi_http_color),
                                         color = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                                     )
@@ -413,7 +413,7 @@ fun SettingsScreen(
                                                         isFetchingModels = false
                                                         modelMenuExpanded = result != null
                                                         if (result == null) {
-                                                            snackbar.showSnackbar("获取模型列表失败 — 请检查 API Key 是否正确，或查看日志详情")
+                                                            snackbar.showSnackbar(context.getString(R.string.settings_huo_qu_mo_xing_lie_biao_shi))
                                                         }
                                                     }
                                                 }
@@ -423,11 +423,11 @@ fun SettingsScreen(
                                             if (isFetchingModels) {
                                                 CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconMd), strokeWidth = SpacingTokens.xxs)
                                             } else {
-                                                Icon(Icons.Default.Refresh, contentDescription = "从 API 获取模型列表")
+                                                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.settings_cong_api_huo_qu_mo_xing_lie))
                                             }
                                         }
                                         IconButton(onClick = { modelMenuExpanded = true }) {
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "展开模型")
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.cd_expand_model))
                                         }
                                     }
                                 },
@@ -443,7 +443,7 @@ fun SettingsScreen(
                                 DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
                                     if (presetModels.isNotEmpty()) {
                                         DropdownMenuItem(
-                                            text = { Text("预置模型", style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
+                                            text = { Text(stringResource(R.string.settings_yu_zhi_mo_xing), style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
                                             onClick = {},
                                             enabled = false,
                                         )
@@ -463,7 +463,7 @@ fun SettingsScreen(
                                             HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.xs))
                                         }
                                         DropdownMenuItem(
-                                            text = { Text("API 可用模型", style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
+                                            text = { Text(stringResource(R.string.settings_api_ke_yong_mo_xing), style = MaterialTheme.typography.labelMedium, color = themeTextGrey()) },
                                             onClick = {},
                                             enabled = false,
                                         )
@@ -492,7 +492,7 @@ fun SettingsScreen(
                                 IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                     Icon(
                                         imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (apiKeyVisible) "隐藏 API Key" else "显示 API Key",
+                                        contentDescription = if (apiKeyVisible) stringResource(R.string.interview_yin_cang_api_key) else stringResource(R.string.interview_xian_shi_api_key),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -502,7 +502,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = jinaApiKey,
                             onValueChange = { jinaApiKey = it },
-                            label = { Text("Jina API Key (可选)") },
+                            label = { Text(stringResource(R.string.settings_api_key_optional)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = if (jinaApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -510,7 +510,7 @@ fun SettingsScreen(
                                 IconButton(onClick = { jinaApiKeyVisible = !jinaApiKeyVisible }) {
                                     Icon(
                                         imageVector = if (jinaApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (jinaApiKeyVisible) "隐藏 Jina API Key" else "显示 Jina API Key",
+                                        contentDescription = if (jinaApiKeyVisible) stringResource(R.string.settings_yin_cang_jina_api_key) else stringResource(R.string.settings_xian_shi_jina_api_key),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -532,7 +532,7 @@ fun SettingsScreen(
                             Text(
                                 text = if (isLocalMode && localModelId != null) {
                                     val info = AvailableLocalModels.findById(localModelId!!)
-                                    "当前使用: ${info?.displayName ?: localModelId}"
+                                    stringResource(R.string.settings_dang_qian_shi_yong_1, info?.displayName ?: localModelId ?: "")
                                 } else stringResource(R.string.settings_local_model_offline_desc),
                                 color = themeTextGrey(),
                                 style = MaterialTheme.typography.bodySmall,
@@ -562,19 +562,19 @@ fun SettingsScreen(
                                                     }
 
                                                     if (loaded) {
-                                                        snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
+                                                        snackbar.showSnackbar(context.getString(R.string.settings_yi_qie_huan_dao_li_xian_mo, info.displayName))
                                                     } else {
                                                         isLocalMode = false
                                                         vm.saveLocalModelEnabled(false)
                                                         val errorState = (localEngine.state as? LocalLlmState.Error)
-                                                        val errorMsg = errorState?.message ?: "未知错误"
-                                                        snackbar.showSnackbar("模型加载失败: $errorMsg")
+                                                        val errorMsg = errorState?.message ?: context.getString(R.string.download_unknown_error)
+                                                        snackbar.showSnackbar(context.getString(R.string.settings_mo_xing_jia_zai_shi_bai_1, errorMsg))
                                                     }
                                                 }
                                             } else {
                                                 isLocalMode = false
                                                 vm.saveLocalModelEnabled(false)
-                                                scope.launch { snackbar.showSnackbar("模型文件不存在") }
+                                                scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_model_file_not_exist)) }
                                             }
                                         } else {
                                             isLocalMode = false
@@ -584,13 +584,13 @@ fun SettingsScreen(
                                     } else {
                                         isLocalMode = false
                                         vm.saveLocalModelEnabled(false)
-                                        scope.launch { snackbar.showSnackbar("请先选择并下载模型") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_select_model_first)) }
                                     }
                                 } else {
                                     localEngine.unload()
                                     vm.saveLocalModelId(null)
                                     localModelId = null
-                                    scope.launch { snackbar.showSnackbar("已切换到 API 模式") }
+                                    scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_switched_to_api)) }
                                 }
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = BubbleBlue),
@@ -615,7 +615,7 @@ fun SettingsScreen(
                         var localMaxTok by rememberSaveable { mutableStateOf(vm.getMaxOutputTokens()) }
 
                         Text(stringResource(R.string.settings_inference_params), style = MaterialTheme.typography.titleSmall, color = themeTextDark())
-                        Text("上下文: ${currentInfo.maxContextLength} tokens | 输出: ${if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens} tokens", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                        Text(stringResource(R.string.settings_shang_xia_wen_1_tokens_shu, currentInfo.maxContextLength, if (localMaxTok > 0) localMaxTok else currentInfo.maxTokens), style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
 
                         Spacer(Modifier.height(SpacingTokens.sm))
 
@@ -660,7 +660,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = if (localMaxTok > 0) localMaxTok.toString() else "",
                                 onValueChange = { localMaxTok = it.toIntOrNull() ?: 0 },
-                                label = { Text("最大输出", style = MaterialTheme.typography.labelSmall) },
+                                label = { Text(stringResource(R.string.settings_zui_da_shu_chu), style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.width(SizeTokens.textFieldWidthSm),
                                 singleLine = true,
                             )
@@ -751,22 +751,22 @@ fun SettingsScreen(
                         val isStreamingModel = vm.getSelectedLocalModel() == ModelType.STREAMING_PARAFORMER.name
                         HorizontalDivider(color = themeBorder())
                         Text(
-                            text = "识别模式",
+                            text = stringResource(R.string.settings_shi_bie_mo_shi),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         if (isStreamingModel) {
                             sttStreamingMode = "streaming"
                             Text(
-                                text = "Paraformer 流式模型：实时流式识别（文本可修正）",
+                                text = stringResource(R.string.settings_paraformer_liu_shi_mo_xing),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "同音字矫正", style = MaterialTheme.typography.bodyMedium)
+                                    Text(text = stringResource(R.string.settings_tong_yin_zi_jiao_zheng), style = MaterialTheme.typography.bodyMedium)
                                     Text(
-                                        text = "根据拼音规则自动修正识别结果中的同音错字",
+                                        text = stringResource(R.string.settings_gen_ju_pin_yin_gui_ze_zi_dong),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = themeTextGrey(),
                                     )
@@ -775,9 +775,9 @@ fun SettingsScreen(
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "分段识别", style = MaterialTheme.typography.bodyMedium)
+                                    Text(text = stringResource(R.string.settings_fen_duan_shi_bie), style = MaterialTheme.typography.bodyMedium)
                                     Text(
-                                        text = "长音频自动分段处理，提升识别速度（推荐开启）",
+                                        text = stringResource(R.string.settings_chang_yin_pin_zi_dong_fen),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = themeTextGrey(),
                                     )
@@ -793,12 +793,12 @@ fun SettingsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "同音字资源未下载",
+                                            text = stringResource(R.string.settings_tong_yin_zi_zi_yuan_wei_xia),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
                                         )
                                         Text(
-                                            text = "需从 GitHub 下载 (~5MB)，连不上可跳过",
+                                            text = stringResource(R.string.settings_xu_cong_github_xia_zai_5mb),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = themeTextGrey(),
                                         )
@@ -826,7 +826,7 @@ fun SettingsScreen(
                                                 }
                                             }
                                         }) {
-                                            Text("下载", style = MaterialTheme.typography.bodySmall)
+                                            Text(stringResource(R.string.action_download), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
@@ -842,18 +842,18 @@ fun SettingsScreen(
                                 FilterChip(
                                     selected = sttStreamingMode == "pseudo",
                                     onClick = { sttStreamingMode = "pseudo" },
-                                    label = { Text("伪流式（实时显示）", style = MaterialTheme.typography.bodySmall) },
+                                    label = { Text(stringResource(R.string.settings_wei_liu_shi_shi_shi_xian_shi), style = MaterialTheme.typography.bodySmall) },
                                     shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
                                     selected = sttStreamingMode == "batch",
                                     onClick = { sttStreamingMode = "batch" },
-                                    label = { Text("录制后识别（更准确）", style = MaterialTheme.typography.bodySmall) },
+                                    label = { Text(stringResource(R.string.settings_lu_zhi_hou_shi_bie_geng_zhun), style = MaterialTheme.typography.bodySmall) },
                                     shape = ShapeTokens.largeShape,
                                 )
                             }
                             Text(
-                                text = "非流式模型下，录制后识别可获得更准确的结果",
+                                text = stringResource(R.string.settings_fei_liu_shi_mo_xing_xia_lu),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -890,7 +890,7 @@ fun SettingsScreen(
                             if (downloadedModels.size > 1) {
                                 var selectedLocalModel by rememberSaveable { mutableStateOf(vm.getSelectedLocalModel()) }
                                 Text(
-                                    text = "当前使用的模型",
+                                    text = stringResource(R.string.settings_dang_qian_shi_yong_de_mo_xing),
                                     style = MaterialTheme.typography.labelMedium,
                                 )
                                 Row(
@@ -903,7 +903,7 @@ fun SettingsScreen(
                                             selectedLocalModel = ""
                                             vm.saveSelectedLocalModel("")
                                         },
-                                        label = { Text("自动", style = MaterialTheme.typography.labelSmall) },
+                                        label = { Text(stringResource(R.string.settings_zi_dong), style = MaterialTheme.typography.labelSmall) },
                                         shape = ShapeTokens.largeShape,
                                     )
                                     downloadedModels.forEach { modelInfo ->
@@ -911,7 +911,7 @@ fun SettingsScreen(
                                             ModelType.PARAFORMER -> "Paraformer"
                                             ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                             ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
-                                            ModelType.STREAMING_PARAFORMER -> "Paraformer 流式"
+                                            ModelType.STREAMING_PARAFORMER -> stringResource(R.string.settings_paraformer_liu_shi)
                                             else -> modelInfo.type.name
                                         }
                                         FilterChip(
@@ -962,7 +962,7 @@ fun SettingsScreen(
                                                     color = SuccessGreen.copy(alpha = BadgeBgAlpha),
                                                 ) {
                                                     Text(
-                                                        text = "已下载",
+                                                        text = stringResource(R.string.model_status_downloaded),
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = SuccessGreen,
                                                         modifier = Modifier.padding(horizontal = SizeTokens.badgeHorizontalPadding, vertical = SizeTokens.badgeVerticalPadding),
@@ -974,7 +974,7 @@ fun SettingsScreen(
                                                     color = MaterialTheme.colorScheme.primary.copy(alpha = BadgeBgAlpha),
                                                 ) {
                                                     Text(
-                                                        text = "推荐",
+                                                        text = stringResource(R.string.settings_model_recommended),
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.padding(horizontal = SizeTokens.badgeHorizontalPadding, vertical = SizeTokens.badgeVerticalPadding),
@@ -1008,7 +1008,7 @@ fun SettingsScreen(
 
                                     if (isDownloading) {
                                         TextButton(onClick = { downloadingModel = null }) {
-                                            Text("取消", style = MaterialTheme.typography.bodySmall)
+                                            Text(stringResource(R.string.action_cancel), style = MaterialTheme.typography.bodySmall)
                                         }
                                     } else if (isDownloaded) {
                                         IconButton(
@@ -1017,7 +1017,7 @@ fun SettingsScreen(
                                         ) {
                                             Icon(
                                                 Icons.Outlined.DeleteOutline,
-                                                contentDescription = "删除模型",
+                                                contentDescription = stringResource(R.string.msg_delete_model),
                                                 modifier = Modifier.size(SpacingTokens.lg),
                                                 tint = MaterialTheme.colorScheme.error,
                                             )
@@ -1155,7 +1155,7 @@ fun SettingsScreen(
                                 FilterChip(
                                     selected = ttsEngine == "system",
                                     onClick = { ttsEngine = "system" },
-                                    label = { Text("系统 TTS", style = MaterialTheme.typography.bodySmall) },
+                                    label = { Text(stringResource(R.string.settings_system_tts), style = MaterialTheme.typography.bodySmall) },
                                     shape = ShapeTokens.largeShape,
                                 )
                                 FilterChip(
@@ -1240,7 +1240,7 @@ fun SettingsScreen(
                     HorizontalDivider(color = themeBorder())
 
                     // 录音时长限制
-                    Text("录音时长限制", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.settings_recording_duration), style = MaterialTheme.typography.titleSmall)
                     Text(
                         text = stringResource(R.string.settings_duration_desc),
                         style = MaterialTheme.typography.bodySmall,
@@ -1263,7 +1263,7 @@ fun SettingsScreen(
                                     contentPadding = PaddingValues(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                                 ) {
                                     Text(
-                                        text = if (currentHours.value == 0) "无限制" else "${currentHours.value}小时",
+                                        text = if (currentHours.value == 0) stringResource(R.string.recording_unlimited) else stringResource(R.string.settings_1, currentHours.value),
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
                                     Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
@@ -1308,7 +1308,7 @@ fun SettingsScreen(
                 )
                 SettingNavigationRow(
                     title = stringResource(R.string.settings_hippocampus_index),
-                    subtitle = "共 $hippocampusCount 条索引条目",
+                    subtitle = stringResource(R.string.settings_gong_1_tiao_suo_yin_tiao_mu, hippocampusCount),
                     icon = Icons.Default.Psychology,
                     iconTint = InterviewPurple,
                     onClick = toHippocampus,
@@ -1368,10 +1368,10 @@ fun SettingsScreen(
                     HorizontalDivider(color = themeBorder())
 
                     // 主题设置
-                    Text(text = "外观主题", style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
+                    Text(text = stringResource(R.string.settings_wai_guan_zhu_ti), style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
                     val themeOptions = listOf(
-                        "system" to "跟随系统",
-                        "light" to "浅色",
+                        "system" to stringResource(R.string.language_system),
+                        "light" to stringResource(R.string.settings_qian_se),
                         "dark" to "深色",
                     )
                     val themeIcons = mapOf(
@@ -1402,8 +1402,8 @@ fun SettingsScreen(
                         }
                     }
                     SettingSwitchRow(
-                        title = "动态主题",
-                        subtitle = "使用系统壁纸颜色（Android 12+）",
+                        title = stringResource(R.string.settings_dong_tai_zhu_ti),
+                        subtitle = stringResource(R.string.settings_shi_yong_xi_tong_bi_zhi_yan),
                         checked = dynamicColorEnabled,
                         onCheckedChange = {
                             dynamicColorEnabled = it
@@ -1417,9 +1417,9 @@ fun SettingsScreen(
 
                     // 编辑器模式
                     var editorMode by rememberSaveable { mutableStateOf(vm.getEditorMode()) }
-                    Text(text = "编辑器模式", style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
+                    Text(text = stringResource(R.string.settings_bian_ji_qi_mo_shi), style = MaterialTheme.typography.titleSmall.copy(color = themeTextDark()))
                     Text(
-                        text = "笔记编辑器的默认输入模式",
+                        text = stringResource(R.string.settings_bi_ji_bian_ji_qi_de_mo_ren),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
@@ -1430,7 +1430,7 @@ fun SettingsScreen(
                                 editorMode = "richtext"
                                 vm.saveEditorMode("richtext")
                             },
-                            label = { Text("富文本（推荐）", style = MaterialTheme.typography.bodyMedium) },
+                            label = { Text(stringResource(R.string.settings_fu_wen_ben_tui_jian), style = MaterialTheme.typography.bodyMedium) },
                         )
                         FilterChip(
                             selected = editorMode == "markdown",
@@ -1442,7 +1442,7 @@ fun SettingsScreen(
                         )
                     }
                     Text(
-                        text = if (editorMode == "richtext") "Notally 风格，选中文字即可加格式" else "适合开发者，手写语法",
+                        text = if (editorMode == "richtext") stringResource(R.string.settings_notally_feng_ge_xuan_zhong) else stringResource(R.string.settings_shi_he_kai_fa_zhe_shou_xie_yu),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
@@ -1496,8 +1496,8 @@ fun SettingsScreen(
                     )
                     // ★ Ham 模式：业余卫星通联辅助（需要位置感知）
                     SettingSwitchRow(
-                        title = "Ham 模式（业余卫星）",
-                        subtitle = if (hamModeEnabled) "已开启 — 自动启用位置感知以计算卫星过境" else "开启后可预测卫星过境、生成通联日志",
+                        title = stringResource(R.string.settings_ham_mo_shi_ye_yu_wei_xing),
+                        subtitle = if (hamModeEnabled) stringResource(R.string.settings_yi_kai_qi_zi_dong_qi_yong_wei) else stringResource(R.string.settings_kai_qi_hou_ke_yu_ce_wei_xing),
                         checked = hamModeEnabled,
                         icon = Icons.Default.Satellite,
                         onCheckedChange = {
@@ -1562,11 +1562,11 @@ fun SettingsScreen(
                                         activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                                     }
                                     top.hsyscn.opedrgent.health.HealthConnectAvailability.NeedsUpdate -> {
-                                        scope.launch { snackbar.showSnackbar("请先更新 Health Connect 应用") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_qing_xian_geng_xin_health)) }
                                         top.hsyscn.opedrgent.health.HealthConnectHelper.openHealthConnectSettings(context)
                                     }
                                     else -> {
-                                        scope.launch { snackbar.showSnackbar("设备不支持 Health Connect") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_she_bei_bu_zhi_chi_health)) }
                                     }
                                 }
                             } else {
@@ -1648,14 +1648,14 @@ fun SettingsScreen(
                     if (webSearchEnabled && webSearchSource == "external") {
                         HorizontalDivider(color = themeBorder())
                         Text(
-                            text = "外挂搜索 API 配置",
+                            text = stringResource(R.string.settings_wai_gua_sou_suo_api_pei_zhi),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
                         OutlinedTextField(
                             value = tavilyApiKey,
                             onValueChange = { tavilyApiKey = it },
-                            label = { Text("Tavily API Key（AI专用搜索，免费1000次/月）") },
+                            label = { Text(stringResource(R.string.settings_tavily_api_key_ai_zhuan_yong)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = if (tavilyApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -1663,7 +1663,7 @@ fun SettingsScreen(
                                 IconButton(onClick = { tavilyApiKeyVisible = !tavilyApiKeyVisible }) {
                                     Icon(
                                         imageVector = if (tavilyApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (tavilyApiKeyVisible) "隐藏 Tavily API Key" else "显示 Tavily API Key",
+                                        contentDescription = if (tavilyApiKeyVisible) stringResource(R.string.settings_yin_cang_tavily_api_key) else stringResource(R.string.settings_xian_shi_tavily_api_key),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -1680,7 +1680,7 @@ fun SettingsScreen(
                                 IconButton(onClick = { braveApiKeyVisible = !braveApiKeyVisible }) {
                                     Icon(
                                         imageVector = if (braveApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (braveApiKeyVisible) "隐藏 Brave API Key" else "显示 Brave API Key",
+                                        contentDescription = if (braveApiKeyVisible) stringResource(R.string.settings_yin_cang_brave_api_key) else stringResource(R.string.settings_xian_shi_brave_api_key),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -1689,7 +1689,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = searchProviderOrder,
                             onValueChange = { searchProviderOrder = it },
-                            label = { Text("搜索优先级（如 tavily,brave,bing,baidu,ddg）") },
+                            label = { Text(stringResource(R.string.settings_sou_suo_you_xian_ji_ru_tavily)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -1807,16 +1807,16 @@ fun SettingsScreen(
                     val isSyncing by vm.isSyncing.collectAsState()
                     val syncResult by vm.syncState.collectAsState()
 
-                    Text("云同步（WebDAV）", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.settings_yun_tong_bu_webdav), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "通过 WebDAV 同步笔记到私有云（坚果云、NextCloud 等）",
+                        stringResource(R.string.settings_tong_guo_webdav_tong_bu_bi_ji),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
                     OutlinedTextField(
                         value = syncServerUrl,
                         onValueChange = { syncServerUrl = it },
-                        label = { Text("服务器地址") },
+                        label = { Text(stringResource(R.string.settings_fu_wu_qi_di_zhi)) },
                         placeholder = { Text("https://dav.example.com") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -1825,14 +1825,14 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = syncUsername,
                             onValueChange = { syncUsername = it },
-                            label = { Text("用户名") },
+                            label = { Text(stringResource(R.string.settings_yong_hu_ming)) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                         )
                         OutlinedTextField(
                             value = syncPassword,
                             onValueChange = { syncPassword = it },
-                            label = { Text("密码") },
+                            label = { Text(stringResource(R.string.settings_mi_ma)) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                         )
@@ -1840,7 +1840,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = syncRemotePath,
                         onValueChange = { syncRemotePath = it },
-                        label = { Text("远端路径") },
+                        label = { Text(stringResource(R.string.settings_yuan_duan_lu_jing)) },
                         placeholder = { Text("/opedrgent/notes/") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -1858,13 +1858,13 @@ fun SettingsScreen(
                                 vm.saveSyncConfig(config)
                                 scope.launch {
                                     val ok = vm.testSyncConnection()
-                                    snackbar.showSnackbar(if (ok) "连接成功" else "连接失败，请检查配置")
+                                    snackbar.showSnackbar(if (ok) context.getString(R.string.settings_lian_jie_cheng_gong) else context.getString(R.string.settings_lian_jie_shi_bai_qing_jian))
                                 }
                             },
                             enabled = syncServerUrl.isNotBlank() && !isSyncing,
                             shape = ShapeTokens.smallShape,
                         ) {
-                            Text("测试连接", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.settings_ce_shi_lian_jie), style = MaterialTheme.typography.bodyMedium)
                         }
                         Button(
                             onClick = {
@@ -1883,9 +1883,9 @@ fun SettingsScreen(
                             if (isSyncing) {
                                 CircularProgressIndicator(modifier = Modifier.size(SpacingTokens.lg), strokeWidth = SpacingTokens.xxs)
                                 Spacer(Modifier.width(SpacingTokens.sm))
-                                Text("同步中...", style = MaterialTheme.typography.bodyMedium)
+                                Text(stringResource(R.string.settings_tong_bu_zhong), style = MaterialTheme.typography.bodyMedium)
                             } else {
-                                Text("立即同步", style = MaterialTheme.typography.bodyMedium)
+                                Text(stringResource(R.string.settings_li_ji_tong_bu), style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
@@ -1895,12 +1895,12 @@ fun SettingsScreen(
                         val timeStr = if (lastSync > 0) {
                             val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                             sdf.format(java.util.Date(lastSync))
-                        } else "从未"
+                        } else stringResource(R.string.settings_cong_wei)
                         Text(
                             text = buildString {
-                                append("上次同步: $timeStr")
+                                append(stringResource(R.string.settings_shang_ci_tong_bu_1, timeStr))
                                 if (result.errors > 0) {
-                                    append(" | 错误: ${result.errors}")
+                                    append(stringResource(R.string.settings_cuo_wu_1, result.errors))
                                 } else {
                                     append(" | 上传: ${result.uploaded} 下载: ${result.downloaded} 耗时: ${result.duration}ms")
                                 }
@@ -1913,7 +1913,7 @@ fun SettingsScreen(
                         if (lastSync > 0) {
                             val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                             Text(
-                                text = "上次同步: ${sdf.format(java.util.Date(lastSync))}",
+                                text = stringResource(R.string.settings_shang_ci_tong_bu_1, sdf.format(java.util.Date(lastSync))),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -1923,8 +1923,8 @@ fun SettingsScreen(
                     HorizontalDivider(color = themeBorder())
 
                     SettingNavigationRow(
-                        title = "导出与分享",
-                        subtitle = "导出笔记、对话记录为多种格式",
+                        title = stringResource(R.string.settings_dao_chu_yu_fen_xiang),
+                        subtitle = stringResource(R.string.settings_dao_chu_bi_ji_dui_hua_ji_lu),
                         icon = Icons.Default.ImportExport,
                         iconTint = SuccessGreen,
                         onClick = toExport,
@@ -2153,11 +2153,11 @@ fun SettingsScreen(
                             vm.saveLocalModelId(modelInfo.id)
                             isLocalMode = true
                             localModelId = modelInfo.id
-                            snackbar.showSnackbar("已加载 ${modelInfo.displayName}")
+                            snackbar.showSnackbar(context.getString(R.string.settings_yi_jia_zai_1, modelInfo.displayName))
                         } else {
                             val errorState = (localEngine.state as? LocalLlmState.Error)
-                            val errorMsg = errorState?.message ?: "未知错误"
-                            snackbar.showSnackbar("加载失败: $errorMsg")
+                            val errorMsg = errorState?.message ?: context.getString(R.string.download_unknown_error)
+                            snackbar.showSnackbar(context.getString(R.string.settings_jia_zai_shi_bai_1, errorMsg))
                         }
                     } else {
                         snackbar.showSnackbar(context.getString(R.string.msg_download_model_first))
@@ -2185,13 +2185,13 @@ fun SettingsScreen(
                             if (path != null) {
                                 val forceLoaded = localEngine.loadModel(path, info, buildUserInferenceConfig(info))
                                 if (forceLoaded) {
-                                    snackbar.showSnackbar("已切换到离线模式: ${info.displayName}")
+                                    snackbar.showSnackbar(context.getString(R.string.settings_yi_qie_huan_dao_li_xian_mo, info.displayName))
                                 } else {
                                     isLocalMode = false
                                     vm.saveLocalModelEnabled(false)
                                     val errorState = (localEngine.state as? LocalLlmState.Error)
-                                    val errorMsg = errorState?.message ?: "未知错误"
-                                    snackbar.showSnackbar("模型加载失败: $errorMsg")
+                                    val errorMsg = errorState?.message ?: context.getString(R.string.download_unknown_error)
+                                    snackbar.showSnackbar(context.getString(R.string.settings_mo_xing_jia_zai_shi_bai_1, errorMsg))
                                 }
                             }
                         }

@@ -245,7 +245,7 @@ fun InvisiblePartnerSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("无感伙伴模式", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_invisible_partner), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -276,7 +276,7 @@ fun InvisiblePartnerSettingsScreen(
                 ),
             ) {
                 Column(modifier = Modifier.padding(SpacingTokens.lg)) {
-                    Text("使用模式", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.invisible_partner_shi_yong_mo_shi), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(SpacingTokens.sm))
 
                     // 自动切换开关
@@ -285,9 +285,9 @@ fun InvisiblePartnerSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("自动切换", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.invisible_partner_zi_dong_qie_huan), style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                text = "根据时间、内容和日程自动选择模式",
+                                text = stringResource(R.string.invisible_partner_gen_ju_shi_jian_nei_rong_he),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -347,7 +347,7 @@ fun InvisiblePartnerSettingsScreen(
 
                         // 检测原因说明
                         Text(
-                            text = "${detectedPersona.label} (自动检测: $detectionReason)",
+                            text = stringResource(R.string.invisible_partner_1_zi_dong_jian_ce_2, detectedPersona.label, detectionReason),
                             style = MaterialTheme.typography.bodySmall,
                             color = BubbleBlue,
                         )
@@ -355,7 +355,7 @@ fun InvisiblePartnerSettingsScreen(
                         Spacer(Modifier.height(SpacingTokens.xs))
 
                         Text(
-                            text = "系统会根据时间、内容和日程自动调整",
+                            text = stringResource(R.string.invisible_partner_xi_tong_hui_gen_ju_shi_jian),
                             style = MaterialTheme.typography.bodySmall,
                             color = themeTextGrey(),
                         )
@@ -401,9 +401,9 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "录音自动保存", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_lu_yin_zi_dong_bao_cun), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "录音结束后自动转写并保存为笔记",
+                                text = stringResource(R.string.invisible_partner_lu_yin_jie_shu_hou_zi_dong),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -428,9 +428,9 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "自动发芽", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_zi_dong_fa_ya), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "每天夜间自动分析当天内容，次日晨间推送发芽报告",
+                                text = stringResource(R.string.invisible_partner_mei_tian_ye_jian_zi_dong_fen),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -447,7 +447,7 @@ fun InvisiblePartnerSettingsScreen(
                                 modifier = Modifier.clickable { showSproutHourPicker = true },
                             ) {
                                 Text(
-                                    text = "执行时间: ${String.format("%02d:00", sproutHour)}",
+                                    text = String.format("%02d:00", sproutHour),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = BubbleBlue,
                                 )
@@ -484,9 +484,9 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "每日推送", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_mei_ri_tui_song), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "每天早上推送昨日记录摘要",
+                                text = stringResource(R.string.invisible_partner_mei_tian_zao_shang_tui_song),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -503,7 +503,7 @@ fun InvisiblePartnerSettingsScreen(
                                 modifier = Modifier.clickable { showDigestHourPicker = true },
                             ) {
                                 Text(
-                                    text = "推送时间: ${String.format("%02d:00", digestHour)}",
+                                    text = String.format("%02d:00", digestHour),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = BubbleBlue,
                                 )
@@ -540,9 +540,9 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "温暖点评", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_wen_nuan_dian_ping), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "每次保存笔记后 AI 给一句有温度的回应",
+                                text = stringResource(R.string.invisible_partner_mei_ci_bao_cun_bi_ji_hou_ai),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -568,15 +568,15 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "最大发芽数", fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_zui_da_fa_ya_shu), fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "每日最多自动生成几篇发芽报告",
+                                text = stringResource(R.string.invisible_partner_mei_ri_zui_duo_zi_dong_sheng),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
                         }
                         Text(
-                            text = "$maxSproutCount 篇",
+                            text = stringResource(R.string.invisible_partner_1_pian, maxSproutCount),
                             style = MaterialTheme.typography.titleMedium,
                             color = BubbleBlue,
                             fontWeight = FontWeight.SemiBold,
@@ -596,12 +596,12 @@ fun InvisiblePartnerSettingsScreen(
             // 底部说明文字
             Column(modifier = Modifier.padding(vertical = SpacingTokens.sm), verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 Text(
-                    text = "关于无感伙伴模式",
+                    text = stringResource(R.string.invisible_partner_guan_yu_wu_gan_huo_ban_mo_shi),
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = "无感伙伴模式让 AI 在后台默默为你工作。打开开关后，系统会在指定时间自动完成录音转写、内容分析、发芽报告生成和每日摘要推送，无需手动操作。所有数据仅存储在本地设备上。",
+                    text = stringResource(R.string.invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                     lineHeight = 18.sp,

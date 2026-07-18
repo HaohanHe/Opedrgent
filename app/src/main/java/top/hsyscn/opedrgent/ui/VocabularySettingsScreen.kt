@@ -95,7 +95,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 containerColor = BubbleBlue,
                 shape = ShapeTokens.largeShape,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加术语", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.vocabulary_add_term), tint = MaterialTheme.colorScheme.onPrimary)
             }
         },
         containerColor = themeBgGray(),
@@ -111,7 +111,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("搜索术语") },
+                label = { Text(stringResource(R.string.vocabulary_search_hint)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -127,7 +127,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "暂无自定义术语，点击下方按钮添加",
+                            text = stringResource(R.string.vocabulary_empty),
                             color = themeTextGrey(),
                             style = MaterialTheme.typography.bodyLarge,
                         )
@@ -166,7 +166,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "删除",
+                                        contentDescription = stringResource(R.string.cd_delete),
                                         tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(SizeTokens.iconLg),
                                     )
@@ -185,12 +185,12 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                 showAddDialog = false
                 newTerm = ""
             },
-            title = { Text("添加术语") },
+            title = { Text(stringResource(R.string.vocabulary_add_term)) },
             text = {
                 OutlinedTextField(
                     value = newTerm,
                     onValueChange = { newTerm = it },
-                    label = { Text("术语") },
+                    label = { Text(stringResource(R.string.vocabulary_term_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -206,7 +206,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
                         newTerm = ""
                     },
                 ) {
-                    Text("添加")
+                    Text(stringResource(R.string.action_add))
                 }
             },
             dismissButton = {

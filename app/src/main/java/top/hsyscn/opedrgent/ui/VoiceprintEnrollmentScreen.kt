@@ -159,7 +159,7 @@ fun VoiceprintEnrollmentScreen(
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasPermission = granted
         if (!granted) {
-            scope.launch { snackbar.showSnackbar("需要录音权限才能录制声纹") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.voiceprint_enroll_xu_yao_lu_yin_quan_xian_cai)) }
         }
     }
 
@@ -199,7 +199,7 @@ fun VoiceprintEnrollmentScreen(
 
         val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, audioFormat, bufferSize)
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-            scope.launch { snackbar.showSnackbar("无法初始化录音设备") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_record_init_failed)) }
             isRecording = false
             return
         }
@@ -322,8 +322,8 @@ fun VoiceprintEnrollmentScreen(
                 }
             }
             isProcessingEmbedding = false
-            val method = if (useSherpaEmbedding && embeddingExtractor.isAvailable) "Sherpa-ONNX" else "统计特征"
-            snackbar.showSnackbar("声纹注册完成 ($method): $speakerName")
+            val method = if (useSherpaEmbedding && embeddingExtractor.isAvailable) "Sherpa-ONNX" else context.getString(R.string.voiceprint_enroll_tong_ji_te_zheng)
+            snackbar.showSnackbar(context.getString(R.string.voiceprint_enroll_sheng_wen_zhu_ce_wan_cheng_1_2, method, speakerName))
             onEnrollmentComplete()
         }
     }
@@ -341,7 +341,7 @@ fun VoiceprintEnrollmentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("添加声纹", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.voiceprint_enroll_tian_jia_sheng_wen), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (isRecording) {
@@ -425,8 +425,8 @@ fun VoiceprintEnrollmentScreen(
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
-            title = { Text("放弃当前录音") },
-            text = { Text("当前录音尚未保存，确定要放弃吗？") },
+            title = { Text(stringResource(R.string.voiceprint_enroll_fang_qi_dang_qian_lu_yin)) },
+            text = { Text(stringResource(R.string.voiceprint_enroll_dang_qian_lu_yin_shang_wei)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -436,12 +436,12 @@ fun VoiceprintEnrollmentScreen(
                         tempPcmFile = null
                     },
                 ) {
-                    Text("放弃", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.voiceprint_enroll_fang_qi), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDiscardDialog = false }) {
-                    Text("继续录音")
+                    Text(stringResource(R.string.recording_continue))
                 }
             },
         )
@@ -450,8 +450,8 @@ fun VoiceprintEnrollmentScreen(
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("退出声纹注册") },
-            text = { Text("已录制的 ${savedSamplePaths.size} 个样本将不会保存，确定退出吗？") },
+            title = { Text(stringResource(R.string.voiceprint_enroll_tui_chu_sheng_wen_zhu_ce)) },
+            text = { Text(stringResource(R.string.voiceprint_enroll_yi_lu_zhi_de_1_ge_yang_ben, savedSamplePaths.size)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -462,12 +462,12 @@ fun VoiceprintEnrollmentScreen(
                         onBack()
                     },
                 ) {
-                    Text("退出", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.voiceprint_enroll_tui_chu), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text("继续")
+                    Text(stringResource(R.string.action_resume))
                 }
             },
         )
@@ -493,14 +493,14 @@ private fun NameInputStep(
         )
         Spacer(Modifier.height(SpacingTokens.lg))
         Text(
-            text = "请输入说话人姓名",
+            text = stringResource(R.string.voiceprint_enroll_qing_shu_ru_shuo_hua_ren_xing),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            text = "注册后，系统将在会议录音中自动识别此说话人",
+            text = stringResource(R.string.voiceprint_enroll_zhu_ce_hou_xi_tong_jiang_zai),
             style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             textAlign = TextAlign.Center,
@@ -509,14 +509,14 @@ private fun NameInputStep(
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("姓名") },
+            label = { Text(stringResource(R.string.voiceprint_enroll_xing_ming)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             isError = showError,
             supportingText = {
                 if (showError) {
                     Text(
-                        text = "请输入姓名",
+                        text = stringResource(R.string.voiceprint_enroll_qing_shu_ru_xing_ming),
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                     )
@@ -529,7 +529,7 @@ private fun NameInputStep(
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = ShapeTokens.smallShape,
         ) {
-            Text("下一步", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.onboarding_next), style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -550,7 +550,7 @@ private fun RecordingStep(
     ) {
         // 进度指示
         Text(
-            text = "第 $step / $total 段",
+            text = stringResource(R.string.voiceprint_enroll_di_1_2_duan, step, total),
             style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
@@ -570,13 +570,13 @@ private fun RecordingStep(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = "请清晰朗读以下句子",
+                    text = stringResource(R.string.voiceprint_enroll_qing_qing_xi_lang_du_yi_xia),
                     style = MaterialTheme.typography.bodyMedium,
                     color = themeTextGrey(),
                 )
                 Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
-                    text = "你好，我是$speakerName",
+                    text = stringResource(R.string.voiceprint_enroll_ni_hao_wo_shi_1, speakerName),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = themeTextDark(),
@@ -591,7 +591,7 @@ private fun RecordingStep(
         // 波形可视化
         if (!isRecording) {
             Text(
-                text = "点击按钮开始录音",
+                text = stringResource(R.string.voiceprint_enroll_dian_ji_an_niu_kai_shi_lu_yin),
                 style = MaterialTheme.typography.bodyLarge,
                 color = themeTextGrey(),
             )
@@ -603,7 +603,7 @@ private fun RecordingStep(
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            text = if (isRecording) "正在录音..." else "等待开始",
+            text = if (isRecording) stringResource(R.string.voiceprint_enroll_zheng_zai_lu_yin) else stringResource(R.string.voiceprint_enroll_deng_dai_kai_shi),
             style = MaterialTheme.typography.bodyMedium,
             color = if (isRecording) CoralRed else themeTextGrey(),
         )
@@ -624,14 +624,14 @@ private fun RecordingStep(
             if (isRecording) {
                 Icon(
                     imageVector = Icons.Default.Stop,
-                    contentDescription = "停止录音",
+                    contentDescription = stringResource(R.string.voiceprint_enroll_ting_zhi_lu_yin),
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(32.dp),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Mic,
-                    contentDescription = "开始录音",
+                    contentDescription = stringResource(R.string.cd_start_recording),
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(32.dp),
                 )
@@ -639,7 +639,7 @@ private fun RecordingStep(
         }
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            text = if (isRecording) "点击停止" else "点击录音",
+            text = if (isRecording) stringResource(R.string.voiceprint_enroll_dian_ji_ting_zhi) else stringResource(R.string.voiceprint_enroll_dian_ji_lu_yin),
             style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
         )
@@ -683,29 +683,29 @@ private fun CompletionStep(
         }
         Spacer(Modifier.height(SpacingTokens.xl))
         Text(
-            text = if (isProcessing) "正在提取声纹特征..." else "声纹注册完成",
+            text = if (isProcessing) stringResource(R.string.voiceprint_enroll_zheng_zai_ti_qu_sheng_wen_te) else stringResource(R.string.voiceprint_enroll_sheng_wen_zhu_ce_wan_cheng),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            text = "说话人: $speakerName",
+            text = stringResource(R.string.recording_speaker, speakerName),
             style = MaterialTheme.typography.titleSmall,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.xs))
         Text(
-            text = "已录制 $sampleCount 个样本",
+            text = stringResource(R.string.voiceprint_enroll_yi_lu_zhi_1_ge_yang_ben, sampleCount),
             style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
         )
         Spacer(Modifier.height(SpacingTokens.xs))
         Text(
             text = if (isProcessing) {
-                "正在使用 Sherpa-ONNX 提取 192 维声纹嵌入..."
+                stringResource(R.string.voiceprint_enroll_zheng_zai_shi_yong_sherpa)
             } else if (isSherpaAvailable) {
-                "特征提取: Sherpa-ONNX (192 维声纹嵌入)"
+                stringResource(R.string.voiceprint_enroll_te_zheng_ti_qu_sherpa_onnx)
             } else {
                 "特征提取: 统计特征 (16 维音频指纹)"
             },
@@ -719,7 +719,7 @@ private fun CompletionStep(
             shape = ShapeTokens.smallShape,
             enabled = !isProcessing,
         ) {
-            Text("完成", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.action_done), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

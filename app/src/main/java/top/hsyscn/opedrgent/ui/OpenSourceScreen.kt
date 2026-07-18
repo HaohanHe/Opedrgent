@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -58,138 +59,138 @@ data class OpenSourceProject(
     val url: String,
 )
 
-private val projects = listOf(
+private fun getProjects(context: Context) = listOf(
     // ── 语音与音频 ──
     OpenSourceProject(
         name = "Sherpa-ONNX",
-        description = "跨平台本地语音处理工具包，支持 ASR/TTS/说话人识别/VAD",
+        description = context.getString(R.string.open_source_kua_ping_tai_ben_di_yu_yin),
         license = "Apache License 2.0",
         url = "https://github.com/k2-fsa/sherpa-onnx",
     ),
     OpenSourceProject(
         name = "MiMo ASR",
-        description = "小米高性能语音识别模型",
+        description = context.getString(R.string.open_source_xiao_mi_gao_xing_neng_yu_yin),
         license = "MIT License",
         url = "https://github.com/xiaomi/mimo",
     ),
     // ── 视觉与 OCR ──
     OpenSourceProject(
         name = "PaddleOCR",
-        description = "百度开源 OCR 引擎，支持多语言文字识别",
+        description = context.getString(R.string.open_source_bai_du_kai_yuan_ocr_yin_qing),
         license = "Apache License 2.0",
         url = "https://github.com/PaddlePaddle/PaddleOCR",
     ),
     // ── 大语言模型推理 ──
     OpenSourceProject(
         name = "LiteRT-LM",
-        description = "Google 端侧大模型推理框架",
+        description = context.getString(R.string.open_source_google_duan_ce_da_mo_xing_tui),
         license = "Apache License 2.0",
         url = "https://github.com/google-ai-edge/LiteRT-LM",
     ),
     OpenSourceProject(
         name = "llama.cpp",
-        description = "Georgi Gerganov 的 LLM C/C++ 推理引擎",
+        description = context.getString(R.string.open_source_georgi_gerganov_de_llm_c_c),
         license = "MIT License",
         url = "https://github.com/ggml-org/llama.cpp",
     ),
     OpenSourceProject(
         name = "MediaPipe",
-        description = "Google 跨平台机器学习解决方案",
+        description = context.getString(R.string.open_source_google_kua_ping_tai_ji_qi_xue),
         license = "Apache License 2.0",
         url = "https://github.com/google-ai-edge/mediapipe",
     ),
     // ── 搜索引擎 ──
     OpenSourceProject(
         name = "Meilisearch",
-        description = "极速开源搜索引擎，支持混合搜索与容错",
+        description = context.getString(R.string.open_source_ji_su_kai_yuan_sou_suo_yin),
         license = "MIT License",
         url = "https://github.com/meilisearch/meilisearch",
     ),
     OpenSourceProject(
         name = "SearXNG",
-        description = "隐私保护的元搜索引擎，聚合多源搜索结果",
+        description = context.getString(R.string.open_source_yin_si_bao_hu_de_yuan_sou_suo),
         license = "AGPL-3.0 License",
         url = "https://github.com/searxng/searxng",
     ),
     OpenSourceProject(
         name = "Qdrant",
-        description = "Rust 编写的高性能向量相似度搜索引擎",
+        description = context.getString(R.string.open_source_rust_bian_xie_de_gao_xing),
         license = "Apache License 2.0",
         url = "https://github.com/qdrant/qdrant",
     ),
     // ── AI Agent 框架 ──
     OpenSourceProject(
         name = "Koog",
-        description = "JetBrains Kotlin AI Agent 框架，图工作流 + MCP/ACP",
+        description = context.getString(R.string.open_source_jetbrains_kotlin_ai_agent),
         license = "Apache License 2.0",
         url = "https://github.com/JetBrains/koog",
     ),
     OpenSourceProject(
         name = "Hermes Agent",
-        description = "Nous Research 自改进 AI Agent，内置学习循环与技能系统",
+        description = context.getString(R.string.open_source_nous_research_zi_gai_jin_ai),
         license = "MIT License",
         url = "https://github.com/NousResearch/hermes-agent",
     ),
     OpenSourceProject(
         name = "GELab-Zero",
-        description = "阶跃星辰全开源 GUI Agent，本地推理 + 4B 端侧模型",
+        description = context.getString(R.string.open_source_jie_yue_xing_chen_quan_kai),
         license = "MIT License",
         url = "https://github.com/stepfun-ai/gelab-zero",
     ),
     OpenSourceProject(
         name = "Kilo Code",
-        description = "全平台 AI 编程助手，支持 500+ 模型",
+        description = context.getString(R.string.open_source_quan_ping_tai_ai_bian_cheng),
         license = "MIT License",
         url = "https://github.com/kilo-code/kilo-code",
     ),
     OpenSourceProject(
         name = "MiMo Code",
-        description = "小米开源 AI 编程 Agent，跨会话记忆 + 多 Agent 协作",
+        description = context.getString(R.string.open_source_xiao_mi_kai_yuan_ai_bian),
         license = "MIT License",
         url = "https://github.com/xiaomi/mimo-code",
     ),
     OpenSourceProject(
         name = "ML Intern",
-        description = "Hugging Face 自主 ML 研究员，自动化机器学习全流程",
+        description = context.getString(R.string.open_source_hugging_face_zi_zhu_ml_yan),
         license = "Apache License 2.0",
         url = "https://github.com/huggingface/ml-intern",
     ),
     // ── Android / Kotlin ──
     OpenSourceProject(
         name = "Jetpack Compose",
-        description = "Google 声明式 Android UI 工具包",
+        description = context.getString(R.string.open_source_google_sheng_ming_shi_android),
         license = "Apache License 2.0",
         url = "https://github.com/androidx/androidx",
     ),
     OpenSourceProject(
         name = "Kotlin Coroutines",
-        description = "JetBrains Kotlin 协程库",
+        description = context.getString(R.string.open_source_jetbrains_kotlin_xie_cheng_ku),
         license = "Apache License 2.0",
         url = "https://github.com/Kotlin/kotlinx.coroutines",
     ),
     OpenSourceProject(
         name = "Room Database",
-        description = "Google Android 本地数据库 ORM",
+        description = context.getString(R.string.open_source_google_android_ben_di_shu_ju),
         license = "Apache License 2.0",
         url = "https://developer.android.com/jetpack/androidx/releases/room",
     ),
     OpenSourceProject(
         name = "DataStore",
-        description = "Google Android 数据存储方案",
+        description = context.getString(R.string.open_source_google_android_shu_ju_cun_chu),
         license = "Apache License 2.0",
         url = "https://developer.android.com/topic/libraries/architecture/datastore",
     ),
     // ── 富文本编辑器 ──
     OpenSourceProject(
         name = "Notally",
-        description = "极简 Android 笔记应用，富文本编辑器设计灵感来源",
+        description = context.getString(R.string.open_source_ji_jian_android_bi_ji_ying),
         license = "GPL-3.0 License",
         url = "https://github.com/OmGodse/Notally",
     ),
     // ── 卫星与轨道力学 ──
     OpenSourceProject(
         name = "Look4Sat",
-        description = "Android 业余卫星追踪应用，SGP4/SDP4 轨道传播算法移植来源",
+        description = context.getString(R.string.open_source_android_ye_yu_wei_xing_zhui),
         license = "GPL-3.0 License",
         url = "https://github.com/rt-bishop/Look4Sat",
     ),
@@ -227,7 +228,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.height(SpacingTokens.sm))
             }
 
-            items(projects, key = { it.name }) { project ->
+            items(getProjects(context), key = { it.name }) { project ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeTokens.mediumShape,
@@ -280,7 +281,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(SpacingTokens.sm))
                 Text(
-                    text = "共 ${projects.size} 个开源项目",
+                    text = stringResource(R.string.open_source_gong_1_ge_kai_yuan_xiang_mu, getProjects(context).size),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                     modifier = Modifier.fillMaxWidth(),

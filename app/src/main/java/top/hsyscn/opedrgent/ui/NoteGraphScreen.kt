@@ -1050,7 +1050,7 @@ private fun TimelineView(
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
-                        "${monthNotes.size} 篇",
+                        stringResource(R.string.invisible_partner_1_pian, monthNotes.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )

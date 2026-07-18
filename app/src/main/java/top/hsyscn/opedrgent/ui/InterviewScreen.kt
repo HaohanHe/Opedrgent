@@ -116,6 +116,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
+import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.interview.InterviewConfig
 import top.hsyscn.opedrgent.interview.InterviewPhase
 import top.hsyscn.opedrgent.interview.InterviewReport
@@ -240,14 +241,14 @@ private fun InterviewSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
             ) {
             Text(
-                text = "选择面试模式，直接开始对话",
+                text = stringResource(R.string.interview_xuan_ze_mian_shi_mo_shi_zhi),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleMedium,
                 color = themeTextDark(),
             )
 
             Text(
-                text = "AI会通过对话了解你的需求，无需提前填写信息",
+                text = stringResource(R.string.interview_ai_hui_tong_guo_dui_hua_liao),
                 style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
             )
@@ -270,16 +271,16 @@ private fun InterviewSetupScreen(
             ) {
                 ModeSelectionCard(
                     icon = Icons.Default.Work,
-                    title = "求职面试",
-                    description = "模拟真实面试\n根据公司/岗位定制",
+                    title = stringResource(R.string.interview_qiu_zhi_mian_shi),
+                    description = stringResource(R.string.interview_mo_ni_zhen_shi_mian_shi_gen),
                     isSelected = false,
                     onClick = { onStart(InterviewConfig(type = InterviewType.JOB_INTERVIEW)) },
                     modifier = Modifier.weight(1f),
                 )
                 ModeSelectionCard(
                     icon = Icons.Default.School,
-                    title = "论文答辩",
-                    description = "模拟学术答辩\n挑战研究方法与结论",
+                    title = stringResource(R.string.interview_lun_wen_da_bian),
+                    description = stringResource(R.string.interview_mo_ni_xue_shu_da_bian_tiao),
                     isSelected = false,
                     onClick = { onStart(InterviewConfig(type = InterviewType.THESIS_DEFENSE)) },
                     modifier = Modifier.weight(1f),
@@ -294,14 +295,14 @@ private fun InterviewSetupScreen(
             ) {
                 Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(
-                        text = "其他场景",
+                        text = stringResource(R.string.interview_qi_ta_chang_jing),
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyLarge,
                         color = themeTextDark(),
                     )
                     Spacer(Modifier.height(SpacingTokens.sm))
                     Text(
-                        text = "投资路演、英语口语、销售谈判... 任何对话场景都可以",
+                        text = stringResource(R.string.interview_tou_zi_lu_yan_ying_yu_kou_yu),
                         style = MaterialTheme.typography.bodyMedium,
                         color = themeTextGrey(),
                     )
@@ -315,7 +316,7 @@ private fun InterviewSetupScreen(
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                     ) {
-                        Text("开始自定义场景", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.interview_kai_shi_zi_ding_yi_chang_jing), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -437,7 +438,7 @@ private fun RealtimeVoiceBanner(
                         IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                             Icon(
                                 imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (apiKeyVisible) "隐藏 API Key" else "显示 API Key",
+                                contentDescription = if (apiKeyVisible) stringResource(R.string.interview_yin_cang_api_key) else stringResource(R.string.interview_xian_shi_api_key),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -629,7 +630,7 @@ private fun InterviewPreparingScreen(
             Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
             Text(
-                text = "AI 正在分析您的材料...",
+                text = stringResource(R.string.interview_ai_zheng_zai_fen_xi_nin_de),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = themeTextDark(),
@@ -648,7 +649,7 @@ private fun InterviewPreparingScreen(
                         verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                     ) {
                         Text(
-                            text = "材料分析结果",
+                            text = stringResource(R.string.interview_cai_liao_fen_xi_jie_guo),
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleSmall,
                             color = themeTextDark(),
@@ -657,7 +658,7 @@ private fun InterviewPreparingScreen(
                         // 关键点
                         if (analysisResult.keyPoints.isNotEmpty()) {
                             Text(
-                                text = "关键信息",
+                                text = stringResource(R.string.interview_guan_jian_xin_xi),
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AccentBlue,
@@ -676,7 +677,7 @@ private fun InterviewPreparingScreen(
                         if (analysisResult.suggestedQuestions.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
-                                text = "建议关注方向",
+                                text = stringResource(R.string.interview_jian_yi_guan_zhu_fang_xiang),
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AccentBlue,
@@ -695,7 +696,7 @@ private fun InterviewPreparingScreen(
                         if (analysisResult.riskAreas.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
-                                text = "可能被深挖的点",
+                                text = stringResource(R.string.interview_ke_neng_bei_shen_wa_de_dian),
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = WarningColor,
@@ -714,7 +715,7 @@ private fun InterviewPreparingScreen(
             }
 
             Text(
-                text = "即将开始面试...",
+                text = stringResource(R.string.interview_ji_jiang_kai_shi_mian_shi),
                 style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
             )
@@ -779,9 +780,9 @@ private fun InterviewSessionScreen(
                     Column {
                         Text(
                             text = when (config?.type) {
-                                InterviewType.THESIS_DEFENSE -> "论文答辩"
-                                InterviewType.SCENARIO -> "自定义场景"
-                                else -> "求职面试"
+                                InterviewType.THESIS_DEFENSE -> stringResource(R.string.interview_lun_wen_da_bian)
+                                InterviewType.SCENARIO -> stringResource(R.string.interview_zi_ding_yi_chang_jing)
+                                else -> stringResource(R.string.interview_qiu_zhi_mian_shi)
                             },
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium,
@@ -789,7 +790,7 @@ private fun InterviewSessionScreen(
                         // 面试进度
                         if (config != null && interviewState.questionCount > 0) {
                             Text(
-                                text = "第 ${interviewState.questionCount}/${config.questionCount} 题",
+                                text = stringResource(R.string.interview_di_1_2_ti, interviewState.questionCount, config.questionCount),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -809,7 +810,7 @@ private fun InterviewSessionScreen(
                     TextButton(
                         onClick = { showEndDialog = true },
                     ) {
-                        Text("结束", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.interview_jie_shu), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -927,11 +928,11 @@ private fun InterviewSessionScreen(
     if (showEndDialog) {
         AlertDialog(
             onDismissRequest = { showEndDialog = false },
-            title = { Text("结束面试") },
+            title = { Text(stringResource(R.string.interview_jie_shu_mian_shi)) },
             text = {
                 Text(
                     if (interviewState.questionCount < 3)
-                        "面试刚开始不久，确定要结束吗？"
+                        stringResource(R.string.interview_mian_shi_gang_kai_shi_bu_jiu)
                     else
                         "已回答 ${interviewState.questionCount} 个问题，确定结束并生成报告？"
                 )
@@ -944,12 +945,12 @@ private fun InterviewSessionScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) {
-                    Text("结束面试")
+                    Text(stringResource(R.string.interview_jie_shu_mian_shi))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showEndDialog = false }) {
-                    Text("继续面试")
+                    Text(stringResource(R.string.interview_ji_xu_mian_shi))
                 }
             },
         )
@@ -980,7 +981,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
             ) {
                 Text(" ", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text = feedback.quickFeedback.ifBlank { "教练建议" },
+                    text = feedback.quickFeedback.ifBlank { stringResource(R.string.interview_jiao_lian_jian_yi) },
                     fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
@@ -1005,16 +1006,16 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
-                        ScoreBadge("逻辑", feedback.logicScore)
-                        ScoreBadge("表达", feedback.clarityScore)
-                        ScoreBadge("自信", feedback.confidenceScore)
+                        ScoreBadge(stringResource(R.string.interview_luo_ji), feedback.logicScore)
+                        ScoreBadge(stringResource(R.string.interview_biao_da), feedback.clarityScore)
+                        ScoreBadge(stringResource(R.string.interview_zi_xin), feedback.confidenceScore)
                     }
 
                     // STAR 法则说明
                     val starScore = feedback.scores["STAR法则"] ?: feedback.scores["star"] ?: 0f
                     if (starScore > 0f) {
                         Text(
-                            text = "STAR法则评分: %.1f/10".format(starScore),
+                            text = stringResource(R.string.interview_star_fa_ze_ping_fen_1f_10).format(starScore),
                             style = MaterialTheme.typography.bodySmall,
                             color = themeTextDark().copy(alpha = 0.7f),
                         )
@@ -1079,7 +1080,7 @@ private fun InterviewBubble(message: DialogueTurn) {
 
         // 问题分类标签
         val category = message.questionCategory
-        if (isInterviewer && category != null && category != "追问" && category != "结束") {
+        if (isInterviewer && category != null && category != stringResource(R.string.interview_zhui_wen) && category != stringResource(R.string.interview_jie_shu)) {
             Column {
                 // 分类标签
                 Text(
@@ -1142,7 +1143,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                     .background(UserBubbleStart),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("我", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.interview_wo), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1292,12 +1293,12 @@ private fun DuplexControlPanel(
                 ) {
                     Icon(
                         imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = if (isMuted) "取消静音" else "静音",
+                        contentDescription = if (isMuted) stringResource(R.string.interview_qu_xiao_jing_yin) else stringResource(R.string.interview_jing_yin),
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(
-                        text = if (isMuted) "已静音" else "静音",
+                        text = if (isMuted) stringResource(R.string.interview_yi_jing_yin) else stringResource(R.string.interview_jing_yin),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -1318,7 +1319,7 @@ private fun DuplexControlPanel(
                     )
                     // 题目进度
                     Text(
-                        text = "第 $questionCount / $totalQuestions 题",
+                        text = stringResource(R.string.interview_di_1_2_ti_660c, questionCount, totalQuestions),
                         style = MaterialTheme.typography.labelSmall,
                         color = themeTextGrey(),
                     )
@@ -1336,11 +1337,11 @@ private fun DuplexControlPanel(
                 ) {
                     Icon(
                         Icons.Default.Stop,
-                        contentDescription = "结束面试",
+                        contentDescription = stringResource(R.string.interview_jie_shu_mian_shi),
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text("结束", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.interview_jie_shu), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -1352,7 +1353,7 @@ private fun DuplexControlPanel(
                 modifier = Modifier.padding(vertical = 0.dp),
             ) {
                 Text(
-                    "改用文字输入 →",
+                    stringResource(R.string.interview_gai_yong_wen_zi_shu_ru),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
@@ -1390,7 +1391,7 @@ private fun DuplexTextInputBar(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(onClick = onCloseTextInput) {
-                    Text("← 返回语音模式", style = MaterialTheme.typography.bodySmall, color = AccentBlue)
+                    Text(stringResource(R.string.interview_fan_hui_yu_yin_mo_shi), style = MaterialTheme.typography.bodySmall, color = AccentBlue)
                 }
             }
 
@@ -1403,7 +1404,7 @@ private fun DuplexTextInputBar(
                     value = inputText,
                     onValueChange = onInputChange,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("输入你的回答...", style = MaterialTheme.typography.bodyLarge) },
+                    placeholder = { Text(stringResource(R.string.interview_shu_ru_ni_de_hui_da), style = MaterialTheme.typography.bodyLarge) },
                     shape = ShapeTokens.mediumShape,
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -1422,7 +1423,7 @@ private fun DuplexTextInputBar(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "发送",
+                        contentDescription = stringResource(R.string.action_send),
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(20.dp),
                     )
@@ -1462,6 +1463,7 @@ private fun InterviewReportScreen(
     val interviewState by vm.interviewState.collectAsStateCompat()
     val report = interviewState.report
     val feedback = LocalFeedbackController.current
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -1509,7 +1511,7 @@ private fun InterviewReportScreen(
                         verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
                     ) {
                         CircularProgressIndicator(color = AccentBlue)
-                        Text("正在生成面试报告...", color = themeTextGrey())
+                        Text(stringResource(R.string.interview_zheng_zai_sheng_cheng_mian), color = themeTextGrey())
                     }
                 }
             } else {
@@ -1543,7 +1545,7 @@ private fun InterviewReportScreen(
                 if (report.strengths.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "优势",
+                            title = stringResource(R.string.interview_you_shi),
                             iconColor = MaterialTheme.customColors.chipSuccessText,
                             items = report.strengths,
                         )
@@ -1554,7 +1556,7 @@ private fun InterviewReportScreen(
                 if (report.weaknesses.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "待改进",
+                            title = stringResource(R.string.interview_dai_gai_jin),
                             iconColor = MaterialTheme.colorScheme.error,
                             items = report.weaknesses,
                         )
@@ -1565,7 +1567,7 @@ private fun InterviewReportScreen(
                 if (report.recommendations.isNotEmpty()) {
                     item {
                         EvaluationSection(
-                            title = "改进建议",
+                            title = stringResource(R.string.interview_gai_jin_jian_yi),
                             iconColor = AccentBlue,
                             items = report.recommendations,
                         )
@@ -1590,7 +1592,7 @@ private fun InterviewReportScreen(
                         OutlinedButton(
                             onClick = {
                                 onSaveToNote()
-                                feedback.showFeedback("已保存到笔记")
+                                feedback.showFeedback(context.getString(R.string.interview_yi_bao_cun_dao_bi_ji))
                             },
                             modifier = Modifier.weight(1f),
                             shape = ShapeTokens.mediumShape,
@@ -1601,7 +1603,7 @@ private fun InterviewReportScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("保存笔记")
+                            Text(stringResource(R.string.recording_save_note))
                         }
 
                         // 重新面试
@@ -1617,7 +1619,7 @@ private fun InterviewReportScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("重新面试")
+                            Text(stringResource(R.string.interview_chong_xin_mian_shi))
                         }
                     }
                 }
@@ -1668,7 +1670,7 @@ private fun ScoreCard(report: InterviewReport) {
             Spacer(modifier = Modifier.height(SpacingTokens.sm))
             // 分数
             Text(
-                text = "${report.overallScore.toInt()} 分",
+                text = stringResource(R.string.interview_1_fen, report.overallScore.toInt()),
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = themeTextDark(),
@@ -1679,8 +1681,8 @@ private fun ScoreCard(report: InterviewReport) {
                 report.overallScore >= 85 -> "优秀"
                 report.overallScore >= 70 -> "良好"
                 report.overallScore >= 55 -> "一般"
-                report.overallScore >= 40 -> "较差"
-                else -> "需加强"
+                report.overallScore >= 40 -> stringResource(R.string.interview_jiao_cha)
+                else -> stringResource(R.string.interview_xu_jia_qiang)
             }
             Text(
                 text = gradeDesc,
@@ -1703,7 +1705,7 @@ private fun SummaryCard(summary: String) {
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Text(
-                text = "总体评价",
+                text = stringResource(R.string.interview_zong_ti_ping_jia),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
@@ -1731,7 +1733,7 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Text(
-                text = "各维度评分",
+                text = stringResource(R.string.interview_ge_wei_du_ping_fen),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
@@ -1877,14 +1879,14 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "完整对话记录 (${transcript.size} 条)",
+                    text = stringResource(R.string.interview_wan_zheng_dui_hua_ji_lu_1_tiao, transcript.size),
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = if (expanded) "收起" else "展开",
+                    text = if (expanded) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AccentBlue,
                 )
@@ -1908,7 +1910,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (turn.role == "interviewer") "[面试官]" else "[我]",
+                                    text = if (turn.role == "interviewer") stringResource(R.string.interview_mian_shi_guan) else stringResource(R.string.interview_wo_9e0a),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = if (turn.role == "interviewer") AccentBlue else UserBubbleStart,

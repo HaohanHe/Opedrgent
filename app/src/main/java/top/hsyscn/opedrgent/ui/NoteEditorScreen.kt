@@ -242,7 +242,7 @@ fun NoteEditorScreen(
                     input.copyTo(output)
                 }
             }
-            insertDroppedText("\n![图片](${destFile.toUri()})\n")
+            insertDroppedText(context.getString(R.string.note_editor_image_markdown, destFile.toUri()))
             snackbarHostState.showSnackbar(context.getString(R.string.note_editor_image_inserted))
         } catch (e: Exception) {
             snackbarHostState.showSnackbar(context.getString(R.string.note_editor_image_insert_failed, e.message ?: ""))

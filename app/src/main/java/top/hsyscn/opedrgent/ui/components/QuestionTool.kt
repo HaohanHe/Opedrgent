@@ -9,7 +9,7 @@ data class QuestionOption(
 
 data class QuestionInfo(
     val question: String,
-    val header: String = "请选择",
+    val header: String = "",
     val options: List<QuestionOption>,
     val multiple: Boolean = false,
     val allowCustom: Boolean = false,
