@@ -88,7 +88,7 @@ fun RichTextEditor(
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
 
     val editText = remember {
-        EditText(context).apply {
+        SelectionAwareEditText(context).apply {
             imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
             gravity = Gravity.TOP or Gravity.START
             setPadding(0, 0, 0, 0)
@@ -117,19 +117,14 @@ fun RichTextEditor(
                     }
                 }
             })
-        }
-    }
 
-    // Track selection changes via a polling mechanism
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(100)
-            val start = editText.selectionStart
-            val end = editText.selectionEnd
-            if (start != selectionStart || end != selectionEnd) {
-                selectionStart = start
-                selectionEnd = end
-                showToolbar = start != end && start >= 0 && end > start
+            // 事件驱动：选择变化时直接回调，替代 100ms 轮询，降低 CPU 占用。
+            onSelectionChange = { start, end ->
+                if (start != selectionStart || end != selectionEnd) {
+                    selectionStart = start
+                    selectionEnd = end
+                    showToolbar = start != end && start >= 0 && end > start
+                }
             }
         }
     }
@@ -474,5 +469,19 @@ private fun FormatToolbarButton(
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurface,
         )
+    }
+}
+
+/**
+ * 选择感知 EditText：当光标/选区变化时通过回调通知调用方。
+ *
+ * 替代 100ms 轮询，避免后台持续占用 CPU 与触发协程调度。
+ */
+private class SelectionAwareEditText(context: android.content.Context) : EditText(context) {
+    var onSelectionChange: ((Int, Int) -> Unit)? = null
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        onSelectionChange?.invoke(selStart, selEnd)
     }
 }
