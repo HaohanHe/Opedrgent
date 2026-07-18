@@ -116,7 +116,7 @@ fun EditorAdditionalNotesTab() {
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                itemsIndexed(notes) { _, note ->
+                itemsIndexed(notes, key = { _, note -> note.id }) { _, note ->
                     EditorNoteItemCard(
                         noteId = note.id,
                         content = note.content,
