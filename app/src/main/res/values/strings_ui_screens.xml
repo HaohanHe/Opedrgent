@@ -559,4 +559,13 @@
     <string name="vocabulary_search_hint">搜索术语</string>
     <string name="vocabulary_empty">暂无术语</string>
     <string name="vocabulary_term_label">术语</string>
+    <!-- sprout -->
+    <string name="sprout_error_empty">输入文本不能为空</string>
+    <string name="sprout_error_empty_detail">输入文本不能为空，请提供需要发芽的内容</string>
+    <string name="sprout_error_too_short">输入文本过短（至少10个字符），请提供更丰富的内容以获得更好的发芽效果</string>
+    <string name="sprout_error_no_api_key">请先在设置里填写 API Key</string>
+    <string name="sprout_error_processing">发芽处理失败: %1$s</string>
+    <string name="sprout_error_no_session">没有当前会话，请先开始对话</string>
+    <string name="sprout_error_empty_context">当前对话为空，没有可发芽的内容</string>
+    <string name="sprout_system_prompt">你是一个知识分析助手，请根据用户输入进行深度分析。</string>
 </resources>

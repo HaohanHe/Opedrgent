@@ -502,8 +502,7 @@ fun SessionScreen(
                                     // 可以添加继续对话的逻辑，比如询问关于发芽结果的问题
                                 },
                                 onDismiss = {
-                                    vm._sproutResult.value = null
-                                    vm._sproutingState.value = SproutingState.IDLE
+                                    vm.dismissSproutResult()
                                 },
                             )
                         }
