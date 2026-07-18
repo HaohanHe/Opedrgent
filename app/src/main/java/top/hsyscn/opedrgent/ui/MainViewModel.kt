@@ -2022,11 +2022,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val note = noteRepository.getNoteById(noteId) ?: return@launch
             val result = knowledgeBase.addTextDocument(
-                title = note.title.ifBlank { "笔记 #${note.id}" },
+                title = note.title.ifBlank { app.getString(R.string.note_fallback_title, note.id) },
                 content = note.content,
             )
             withContext(Dispatchers.Main) {
-                val message = if (result.success) "已添加到知识库" else "添加到知识库失败: ${result.error}"
+                val message = if (result.success) {
+                    app.getString(R.string.note_added_to_kb)
+                } else {
+                    app.getString(R.string.note_add_to_kb_failed, result.error ?: "")
+                }
                 _feedbackMessage.value = message
             }
         }
@@ -2048,20 +2052,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
             withContext(Dispatchers.Main) {
                 val msg = buildString {
-                    append("知识库同步完成")
+                    append(app.getString(R.string.kb_sync_complete))
                     if (summary.reparsedCount > 0) {
-                        append(": ${summary.reparsedCount} 文档重解析")
+                        append(app.getString(R.string.kb_sync_reparsed, summary.reparsedCount))
                         if (summary.contentChangedCount > 0) {
-                            append(" (${summary.contentChangedCount} 内容变更)")
+                            append(app.getString(R.string.kb_sync_content_changed, summary.contentChangedCount))
                         }
                     }
                     if (summary.cloudUploadedCount > 0) {
-                        append(", ${summary.cloudUploadedCount} 上传云端")
+                        append(app.getString(R.string.kb_sync_cloud_uploaded, summary.cloudUploadedCount))
                     }
                     if (summary.failedReparseCount > 0 || summary.cloudFailedCount > 0) {
-                        append(", ${summary.failedReparseCount + summary.cloudFailedCount} 失败")
+                        append(app.getString(R.string.kb_sync_failed, summary.failedReparseCount + summary.cloudFailedCount))
                     }
-                    if (!summary.hasChanges) append(" (无变更)")
+                    if (!summary.hasChanges) append(app.getString(R.string.kb_sync_no_changes))
                 }
                 _feedbackMessage.value = msg
             }
@@ -2075,7 +2079,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (message.role != Role.ASSISTANT) return
 
         val note = Note(
-            title = "AI 回复 - ${session.title}",
+            title = app.getString(R.string.note_title_ai_reply, session.title),
             content = message.content,
             type = NoteType.AI_CHAT,
             sourceType = top.hsyscn.opedrgent.note.SourceType.AI_GENERATED,
@@ -2329,7 +2333,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val sessionId = _state.value.current?.id ?: return
         val skills = _state.value.skills
         val text = if (skills.isEmpty()) {
-            "暂无技能。"
+            app.getString(R.string.skills_empty_message)
         } else {
             skills.joinToString(separator = "\n") { "- ${it.name}" }
         }
