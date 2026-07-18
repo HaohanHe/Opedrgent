@@ -44,6 +44,15 @@ object SizeTokens {
     val mediumContentMaxWidth = 840.dp
     val sessionContentMaxWidthExpanded = 900.dp
     val sessionContentMaxWidthMedium = 760.dp
+    val interviewContentMaxWidthExpanded = 840.dp
+    val interviewContentMaxWidthMedium = 640.dp
+    val interviewTranscriptMaxWidthExpanded = 900.dp
+    val interviewTranscriptMaxWidthMedium = 720.dp
+    val interviewResultMaxWidthExpanded = 900.dp
+    val interviewResultMaxWidthMedium = 720.dp
+    val noteEditorMaxWidthExpanded = 980.dp
+    val noteEditorMaxWidthMedium = 760.dp
+    val chatSessionListWidth = 320.dp
 
     // 列表最大高度（用于内嵌可滚动区域，避免占满整屏）
     val citationListMaxHeight = 320.dp

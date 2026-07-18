@@ -21,7 +21,7 @@ import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
-private val SessionListWidth = 320.dp
+private val SessionListWidth = SizeTokens.chatSessionListWidth
 
 /**
  * AI 对话 Tab。
