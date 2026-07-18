@@ -6,12 +6,14 @@ import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -48,6 +51,8 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.Automation
 import top.hsyscn.opedrgent.automation.AutomationKind
 import top.hsyscn.opedrgent.automation.AutomationStore
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,58 +88,81 @@ fun AutomationsScreen(onBack: () -> Unit) {
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        LazyColumn(
+        Box(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+            contentAlignment = Alignment.Center,
         ) {
-            items(automations, key = { it.id }) { a ->
-                Card(
-                    modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
-                    onClick = { editing = a; editOpen = true },
+            if (automations.isEmpty()) {
+                EmptyStateView(
+                    icon = {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                        )
+                    },
+                    title = stringResource(R.string.automation_empty_title),
+                    subtitle = stringResource(R.string.automation_empty_subtitle),
+                    actionLabel = stringResource(R.string.automation_empty_action),
+                    onAction = { createOpen = true },
+                    modifier = Modifier.padding(SpacingTokens.xxl),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(SpacingTokens.md),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = a.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                text = stringResource(R.string.automation_1_2_fen_zhong, a.kind.name, a.intervalMinutes),
-                                modifier = Modifier.padding(top = SpacingTokens.xs),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            // 执行状态
-                            if (a.executionCount > 0) {
-                                val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
-                                val lastRun = remember(a.lastExecutedAt, timeFmt) {
-                                    if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else context.getString(R.string.tool_state_unknown)
+                    items(automations, key = { it.id }) { a ->
+                        Card(
+                            modifier = Modifier.padding(horizontal = SpacingTokens.md).fillMaxWidth(),
+                            onClick = { editing = a; editOpen = true },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(SpacingTokens.md),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = a.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        text = stringResource(R.string.automation_1_2_fen_zhong, a.kind.name, a.intervalMinutes),
+                                        modifier = Modifier.padding(top = SpacingTokens.xs),
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    // 执行状态
+                                    if (a.executionCount > 0) {
+                                        val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+                                        val lastRun = remember(a.lastExecutedAt, timeFmt) {
+                                            if (a.lastExecutedAt > 0) timeFmt.format(Date(a.lastExecutedAt)) else context.getString(R.string.tool_state_unknown)
+                                        }
+                                        Text(
+                                            text = stringResource(R.string.automation_yi_zhi_xing_1_ci_zui_jin_2, a.executionCount, lastRun),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = themeTextGrey(),
+                                            modifier = Modifier.padding(top = SpacingTokens.xxs),
+                                        )
+                                    }
+                                    if (a.lastError != null) {
+                                        Text(
+                                            text = stringResource(R.string.automation_zui_jin_cuo_wu_1, a.lastError),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = SpacingTokens.xxs),
+                                        )
+                                    }
                                 }
-                                Text(
-                                    text = stringResource(R.string.automation_yi_zhi_xing_1_ci_zui_jin_2, a.executionCount, lastRun),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = themeTextGrey(),
-                                    modifier = Modifier.padding(top = SpacingTokens.xxs),
-                                )
-                            }
-                            if (a.lastError != null) {
-                                Text(
-                                    text = stringResource(R.string.automation_zui_jin_cuo_wu_1, a.lastError),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = SpacingTokens.xxs),
+                                Switch(
+                                    checked = a.enabled,
+                                    onCheckedChange = {
+                                        store.setEnabled(a.id, it)
+                                        automations = store.list()
+                                    },
                                 )
                             }
                         }
-                        Switch(
-                            checked = a.enabled,
-                            onCheckedChange = {
-                                store.setEnabled(a.id, it)
-                                automations = store.list()
-                            },
-                        )
                     }
                 }
             }
@@ -218,7 +246,7 @@ private fun CreateAutomationDialog(
                     OutlinedTextField(
                         value = prompt,
                         onValueChange = { prompt = it },
-                        label = { Text("Prompt") },
+                        label = { Text(stringResource(R.string.automation_prompt_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
                     )
@@ -271,7 +299,7 @@ private fun EditAutomationDialog(
                     OutlinedTextField(
                         value = prompt,
                         onValueChange = { prompt = it },
-                        label = { Text("Prompt") },
+                        label = { Text(stringResource(R.string.automation_prompt_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
                     )
