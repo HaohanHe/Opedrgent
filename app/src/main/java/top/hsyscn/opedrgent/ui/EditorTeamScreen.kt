@@ -63,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -129,11 +130,13 @@ fun EditorTeamScreen(
     val listState = rememberLazyListState()
 
     // 群聊状态
-    var messages by rememberSaveable { mutableStateOf<List<GroupChatMessage>>(emptyList()) }
+    // ★ 使用 remember 而非 rememberSaveable：消息列表可能很大，保存到 Bundle 会导致
+    // TransactionTooLargeException；进程重建时由业务层重新加载即可。
+    var messages by remember { mutableStateOf<List<GroupChatMessage>>(emptyList()) }
     var inputText by remember { mutableStateOf(initialInput) }
     var isProcessing by remember { mutableStateOf(false) }
     var currentSpeakingAlias by remember { mutableStateOf("") } // 当前正在发言的角色
-    var pipelineIndex by rememberSaveable { mutableStateOf(0) }
+    var pipelineIndex by rememberSaveable { mutableIntStateOf(0) }
     var pipelineMenuExpanded by remember { mutableStateOf(false) }
     val selectedPipeline = if (pipelineIndex == 0) EditorRole.defaultPipeline else EditorRole.quickPolishPipeline
 

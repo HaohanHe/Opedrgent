@@ -1686,16 +1686,25 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /**
      * 将内容 URI 转为 base64 data URL (自动压缩过大图片)。
+     *
+     * 使用 inSampleSize 先下采样，避免直接解码超大原图导致 OOM。
      */
     private suspend fun uriToBase64DataUrl(uri: android.net.Uri): String? = withContext(Dispatchers.IO) {
         try {
-            val inputStream = app.contentResolver.openInputStream(uri) ?: return@withContext null
-            val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            if (bitmap == null) return@withContext null
-
-            // 压缩过大图片 (最长边限制 1280px, 避免超出 API 限制)
             val maxSide = 1280
+            val (srcWidth, srcHeight) = app.contentResolver.openInputStream(uri)?.use { stream ->
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeStream(stream, null, bounds)
+                bounds.outWidth to bounds.outHeight
+            } ?: return@withContext null
+
+            val sampleSize = calculateBitmapSampleSize(srcWidth, srcHeight, maxSide, maxSide)
+            val bitmap = app.contentResolver.openInputStream(uri)?.use { stream ->
+                val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                android.graphics.BitmapFactory.decodeStream(stream, null, options)
+            } ?: return@withContext null
+
+            // 二次缩放到目标尺寸
             val scaledBitmap = if (bitmap.width > maxSide || bitmap.height > maxSide) {
                 val scale = maxSide.toFloat() / maxOf(bitmap.width, bitmap.height)
                 android.graphics.Bitmap.createScaledBitmap(
@@ -1715,6 +1724,50 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             DebugLog.e("uriToBase64DataUrl 异常: ${e.message}", e)
             null
         }
+    }
+
+    /**
+     * 本地模型输入图片的最大边长，超过则先下采样，避免 OOM 与本地模型输入过大。
+     */
+    private val maxLocalModelImageSide = 896
+
+    /**
+     * 将 Base64 data URL 解码为限制尺寸的 Bitmap，失败返回 null。
+     */
+    private fun decodeBase64BitmapLimited(dataUrl: String, maxSide: Int): android.graphics.Bitmap? {
+        return try {
+            val pureBase64 = dataUrl.substringAfter(",")
+            val bytes = android.util.Base64.decode(pureBase64, android.util.Base64.DEFAULT)
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            val sampleSize = calculateBitmapSampleSize(bounds.outWidth, bounds.outHeight, maxSide, maxSide)
+            val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+            if (bitmap.width > maxSide || bitmap.height > maxSide) {
+                val scale = maxSide.toFloat() / maxOf(bitmap.width, bitmap.height)
+                android.graphics.Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).toInt(),
+                    (bitmap.height * scale).toInt(),
+                    true,
+                ).also { if (it != bitmap) bitmap.recycle() }
+            } else bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 计算 Bitmap 采样倍率，使解码后图片不超过目标宽高。
+     */
+    private fun calculateBitmapSampleSize(width: Int, height: Int, reqWidth: Int, reqHeight: Int): Int {
+        if (width <= 0 || height <= 0) return 1
+        var inSampleSize = 1
+        while (width / inSampleSize > reqWidth || height / inSampleSize > reqHeight) {
+            inSampleSize *= 2
+        }
+        return inSampleSize
     }
 
     /**
@@ -4603,11 +4656,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (mapImages.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 for (b64 in mapImages) {
-                    try {
-                        val bytes = android.util.Base64.decode(b64.substringAfter(","), android.util.Base64.DEFAULT)
-                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        if (bitmap != null) bitmaps.add(bitmap)
-                    } catch (_: Exception) {}
+                    decodeBase64BitmapLimited(b64, maxLocalModelImageSide)?.let { bitmaps.add(it) }
                 }
             }
         }
@@ -4615,11 +4664,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // 用户附加的图片 (本地模型路径)
         pendingImage?.let { dataUrl ->
             withContext(Dispatchers.IO) {
-                try {
-                    val bytes = android.util.Base64.decode(dataUrl.substringAfter(","), android.util.Base64.DEFAULT)
-                    val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) bitmaps.add(bitmap)
-                } catch (_: Exception) {}
+                decodeBase64BitmapLimited(dataUrl, maxLocalModelImageSide)?.let { bitmaps.add(it) }
             }
             pendingImage = null
         }
