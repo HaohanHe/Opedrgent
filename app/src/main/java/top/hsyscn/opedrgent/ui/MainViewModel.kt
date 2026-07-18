@@ -49,6 +49,7 @@ import top.hsyscn.opedrgent.ui.state.RecorderStateManager
 import top.hsyscn.opedrgent.ui.state.InterviewStateManager
 import top.hsyscn.opedrgent.ui.state.AgentUiBridge
 import top.hsyscn.opedrgent.ui.state.AgentUiStateManager
+import top.hsyscn.opedrgent.ui.state.HamContactLogHelper
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -652,10 +653,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         onContactLogGenerated?.invoke(null)
 
         // 先从卫星数据库找匹配卫星，预填充已知字段
-        val satMatch = findSatelliteInText(transcript + "\n" + conversationContext)
+        val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
         val preFilled = HamContactLog(
             date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
-            gridLocator = apiSettings.getMyGridsquare().ifBlank { apiSettings.getLastGridLocator() ?: "" },
+            gridLocator = apiSettings.getMyGridsquare().ifBlank { with(HamContactLogHelper) { apiSettings.getLastGridLocator() } ?: "" },
             satName = satMatch?.name ?: "",
             frequency = satMatch?.downlinkMHz ?: "",
             mode = satMatch?.modulation ?: "",
@@ -714,8 +715,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         ),
                     )
                 }
-                val aiLog = parseContactLogJson(result)
-                val merged = mergeContactLog(preFilled, aiLog)
+                val aiLog = HamContactLogHelper.parseContactLogJson(result)
+                val merged = HamContactLogHelper.mergeContactLog(preFilled, aiLog)
                 contactLog = merged
                 onContactLogGenerated?.invoke(merged)
             } catch (e: Exception) {
@@ -728,92 +729,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-    /**
-     * 从卫星数据库中查找文本里提及的卫星
-     */
-    private fun findSatelliteInText(text: String): top.hsyscn.opedrgent.tools.SatellitePassTool.HamSatellite? {
-        if (text.isBlank()) return null
-        return try {
-            val tool = top.hsyscn.opedrgent.tools.SatellitePassTool(getApplication(), apiSettings)
-            val sats = tool.satelliteDb()
-            sats.firstOrNull { sat ->
-                text.contains(sat.name, ignoreCase = true) ||
-                (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true))
-            }
-        } catch (e: Exception) { null }
-    }
-
-    /**
-     * 合并预填充 + AI 提取：预填充优先，AI 只补空字段
-     */
-    private fun mergeContactLog(preFilled: HamContactLog, aiLog: HamContactLog?): HamContactLog {
-        if (aiLog == null) return preFilled
-        return HamContactLog(
-            date = preFilled.date.ifBlank { aiLog.date },
-            timeOn = preFilled.timeOn.ifBlank { aiLog.timeOn },
-            timeOff = preFilled.timeOff.ifBlank { aiLog.timeOff },
-            satName = preFilled.satName.ifBlank { aiLog.satName },
-            callsign = preFilled.callsign.ifBlank { aiLog.callsign },
-            frequency = preFilled.frequency.ifBlank { aiLog.frequency },
-            mode = preFilled.mode.ifBlank { aiLog.mode },
-            rstSent = preFilled.rstSent.ifBlank { aiLog.rstSent },
-            rstReceived = preFilled.rstReceived.ifBlank { aiLog.rstReceived },
-            notes = preFilled.notes.ifBlank { aiLog.notes },
-            gridLocator = preFilled.gridLocator.ifBlank { aiLog.gridLocator },
-            noradId = preFilled.noradId.ifBlank { aiLog.noradId },
-            maxElevation = preFilled.maxElevation.ifBlank { aiLog.maxElevation },
-            result = preFilled.result.ifBlank { aiLog.result },
-        )
-    }
-
-    /** 从 QTH 经纬度计算梅登海格网格（简化版，6 字符） */
-    private fun ApiSettings.getLastGridLocator(): String? {
-        val lat = getLastLatitude() ?: return null
-        val lon = getLastLongitude() ?: return null
-        return latLonToGrid(lat, lon)
-    }
-
-    /** 经纬度转梅登海格 6 字符网格 */
-    private fun latLonToGrid(lat: Float, lon: Float): String {
-        // 简化转换：仅做粗略估算，不做完整梅登海格计算
-        val latAdj = lat + 90.0
-        val lonAdj = lon + 180.0
-        val fieldLon = (lonAdj / 20.0).toInt().coerceIn(0, 17)
-        val fieldLat = (latAdj / 10.0).toInt().coerceIn(0, 17)
-        val squareLon = ((lonAdj % 20.0) / 2.0).toInt().coerceIn(0, 9)
-        val squareLat = ((latAdj % 10.0) / 1.0).toInt().coerceIn(0, 9)
-        val subsquareLon = ((lonAdj % 2.0) * 12.0).toInt().coerceIn(0, 23)
-        val subsquareLat = ((latAdj % 1.0) * 24.0).toInt().coerceIn(0, 23)
-        val fieldChars = "ABCDEFGHIJKLMNOPQR"
-        val subsquareChars = "abcdefghijklmnopqrstuvwx"
-        return "${fieldChars[fieldLon]}${fieldChars[fieldLat]}$squareLon$squareLat${subsquareChars[subsquareLon]}${subsquareChars[subsquareLat]}"
-    }
-
-    /** 解析 AI 返回的 JSON 为 HamContactLog */
-    private fun parseContactLogJson(jsonText: String): HamContactLog? = runCatching {
-        val cleaned = jsonText.trim()
-            .replace("```json", "")
-            .replace("```", "")
-            .trim()
-        val obj = org.json.JSONObject(cleaned)
-        HamContactLog(
-            date = obj.optString("date"),
-            timeOn = obj.optString("timeOn"),
-            timeOff = obj.optString("timeOff"),
-            satName = obj.optString("satName"),
-            callsign = obj.optString("callsign"),
-            frequency = obj.optString("frequency"),
-            mode = obj.optString("mode"),
-            rstSent = obj.optString("rstSent"),
-            rstReceived = obj.optString("rstReceived"),
-            notes = obj.optString("notes"),
-            gridLocator = obj.optString("gridLocator"),
-            noradId = obj.optString("noradId"),
-            maxElevation = obj.optString("maxElevation"),
-            result = obj.optString("result"),
-        )
-    }.onFailure { DebugLog.w("parseContactLogJson: 解析失败: ${it.message}") }.getOrNull()
 
     /** Ham 模式：导出通联日志为 ADIF 格式文件（兼容 QRZ Logbook / LoTW / ClubLog） */
     suspend fun exportContactLog(log: HamContactLog): File = withContext(Dispatchers.IO) {
