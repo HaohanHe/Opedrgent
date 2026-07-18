@@ -206,6 +206,19 @@
     <string name="interview_yi_ban">一般</string>
     <string name="interview_yi_hui_da_1_ge_wen_ti_que_ding">已回答 %1$d 个问题，确定结束并生成报告？</string>
     <string name="interview_you_xiu">优秀</string>
+    <string name="interview_report_title">面试评估报告</string>
+    <string name="interview_report_type_label">类型</string>
+    <string name="interview_report_total_score_label">总分</string>
+    <string name="interview_report_duration_label">时长</string>
+    <string name="interview_report_question_count_label">问题数</string>
+    <string name="interview_report_summary_title">总体评价</string>
+    <string name="interview_report_strengths_title">优势</string>
+    <string name="interview_report_weaknesses_title">不足</string>
+    <string name="interview_report_recommendations_title">改进建议</string>
+    <string name="interview_report_dimensions_title">各维度评分</string>
+    <string name="interview_report_dimension_item">- **%1$s**: %2$d/%3$d - %4$s</string>
+    <string name="interview_report_total_score_unit">分</string>
+    <string name="interview_report_duration_seconds">秒</string>
     <!-- invisible -->
     <string name="invisible_partner_1_pian">%1$s 篇</string>
     <string name="invisible_partner_1_zi_dong_jian_ce_2">%1$s (自动检测: %2$s)</string>
@@ -512,6 +525,12 @@
     <string name="note_sprout_fa_ya_zheng_zai_jin_xing">发芽正在进行中，请稍候</string>
     <string name="note_sprout_ri_qi_ge_shi">MM月dd日</string>
     <string name="note_sprout_sheng_cheng_shi_bai">生成失败</string>
+    <string name="note_sprout_markdown_title"># %1$s</string>
+    <string name="note_sprout_section_shocking_moment">**震惊瞬间:** %1$s</string>
+    <string name="note_sprout_action_items_title">## 行动建议</string>
+    <string name="note_sprout_plain_shocking_moment">震惊瞬间: %1$s</string>
+    <string name="note_sprout_plain_action_items_title">行动建议:</string>
+    <string name="note_sprout_share_title">【%1$s】</string>
     <!-- voiceprint -->
     <string name="voiceprint_enroll_dang_qian_lu_yin_shang_wei">当前录音尚未保存，确定要放弃吗？</string>
     <string name="voiceprint_enroll_deng_dai_kai_shi">等待开始</string>

@@ -21,6 +21,7 @@ import top.hsyscn.opedrgent.interview.InterviewReport
 import top.hsyscn.opedrgent.interview.NextAction
 import top.hsyscn.opedrgent.interview.VoiceConversationEngine
 import top.hsyscn.opedrgent.network.LlmClient
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.settings.ApiConfig
@@ -472,35 +473,43 @@ class InterviewStateManager(
 
             try {
                 val noteContent = buildString {
-                    appendLine("# 面试评估报告")
+                    appendLine("# ${app.getString(R.string.interview_report_title)}")
                     appendLine()
-                    appendLine("**类型**: ${report.type.label}")
-                    appendLine("**总分**: ${report.overallScore} 分 (${report.verdict.label})")
-                    appendLine("**时长**: ${report.durationSeconds} 秒")
-                    appendLine("**问题数**: ${report.questionCount}")
+                    appendLine("**${app.getString(R.string.interview_report_type_label)}**: ${report.type.label}")
+                    appendLine("**${app.getString(R.string.interview_report_total_score_label)}**: ${report.overallScore} ${app.getString(R.string.interview_report_total_score_unit)} (${report.verdict.label})")
+                    appendLine("**${app.getString(R.string.interview_report_duration_label)}**: ${report.durationSeconds} ${app.getString(R.string.interview_report_duration_seconds)}")
+                    appendLine("**${app.getString(R.string.interview_report_question_count_label)}**: ${report.questionCount}")
                     appendLine()
-                    appendLine("## 总体评价")
+                    appendLine("## ${app.getString(R.string.interview_report_summary_title)}")
                     appendLine(report.summary)
                     appendLine()
                     if (report.strengths.isNotEmpty()) {
-                        appendLine("## [优势]")
+                        appendLine("## [${app.getString(R.string.interview_report_strengths_title)}]")
                         report.strengths.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.weaknesses.isNotEmpty()) {
-                        appendLine("## [不足]")
+                        appendLine("## [${app.getString(R.string.interview_report_weaknesses_title)}]")
                         report.weaknesses.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.recommendations.isNotEmpty()) {
-                        appendLine("## [改进建议]")
+                        appendLine("## [${app.getString(R.string.interview_report_recommendations_title)}]")
                         report.recommendations.forEach { appendLine("- $it") }
                         appendLine()
                     }
                     if (report.dimensions.isNotEmpty()) {
-                        appendLine("## [各维度评分]")
+                        appendLine("## [${app.getString(R.string.interview_report_dimensions_title)}]")
                         report.dimensions.forEach { dim ->
-                            appendLine("- **${dim.name}**: ${dim.score}/${dim.maxScore.toInt()} - ${dim.feedback}")
+                            appendLine(
+                                app.getString(
+                                    R.string.interview_report_dimension_item,
+                                    dim.name,
+                                    dim.score.toInt(),
+                                    dim.maxScore.toInt(),
+                                    dim.feedback,
+                                )
+                            )
                         }
                     }
                 }

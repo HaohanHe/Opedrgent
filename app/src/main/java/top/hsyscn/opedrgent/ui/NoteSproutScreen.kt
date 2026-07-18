@@ -205,7 +205,7 @@ fun NoteSproutScreen(
                                 text = { Text(stringResource(R.string.sprout_copy_report)) },
                                 onClick = {
                                     showMenu = false
-                                    val reportText = article?.toMarkdown() ?: ""
+                                    val reportText = article?.toMarkdown(context) ?: ""
                                     if (reportText.isNotEmpty()) {
                                         clipboardManager.setText(AnnotatedString(reportText))
                                     }
@@ -225,7 +225,7 @@ fun NoteSproutScreen(
                                 text = { Text(stringResource(R.string.sprout_action_copy_full)) },
                                 onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val text = article?.toMarkdownText() ?: ""
+                                    val text = article?.toMarkdownText(context) ?: ""
                                     ClipData.newPlainText(context.getString(R.string.sprout_report_title), text).let { clipboard.setPrimaryClip(it) }
                                     feedback.showFeedback(context.getString(R.string.msg_copied_to_clipboard))
                                     showMenu = false
@@ -236,7 +236,7 @@ fun NoteSproutScreen(
                                 text = { Text(stringResource(R.string.sprout_dao_chu_markdown)) },
                                 onClick = {
                                     showMenu = false
-                                    val text = article?.toMarkdownText() ?: ""
+                                    val text = article?.toMarkdownText(context) ?: ""
                                     if (text.isBlank()) {
                                         feedback.showFeedback(context.getString(R.string.sprout_mei_you_ke_dao_chu_de_nei_rong))
                                         return@DropdownMenuItem
@@ -483,7 +483,7 @@ private fun SproutArticleContent(
                             feedback.showFeedback(context.getString(R.string.sprout_cao_zuo_zheng_zai_jin_xing))
                             return@launch
                         }
-                        val reportText = article.toPlainText()
+                        val reportText = article.toPlainText(context)
                         onAppendStateChange(true)
                         try {
                             withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -508,7 +508,7 @@ private fun SproutArticleContent(
             // 分享
             OutlinedButton(
                 onClick = {
-                    val shareText = article.toShareText()
+                    val shareText = article.toShareText(context)
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, shareText)
@@ -525,7 +525,7 @@ private fun SproutArticleContent(
             // 基于此再发芽
             OutlinedButton(
                 onClick = {
-                    val seedContent = article.toPlainText()
+                    val seedContent = article.toPlainText(context)
                     onResprout(seedContent)
                 },
                 enabled = !isRefreshing,
@@ -977,7 +977,7 @@ private fun doSprout(
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
                             note.setSproutArticle(article)
                             repository.saveNote(note)
-                            persistSprout(sproutReportStore, note.id, note.title, article)
+                            persistSprout(context, sproutReportStore, note.id, note.title, article)
                         }
                         onSuccess(article)
                     },
@@ -997,6 +997,7 @@ private fun doSprout(
  * 将发芽结果持久化到 SproutReportStore（同步执行，在 mutex 保护内调用）
  */
 private suspend fun persistSprout(
+    context: Context,
     store: SproutReportStore?,
     noteId: Long,
     noteTitle: String,
@@ -1007,11 +1008,11 @@ private suspend fun persistSprout(
         store.insert(SproutReportRecord(
             sourceNoteId = noteId,
             sourceTitle = noteTitle,
-            markdownReport = article.toMarkdown(),
+            markdownReport = article.toMarkdown(context),
             summary = article.summary,
             modelUsed = article.modelUsed,
             createdAt = article.generatedAt,
-            wordCount = article.markdownReport().length,
+            wordCount = article.markdownReport(context).length,
         ))
     }.onFailure { e ->
         DebugLog.w("NoteSproutScreen", "persistSprout failed: ${e.message}")
@@ -1019,43 +1020,49 @@ private suspend fun persistSprout(
 }
 
 /** 将 SproutArticle 转为纯 Markdown 文本（用于存储） */
-private fun SproutArticle.toMarkdown(): String = buildString {
-    appendLine("# 发芽报告")
+private fun SproutArticle.toMarkdown(context: Context): String = buildString {
+    val reportTitle = context.getString(R.string.sprout_report_title)
+    appendLine(context.getString(R.string.note_sprout_markdown_title, reportTitle))
     appendLine()
     if (summary.isNotEmpty()) appendLine("> $summary").appendLine()
     articles.forEachIndexed { idx, section ->
         appendLine("## ${section.title}")
         if (section.seed.isNotEmpty()) appendLine("*${section.seed}*").appendLine()
         appendLine(section.body).appendLine()
-        if (section.shockingMoment.isNotEmpty()) appendLine("**震惊瞬间:** ${section.shockingMoment}").appendLine()
+        if (section.shockingMoment.isNotEmpty()) {
+            appendLine(context.getString(R.string.note_sprout_section_shocking_moment, section.shockingMoment)).appendLine()
+        }
     }
     if (actionItems.isNotEmpty()) {
-        appendLine("## 行动建议")
+        appendLine(context.getString(R.string.note_sprout_action_items_title))
         actionItems.forEach { appendLine("- [ ] $it") }
         appendLine()
     }
 }
 
 /** SproutArticle 的 markdown 报告（兼容旧字段名） */
-private fun SproutArticle.markdownReport(): String = toMarkdown()
+private fun SproutArticle.markdownReport(context: Context): String = toMarkdown(context)
 
 /** 将 SproutArticle 转为纯文本（用于追加笔记、再发芽等场景） */
-private fun SproutArticle.toPlainText(): String = buildString {
+private fun SproutArticle.toPlainText(context: Context): String = buildString {
     if (summary.isNotEmpty()) appendLine(summary).appendLine()
     articles.forEach { section ->
         if (section.title.isNotEmpty()) appendLine("## ${section.title}")
         appendLine(section.body)
-        if (section.shockingMoment.isNotEmpty()) appendLine("震惊瞬间: ${section.shockingMoment}")
+        if (section.shockingMoment.isNotEmpty()) {
+            appendLine(context.getString(R.string.note_sprout_plain_shocking_moment, section.shockingMoment))
+        }
     }
     if (actionItems.isNotEmpty()) {
-        appendLine("行动建议:")
+        appendLine(context.getString(R.string.note_sprout_plain_action_items_title))
         actionItems.forEach { appendLine("- $it") }
     }
 }
 
 /** 将 SproutArticle 转为分享文本（精简版，适合分享给他人） */
-private fun SproutArticle.toShareText(): String = buildString {
-    appendLine("【发芽报告】")
+private fun SproutArticle.toShareText(context: Context): String = buildString {
+    val reportTitle = context.getString(R.string.sprout_report_title)
+    appendLine(context.getString(R.string.note_sprout_share_title, reportTitle))
     if (summary.isNotEmpty()) appendLine(summary)
     articles.forEach { section ->
         appendLine("${section.title}: ${section.body.take(200)}")
@@ -1063,4 +1070,4 @@ private fun SproutArticle.toShareText(): String = buildString {
 }
 
 /** 将 SproutArticle 转为完整 Markdown 文本（用于复制/导出） */
-private fun SproutArticle.toMarkdownText(): String = toMarkdown()
+private fun SproutArticle.toMarkdownText(context: Context): String = toMarkdown(context)
