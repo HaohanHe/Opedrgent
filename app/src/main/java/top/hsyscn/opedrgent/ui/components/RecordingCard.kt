@@ -142,7 +142,7 @@ fun RecordingCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "录音",
+                        contentDescription = stringResource(R.string.recording_card_cd_recording),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(SpacingTokens.xl * pulseScale),
                     )
@@ -160,8 +160,8 @@ fun RecordingCard(
                     // 录音状态指示文字
                     Text(
                         text = when (recordingState) {
-                            RecordingState.RECORDING -> "● 正在录音..."
-                            RecordingState.PAUSED -> "⏸ 已暂停"
+                            RecordingState.RECORDING -> stringResource(R.string.recording_card_state_recording)
+                            RecordingState.PAUSED -> stringResource(R.string.state_paused)
                             else -> fileName
                         },
                         style = if (recordingState == RecordingState.RECORDING)
@@ -187,7 +187,7 @@ fun RecordingCard(
                 IconButton(onClick = onCancel) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消录音",
+                        contentDescription = stringResource(R.string.recording_card_cd_cancel),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -223,7 +223,7 @@ fun RecordingCard(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Pause,
-                                contentDescription = "暂停",
+                                contentDescription = stringResource(R.string.cd_pause),
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp),
                             )
@@ -262,7 +262,7 @@ fun RecordingCard(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = "继续",
+                                contentDescription = stringResource(R.string.action_resume),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp),
                             )
@@ -299,13 +299,13 @@ fun RecordingCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(Modifier.width(SpacingTokens.md))
-                    Text("处理中...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.msg_processing), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
             if (recordingState == RecordingState.PAUSED) {
                 Spacer(Modifier.height(SpacingTokens.sm))
-                Text("已暂停", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.state_paused), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

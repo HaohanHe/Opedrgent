@@ -17,11 +17,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -33,6 +35,9 @@ fun MessageBodyConfigUpdate(
     newValue: String,
     modifier: Modifier = Modifier,
 ) {
+    val fromText = stringResource(R.string.msg_body_config_from)
+    val toText = stringResource(R.string.msg_body_config_to)
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -44,7 +49,7 @@ fun MessageBodyConfigUpdate(
     ) {
         Icon(
             imageVector = Icons.Default.Tune,
-            contentDescription = "配置更新",
+            contentDescription = stringResource(R.string.msg_body_cd_config_update),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.primary,
         )
@@ -54,11 +59,11 @@ fun MessageBodyConfigUpdate(
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
                     append(configName)
                 }
-                append(" 已从 ")
+                append(fromText)
                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)) {
                     append(oldValue)
                 }
-                append(" 更改为 ")
+                append(toText)
                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)) {
                     append(newValue)
                 }

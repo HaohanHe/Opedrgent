@@ -53,9 +53,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
+import androidx.compose.ui.res.stringResource
 
 private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
 
@@ -275,14 +277,14 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
         }
         if (truncated) {
             Text(
-                text = "... (内容过长，已截断显示)",
+                text = stringResource(R.string.markdown_truncated_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (t.length > maxChars) {
             TextButton(onClick = { expanded = !expanded }) {
-                Text(if (expanded) "收起" else "展开", color = accentColor)
+                Text(stringResource(if (expanded) R.string.action_collapse else R.string.action_expand), color = accentColor)
             }
         }
     }

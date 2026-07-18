@@ -91,6 +91,7 @@ fun QuestionDock(
             questions.indices.forEach { put(it, "") }
         }
     }
+    val customAnswerPrefix = stringResource(R.string.question_custom_prefix)
 
     Card(
         modifier = modifier,
@@ -107,7 +108,13 @@ fun QuestionDock(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (collapsed) "选择题 (${questions.size})" else (if (isMultiQuestion) "问题 ${currentQuestionIndex + 1}/${questions.size}" else questions[currentQuestionIndex].header),
+                    text = if (collapsed) {
+                        stringResource(R.string.question_count_label, questions.size)
+                    } else if (isMultiQuestion) {
+                        stringResource(R.string.question_progress_label, currentQuestionIndex + 1, questions.size)
+                    } else {
+                        questions[currentQuestionIndex].header
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
@@ -118,7 +125,7 @@ fun QuestionDock(
                 ) {
                     Icon(
                         imageVector = if (collapsed) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (collapsed) "展开" else "折叠",
+                        contentDescription = stringResource(if (collapsed) R.string.action_expand else R.string.action_collapse),
                         tint = themeTextGrey(),
                         modifier = Modifier.size(SpacingTokens.md),
                     )
@@ -129,7 +136,7 @@ fun QuestionDock(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消",
+                        contentDescription = stringResource(R.string.action_cancel),
                         tint = themeTextGrey(),
                         modifier = Modifier.size(SpacingTokens.md),
                     )
@@ -153,7 +160,7 @@ fun QuestionDock(
                     )
 
                     if (currentQ.multiple) {
-                        Text("（可多选）", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                        Text(stringResource(R.string.question_multi_select_hint), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                     }
 
                     val focusManager = LocalFocusManager.current
@@ -223,7 +230,7 @@ fun QuestionDock(
                         OutlinedTextField(
                             value = customInputs.getOrDefault(currentQuestionIndex, ""),
                             onValueChange = { customInputs[currentQuestionIndex] = it },
-                            placeholder = { Text("输入自定义答案...", color = themeTextGrey(), style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text(stringResource(R.string.question_custom_answer_placeholder), color = themeTextGrey(), style = MaterialTheme.typography.bodySmall) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
@@ -234,7 +241,7 @@ fun QuestionDock(
                                         val customText = customInputs.getOrDefault(currentQuestionIndex, "").trim()
                                         if (customText.isNotBlank()) {
                                             val current = answers.getOrDefault(currentQuestionIndex, emptySet())
-                                            answers[currentQuestionIndex] = current + "[自定义] $customText"
+                                            answers[currentQuestionIndex] = current + customAnswerPrefix.format(customText)
                                         }
                                         focusManager.clearFocus()
                                         if (!isMultiQuestion) {
@@ -274,13 +281,13 @@ fun QuestionDock(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("取消", color = themeTextGrey())
+                            Text(stringResource(R.string.action_cancel), color = themeTextGrey())
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                             if (isMultiQuestion && currentQuestionIndex > 0) {
                                 TextButton(onClick = { currentQuestionIndex-- }) {
-                                    Text("上一步")
+                                    Text(stringResource(R.string.question_previous))
                                 }
                             }
 
@@ -293,7 +300,7 @@ fun QuestionDock(
                                     shape = ShapeTokens.smallShape,
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                                 ) {
-                                    Text("下一步")
+                                    Text(stringResource(R.string.question_next))
                                 }
                             } else {
                                 androidx.compose.material3.Button(
@@ -313,10 +320,10 @@ fun QuestionDock(
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     } else {
-                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "提交", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.question_submit_cd), modifier = Modifier.size(16.dp))
                                     }
                                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                                    Text(if (isSubmitting) "提交中..." else "确认提交")
+                                    Text(stringResource(if (isSubmitting) R.string.question_submitting else R.string.question_confirm_submit))
                                 }
                             }
                         }

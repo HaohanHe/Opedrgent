@@ -67,7 +67,7 @@ class SmartCircuitBreaker(
         }
     }
 
-    suspend fun recordSuccess(responseTimeMs: Long = 0) {
+    fun recordSuccess(responseTimeMs: Long = 0) {
         recentResults.addLast(true)
         trimWindow()
         consecutiveFailures = 0

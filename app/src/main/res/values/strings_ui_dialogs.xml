@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ConfirmationDialog -->
+    <string name="confirm_dialog_cd_cancel">取消</string>
+    <string name="confirm_dialog_cd_confirm">确认</string>
+
+    <!-- ModelSelectorDialog -->
+    <string name="model_selector_cd_download_model">下载模型</string>
+    <string name="model_selector_cd_model_size">模型大小</string>
+    <string name="model_selector_cd_retry">重试</string>
+    <string name="model_selector_desc">选择要下载和使用的 Gemma 4 本地模型。模型将在设备上完全离线运行。</string>
+    <string name="model_selector_storage_info">已使用空间: %1$d MB | 数据存储于应用私有目录</string>
+    <string name="model_selector_title">本地模型管理</string>
+    <string name="model_status_cancelled">已取消</string>
+    <string name="model_status_downloaded">已下载</string>
+    <string name="model_status_downloading">下载中</string>
+    <string name="model_status_failed">失败</string>
+    <string name="model_status_in_use">使用中</string>
+    <string name="model_status_cd_in_use">正在使用</string>
+    <string name="model_status_paused">已暂停</string>
+    <string name="model_status_queued">排队中</string>
+    <string name="model_status_running">运行中</string>
+
+    <!-- AudioPickerDialog -->
+    <string name="audio_picker_cd_close_dialog">关闭选择输入方式对话框</string>
+    <string name="audio_picker_cd_dialog">选择音频输入方式对话框</string>
+    <string name="audio_picker_cd_record">录音</string>
+    <string name="audio_picker_cd_record_realtime">使用麦克风实时录音转文字</string>
+    <string name="audio_picker_cd_upload">上传文件</string>
+    <string name="audio_picker_cd_upload_file">上传音视频文件，支持 MP3、WAV、M4A、MP4 等格式</string>
+    <string name="audio_picker_local_process_hint">提示：上传的文件将在本地处理，不会上传至服务器</string>
+    <string name="audio_picker_realtime_desc">使用麦克风实时识别</string>
+    <string name="audio_picker_realtime_record">实时录音转文字</string>
+    <string name="audio_picker_supported_formats">MP3, WAV, M4A, MP4 等格式</string>
+    <string name="audio_picker_title">选择输入方式</string>
+    <string name="audio_picker_upload_file">上传音视频文件</string>
+
+    <!-- SttProgressDialog -->
+    <string name="stt_progress_cd_cancel_processing">取消处理</string>
+    <string name="stt_progress_cd_close_error">关闭错误提示</string>
+    <string name="stt_progress_cd_dialog">语音处理进度对话框</string>
+    <string name="stt_progress_cd_download_model">下载模型</string>
+    <string name="stt_progress_cd_error">错误</string>
+    <string name="stt_progress_cd_extract_audio">提取音频</string>
+    <string name="stt_progress_cd_recognizing">语音识别</string>
+    <string name="stt_progress_downloading_model">正在下载语音识别模型... (%1$d%%)</string>
+    <string name="stt_progress_error_desc">请检查文件格式或网络连接后重试</string>
+    <string name="stt_progress_error_title">处理过程中出现错误</string>
+    <string name="stt_progress_extracting_audio">正在提取音频轨道...</string>
+    <string name="stt_progress_model_size_hint">模型大小约 200MB，首次使用需下载</string>
+    <string name="stt_progress_ok">确定</string>
+    <string name="stt_progress_recognizing">正在进行语音识别...</string>
+    <string name="stt_progress_view_help">查看帮助</string>
+
+    <!-- PlaybackSpeedSheet -->
+    <string name="playback_speed_cd_selected">已选择该速度</string>
+    <string name="playback_speed_title">播放速度</string>
+
+    <!-- RecordingCard -->
+    <string name="recording_card_cd_cancel">取消录音</string>
+    <string name="recording_card_cd_recording">录音</string>
+    <string name="recording_card_state_recording">● 正在录音...</string>
+
+    <!-- SttResultCard -->
+    <string name="stt_result_cd_card">语音转录结果卡片</string>
+    <string name="stt_result_cd_close">关闭转录结果</string>
+    <string name="stt_result_cd_copy">复制转录文本</string>
+    <string name="stt_result_cd_error">错误</string>
+    <string name="stt_result_cd_failed">转录失败</string>
+    <string name="stt_result_cd_segment_confidence">第 %1$d 段，置信度 %2$d%%</string>
+    <string name="stt_result_cd_send_ai">发送给 AI</string>
+    <string name="stt_result_cd_send_to_ai">发送给 AI 分析</string>
+    <string name="stt_result_cd_stats_collapsed">统计信息：%1$s。点击展开详情</string>
+    <string name="stt_result_cd_stats_expanded">统计信息：%1$s。已展开</string>
+    <string name="stt_result_cd_success">转录成功</string>
+    <string name="stt_result_cd_text_word_count">转录文本，%1$d 字</string>
+    <string name="stt_result_empty">[空结果]</string>
+    <string name="stt_result_error_possible_causes">可能原因：文件格式不支持、文件损坏或音频内容为空</string>
+    <string name="stt_result_failed_title">转录失败</string>
+    <string name="stt_result_send_to_ai">发送给 AI 分析</string>
+    <string name="stt_result_title">转录结果</string>
+    <string name="stt_result_word_count">%1$d 字</string>
+    <string name="stt_result_duration_label">时长</string>
+    <string name="stt_result_char_count_unit">字</string>
+
+    <!-- MessageBodyError -->
+    <string name="msg_body_cd_error">错误</string>
+    <string name="msg_body_copied_error">已复制错误信息</string>
+    <string name="msg_body_view_all">查看全部</string>
+
+    <!-- MessageBodyInfo -->
+    <string name="msg_body_cd_info">信息</string>
+
+    <!-- MessageBodyConfigUpdate -->
+    <string name="msg_body_cd_config_update">配置更新</string>
+    <string name="msg_body_config_from"> 已从 </string>
+    <string name="msg_body_config_to"> 更改为 </string>
+
+    <!-- ModelDownloadDialog -->
+    <string name="download_action_cancel">取消下载</string>
+    <string name="download_action_confirm_cancel">确定取消</string>
+    <string name="download_action_continue">继续下载</string>
+    <string name="download_cd_download_model">下载模型</string>
+    <string name="download_cd_failed">下载失败</string>
+    <string name="download_confirm_cancel_desc">模型文件较大，重新下载需要较长时间。\n已下载的部分将保留，下次可断点续传。</string>
+    <string name="download_confirm_cancel_title">确定要取消下载吗？</string>
+    <string name="download_downloading_title">正在下载 %1$s</string>
+    <string name="download_encouragement">好东西，就要来了...</string>
+    <string name="download_failed">下载失败</string>
+    <string name="download_preparing_with_size">准备下载 (%1$d MB)</string>
+    <string name="download_status_queued">排队中...</string>
+    <string name="download_unknown_error">未知错误</string>
+
+    <!-- SttModelDownloadDialog -->
+    <string name="download_cd_download_stt_model">下载语音模型</string>
+    <string name="download_preparing">准备中...</string>
+    <string name="download_status_extracting">解压中...</string>
+    <string name="download_status_source_switch">切换下载源...</string>
+
+    <!-- CodeBlock -->
+    <string name="code_block_cd_copy_code">复制代码</string>
+
+    <!-- ThinkingCard -->
+    <string name="thinking_card_title">思考过程</string>
+
+    <!-- AiBubble.kt / UserBubble.kt -->
+    <string name="bubble_action_undo">撤回</string>
+
+    <!-- ChatTab.kt -->
+    <string name="chat_empty_state_action">新建会话</string>
+    <string name="chat_empty_state_subtitle">点击下方按钮，与 Opedrgent 开启一段新的对话</string>
+    <string name="chat_empty_state_title">开始新对话</string>
+    <string name="chat_new_session_title">新对话</string>
+
+    <!-- EmptyStateView.kt -->
+    <string name="empty_state_action">立即创建</string>
+    <string name="empty_state_subtitle">在这里可以查看和管理你的笔记、文档与对话记录</string>
+    <string name="empty_state_title">暂无内容</string>
+
+    <!-- InputModeBar.kt -->
+    <string name="input_mode_chat">对话</string>
+    <string name="input_mode_deep_research">深度研究</string>
+    <string name="input_mode_voice">语音</string>
+    <string name="search_scope_all">全部</string>
+    <string name="search_scope_my_notes">我的笔记</string>
+    <string name="search_scope_web_only">全网</string>
+
+    <!-- MarkdownRenderer.kt -->
+    <string name="markdown_truncated_hint">... (内容过长，已截断显示)</string>
+
+    <!-- QuestionDock.kt -->
+    <string name="question_confirm_submit">确认提交</string>
+    <string name="question_count_label">选择题 (%1$d)</string>
+    <string name="question_custom_prefix">[自定义] %1$s</string>
+    <string name="question_custom_answer_placeholder">输入自定义答案...</string>
+    <string name="question_multi_select_hint">（可多选）</string>
+    <string name="question_next">下一步</string>
+    <string name="question_previous">上一步</string>
+    <string name="question_progress_label">问题 %1$d/%2$d</string>
+    <string name="question_submit_cd">提交</string>
+    <string name="question_submitting">提交中...</string>
+
+    <!-- TextAndVoiceInput.kt -->
+    <string name="input_go_settings">去设置</string>
+    <string name="input_mic_permission_desc">需要麦克风权限来启用语音输入功能。请在设置中开启该权限。</string>
+    <string name="input_mic_permission_title">需要麦克风权限</string>
+
+    <!-- RecordingTab -->
+    <string name="recording_intent_empty">录制 Intent 数据为空</string>
+    <string name="recording_no_permission">未获得录制权限</string>
+    <string name="recording_import_transcript_title">音视频转录 %1$s</string>
+    <string name="recording_saved_as_note_word_count">已保存为笔记（%1$d字）</string>
+    <string name="recording_view">查看</string>
+    <string name="recording_transcript_saved_failed">转录完成，但保存失败</string>
+    <string name="recording_transcript_empty">转录完成，但内容为空</string>
+    <string name="recording_transcript_failed">转录失败</string>
+    <string name="recording_online_recognizer_unavailable">OnlineRecognizer 不可用，已降级为伪流式模式</string>
+    <string name="recording_device_init_failed">无法初始化录音设备</string>
+    <string name="recording_system_audio_init_failed">无法初始化系统音频录制</string>
+    <string name="recording_file_not_found">录音文件不存在</string>
+    <string name="recording_no_content">（无内容）</string>
+    <string name="recording_processing_failed">录音处理失败: %1$s</string>
+    <string name="recording_note_title_date">录音笔记 %1$s</string>
+    <string name="recording_overlay_permission_title">需要悬浮窗权限</string>
+    <string name="recording_overlay_permission_desc">内录模式需要悬浮窗权限来显示录制控制面板，以便在切换到其他应用时控制录制。\n\n是否前往设置开启？</string>
+    <string name="recording_go_to_settings">前往设置</string>
+    <string name="recording_processing_failed_generic">处理失败: %1$s</string>
+    <string name="recording_generating_contact_log">正在生成通联日志…</string>
+    <string name="recording_need_android_10">需要 Android 10+</string>
+    <string name="recording_play_media_hint">请播放你要记录的视频或音频，系统将自动录制</string>
+    <string name="recording_enable_stt_first">请先在设置中开启语音转文字</string>
+    <string name="recording_import_audio_video_title">导入音视频</string>
+    <string name="recording_transcribing_wait">正在转录中，请稍候...</string>
+    <string name="recording_validating_file">正在验证文件...</string>
+    <string name="recording_decoding_audio">正在解码音频...</string>
+    <string name="recording_recognizing_speech_progress">正在识别语音... %1$d/%2$d</string>
+    <string name="recording_recognizing_speech">正在识别语音...</string>
+    <string name="recording_contact_log_generation_failed">通联日志生成失败，请重试</string>
+    <string name="recording_contact_log_draft">通联日志草稿（%1$s）</string>
+    <string name="recording_unnamed">未命名</string>
+    <string name="recording_view_edit">查看/编辑</string>
+    <string name="recording_contact_log_title">通联日志</string>
+    <string name="recording_satellite_required">卫星 *</string>
+    <string name="recording_required">必填</string>
+    <string name="recording_date_required">日期 * (YYYY-MM-DD, UTC)</string>
+    <string name="recording_time_on">开始时间 (HHMMSS, UTC)</string>
+    <string name="recording_time_off">结束时间 (HHMMSS, UTC)</string>
+    <string name="recording_callsign">对方呼号</string>
+    <string name="recording_frequency_mhz">频率 MHz</string>
+    <string name="recording_mode_label">调制方式</string>
+    <string name="recording_rst_sent">发射报告</string>
+    <string name="recording_rst_received">接收报告</string>
+    <string name="recording_max_elevation">最大仰角</string>
+    <string name="recording_result">通联结果 (OK/PARTIAL/NO)</string>
+    <string name="recording_grid_locator">QTH网格</string>
+    <string name="recording_notes">备注</string>
+    <string name="recording_adif_exported">ADIF 已导出</string>
+    <string name="recording_adif_export_failed">ADIF 导出失败: %1$s</string>
+    <string name="recording_csv_exported">CSV 已导出</string>
+    <string name="recording_csv_export_failed">CSV 导出失败: %1$s</string>
+    <string name="recording_save_failed">保存失败: %1$s</string>
+    <string name="recording_unknown_error">未知错误</string>
+    <string name="recording_contact_log_note_title">通联日志 %1$s %2$s</string>
+    <string name="recording_contact_log_header">## 通联日志</string>
+    <string name="recording_contact_log_satellite">- 卫星: %1$s</string>
+    <string name="recording_contact_log_date">- 日期: %1$s</string>
+    <string name="recording_contact_log_time_on">- 开始: %1$s</string>
+    <string name="recording_contact_log_time_off">- 结束: %1$s</string>
+    <string name="recording_contact_log_callsign">- 对方呼号: %1$s</string>
+    <string name="recording_contact_log_frequency">- 频率: %1$s MHz</string>
+    <string name="recording_contact_log_mode">- 模式: %1$s</string>
+    <string name="recording_contact_log_rst_sent">- 发射报告: %1$s</string>
+    <string name="recording_contact_log_rst_received">- 接收报告: %1$s</string>
+    <string name="recording_contact_log_max_elevation">- 最大仰角: %1$s°</string>
+    <string name="recording_contact_log_result">- 结果: %1$s</string>
+    <string name="recording_contact_log_grid_locator">- QTH网格: %1$s</string>
+    <string name="recording_contact_log_notes">- 备注: %1$s</string>
+    <string name="recording_hours_format">%1$d小时</string>
+    <string name="recording_segments_count">%1$d 段</string>
+    <string name="recording_speaker">说话人: %1$s</string>
+    <string name="recording_copied">已复制</string>
+    <string name="recording_convert_to_contact_log">转成通联日志</string>
+    <string name="recording_duration_label">时长: %1$s</string>
+    <string name="recording_participant_count">%1$d人</string>
+    <string name="recording_photo_content_desc">照片</string>
+    <string name="recording_photo_taken_at">拍摄于 %1$02d:%2$02d</string>
+    <string name="recording_photos_taken">拍摄的照片 (%1$d张)</string>
+    <string name="recording_transcription_failed">转录失败: %1$s</string>
+</resources>

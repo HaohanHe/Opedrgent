@@ -20,12 +20,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import android.content.Context
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -43,6 +47,7 @@ fun CodeBlock(
 ) {
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val feedback = LocalFeedbackController.current
     val displayLang = language.trim()
 
@@ -75,12 +80,12 @@ fun CodeBlock(
                 IconButton(
                     onClick = {
                         clipboard.setText(AnnotatedString(code))
-                        feedback.showFeedback("已复制")
+                        feedback.showFeedback(context.getString(R.string.msg_copied))
                     },
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "复制代码",
+                        contentDescription = stringResource(R.string.code_block_cd_copy_code),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

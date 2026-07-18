@@ -18,12 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.llm.*
 import top.hsyscn.opedrgent.service.ModelDownloadService
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
@@ -65,26 +67,26 @@ fun ModelSelectorDialog(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Download,
-                        contentDescription = "下载模型",
+                        contentDescription = stringResource(R.string.model_selector_cd_download_model),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(SpacingTokens.xl),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.md))
                     Text(
-                        text = "本地模型管理",
+                        text = stringResource(R.string.model_selector_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
-                    text = "选择要下载和使用的 Gemma 4 本地模型。模型将在设备上完全离线运行。",
+                    text = stringResource(R.string.model_selector_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -133,7 +135,7 @@ fun ModelSelectorDialog(
 
                 val usedSpace = remember { downloadManager.getTotalUsedSpaceMb() }
                 Text(
-                    text = "已使用空间: ${usedSpace} MB | 数据存储于应用私有目录",
+                    text = stringResource(R.string.model_selector_storage_info, usedSpace),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
@@ -259,7 +261,7 @@ private fun ModelCard(
             ) {
                 Icon(
                         Icons.Default.Storage,
-                        contentDescription = "模型大小",
+                        contentDescription = stringResource(R.string.model_selector_cd_model_size),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(SpacingTokens.md),
                     )
@@ -365,13 +367,13 @@ private fun StatusBadge(
     status: DownloadStatus?
 ) {
     val (text, containerColor, contentColor) = when {
-        isLoaded -> Triple("运行中", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-        isDownloaded -> Triple("已下载", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-        status == DownloadStatus.DOWNLOADING -> Triple("下载中", MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
-        status == DownloadStatus.QUEUED -> Triple("排队中", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
-        status == DownloadStatus.PAUSED -> Triple("已暂停", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
-        status == DownloadStatus.CANCELLED -> Triple("已取消", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
-        status == DownloadStatus.FAILED -> Triple("失败", MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
+        isLoaded -> Triple(stringResource(R.string.model_status_running), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+        isDownloaded -> Triple(stringResource(R.string.model_status_downloaded), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+        status == DownloadStatus.DOWNLOADING -> Triple(stringResource(R.string.model_status_downloading), MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
+        status == DownloadStatus.QUEUED -> Triple(stringResource(R.string.model_status_queued), MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.PAUSED -> Triple(stringResource(R.string.model_status_paused), MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.CANCELLED -> Triple(stringResource(R.string.model_status_cancelled), MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        status == DownloadStatus.FAILED -> Triple(stringResource(R.string.model_status_failed), MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
         else -> Triple(null, MaterialTheme.colorScheme.surface.copy(alpha = 0f), MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
@@ -426,13 +428,13 @@ private fun ActionButton(
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = "正在使用",
+                        contentDescription = stringResource(R.string.model_status_cd_in_use),
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(SpacingTokens.md),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(
-                        text = "使用中",
+                        text = stringResource(R.string.model_status_in_use),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
@@ -448,12 +450,12 @@ private fun ActionButton(
             ) {
                 Icon(
                     Icons.Default.PlayArrow,
-                    contentDescription = "加载",
+                    contentDescription = stringResource(R.string.action_load),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(SpacingTokens.md),
                 )
                 Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                Text(text = "加载", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(text = stringResource(R.string.action_load), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -461,7 +463,7 @@ private fun ActionButton(
             TextButton(
                 onClick = { scope.launch { downloadManager.cancelDownload(modelInfo.id) } },
             ) {
-                Text(text = "取消", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                Text(text = stringResource(R.string.action_cancel), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
             }
         }
 
@@ -469,9 +471,9 @@ private fun ActionButton(
             TextButton(
                 onClick = { downloadManager.startDownload(modelInfo) },
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "重试", modifier = Modifier.size(SpacingTokens.md))
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.model_selector_cd_retry), modifier = Modifier.size(SpacingTokens.md))
                 Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                Text(text = "重试", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(text = stringResource(R.string.action_retry), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -487,12 +489,12 @@ private fun ActionButton(
             ) {
                 Icon(
                     Icons.Default.Download,
-                    contentDescription = "下载",
+                    contentDescription = stringResource(R.string.cd_download),
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(SpacingTokens.md),
                 )
                 Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                Text(text = "下载", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
+                Text(text = stringResource(R.string.action_download), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }

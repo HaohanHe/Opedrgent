@@ -51,7 +51,7 @@ fun TextAndVoiceInput(
     onTextChange: (String) -> Unit,
     onSend: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "输入消息...",
+    placeholder: String = "",
     enabled: Boolean = true,
 ) {
     val context = LocalContext.current
@@ -100,7 +100,7 @@ fun TextAndVoiceInput(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp, max = 120.dp),
-                placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                placeholder = { Text(placeholder.ifEmpty { stringResource(R.string.msg_type_message) }, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 shape = ShapeTokens.extraLargeShape,
                 maxLines = 5,
                 enabled = enabled
@@ -125,7 +125,7 @@ fun TextAndVoiceInput(
                     ) {
                         Icon(
                             painter = painterResource(id = android.R.drawable.ic_menu_send),
-                            contentDescription = "发送",
+                            contentDescription = stringResource(R.string.cd_send),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -150,16 +150,16 @@ private fun PermissionRationaleDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("需要麦克风权限") },
-        text = { Text("需要麦克风权限来启用语音输入功能。请在设置中开启该权限。") },
+        title = { Text(stringResource(R.string.input_mic_permission_title)) },
+        text = { Text(stringResource(R.string.input_mic_permission_desc)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("去设置")
+                Text(stringResource(R.string.input_go_settings))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

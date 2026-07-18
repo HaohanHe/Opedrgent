@@ -32,11 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -94,7 +96,7 @@ fun SttModelDownloadDialog(
 
                 androidx.compose.material3.Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = "下载语音模型",
+                    contentDescription = stringResource(R.string.download_cd_download_stt_model),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(SpacingTokens.xxl),
                 )
@@ -102,7 +104,7 @@ fun SttModelDownloadDialog(
                 Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
-                    text = "正在下载 $modelName",
+                    text = stringResource(R.string.download_downloading_title, modelName),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
@@ -139,7 +141,7 @@ fun SttModelDownloadDialog(
                             )
                             Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
-                                text = statusDetail.ifEmpty { "解压中..." },
+                                text = statusDetail.ifEmpty { stringResource(R.string.download_status_extracting) },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
@@ -160,7 +162,7 @@ fun SttModelDownloadDialog(
                             )
                             Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
-                                text = statusDetail.ifEmpty { "切换下载源..." },
+                                text = statusDetail.ifEmpty { stringResource(R.string.download_status_source_switch) },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -173,15 +175,15 @@ fun SttModelDownloadDialog(
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "下载失败",
+                                contentDescription = stringResource(R.string.download_cd_failed),
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(SpacingTokens.xxl),
                             )
                             Spacer(modifier = Modifier.height(SpacingTokens.sm))
-                            Text(text = "下载失败", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                            Text(text = stringResource(R.string.download_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(SpacingTokens.xs))
                             Text(
-                                text = statusDetail.ifEmpty { "未知错误" },
+                                text = statusDetail.ifEmpty { stringResource(R.string.recording_unknown_error) },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -204,7 +206,11 @@ fun SttModelDownloadDialog(
                             )
                             Spacer(modifier = Modifier.height(SpacingTokens.md))
                             Text(
-                                text = if (totalMb > 0) "准备下载 ($totalMb MB)" else "准备中...",
+                                text = if (totalMb > 0) {
+                                    stringResource(R.string.download_preparing_with_size, totalMb)
+                                } else {
+                                    stringResource(R.string.download_preparing)
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -220,7 +226,7 @@ fun SttModelDownloadDialog(
                 Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
-                    text = "好东西，就要来了...",
+                    text = stringResource(R.string.download_encouragement),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -237,7 +243,7 @@ fun SttModelDownloadDialog(
                     shape = ShapeTokens.mediumShape,
                 ) {
                     Text(
-                        text = "取消下载",
+                        text = stringResource(R.string.download_action_cancel),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.error,
                     )

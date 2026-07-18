@@ -244,12 +244,12 @@ fun RecordingTab(
             }
             val data = result.data
             if (data == null) {
-                scope.launch { snackbar.showSnackbar("录制 Intent 数据为空") }
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_intent_empty)) }
                 return@rememberLauncherForActivityResult
             }
             MediaProjectionService.start(context, result.resultCode, data)
         } else {
-            scope.launch { snackbar.showSnackbar("未获得录制权限") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_no_permission)) }
         }
     }
 
@@ -279,8 +279,9 @@ fun RecordingTab(
                     val text = result?.text?.trim().orEmpty()
                     if (text.isNotBlank()) {
                         try {
+                            val dateStr = java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())
                             val displayTitle = text.take(20).ifBlank {
-                                "音视频转录 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
+                                context.getString(R.string.recording_import_transcript_title, dateStr)
                             }
                             val noteId = vm.createNoteFromText("", text, NoteType.ASR, autoFinalizeTitle = true)
                             NotificationHelper.showAutoSaveNote(
@@ -290,18 +291,18 @@ fun RecordingTab(
                                 preview = text,
                             )
                             val snackbarResult = snackbar.showSnackbar(
-                                message = "已保存为笔记（${text.length}字）",
-                                actionLabel = "查看",
+                                message = context.getString(R.string.recording_saved_as_note_word_count, text.length),
+                                actionLabel = context.getString(R.string.recording_view),
                             )
                             if (snackbarResult == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                                 onNavigateToNotes()
                             }
                         } catch (e: Exception) {
                             DebugLog.e("RecordingTab", "音视频转录自动保存失败: ${e.message}", e)
-                            snackbar.showSnackbar("转录完成，但保存失败")
+                            snackbar.showSnackbar(context.getString(R.string.recording_transcript_saved_failed))
                         }
                     } else {
-                        snackbar.showSnackbar("转录完成，但内容为空")
+                        snackbar.showSnackbar(context.getString(R.string.recording_transcript_empty))
                     }
                     vm.clearSttResult()
                 }
@@ -310,7 +311,7 @@ fun RecordingTab(
                 if (isImportingAudio) {
                     isImportingAudio = false
                     val errorMsg = vm.sttError.value
-                    snackbar.showSnackbar(errorMsg ?: "转录失败")
+                    snackbar.showSnackbar(errorMsg ?: context.getString(R.string.recording_transcript_failed))
                 }
             }
             else -> {}
@@ -514,7 +515,7 @@ fun RecordingTab(
                         if (isStreamingModelSelected && !isTrueStreaming) {
                             // 流式模型降级到伪流式，通知用户
                             scope.launch {
-                                snackbar.showSnackbar("OnlineRecognizer 不可用，已降级为伪流式模式")
+                                snackbar.showSnackbar(context.getString(R.string.recording_online_recognizer_unavailable))
                             }
                         }
                         isStreamingActive = true
@@ -582,7 +583,7 @@ fun RecordingTab(
 
             val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
             if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-                scope.launch { snackbar.showSnackbar("无法初始化录音设备") }
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_device_init_failed)) }
                 recordingState = null
             } else {
                 recorder.startRecording()
@@ -595,7 +596,7 @@ fun RecordingTab(
         val sysRecorder = SystemAudioRecorder(context)
         val recorder = sysRecorder.startRecording(mediaProjection)
         if (recorder == null || recorder.state != AudioRecord.STATE_INITIALIZED) {
-            scope.launch { snackbar.showSnackbar("无法初始化系统音频录制") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_system_audio_init_failed)) }
             recordingState = null
         } else {
             systemAudioRecorder = sysRecorder
@@ -660,7 +661,7 @@ fun RecordingTab(
                     delay(800)
                     pcmPath = tempFilePath.value
                     if (pcmPath == null) {
-                        snackbar.showSnackbar("录音文件不存在")
+                        snackbar.showSnackbar(context.getString(R.string.recording_file_not_found))
                         isProcessing = false
                         recordingState = RecordingState.DONE
                         return@launch
@@ -686,7 +687,7 @@ fun RecordingTab(
                     } else {
                         MeetingTranscriptResult(
                             segments = emptyList(),
-                            fullText = "（无内容）",
+                            fullText = context.getString(R.string.recording_no_content),
                             durationMs = elapsedSeconds * 1000L,
                         )
                     }
@@ -695,7 +696,7 @@ fun RecordingTab(
                     // 清理临时PCM文件
                     java.io.File(pcmPath).delete()
                 } catch (e: Exception) {
-                    snackbar.showSnackbar("录音处理失败: ${e.message}")
+                    snackbar.showSnackbar(context.getString(R.string.recording_processing_failed, e.message))
                     // 异常时也清理PCM文件
                     val errPcm = pcmPath
                     if (errPcm != null) java.io.File(errPcm).delete()
@@ -755,8 +756,9 @@ fun RecordingTab(
                         scope.launch {
                             val contentWithPhotos = text + formatPhotosForNote(capturedPhotos)
                             val autoTitleEnabled = vm.isAutoGenerateNoteTitle()
+                            val dateStr = java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())
                             val title = noteTitle.ifBlank {
-                                if (autoTitleEnabled) "" else "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}"
+                                if (autoTitleEnabled) "" else context.getString(R.string.recording_note_title_date, dateStr)
                             }
                             vm.createNoteFromText(
                                 title,
@@ -782,10 +784,10 @@ fun RecordingTab(
     if (showOverlayPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showOverlayPermissionDialog = false },
-            title = { Text("需要悬浮窗权限") },
+            title = { Text(stringResource(R.string.recording_overlay_permission_title)) },
             text = {
                 Text(
-                    text = "内录模式需要悬浮窗权限来显示录制控制面板，以便在切换到其他应用时控制录制。\n\n是否前往设置开启？",
+                    text = stringResource(R.string.recording_overlay_permission_desc),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -799,7 +801,7 @@ fun RecordingTab(
                         )
                         context.startActivity(intent)
                     } catch (_: Exception) {}
-                }) { Text("前往设置") }
+                }) { Text(stringResource(R.string.recording_go_to_settings)) }
             },
             dismissButton = {
                 TextButton(onClick = { showOverlayPermissionDialog = false }) { Text(stringResource(R.string.action_cancel)) }
@@ -908,7 +910,7 @@ fun RecordingTab(
                                     delay(800) // 等待流式 FinalResult
                                     val pcmPath = tempFilePath.value
                                     if (pcmPath == null) {
-                                        snackbar.showSnackbar("录音文件不存在")
+                                        snackbar.showSnackbar(context.getString(R.string.recording_file_not_found))
                                         isProcessing = false
                                         recordingState = RecordingState.DONE
                                         return@launch
@@ -939,7 +941,7 @@ fun RecordingTab(
                                         )
                                     } else {
                                         DebugLog.i("RecordingTab", "流式结果为空，回退到文件转写")
-                                        transcribeWithAsrManager(wavFile, vm.asrManager)
+                                        transcribeWithAsrManager(context, wavFile, vm.asrManager)
                                     }
 
                                     // 转写失败时向用户反馈错误信息
@@ -952,7 +954,8 @@ fun RecordingTab(
                                         playbackAudioUri = wavFile.absolutePath
                                         try {
                                             val autoTitleEnabled = vm.isAutoGenerateNoteTitle()
-                                            val displayTitle = transcriptText.take(20).ifBlank { "录音笔记 ${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())}" }
+                                            val dateStr = java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())
+                                            val displayTitle = transcriptText.take(20).ifBlank { context.getString(R.string.recording_note_title_date, dateStr) }
                                             val noteTitle = if (autoTitleEnabled) "" else displayTitle
                                             val contentWithPhotos = transcriptText + formatPhotosForNote(capturedPhotos)
                                             val noteId = vm.createNoteFromText(
@@ -1039,7 +1042,7 @@ fun RecordingTab(
                                     }
                                 } catch (e: Exception) {
                                     DebugLog.e("RecordingTab", "处理失败: ${e.message}", e)
-                                    snackbar.showSnackbar("处理失败: ${e.message}")
+                                    snackbar.showSnackbar(context.getString(R.string.recording_processing_failed_generic, e.message))
                                 } finally {
                                     isProcessing = false
                                     recordingState = RecordingState.DONE
@@ -1150,7 +1153,7 @@ fun RecordingTab(
                                     hamModeEnabled = vm.apiSettings.isHamModeEnabled(),
                                     onCopy = {
                                         clipboard.setText(AnnotatedString(result.fullText))
-                                        scope.launch { snackbar.showSnackbar("已复制") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_copied)) }
                                     },
                                     onNavigateToNotes = onNavigateToNotes,
                                     onSave = { showSaveDialog = true },
@@ -1170,7 +1173,7 @@ fun RecordingTab(
                                     },
                                     onConvertToContactLog = {
                                         vm.requestContactLog(result.fullText)
-                                        scope.launch { snackbar.showSnackbar("正在生成通联日志…") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log)) }
                                     },
                                     onDiscardAutoSave = {
                                         scope.launch {
@@ -1214,13 +1217,13 @@ fun RecordingTab(
                             when (recordingMode) {
                                 RecordingMode.INTERNAL -> {
                                     if (Build.VERSION.SDK_INT < 29) {
-                                        scope.launch { snackbar.showSnackbar("需要 Android 10+") }
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_need_android_10)) }
                                     } else {
                                         // 检查悬浮窗权限
                                         if (!Settings.canDrawOverlays(context)) {
                                             showOverlayPermissionDialog = true
                                         } else {
-                                            scope.launch { snackbar.showSnackbar("请播放你要记录的视频或音频，系统将自动录制") }
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_play_media_hint)) }
                                             val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                                             mediaProjectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
                                         }
@@ -1231,7 +1234,7 @@ fun RecordingTab(
                         },
                         onImportAudioVideo = { importAudioVideoLauncher.launch(arrayOf("audio/*", "video/*")) },
                         isSttEnabled = vm.isSttEnabled(),
-                        onSttDisabled = { scope.launch { snackbar.showSnackbar("请先在设置中开启语音转文字") } },
+                        onSttDisabled = { scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_enable_stt_first)) } },
                     )
                 }
             }
@@ -1240,12 +1243,12 @@ fun RecordingTab(
             if (isImportingAudio && sttProgress == SttProgressState.IDLE) {
                 AlertDialog(
                     onDismissRequest = {},
-                    title = { Text("导入音视频") },
+                    title = { Text(stringResource(R.string.recording_import_audio_video_title)) },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(SpacingTokens.md))
-                            Text("正在转录中，请稍候...")
+                            Text(stringResource(R.string.recording_transcribing_wait))
                         }
                     },
                     confirmButton = {},
@@ -1256,12 +1259,12 @@ fun RecordingTab(
             if (isImportingAudio && sttProgress != SttProgressState.IDLE && sttProgress != SttProgressState.DONE) {
                 val downloadProg = (sttUiState as? SttUiState.DownloadingModel)?.progress
                 val phaseText = when (sttUiState) {
-                    is SttUiState.Validating -> "正在验证文件..."
-                    is SttUiState.DecodingAudio -> "正在解码音频..."
+                    is SttUiState.Validating -> stringResource(R.string.recording_validating_file)
+                    is SttUiState.DecodingAudio -> stringResource(R.string.recording_decoding_audio)
                     is SttUiState.Recognizing -> {
                         val r = sttUiState as SttUiState.Recognizing
-                        if (r.totalSegments > 0) "正在识别语音... ${r.currentSegment}/${r.totalSegments}"
-                        else "正在识别语音..."
+                        if (r.totalSegments > 0) stringResource(R.string.recording_recognizing_speech_progress, r.currentSegment, r.totalSegments)
+                        else stringResource(R.string.recording_recognizing_speech)
                     }
                     else -> null
                 }
@@ -1304,7 +1307,7 @@ fun RecordingTab(
         } else {
             val elapsed = System.currentTimeMillis() - lastGenRequest
             if (elapsed > 1000 && vm.contactLog == null) {
-                scope.launch { snackbar.showSnackbar("通联日志生成失败，请重试") }
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_contact_log_generation_failed)) }
             }
         }
     }
@@ -1317,7 +1320,7 @@ fun RecordingTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconLg))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("正在生成通联日志…", color = themeTextGrey())
+                Text(stringResource(R.string.recording_generating_contact_log), color = themeTextGrey())
             }
         }
     }
@@ -1345,13 +1348,16 @@ fun RecordingTab(
                 )
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
-                    text = "通联日志草稿（${editDraft?.satName?.takeIf { it.isNotBlank() } ?: "未命名"}）",
+                    text = stringResource(
+                        R.string.recording_contact_log_draft,
+                        editDraft?.satName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.recording_unnamed)
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = { showContactLogDialog = true }) {
-                    Text("查看/编辑")
+                    Text(stringResource(R.string.recording_view_edit))
                 }
             }
         }
@@ -1362,24 +1368,55 @@ fun RecordingTab(
         val satMissing = log.satName.isBlank()
         val dateMissing = log.date.isBlank()
 
+        val requiredLabel = stringResource(R.string.recording_required)
+        val satelliteLabel = stringResource(R.string.recording_satellite_required)
+        val dateLabel = stringResource(R.string.recording_date_required)
+        val timeOnLabel = stringResource(R.string.recording_time_on)
+        val timeOffLabel = stringResource(R.string.recording_time_off)
+        val callsignLabel = stringResource(R.string.recording_callsign)
+        val frequencyLabel = stringResource(R.string.recording_frequency_mhz)
+        val modeLabel = stringResource(R.string.recording_mode_label)
+        val rstSentLabel = stringResource(R.string.recording_rst_sent)
+        val rstReceivedLabel = stringResource(R.string.recording_rst_received)
+        val maxElevationLabel = stringResource(R.string.recording_max_elevation)
+        val resultLabel = stringResource(R.string.recording_result)
+        val gridLocatorLabel = stringResource(R.string.recording_grid_locator)
+        val notesLabel = stringResource(R.string.recording_notes)
+
+        val contactLogHeader = stringResource(R.string.recording_contact_log_header)
+        val contactLogSatellite = stringResource(R.string.recording_contact_log_satellite)
+        val contactLogDate = stringResource(R.string.recording_contact_log_date)
+        val contactLogTimeOn = stringResource(R.string.recording_contact_log_time_on)
+        val contactLogTimeOff = stringResource(R.string.recording_contact_log_time_off)
+        val contactLogCallsign = stringResource(R.string.recording_contact_log_callsign)
+        val contactLogFrequency = stringResource(R.string.recording_contact_log_frequency)
+        val contactLogMode = stringResource(R.string.recording_contact_log_mode)
+        val contactLogRstSent = stringResource(R.string.recording_contact_log_rst_sent)
+        val contactLogRstReceived = stringResource(R.string.recording_contact_log_rst_received)
+        val contactLogMaxElevation = stringResource(R.string.recording_contact_log_max_elevation)
+        val contactLogResult = stringResource(R.string.recording_contact_log_result)
+        val contactLogGridLocator = stringResource(R.string.recording_contact_log_grid_locator)
+        val contactLogNotes = stringResource(R.string.recording_contact_log_notes)
+        val unknownError = stringResource(R.string.recording_unknown_error)
+
         AlertDialog(
             onDismissRequest = { showContactLogDialog = false },
-            title = { Text("通联日志") },
+            title = { Text(stringResource(R.string.recording_contact_log_title)) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    OutlinedTextField(value = log.satName, onValueChange = { editDraft = log.copy(satName = it) }, label = { Text("卫星 *") }, isError = satMissing, supportingText = if (satMissing) { { Text("必填") } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.date, onValueChange = { editDraft = log.copy(date = it) }, label = { Text("日期 * (YYYY-MM-DD, UTC)") }, isError = dateMissing, supportingText = if (dateMissing) { { Text("必填") } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.timeOn, onValueChange = { editDraft = log.copy(timeOn = it) }, label = { Text("开始时间 (HHMMSS, UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.timeOff, onValueChange = { editDraft = log.copy(timeOff = it) }, label = { Text("结束时间 (HHMMSS, UTC)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.callsign, onValueChange = { editDraft = log.copy(callsign = it) }, label = { Text("对方呼号") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.frequency, onValueChange = { editDraft = log.copy(frequency = it) }, label = { Text("频率 MHz") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.mode, onValueChange = { editDraft = log.copy(mode = it) }, label = { Text("调制方式") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.rstSent, onValueChange = { editDraft = log.copy(rstSent = it) }, label = { Text("发射报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.rstReceived, onValueChange = { editDraft = log.copy(rstReceived = it) }, label = { Text("接收报告") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.maxElevation, onValueChange = { editDraft = log.copy(maxElevation = it) }, label = { Text("最大仰角") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.result, onValueChange = { editDraft = log.copy(result = it) }, label = { Text("通联结果 (OK/PARTIAL/NO)") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.gridLocator, onValueChange = { editDraft = log.copy(gridLocator = it) }, label = { Text("QTH网格") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.notes, onValueChange = { editDraft = log.copy(notes = it) }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.satName, onValueChange = { editDraft = log.copy(satName = it) }, label = { Text(satelliteLabel) }, isError = satMissing, supportingText = if (satMissing) { { Text(requiredLabel) } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.date, onValueChange = { editDraft = log.copy(date = it) }, label = { Text(dateLabel) }, isError = dateMissing, supportingText = if (dateMissing) { { Text(requiredLabel) } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.timeOn, onValueChange = { editDraft = log.copy(timeOn = it) }, label = { Text(timeOnLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.timeOff, onValueChange = { editDraft = log.copy(timeOff = it) }, label = { Text(timeOffLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.callsign, onValueChange = { editDraft = log.copy(callsign = it) }, label = { Text(callsignLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.frequency, onValueChange = { editDraft = log.copy(frequency = it) }, label = { Text(frequencyLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.mode, onValueChange = { editDraft = log.copy(mode = it) }, label = { Text(modeLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.rstSent, onValueChange = { editDraft = log.copy(rstSent = it) }, label = { Text(rstSentLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.rstReceived, onValueChange = { editDraft = log.copy(rstReceived = it) }, label = { Text(rstReceivedLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.maxElevation, onValueChange = { editDraft = log.copy(maxElevation = it) }, label = { Text(maxElevationLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.result, onValueChange = { editDraft = log.copy(result = it) }, label = { Text(resultLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.gridLocator, onValueChange = { editDraft = log.copy(gridLocator = it) }, label = { Text(gridLocatorLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.notes, onValueChange = { editDraft = log.copy(notes = it) }, label = { Text(notesLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.noradId, onValueChange = { editDraft = log.copy(noradId = it) }, label = { Text("NORAD ID") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                 }
             },
@@ -1395,11 +1432,11 @@ fun RecordingTab(
                             }.fold(
                                 onSuccess = {
                                     showContactLogDialog = false
-                                    snackbar.showSnackbar("ADIF 已导出")
+                                    snackbar.showSnackbar(context.getString(R.string.recording_adif_exported))
                                 },
                                 onFailure = { e ->
                                     DebugLog.e("RecordingTab", "ADIF 导出失败: ${e.message}", e)
-                                    snackbar.showSnackbar("ADIF 导出失败: ${e.message ?: "未知错误"}")
+                                    snackbar.showSnackbar(context.getString(R.string.recording_adif_export_failed, e.message ?: unknownError))
                                 },
                             )
                         }
@@ -1416,11 +1453,11 @@ fun RecordingTab(
                             }.fold(
                                 onSuccess = {
                                     showContactLogDialog = false
-                                    snackbar.showSnackbar("CSV 已导出")
+                                    snackbar.showSnackbar(context.getString(R.string.recording_csv_exported))
                                 },
                                 onFailure = { e ->
                                     DebugLog.e("RecordingTab", "CSV 导出失败: ${e.message}", e)
-                                    snackbar.showSnackbar("CSV 导出失败: ${e.message ?: "未知错误"}")
+                                    snackbar.showSnackbar(context.getString(R.string.recording_csv_export_failed, e.message ?: unknownError))
                                 },
                             )
                         }
@@ -1432,46 +1469,46 @@ fun RecordingTab(
                             scope.launch {
                                 runCatching {
                                     vm.createNoteFromText(
-                                        title = "通联日志 ${log.satName} ${log.date}",
+                                        title = context.getString(R.string.recording_contact_log_note_title, log.satName, log.date),
                                         content = buildString {
-                                            appendLine("## 通联日志")
-                                            if (log.satName.isNotBlank()) appendLine("- 卫星: ${log.satName}")
-                                            if (log.date.isNotBlank()) appendLine("- 日期: ${log.date}")
-                                            if (log.timeOn.isNotBlank()) appendLine("- 开始: ${log.timeOn}")
-                                            if (log.timeOff.isNotBlank()) appendLine("- 结束: ${log.timeOff}")
-                                            if (log.callsign.isNotBlank()) appendLine("- 对方呼号: ${log.callsign}")
-                                            if (log.frequency.isNotBlank()) appendLine("- 频率: ${log.frequency} MHz")
-                                            if (log.mode.isNotBlank()) appendLine("- 模式: ${log.mode}")
-                                            if (log.rstSent.isNotBlank()) appendLine("- 发射报告: ${log.rstSent}")
-                                            if (log.rstReceived.isNotBlank()) appendLine("- 接收报告: ${log.rstReceived}")
-                                            if (log.maxElevation.isNotBlank()) appendLine("- 最大仰角: ${log.maxElevation}°")
-                                            if (log.result.isNotBlank()) appendLine("- 结果: ${top.hsyscn.opedrgent.model.HamContactLog.normalizeResult(log.result)}")
-                                            if (log.gridLocator.isNotBlank()) appendLine("- QTH网格: ${log.gridLocator}")
-                                            if (log.notes.isNotBlank()) appendLine("- 备注: ${log.notes}")
+                                            appendLine(contactLogHeader)
+                                            if (log.satName.isNotBlank()) appendLine(contactLogSatellite.format(log.satName))
+                                            if (log.date.isNotBlank()) appendLine(contactLogDate.format(log.date))
+                                            if (log.timeOn.isNotBlank()) appendLine(contactLogTimeOn.format(log.timeOn))
+                                            if (log.timeOff.isNotBlank()) appendLine(contactLogTimeOff.format(log.timeOff))
+                                            if (log.callsign.isNotBlank()) appendLine(contactLogCallsign.format(log.callsign))
+                                            if (log.frequency.isNotBlank()) appendLine(contactLogFrequency.format(log.frequency))
+                                            if (log.mode.isNotBlank()) appendLine(contactLogMode.format(log.mode))
+                                            if (log.rstSent.isNotBlank()) appendLine(contactLogRstSent.format(log.rstSent))
+                                            if (log.rstReceived.isNotBlank()) appendLine(contactLogRstReceived.format(log.rstReceived))
+                                            if (log.maxElevation.isNotBlank()) appendLine(contactLogMaxElevation.format(log.maxElevation))
+                                            if (log.result.isNotBlank()) appendLine(contactLogResult.format(top.hsyscn.opedrgent.model.HamContactLog.normalizeResult(log.result)))
+                                            if (log.gridLocator.isNotBlank()) appendLine(contactLogGridLocator.format(log.gridLocator))
+                                            if (log.notes.isNotBlank()) appendLine(contactLogNotes.format(log.notes))
                                             if (log.noradId.isNotBlank()) appendLine("- NORAD ID: ${log.noradId}")
                                         }.trimEnd(),
                                     )
                                 }.fold(
                                     onSuccess = {
                                         showContactLogDialog = false
-                                        snackbar.showSnackbar("已保存为笔记")
+                                        snackbar.showSnackbar(context.getString(R.string.msg_saved_as_note))
                                     },
                                     onFailure = { e ->
                                         DebugLog.e("RecordingTab", "保存笔记失败: ${e.message}", e)
-                                        snackbar.showSnackbar("保存失败: ${e.message ?: "未知错误"}")
+                                        snackbar.showSnackbar(context.getString(R.string.recording_save_failed, e.message ?: unknownError))
                                     },
                                 )
                             }
                         },
                         enabled = !satMissing && !dateMissing,
                     ) {
-                        Text("保存")
+                        Text(stringResource(R.string.action_save))
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showContactLogDialog = false }) {
-                    Text("关闭")
+                    Text(stringResource(R.string.action_close))
                 }
             },
         )
@@ -1568,7 +1605,7 @@ private fun IdleModeSelection(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = run { val h = vm.getRecordingMaxHours(selectedMode.name); if (h == 0) "最长可录 无限制" else "最长可录 ${h}小时" },
+                text = run { val h = vm.getRecordingMaxHours(selectedMode.name); if (h == 0) stringResource(R.string.recording_max_unlimited) else stringResource(R.string.recording_max_hours, h) },
                 style = MaterialTheme.typography.bodyMedium,
                 color = themeTextGrey(),
                 modifier = Modifier.padding(bottom = SpacingTokens.md),
@@ -1590,7 +1627,7 @@ private fun IdleModeSelection(
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             Text(
-                text = "点击开始录音",
+                text = stringResource(R.string.recording_start_hint),
                 style = MaterialTheme.typography.bodyLarge,
                 color = themeTextGrey(),
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
@@ -1608,7 +1645,7 @@ private fun IdleModeSelection(
             ) {
                 Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("导入音视频", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.recording_import_audio_video_title), style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
@@ -1691,7 +1728,7 @@ private fun ModeCard(
                 )
                 Spacer(Modifier.height(SpacingTokens.xxs))
                 Text(
-                    text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "无限制" else "${h}小时" },
+                    text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) stringResource(R.string.recording_unlimited) else stringResource(R.string.recording_hours_format, h) },
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
@@ -1751,7 +1788,7 @@ private fun RecordingScreen(
                 )
             }
             Text(
-                text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) "最长 无限制" else "最长 ${h}小时" },
+                text = run { val h = vm.getRecordingMaxHours(mode.name); if (h == 0) stringResource(R.string.recording_max_label, stringResource(R.string.recording_unlimited)) else stringResource(R.string.recording_max_label, stringResource(R.string.recording_hours_format, h)) },
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
@@ -2061,7 +2098,7 @@ private fun SkeletonLoadingScreen() {
         }
         Spacer(Modifier.height(SpacingTokens.xl))
         Text(
-            text = "生成笔记中..",
+            text = stringResource(R.string.recording_generating_note),
             style = MaterialTheme.typography.bodyLarge,
             color = themeTextGrey(),
         )
@@ -2109,7 +2146,7 @@ private fun TranscriptResultCard(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "${result.segments.size} 段",
+                    text = stringResource(R.string.recording_segments_count, result.segments.size),
                     color = themeTextGrey(),
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -2133,7 +2170,7 @@ private fun TranscriptResultCard(
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
-                        text = "说话人: $identifiedSpeakerName",
+                        text = stringResource(R.string.recording_speaker, identifiedSpeakerName),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = AccentBlue,
@@ -2185,7 +2222,7 @@ private fun TranscriptResultCard(
                         onClick = { showSummaryTab = true },
                     ) {
                         Text(
-                            "智能总结",
+                            stringResource(R.string.recording_smart_summary),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (showSummaryTab) FontWeight.Bold else FontWeight.Normal,
                             color = if (showSummaryTab) AccentBlue else themeTextGrey(),
@@ -2198,7 +2235,7 @@ private fun TranscriptResultCard(
                         onClick = { showSummaryTab = false },
                     ) {
                         Text(
-                            "原文",
+                            stringResource(R.string.recording_original_text),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (!showSummaryTab) FontWeight.Bold else FontWeight.Normal,
                             color = if (!showSummaryTab) AccentBlue else themeTextGrey(),
@@ -2211,10 +2248,10 @@ private fun TranscriptResultCard(
                     SmartSummaryContent(summary = summary)
                 } else {
                     Text(
-                        text = result.fullText.ifBlank { "（无识别结果）" },
+                        text = result.fullText.ifBlank { stringResource(R.string.recording_no_result) },
                         style = MaterialTheme.typography.bodyLarge,
                         color = themeTextDark(),
-                        
+
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
@@ -2223,10 +2260,10 @@ private fun TranscriptResultCard(
                 }
             } else {
                 Text(
-                    text = result.fullText.ifBlank { "（无识别结果）" },
+                    text = result.fullText.ifBlank { stringResource(R.string.recording_no_result) },
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
-                    
+
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 300.dp)
@@ -2251,7 +2288,7 @@ private fun TranscriptResultCard(
                 ) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("复制", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_copy), fontWeight = FontWeight.Medium)
                 }
 
                 if (autoSaved) {
@@ -2300,7 +2337,7 @@ private fun TranscriptResultCard(
                 ) {
                     Icon(Icons.Default.Satellite, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text("转成通联日志", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_convert_to_contact_log), fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -2379,6 +2416,8 @@ private fun SmartSummaryContent(summary: top.hsyscn.opedrgent.stt.SmartSummary) 
 
 @Composable
 private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo) {
+    val durationLabel = stringResource(R.string.recording_duration_label)
+    val participantCountFormat = stringResource(R.string.recording_participant_count)
     Surface(
         shape = ShapeTokens.smallShape,
         color = AccentBlue.copy(alpha = 0.06f),
@@ -2392,8 +2431,8 @@ private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo
             Spacer(Modifier.width(SpacingTokens.sm))
             Text(
                 text = buildString {
-                    if (meta.duration.isNotEmpty()) append("时长: ${meta.duration}")
-                    if (meta.participantCount > 0) append("  |  ${meta.participantCount}人")
+                    if (meta.duration.isNotEmpty()) append(durationLabel.format(meta.duration))
+                    if (meta.participantCount > 0) append("  |  ").append(participantCountFormat.format(meta.participantCount))
                     if (meta.contentType.isNotEmpty()) append("  |  ${meta.contentType}")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -2536,7 +2575,7 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.TaskAlt, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("待办事项", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = themeTextDark())
+                Text(stringResource(R.string.recording_todo_items), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = themeTextDark())
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             items.forEach { item ->
@@ -2572,7 +2611,7 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
 private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
     Column {
         Text(
-            text = "拍摄的照片 (${photos.size}张)",
+            text = stringResource(R.string.recording_photos_taken, photos.size),
             style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             fontWeight = FontWeight.Medium,
@@ -2587,7 +2626,7 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
                     photo.bitmap?.let { bmp ->
                         Image(
                             bitmap = bmp.asImageBitmap(),
-                            contentDescription = "照片",
+                            contentDescription = stringResource(R.string.recording_photo_content_desc),
                             modifier = Modifier
                                 .size(80.dp)
                                 .clip(ShapeTokens.smallShape),
@@ -2598,7 +2637,7 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
                     val minutes = totalSeconds / 60
                     val seconds = totalSeconds % 60
                     Text(
-                        text = "拍摄于 %02d:%02d".format(minutes, seconds),
+                        text = stringResource(R.string.recording_photo_taken_at, minutes, seconds),
                         style = MaterialTheme.typography.labelSmall,
                         color = themeTextGrey(),
                     )
@@ -2685,6 +2724,7 @@ private fun shortToLittleEndian(value: Short): ByteArray {
 }
 
 private suspend fun transcribeWithAsrManager(
+    context: Context,
     wavFile: File,
     asrManager: top.hsyscn.opedrgent.stt.AsrManager,
 ): MeetingTranscriptResult {
@@ -2692,7 +2732,7 @@ private suspend fun transcribeWithAsrManager(
         val result = asrManager.transcribeFile(wavFile.absolutePath)
         val error = if (result.text.isEmpty() && result.error != null) {
             DebugLog.w("RecordingTab", "转写为空且有错误: ${result.error}")
-            "转写失败: ${result.error}"
+            context.getString(R.string.recording_transcription_failed, result.error)
         } else null
 
         MeetingTranscriptResult(
@@ -2712,6 +2752,6 @@ private suspend fun transcribeWithAsrManager(
         )
     } catch (e: Exception) {
         DebugLog.e("RecordingTab", "转录失败: ${e.message}", e)
-        MeetingTranscriptResult(error = "转录失败: ${e.message}")
+        MeetingTranscriptResult(error = context.getString(R.string.recording_transcription_failed, e.message))
     }
 }
