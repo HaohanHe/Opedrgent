@@ -71,7 +71,7 @@ fun AudioPlayer(
     val context = LocalContext.current
     val density = LocalDensity.current
 
-    val exoPlayer = remember {
+    val exoPlayer = remember(audioUri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(audioUri))
             prepare()
