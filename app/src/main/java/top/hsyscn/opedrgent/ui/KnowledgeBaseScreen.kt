@@ -682,6 +682,8 @@ private fun KbGridView(
                 },
                 title = stringResource(R.string.kb_no_match),
                 subtitle = stringResource(R.string.kb_no_match_hint),
+                actionLabel = stringResource(R.string.kb_clear_search),
+                onAction = { onSearchChange("") },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {

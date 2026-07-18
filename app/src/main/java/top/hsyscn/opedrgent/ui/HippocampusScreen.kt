@@ -37,6 +37,7 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.SourceType
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
@@ -50,6 +51,7 @@ private val hippocampusTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA
 fun HippocampusScreen(
     hippocampus: HippocampusIndex,
     onBack: () -> Unit,
+    onNavigateToNotes: () -> Unit = {},
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<SourceType?>(null) }
@@ -124,7 +126,7 @@ fun HippocampusScreen(
 
         // 索引列表
         if (items.isEmpty()) {
-            EmptyHippocampusState()
+            EmptyHippocampusState(onNavigateToNotes = onNavigateToNotes)
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
@@ -380,31 +382,24 @@ private fun SourceTypeChip(sourceType: SourceType) {
 }
 
 @Composable
-private fun EmptyHippocampusState() {
-    Column(
+private fun EmptyHippocampusState(
+    onNavigateToNotes: () -> Unit = {},
+) {
+    EmptyStateView(
+        icon = {
+            Icon(
+                Icons.Default.Memory,
+                contentDescription = stringResource(R.string.hippocampus_ji_yi_suo_yin),
+                modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            )
+        },
+        title = stringResource(R.string.hippocampus_zan_wu_ji_yi_suo_yin),
+        subtitle = stringResource(R.string.hippocampus_dang_nin_chuang_jian_bi_ji),
+        actionLabel = stringResource(R.string.hippocampus_go_to_notes),
+        onAction = onNavigateToNotes,
         modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            Icons.Default.Memory,
-            contentDescription = stringResource(R.string.hippocampus_ji_yi_suo_yin),
-            modifier = Modifier.size(SpacingTokens.xxl),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-        )
-        Spacer(Modifier.height(SpacingTokens.lg))
-        Text(
-            stringResource(R.string.hippocampus_zan_wu_ji_yi_suo_yin),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(SpacingTokens.sm))
-        Text(
-            stringResource(R.string.hippocampus_dang_nin_chuang_jian_bi_ji),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        )
-    }
+    )
 }
 
 private fun formatHippocampusTime(timestamp: Long): String {
