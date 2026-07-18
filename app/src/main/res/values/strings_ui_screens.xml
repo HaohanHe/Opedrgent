@@ -252,6 +252,12 @@
     <string name="kb_zhi_shi_ku_1_chuang_jian">知识库「%1$s」创建成功</string>
     <string name="kb_zhi_shi_ku_tong_bu_yi_wan">知识库同步已完成</string>
     <string name="kb_zhi_shi_ku_yi_geng_xin">知识库已更新</string>
+    <string name="kb_sync_complete">知识库同步完成</string>
+    <string name="kb_sync_reparsed">: %1$d 文档重解析</string>
+    <string name="kb_sync_content_changed"> (%1$d 内容变更)</string>
+    <string name="kb_sync_cloud_uploaded">, %1$d 上传云端</string>
+    <string name="kb_sync_failed">, %1$d 失败</string>
+    <string name="kb_sync_no_changes"> (无变更)</string>
     <!-- meeting -->
     <string name="meeting_1_duan_2_ren_3">%1$s 段 · %2$s 人 · %3$s</string>
     <string name="meeting_1_ren">%1$s 人</string>
@@ -369,6 +375,11 @@
     <string name="note_share_html">HTML</string>
     <string name="note_share_yi_fu_zhi_1">已复制%1$s</string>
     <string name="note_share_yi_fu_zhi_wen_ben">已复制文本</string>
+    <string name="note_fallback_title">笔记 #%1$d</string>
+    <string name="note_title_ai_reply">AI 回复 - %1$s</string>
+    <string name="note_added_to_kb">已添加到知识库</string>
+    <string name="note_add_to_kb_failed">添加到知识库失败: %1$s</string>
+    <string name="skills_empty_message">暂无技能。</string>
     <!-- open -->
     <string name="open_source_android_ye_yu_wei_xing_zhui">Android 业余卫星追踪应用，SGP4/SDP4 轨道传播算法移植来源</string>
     <string name="open_source_bai_du_kai_yuan_ocr_yin_qing">百度开源 OCR 引擎，支持多语言文字识别</string>
