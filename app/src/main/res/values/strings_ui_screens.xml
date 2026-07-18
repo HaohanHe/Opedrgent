@@ -81,6 +81,7 @@
     <string name="hippocampus_shan_chu_suo_yin">删除索引</string>
     <string name="hippocampus_sou_suo_ji_yi">搜索记忆...</string>
     <string name="hippocampus_zan_wu_ji_yi_suo_yin">暂无记忆索引</string>
+    <string name="hippocampus_go_to_notes">去记笔记</string>
     <string name="hippocampus_quan_bu">全部</string>
     <string name="hippocampus_bi_ji">笔记</string>
     <string name="hippocampus_dui_hua">对话</string>
@@ -235,6 +236,7 @@
     <string name="kb_lai_yuan_1_2">来源: %1$s · %2$s</string>
     <string name="kb_ming_cheng_bu_neng_wei_kong">名称不能为空</string>
     <string name="kb_no_match_hint">换个关键词试试，或点击下方 + 新建知识库</string>
+    <string name="kb_clear_search">清除搜索</string>
     <string name="kb_qing_chu">清除</string>
     <string name="kb_que_ding_yao_shan_chu_1_ma_qi">确定要删除「%1$s」吗？其中的所有文档也将被删除。此操作不可撤销。</string>
     <string name="kb_sort_name">名称</string>

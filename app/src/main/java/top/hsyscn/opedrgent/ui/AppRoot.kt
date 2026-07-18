@@ -458,7 +458,11 @@ fun AppRoot(
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when (subScreen) {
                 "memory" -> MemoryManagerScreen(vm = vm, onBack = { subScreen = null })
-                "hippocampus" -> HippocampusScreen(hippocampus = hippocampus, onBack = { subScreen = null })
+                "hippocampus" -> HippocampusScreen(
+                    hippocampus = hippocampus,
+                    onBack = { subScreen = null },
+                    onNavigateToNotes = { subScreen = null; selectedTab = MainTab.NOTES },
+                )
                 "opensource" -> OpenSourceScreen(onBack = { subScreen = null })
                 "skills" -> SkillsScreen(vm = vm, onBack = { subScreen = null })
                 "vocabulary" -> VocabularySettingsScreen(onBack = { subScreen = null })

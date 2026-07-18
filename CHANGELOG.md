@@ -1,5 +1,30 @@
 # Opedrgent 更新日志 / Release Notes
 
+## 1.2sat（演示准备版 / Presentation Ready）
+
+### 架构 / Architecture
+
+- **MainViewModel 拆分**：新增 `RecorderStateManager` 与 `InterviewStateManager`，将录音状态与面试业务逻辑从主 ViewModel 抽离，减少约 500 行上帝类代码，UI 调用接口保持不变。
+  **MainViewModel Refactor**: Extracted `RecorderStateManager` and `InterviewStateManager` to reduce god-class complexity while preserving UI APIs.
+
+### 优化 / Improvements
+
+- **网络参数集中配置**：新增 `NetworkConfig` / `SearchConfig`，将 HTTP 超时、搜索引擎权重、缓存大小等硬编码参数统一收口。
+  **Centralized Network Config**: Consolidated HTTP timeouts, search engine weights, and cache tuning into `NetworkConfig` / `SearchConfig`.
+- **UI 硬编码中文治理**：核心屏幕与 `MainViewModel` 用户可见标签改用 `stringResource` / `app.getString`，推进国际化与主题一致性。
+  **Hardcoded Chinese Cleanup**: Replaced user-visible hardcoded Chinese strings with `stringResource` / `app.getString`.
+- **空状态操作引导**：`KnowledgeBaseScreen` 搜索无结果增加"清除搜索"按钮；`HippocampusScreen` 空状态增加"去记笔记"跳转。
+  **Empty-State Actions**: Added clear-search action to `KnowledgeBaseScreen` and go-to-notes action to `HippocampusScreen`.
+
+### 修复 / Fixes
+
+- **OOM 与 TransactionTooLarge 风险**：
+  - 图片上传/本地模型输入改用 `inSampleSize` 下采样 + 最大边 896px 限制，避免超大图 OOM。
+  - `EditorTeamScreen` 群聊消息列表与 `VocabularySettingsScreen` 词汇列表从 `rememberSaveable` 改为 `remember`，避免大对象序列化到 Bundle 导致崩溃。
+  **OOM & TransactionTooLarge Fix**: Image decoding now uses downsampling; large lists no longer saved to `rememberSaveable`.
+
+---
+
 ## 1.1sat
 
 ### 新增 / New
@@ -74,5 +99,5 @@
 
 ---
 
-**版本号 / Version**: 1.1sat  
+**版本号 / Version**: 1.2sat  
 **构建状态 / Build Status**: `./gradlew assembleDebug` 通过 / `BUILD SUCCESSFUL`
