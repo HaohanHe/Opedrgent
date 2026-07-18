@@ -30,13 +30,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import android.content.Context
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
@@ -51,6 +55,7 @@ fun MessageBodyError(
     var expanded by rememberSaveable { mutableStateOf(false) }
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val maxLines = remember { mutableIntStateOf(5) }
     val shouldShowExpandButton = errorText.lines().size > 5
@@ -66,7 +71,7 @@ fun MessageBodyError(
                     clipboardManager.setText(AnnotatedString(errorText))
                     scope.launch {
                         snackbarHostState?.showSnackbar(
-                            message = "已复制错误信息",
+                            message = context.getString(R.string.msg_body_copied_error),
                             duration = SnackbarDuration.Short,
                         )
                     }
@@ -77,7 +82,7 @@ fun MessageBodyError(
     ) {
         Icon(
             imageVector = Icons.Default.Error,
-            contentDescription = "错误",
+            contentDescription = stringResource(R.string.msg_body_cd_error),
             modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.error,
         )
@@ -99,7 +104,7 @@ fun MessageBodyError(
             if (shouldShowExpandButton && !expanded) {
                 Spacer(Modifier.height(SpacingTokens.xs))
                 Text(
-                    text = "查看全部",
+                    text = stringResource(R.string.msg_body_view_all),
                     style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.error),
                     modifier = Modifier
                         .clip(ShapeTokens.extraSmallShape)

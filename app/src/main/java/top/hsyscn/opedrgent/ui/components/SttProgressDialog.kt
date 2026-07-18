@@ -73,10 +73,11 @@ fun SttProgressDialog(
     if (progressState == SttProgressState.IDLE || progressState == SttProgressState.DONE) return
 
     val isDismissible = progressState == SttProgressState.ERROR
+    val dialogCd = stringResource(R.string.stt_progress_cd_dialog)
 
     Box(
         modifier = modifier
-            .semantics { contentDescription = "语音处理进度对话框" }
+            .semantics { contentDescription = dialogCd }
             .fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
@@ -107,6 +108,11 @@ fun SttProgressDialog(
 
                 Spacer(Modifier.height(SpacingTokens.xl))
 
+                val cancelCd = if (isDismissible) {
+                    stringResource(R.string.stt_progress_cd_close_error)
+                } else {
+                    stringResource(R.string.stt_progress_cd_cancel_processing)
+                }
                 TextButton(
                     onClick = onCancel,
                     enabled = isDismissible || stateAllowsCancel(progressState),
@@ -117,12 +123,12 @@ fun SttProgressDialog(
                             MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                     modifier = Modifier.semantics {
-                        contentDescription = if (isDismissible) "关闭错误提示" else "取消处理"
+                        contentDescription = cancelCd
                     },
                 ) {
                     Text(
                         text = when (progressState) {
-                            SttProgressState.ERROR -> "关闭"
+                            SttProgressState.ERROR -> stringResource(R.string.action_close)
                             else -> stringResource(R.string.action_cancel)
                         },
                         style = MaterialTheme.typography.labelLarge,
@@ -159,7 +165,7 @@ private fun DownloadingPhase(downloadProgress: Float) {
 
     Icon(
         imageVector = Icons.Default.CloudDownload,
-        contentDescription = "下载模型",
+        contentDescription = stringResource(R.string.stt_progress_cd_download_model),
         tint = MaterialTheme.colorScheme.primary.copy(alpha = cloudAlpha),
         modifier = Modifier.size(56.dp),
     )
@@ -184,7 +190,7 @@ private fun DownloadingPhase(downloadProgress: Float) {
     Spacer(Modifier.height(SpacingTokens.md))
 
     Text(
-        text = "正在下载语音识别模型... (${(animatedProgress * 100).toInt()}%)",
+        text = stringResource(R.string.stt_progress_downloading_model, (animatedProgress * 100).toInt()),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
@@ -192,7 +198,7 @@ private fun DownloadingPhase(downloadProgress: Float) {
     Spacer(Modifier.height(SpacingTokens.xs))
 
     Text(
-        text = "模型大小约 200MB，首次使用需下载",
+        text = stringResource(R.string.stt_progress_model_size_hint),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -210,7 +216,7 @@ private fun ExtractingPhase() {
 
     Icon(
         imageVector = Icons.Default.GraphicEq,
-        contentDescription = "提取音频",
+        contentDescription = stringResource(R.string.stt_progress_cd_extract_audio),
         tint = MaterialTheme.colorScheme.secondary,
         modifier = Modifier.size(48.dp),
     )
@@ -227,7 +233,7 @@ private fun ExtractingPhase() {
     Spacer(Modifier.height(SpacingTokens.lg))
 
     Text(
-        text = "正在提取音频轨道...",
+        text = stringResource(R.string.stt_progress_extracting_audio),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
@@ -252,7 +258,7 @@ private fun RecognizingPhase(currentPhase: String?) {
 
     Icon(
         imageVector = Icons.Default.Mic,
-        contentDescription = "语音识别",
+        contentDescription = stringResource(R.string.stt_progress_cd_recognizing),
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size((48 * micScale).dp),
     )
@@ -277,7 +283,7 @@ private fun RecognizingPhase(currentPhase: String?) {
     Spacer(Modifier.height(SpacingTokens.md))
 
     Text(
-        text = "正在进行语音识别...",
+        text = stringResource(R.string.stt_progress_recognizing),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
@@ -289,7 +295,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
 
     Icon(
         imageVector = Icons.Default.Error,
-        contentDescription = "错误",
+        contentDescription = stringResource(R.string.stt_progress_cd_error),
         tint = MaterialTheme.colorScheme.error,
         modifier = Modifier.size(48.dp),
     )
@@ -297,7 +303,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
     Spacer(Modifier.height(SpacingTokens.lg))
 
     Text(
-        text = "处理过程中出现错误",
+        text = stringResource(R.string.stt_progress_error_title),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.error,
     )
@@ -305,7 +311,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
     Spacer(Modifier.height(SpacingTokens.xs))
 
     Text(
-        text = "请检查文件格式或网络连接后重试",
+        text = stringResource(R.string.stt_progress_error_desc),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -318,10 +324,10 @@ private fun ErrorPhase(onRetry: () -> Unit) {
             shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {
-            Text("重试", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelLarge)
         }
         TextButton(onClick = { showHelpDialog = true }) {
-            Text("查看帮助", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.stt_progress_view_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 
@@ -337,7 +343,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = { showHelpDialog = false }) {
-                    Text("确定")
+                    Text(stringResource(R.string.stt_progress_ok))
                 }
             },
         )

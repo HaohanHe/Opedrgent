@@ -28,22 +28,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-enum class InputMode(val label: String, val icon: ImageVector) {
-    CHAT("对话", Icons.Default.ChatBubble),
-    DEEP_RESEARCH("深度研究", Icons.Default.Search),
-    VOICE("语音", Icons.Default.Mic),
+enum class InputMode(@androidx.annotation.StringRes val labelRes: Int, val icon: ImageVector) {
+    CHAT(R.string.input_mode_chat, Icons.Default.ChatBubble),
+    DEEP_RESEARCH(R.string.input_mode_deep_research, Icons.Default.Search),
+    VOICE(R.string.input_mode_voice, Icons.Default.Mic),
 }
 
 /** 搜索范围：控制 LLM 对话时的知识来源 */
-enum class SearchScope(val label: String) {
-    ALL("全部"),           // 我的笔记 + 全网搜索
-    MY_NOTES("我的笔记"),  // 仅海马体索引（笔记/发芽/对话/录音）
-    WEB_ONLY("全网"),       // 仅搜索引擎，不注入本地记忆
+enum class SearchScope(@androidx.annotation.StringRes val labelRes: Int) {
+    ALL(R.string.search_scope_all),           // 我的笔记 + 全网搜索
+    MY_NOTES(R.string.search_scope_my_notes),  // 仅海马体索引（笔记/发芽/对话/录音）
+    WEB_ONLY(R.string.search_scope_web_only),       // 仅搜索引擎，不注入本地记忆
 }
 
 @Composable
@@ -77,7 +79,7 @@ fun SearchScopeChips(
                 modifier = Modifier,
             ) {
                 Text(
-                    text = scope.label,
+                    text = stringResource(scope.labelRes),
                     color = contentColor,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
@@ -123,13 +125,13 @@ fun InputModeBar(
                 ) {
                     Icon(
                         imageVector = mode.icon,
-                        contentDescription = mode.label,
+                        contentDescription = stringResource(mode.labelRes),
                         tint = contentColor,
                         modifier = Modifier.size(SpacingTokens.lg),
                     )
                     Spacer(Modifier.width(SpacingTokens.xs))
                     Text(
-                        text = mode.label,
+                        text = stringResource(mode.labelRes),
                         color = contentColor,
                         style = MaterialTheme.typography.labelMedium,
                     )

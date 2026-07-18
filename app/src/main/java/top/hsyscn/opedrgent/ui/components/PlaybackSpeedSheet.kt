@@ -23,7 +23,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -54,7 +56,7 @@ fun PlaybackSpeedSheet(
                 .padding(bottom = SpacingTokens.xl),
         ) {
             Text(
-                text = "播放速度",
+                text = stringResource(R.string.playback_speed_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(vertical = SpacingTokens.md),
@@ -94,7 +96,7 @@ fun PlaybackSpeedSheet(
                         Spacer(Modifier.weight(1f))
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "已选择该速度",
+                            contentDescription = stringResource(R.string.playback_speed_cd_selected),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .size(20.dp)
@@ -111,7 +113,7 @@ fun PlaybackSpeedSheet(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text(
-                    text = "取消",
+                    text = stringResource(R.string.action_cancel),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )

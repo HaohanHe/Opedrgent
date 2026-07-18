@@ -17,7 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -38,7 +40,7 @@ fun MessageBodyInfo(
     ) {
         Icon(
             imageVector = Icons.Default.Info,
-            contentDescription = "信息",
+            contentDescription = stringResource(R.string.msg_body_cd_info),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.primary,
         )

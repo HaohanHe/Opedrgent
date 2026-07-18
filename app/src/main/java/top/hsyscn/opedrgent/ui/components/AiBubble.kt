@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
@@ -189,7 +190,7 @@ fun AIMessageCard(
                                 IconButton(
                                     onClick = {
                                         clipboard.setText(AnnotatedString(message.textContent))
-                                        feedback.showFeedback("已复制")
+                                        feedback.showFeedback(context.getString(R.string.msg_copied))
                                     },
                                     modifier = Modifier.size(28.dp),
                                 ) {
@@ -207,16 +208,16 @@ fun AIMessageCard(
                 onDismissRequest = { showMenu = false },
             ) {
                 DropdownMenuItem(
-                    text = { Text("复制") },
+                    text = { Text(stringResource(R.string.action_copy)) },
                     onClick = {
                         clipboard.setText(AnnotatedString(message.textContent))
-                        feedback.showFeedback("已复制")
+                        feedback.showFeedback(context.getString(R.string.msg_copied))
                         showMenu = false
                     },
                 )
                 if (onUndo != null) {
                     DropdownMenuItem(
-                        text = { Text("撤回") },
+                        text = { Text(stringResource(R.string.bubble_action_undo)) },
                         onClick = {
                             onUndo()
                             showMenu = false

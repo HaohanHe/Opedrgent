@@ -48,10 +48,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.stt.SttSegment
@@ -72,6 +74,7 @@ fun SttResultCard(
     if (result == null && error == null) return
 
     val isSuccess = error == null && result != null
+    val cardCd = stringResource(R.string.stt_result_cd_card)
 
     AnimatedVisibility(
         visible = true,
@@ -86,7 +89,7 @@ fun SttResultCard(
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             modifier = modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = "语音转录结果卡片" }
+                .semantics { contentDescription = cardCd }
                 .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
         ) {
             Column(modifier = Modifier.padding(SpacingTokens.lg)) {
@@ -119,10 +122,16 @@ fun SttResultCard(
 
 @Composable
 private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
+    val iconCd = if (isSuccess) {
+        stringResource(R.string.stt_result_cd_success)
+    } else {
+        stringResource(R.string.stt_result_cd_failed)
+    }
+    val closeCd = stringResource(R.string.stt_result_cd_close)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
-            contentDescription = if (isSuccess) "转录成功" else "转录失败",
+            contentDescription = iconCd,
             tint = if (isSuccess)
                 MaterialTheme.colorScheme.primary
             else
@@ -131,7 +140,7 @@ private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
         )
         Spacer(Modifier.width(SpacingTokens.md))
         Text(
-            text = if (isSuccess) "转录结果" else "转录失败",
+            text = if (isSuccess) stringResource(R.string.stt_result_title) else stringResource(R.string.stt_result_failed_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
@@ -140,11 +149,11 @@ private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
             onClick = onDismiss,
             modifier = Modifier
                 .size(36.dp)
-                .semantics { contentDescription = "关闭转录结果" },
+                .semantics { contentDescription = closeCd },
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "关闭",
+                contentDescription = stringResource(R.string.cd_close),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -158,7 +167,7 @@ private fun ErrorContent(error: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Default.Error,
-                contentDescription = "错误",
+                contentDescription = stringResource(R.string.stt_result_cd_error),
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(18.dp),
             )
@@ -173,7 +182,7 @@ private fun ErrorContent(error: String) {
         }
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
-            text = "可能原因：文件格式不支持、文件损坏或音频内容为空",
+            text = stringResource(R.string.stt_result_error_possible_causes),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -184,10 +193,11 @@ private fun ErrorContent(error: String) {
 private fun SuccessContent(result: SttResult) {
     var statsExpanded by rememberSaveable { mutableStateOf(false) }
     val charCount by remember(result.text) { mutableIntStateOf(result.text.length) }
+    val textCd = stringResource(R.string.stt_result_cd_text_word_count, charCount)
 
     Column {
         Text(
-            text = result.text.ifEmpty { "[空结果]" },
+            text = result.text.ifEmpty { stringResource(R.string.stt_result_empty) },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = Int.MAX_VALUE,
@@ -196,13 +206,13 @@ private fun SuccessContent(result: SttResult) {
                 .fillMaxWidth()
                 .heightIn(max = 200.dp)
                 .verticalScroll(rememberScrollState())
-                .semantics { contentDescription = "转录文本，共 ${charCount} 个字" },
+                .semantics { contentDescription = textCd },
         )
 
         Spacer(Modifier.height(SpacingTokens.xs))
 
         Text(
-            text = "$charCount 字",
+            text = stringResource(R.string.stt_result_word_count, charCount),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.End),
@@ -229,11 +239,13 @@ private fun StatsBar(
     expanded: Boolean,
     onToggleExpand: () -> Unit,
 ) {
-    val statsText = remember(result) {
+    val durationLabel = stringResource(R.string.stt_result_duration_label)
+    val charUnit = stringResource(R.string.stt_result_char_count_unit)
+    val statsText = remember(result, durationLabel, charUnit) {
         buildString {
-            append("时长 ${AudioProcessor.formatDuration(result.durationMs)}")
+            append("$durationLabel ${AudioProcessor.formatDuration(result.durationMs)}")
             append("  \u00B7  ")
-            append("${result.text.length} 字")
+            append("${result.text.length} $charUnit")
             append("  \u00B7  ")
             append(result.engineType.name)
             if (result.modelUsed.isNotEmpty()) {
@@ -246,6 +258,11 @@ private fun StatsBar(
         }
     }
 
+    val statsCd = if (expanded) {
+        stringResource(R.string.stt_result_cd_stats_expanded, statsText)
+    } else {
+        stringResource(R.string.stt_result_cd_stats_collapsed, statsText)
+    }
     Surface(
         shape = ShapeTokens.smallShape,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
@@ -253,7 +270,7 @@ private fun StatsBar(
         modifier = Modifier
             .fillMaxWidth()
             .clip(ShapeTokens.smallShape)
-            .semantics { contentDescription = "统计信息：$statsText。${if (expanded) "已展开" else "点击展开详情"}" },
+            .semantics { contentDescription = statsCd },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -269,7 +286,7 @@ private fun StatsBar(
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "收起详情" else "展开详情",
+                contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
@@ -286,12 +303,17 @@ private fun SegmentList(segments: List<SttSegment>) {
         modifier = Modifier.padding(top = SpacingTokens.sm).fillMaxWidth(),
     ) {
         segments.forEachIndexed { index, segment ->
+            val segmentCd = stringResource(
+                R.string.stt_result_cd_segment_confidence,
+                index + 1,
+                (segment.confidence * 100).toInt(),
+            )
             Surface(
                 shape = ShapeTokens.smallShape,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = "第 ${index + 1} 段，置信度 ${(segment.confidence * 100).toInt()}%" },
+                    .semantics { contentDescription = segmentCd },
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -334,6 +356,8 @@ private fun ActionButtons(
     onSendToLlm: () -> Unit,
 ) {
     var copyFeedbackShown by remember { mutableStateOf(false) }
+    val copyCd = stringResource(R.string.stt_result_cd_copy)
+    val sendCd = stringResource(R.string.stt_result_cd_send_to_ai)
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -351,25 +375,25 @@ private fun ActionButtons(
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
-                .semantics { contentDescription = "复制转录文本" },
+                .semantics { contentDescription = copyCd },
         ) {
             if (copyFeedbackShown) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "复制完成",
+                    contentDescription = stringResource(R.string.msg_copied),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("已复制", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.msg_copied), style = MaterialTheme.typography.labelLarge)
             } else {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "复制",
+                    contentDescription = stringResource(R.string.cd_copy),
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text("复制", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.action_copy), style = MaterialTheme.typography.labelLarge)
             }
         }
 
@@ -386,15 +410,15 @@ private fun ActionButtons(
             modifier = Modifier
                 .weight(1f)
                 .height(44.dp)
-                .semantics { contentDescription = "发送给 AI 分析" },
+                .semantics { contentDescription = sendCd },
         ) {
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "发送给 AI",
+                contentDescription = stringResource(R.string.stt_result_cd_send_ai),
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text("发送给 AI 分析", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.stt_result_send_to_ai), style = MaterialTheme.typography.labelLarge)
         }
     }
 }

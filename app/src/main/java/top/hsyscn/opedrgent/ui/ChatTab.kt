@@ -14,7 +14,9 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
@@ -70,6 +72,7 @@ fun ChatTab(
                         onBack = { onSessionDeselected() },
                     )
                 } else {
+                    val newSessionTitle = stringResource(R.string.chat_new_session_title)
                     EmptyStateView(
                         icon = {
                             Icon(
@@ -79,10 +82,10 @@ fun ChatTab(
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                             )
                         },
-                        title = "开始新对话",
-                        subtitle = "点击下方按钮，与 Opedrgent 开启一段新的对话",
-                        actionLabel = "新建会话",
-                        onAction = { vm.createSessionAndNavigate("新对话") },
+                        title = stringResource(R.string.chat_empty_state_title),
+                        subtitle = stringResource(R.string.chat_empty_state_subtitle),
+                        actionLabel = stringResource(R.string.chat_empty_state_action),
+                        onAction = { vm.createSessionAndNavigate(newSessionTitle) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

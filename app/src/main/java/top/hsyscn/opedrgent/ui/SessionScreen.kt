@@ -560,7 +560,7 @@ fun SessionScreen(
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.xs))
                         Text(
-                            text = state.searchScope.label,
+                            text = stringResource(state.searchScope.labelRes),
                             style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.primary),
                         )
                     }
@@ -948,7 +948,7 @@ fun SessionScreen(
                             Spacer(modifier = Modifier.width(SpacingTokens.md))
                             Column {
                                 Text(
-                                    text = scopeEntry.label,
+                                    text = stringResource(scopeEntry.labelRes),
                                     style = MaterialTheme.typography.titleSmall,
                                 )
                                 val description = when (scopeEntry) {

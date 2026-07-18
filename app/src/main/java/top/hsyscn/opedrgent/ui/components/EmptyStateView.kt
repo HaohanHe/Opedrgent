@@ -16,8 +16,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -81,9 +83,9 @@ private fun EmptyStateViewPreview() {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 )
             },
-            title = "暂无内容",
-            subtitle = "在这里可以查看和管理你的笔记、文档与对话记录",
-            actionLabel = "立即创建",
+            title = stringResource(R.string.empty_state_title),
+            subtitle = stringResource(R.string.empty_state_subtitle),
+            actionLabel = stringResource(R.string.empty_state_action),
             onAction = {},
             modifier = Modifier.padding(SpacingTokens.xxl),
         )
@@ -103,9 +105,9 @@ private fun EmptyStateViewDarkPreview() {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 )
             },
-            title = "暂无内容",
-            subtitle = "在这里可以查看和管理你的笔记、文档与对话记录",
-            actionLabel = "立即创建",
+            title = stringResource(R.string.empty_state_title),
+            subtitle = stringResource(R.string.empty_state_subtitle),
+            actionLabel = stringResource(R.string.empty_state_action),
             onAction = {},
             modifier = Modifier.padding(SpacingTokens.xxl),
         )

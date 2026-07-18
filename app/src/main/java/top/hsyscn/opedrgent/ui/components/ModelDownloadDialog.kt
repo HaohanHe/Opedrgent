@@ -43,12 +43,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.llm.DownloadProgress
 import top.hsyscn.opedrgent.llm.DownloadStatus
 import top.hsyscn.opedrgent.llm.LocalModelInfo
@@ -84,16 +86,16 @@ fun ModelDownloadDialog(
     if (showCancelConfirm) {
         AlertDialog(
             onDismissRequest = { showCancelConfirm = false },
-            title = { Text("确定要取消下载吗？") },
-            text = { Text("模型文件较大，重新下载需要较长时间。\n已下载的部分将保留，下次可断点续传。") },
+            title = { Text(stringResource(R.string.download_confirm_cancel_title)) },
+            text = { Text(stringResource(R.string.download_confirm_cancel_desc)) },
             confirmButton = {
                 TextButton(onClick = onConfirmCancel) {
-                    Text("确定取消", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.download_action_confirm_cancel), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCancelConfirm = false }) {
-                    Text("继续下载")
+                    Text(stringResource(R.string.download_action_continue))
                 }
             }
         )
@@ -121,7 +123,7 @@ fun ModelDownloadDialog(
 
                 Icon(
                     imageVector = Icons.Default.Download,
-                    contentDescription = "下载模型",
+                    contentDescription = stringResource(R.string.download_cd_download_model),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(SpacingTokens.xxl),
                 )
@@ -129,7 +131,7 @@ fun ModelDownloadDialog(
                 Spacer(modifier = Modifier.height(SpacingTokens.lg))
 
                 Text(
-                    text = "正在下载 ${modelInfo.displayName}",
+                    text = stringResource(R.string.download_downloading_title, modelInfo.displayName),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
@@ -157,7 +159,7 @@ fun ModelDownloadDialog(
                         QueuedSection()
                     }
                     DownloadStatus.FAILED -> {
-                        FailedSection(error = progress.error ?: "未知错误")
+                        FailedSection(error = progress.error ?: stringResource(R.string.download_unknown_error))
                     }
                     else -> {
                         IdleSection(totalMb = modelInfo.sizeMb)
@@ -171,7 +173,7 @@ fun ModelDownloadDialog(
                 Spacer(modifier = Modifier.height(SpacingTokens.xl))
 
                 Text(
-                    text = "好东西，就要来了...",
+                    text = stringResource(R.string.download_encouragement),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -278,7 +280,7 @@ private fun PausedSection(progress: DownloadProgress?) {
         Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
         Text(
-            text = "已暂停",
+            text = stringResource(R.string.state_paused),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -303,7 +305,7 @@ private fun QueuedSection() {
         Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Text(
-            text = "排队中...",
+            text = stringResource(R.string.download_status_queued),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -318,7 +320,7 @@ private fun FailedSection(error: String) {
     ) {
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "下载失败",
+            contentDescription = stringResource(R.string.download_cd_failed),
             tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.size(SpacingTokens.xxl),
         )
@@ -326,7 +328,7 @@ private fun FailedSection(error: String) {
         Spacer(modifier = Modifier.height(SpacingTokens.sm))
 
         Text(
-            text = "下载失败",
+            text = stringResource(R.string.download_failed),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.error,
         )
@@ -362,7 +364,7 @@ private fun IdleSection(totalMb: Long) {
         Spacer(modifier = Modifier.height(SpacingTokens.md))
 
         Text(
-            text = "准备下载 ($totalMb MB)",
+            text = stringResource(R.string.download_preparing_with_size, totalMb),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -438,11 +440,11 @@ private fun ActionButtons(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Pause,
-                        contentDescription = "暂停",
+                        contentDescription = stringResource(R.string.cd_pause),
                         modifier = Modifier.size(SpacingTokens.md),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text(text = "暂停", style = MaterialTheme.typography.labelLarge)
+                    Text(text = stringResource(R.string.action_pause), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -457,11 +459,11 @@ private fun ActionButtons(
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "恢复",
+                        contentDescription = stringResource(R.string.action_resume),
                         modifier = Modifier.size(SpacingTokens.md),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text(text = "恢复", style = MaterialTheme.typography.labelLarge)
+                    Text(text = stringResource(R.string.action_resume), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -485,7 +487,7 @@ private fun ActionButtons(
             contentPadding = PaddingValues(vertical = SpacingTokens.md),
         ) {
             Text(
-                text = "取消下载",
+                text = stringResource(R.string.download_action_cancel),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.error,
             )

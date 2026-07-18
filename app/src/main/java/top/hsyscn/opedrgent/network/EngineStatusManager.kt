@@ -1,6 +1,11 @@
 package top.hsyscn.opedrgent.network
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -245,9 +250,9 @@ object EngineStatusManager {
     )
     fun recordSuccess(engineName: String, responseTimeMs: Long = 0L) {
         try {
-            runBlocking { CircuitBreakerManager.getOrCreate(engineName).recordSuccess(responseTimeMs) }
+            CircuitBreakerManager.getOrCreate(engineName).recordSuccess(responseTimeMs)
         } catch (e: Exception) { /* ignore */ }
-        
+
         val current = statusMap[engineName]
         
         // 更新成功计数

@@ -91,7 +91,7 @@ fun ConfirmationDialog(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "确认",
+                    contentDescription = stringResource(R.string.confirm_dialog_cd_confirm),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp),
                 )
@@ -156,11 +156,11 @@ fun ConfirmationDialog(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消",
+                        contentDescription = stringResource(R.string.confirm_dialog_cd_cancel),
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
 
                 Row(
@@ -186,11 +186,11 @@ fun ConfirmationDialog(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "确认",
+                        contentDescription = stringResource(R.string.confirm_dialog_cd_confirm),
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text("确认")
+                    Text(stringResource(R.string.action_confirm))
                 }
             }
         }

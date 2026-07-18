@@ -39,10 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -68,12 +70,13 @@ fun AudioPickerDialog(
             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
         ) + fadeIn(),
     ) {
+        val dialogCd = stringResource(R.string.audio_picker_cd_dialog)
         Surface(
             shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             modifier = modifier
-                .semantics { contentDescription = "选择音频输入方式对话框" }
+                .semantics { contentDescription = dialogCd }
                 .padding(horizontal = SpacingTokens.xl),
         ) {
             Column(
@@ -89,7 +92,7 @@ fun AudioPickerDialog(
                     )
                     Spacer(Modifier.width(SpacingTokens.md))
                     Text(
-                        text = "选择输入方式",
+                        text = stringResource(R.string.audio_picker_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -98,6 +101,7 @@ fun AudioPickerDialog(
                 Spacer(Modifier.height(SpacingTokens.xl))
 
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
+                    val uploadFileCd = stringResource(R.string.audio_picker_cd_upload_file)
                     Card(
                         shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(
@@ -113,7 +117,7 @@ fun AudioPickerDialog(
                                 onClick = { launcher.launch("*/*") },
                             )
                             .semantics {
-                                contentDescription = "上传音视频文件，支持 MP3、WAV、M4A、MP4 等格式"
+                                contentDescription = uploadFileCd
                                 role = androidx.compose.ui.semantics.Role.Button
                             },
                     ) {
@@ -125,33 +129,34 @@ fun AudioPickerDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AudioFile,
-                                contentDescription = "上传文件",
+                                contentDescription = stringResource(R.string.audio_picker_cd_upload),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(SpacingTokens.xxl),
                             )
                             Spacer(Modifier.width(SpacingTokens.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    text = "上传音视频文件",
+                                    text = stringResource(R.string.audio_picker_upload_file),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Spacer(Modifier.height(SpacingTokens.xxs))
                                 Text(
-                                    text = "MP3, WAV, M4A, MP4 等格式",
+                                    text = stringResource(R.string.audio_picker_supported_formats),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                contentDescription = "进入",
+                                contentDescription = stringResource(R.string.cd_enter),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                     }
 
+                    val recordRealtimeCd = stringResource(R.string.audio_picker_cd_record_realtime)
                     Card(
                         shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(
@@ -170,7 +175,7 @@ fun AudioPickerDialog(
                                 },
                             )
                             .semantics {
-                                contentDescription = "使用麦克风实时录音转文字"
+                                contentDescription = recordRealtimeCd
                                 role = androidx.compose.ui.semantics.Role.Button
                             },
                     ) {
@@ -182,27 +187,27 @@ fun AudioPickerDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = "录音",
+                                contentDescription = stringResource(R.string.audio_picker_cd_record),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(SpacingTokens.xxl),
                             )
                             Spacer(Modifier.width(SpacingTokens.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    text = "实时录音转文字",
+                                    text = stringResource(R.string.audio_picker_realtime_record),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Spacer(Modifier.height(SpacingTokens.xxs))
                                 Text(
-                                    text = "使用麦克风实时识别",
+                                    text = stringResource(R.string.audio_picker_realtime_desc),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = "录音",
+                                contentDescription = stringResource(R.string.audio_picker_cd_record),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                 modifier = Modifier.size(22.dp),
                             )
@@ -213,7 +218,7 @@ fun AudioPickerDialog(
                 Spacer(Modifier.height(SpacingTokens.lg))
 
                 Text(
-                    text = "提示：上传的文件将在本地处理，不会上传至服务器",
+                    text = stringResource(R.string.audio_picker_local_process_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
@@ -225,6 +230,7 @@ fun AudioPickerDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    val closeDialogCd = stringResource(R.string.audio_picker_cd_close_dialog)
                     IconButton(
                         onClick = {
                             visible = false
@@ -233,17 +239,17 @@ fun AudioPickerDialog(
                         modifier = Modifier
                             .size(40.dp)
                             .semantics {
-                                contentDescription = "关闭选择输入方式对话框"
+                                contentDescription = closeDialogCd
                             },
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "关闭",
+                            contentDescription = stringResource(R.string.cd_close),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Text(
-                        text = "取消",
+                        text = stringResource(R.string.action_cancel),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
