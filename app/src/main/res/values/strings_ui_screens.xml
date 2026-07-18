@@ -406,6 +406,7 @@
     <!-- settings -->
     <string name="settings_1">%1$s小时</string>
     <string name="settings_api_ke_yong_mo_xing">API 可用模型</string>
+    <string name="settings_base_url">Base URL</string>
     <string name="settings_bi_ji_bian_ji_qi_de_mo_ren">笔记编辑器的默认输入模式</string>
     <string name="settings_bian_ji_qi_mo_shi">编辑器模式</string>
     <string name="settings_ce_shi_lian_jie">测试连接</string>
@@ -434,6 +435,7 @@
     <string name="settings_lian_jie_shi_bai_qing_jian">连接失败，请检查配置</string>
     <string name="settings_lu_zhi_hou_shi_bie_geng_zhun">录制后识别（更准确）</string>
     <string name="settings_mi_ma">密码</string>
+    <string name="settings_model_label">Model</string>
     <string name="settings_mo_xing_jia_zai_shi_bai_1">模型加载失败: %1$s</string>
     <string name="settings_notally_feng_ge_xuan_zhong">Notally 风格，选中文字即可加格式</string>
     <string name="settings_paraformer_liu_shi">Paraformer 流式</string>
@@ -446,6 +448,9 @@
     <string name="settings_she_bei_bu_zhi_chi_health">设备不支持 Health Connect</string>
     <string name="settings_shi_bie_mo_shi">识别模式</string>
     <string name="settings_shi_he_kai_fa_zhe_shou_xie_yu">适合开发者，手写语法</string>
+    <string name="settings_temperature">Temperature</string>
+    <string name="settings_top_p">Top P</string>
+    <string name="settings_top_k_format">Top K: %1$d</string>
     <string name="settings_shi_yong_xi_tong_bi_zhi_yan">使用系统壁纸颜色（Android 12+）</string>
     <string name="settings_sou_suo_you_xian_ji_ru_tavily">搜索优先级（如 tavily,brave,bing,baidu,ddg）</string>
     <string name="settings_tavily_api_key_ai_zhuan_yong">Tavily API Key（AI专用搜索，免费1000次/月）</string>

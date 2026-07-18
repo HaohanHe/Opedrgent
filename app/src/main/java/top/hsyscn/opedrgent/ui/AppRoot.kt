@@ -471,16 +471,7 @@ fun AppRoot(
                     vm = vm,
                     onBack = { subScreen = null },
                     onSendToChat = { text ->
-                        val structuredPrompt = buildString {
-                            appendLine("请对以下内容进行结构化总结，按以下四个部分输出，每部分用【标记】开头：")
-                            appendLine("【智能总结】用2-3句话概括核心内容")
-                            appendLine("【章节概要】按主题分段，每段配小标题")
-                            appendLine("【金句精选】提取3-5句关键原话")
-                            appendLine("【待办事项】列出所有需要后续跟进的事项")
-                            appendLine()
-                            appendLine("内容如下：")
-                            append(text)
-                        }
+                        val structuredPrompt = context.getString(R.string.recording_ai_zong_jie_ti_shi, text)
                         vm.sendUserMessage(structuredPrompt)
                         selectedTab = MainTab.AI
                         subScreen = null

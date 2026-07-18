@@ -28,7 +28,9 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.llm.*
 import top.hsyscn.opedrgent.service.ModelDownloadService
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -56,7 +58,7 @@ fun ModelSelectorDialog(
                 .padding(horizontal = SpacingTokens.xl),
             shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp,
+            tonalElevation = ElevationTokens.xl,
         ) {
             Column(
                 modifier = Modifier.padding(SpacingTokens.xl),
@@ -97,7 +99,7 @@ fun ModelSelectorDialog(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 400.dp),
+                        .heightIn(max = SizeTokens.expandedContentMaxHeight),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
@@ -221,8 +223,8 @@ private fun ModelCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, ShapeTokens.mediumShape)
-                else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, ShapeTokens.mediumShape)
+                if (isSelected) Modifier.border(SizeTokens.borderWidthLg, MaterialTheme.colorScheme.primary, ShapeTokens.mediumShape)
+                else Modifier.border(SizeTokens.borderWidth, MaterialTheme.colorScheme.outlineVariant, ShapeTokens.mediumShape)
             ),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),

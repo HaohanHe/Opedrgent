@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.material3.Text
@@ -92,7 +93,7 @@ fun RecordingCard(
     Card(
         shape = ShapeTokens.extraLargeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.xl),
         modifier = modifier
             .fillMaxWidth()
             .semantics {

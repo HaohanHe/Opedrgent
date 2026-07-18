@@ -379,7 +379,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = baseUrl,
                             onValueChange = { baseUrl = it },
-                            label = { Text("Base URL") },
+                            label = { Text(stringResource(R.string.settings_base_url)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             isError = baseUrl.isNotBlank() && !baseUrl.startsWith("http"),
@@ -398,7 +398,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = model,
                                 onValueChange = { model = it },
-                                label = { Text("Model") },
+                                label = { Text(stringResource(R.string.settings_model_label)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 trailingIcon = {
@@ -621,7 +621,7 @@ fun SettingsScreen(
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Temperature", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Text(stringResource(R.string.settings_temperature), style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTemp,
                                     onValueChange = { localTemp = it },
@@ -632,7 +632,7 @@ fun SettingsScreen(
                                 Text("${String.format("%.2f", localTemp)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                             }
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top P", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Text(stringResource(R.string.settings_top_p), style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTopP,
                                     onValueChange = { localTopP = it },
@@ -648,7 +648,7 @@ fun SettingsScreen(
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Top K: $localTopK", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Text(stringResource(R.string.settings_top_k_format, localTopK), style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                                 Slider(
                                     value = localTopK.toFloat(),
                                     onValueChange = { localTopK = it.toInt() },
