@@ -51,6 +51,7 @@ import top.hsyscn.opedrgent.ui.state.AgentUiBridge
 import top.hsyscn.opedrgent.ui.state.AgentUiStateManager
 import top.hsyscn.opedrgent.ui.state.HamContactLogHelper
 import top.hsyscn.opedrgent.ui.state.SettingsStateManager
+import top.hsyscn.opedrgent.ui.state.SproutStateManager
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -91,7 +92,6 @@ import top.hsyscn.opedrgent.network.WebResearchRouter
 import top.hsyscn.opedrgent.network.MapTileFetcher
 import top.hsyscn.opedrgent.network.PromptCacheBreakDetection
 import top.hsyscn.opedrgent.storage.HippocampusIndex
-import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.env.EnvironmentProvider
 import top.hsyscn.opedrgent.automation.AutomationKind
@@ -387,6 +387,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val questionRequest: StateFlow<QuestionRequest?> = agentUiState.questionRequest
     val confirmationRequest: StateFlow<ConfirmationRequest?> = agentUiState.confirmationRequest
 
+    /** 知识发芽状态 */
+    private val sproutState = SproutStateManager(app, apiSettings, viewModelScope, hippocampus, sproutReportStore)
+    val sproutingState: StateFlow<SproutingState> = sproutState.sproutingState
+    val sproutUiState: StateFlow<SproutUiState> = sproutState.sproutUiState
+    val sproutResult: StateFlow<String?> = sproutState.sproutResult
+    val sproutHistory: StateFlow<List<top.hsyscn.opedrgent.insight.SproutResult>> = sproutState.sproutHistory
+
     /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
     var recordingState by recorder::recordingState
     /** 录音模式（常规/内录） */
@@ -500,23 +507,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var sherpaOnnxEngine: SherpaOnnxEngine? = null
     private var androidSpeechRecognizer: AndroidSpeechRecognizer? = null
 
-    val _sproutingState = MutableStateFlow<SproutingState>(SproutingState.IDLE)
-    val sproutingState: StateFlow<SproutingState> = _sproutingState.asStateFlow()
-
-    private val _sproutUiState = MutableStateFlow<SproutUiState>(SproutUiState.Idle)
-    val sproutUiState: StateFlow<SproutUiState> = _sproutUiState.asStateFlow()
-
-    val _sproutResult = MutableStateFlow<String?>(null)
-    val sproutResult: StateFlow<String?> = _sproutResult.asStateFlow()
-
-    private val _sproutHistory = MutableStateFlow<List<top.hsyscn.opedrgent.insight.SproutResult>>(emptyList())
-    val sproutHistory: StateFlow<List<top.hsyscn.opedrgent.insight.SproutResult>> = _sproutHistory.asStateFlow()
-
-    private val sproutCache = mutableMapOf<String, top.hsyscn.opedrgent.insight.SproutResult>()
-
     private var sttEngine: SpeechEngine? = null
     private var sttJob: Job? = null
-    private var sproutJob: Job? = null
 
     // ==================== AI 风格转换 ====================
     private val _aiConvertedContent = MutableStateFlow<String?>(null)
@@ -4382,8 +4374,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         sttJob?.cancel()
         sttJob = null
-        sproutJob?.cancel()
-        sproutJob = null
         asrStreamingJob?.cancel()
         asrStreamingJob = null
         _asrEvent.close()
@@ -4394,7 +4384,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         sttEngine?.close()
         sttEngine = null
         asrManager.close()
-        sproutCache.clear()
+        sproutState.cancelSprouting()
+        sproutState.clearCache()
         tts.shutdown()
         // 释放 ToolExecutor 持有的 WebViewAgent 及各工具内部资源，避免 Activity 销毁后 WebView 泄露
         runCatching { toolExecutor.destroy() }
@@ -6577,141 +6568,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return ModelManager.getRecommendedModel(context)
     }
 
-    @Suppress("DEPRECATION")
     fun triggerInsightSprout(text: String, config: SproutConfig? = null) {
-        val trimmedText = text.trim()
-        if (trimmedText.isBlank()) {
-            _sproutUiState.value = SproutUiState.Error("输入文本不能为空")
-            _sproutingState.value = SproutingState.ERROR
-            _sproutResult.value = "输入文本不能为空，请提供需要发芽的内容"
-            return
-        }
-
-        if (trimmedText.length < 10) {
-            _sproutUiState.value = SproutUiState.Error("输入文本过短（至少10个字符），请提供更丰富的内容以获得更好的发芽效果")
-            _sproutingState.value = SproutingState.ERROR
-            return
-        }
-
-        val cacheKey = trimmedText.hashCode().toString()
-        sproutCache[cacheKey]?.let { cached ->
-            DebugLog.i("Sprout: 命中缓存，直接返回历史结果")
-            _sproutResult.value = cached.markdownReport
-            _sproutUiState.value = SproutUiState.Done(cached.markdownReport, computeSproutQualityScore(cached))
-            _sproutingState.value = SproutingState.DONE
-            return
-        }
-
-        sproutJob?.cancel()
-        _sproutingState.value = SproutingState.IDLE
-        _sproutResult.value = null
-        _sproutUiState.value = SproutUiState.Idle
-
-        val keywordPreview = trimmedText.take(80).replace("\n", " ") + if (trimmedText.length > 80) "..." else ""
-        DebugLog.i("Sprout: 开始发芽 inputLength=${trimmedText.length} preview=$keywordPreview")
-
-        sproutJob = viewModelScope.launch {
-            try {
-                val effectiveConfig = config ?: SproutConfig()
-                val sessionId = _state.value.current?.id
-
-                _sproutUiState.value = SproutUiState.AnalyzingInput(keywordPreview)
-                delay(200)
-
-                val phaseOrder = listOf(
-                    top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION,
-                    top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN,
-                    top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT,
-                    top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE,
-                )
-                var currentPhaseIndex = 0
-                val startTime = System.currentTimeMillis()
-
-                val engine = InsightSproutEngine(
-                    llmCall = { prompt: String ->
-                        val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
-                        LlmClient().chatCompletions(
-                            config = apiConfig,
-                            system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
-                            messages = listOf(ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis())),
-                        )
-                    },
-                )
-
-                _sproutUiState.value = SproutUiState.GeneratingReport(0, 4)
-
-                val result = engine.sprout(trimmedText, effectiveConfig)
-
-                for ((i, phase) in result.completedPhases.withIndex()) {
-                    _sproutUiState.value = SproutUiState.GeneratingReport(i + 1, result.completedPhases.size)
-                    when (phase) {
-                        top.hsyscn.opedrgent.insight.SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
-                        top.hsyscn.opedrgent.insight.SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
-                        top.hsyscn.opedrgent.insight.SproutPhase.WEB_ENHANCE -> _sproutingState.value = SproutingState.PHASE2
-                        top.hsyscn.opedrgent.insight.SproutPhase.SHOCKING_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
-                        top.hsyscn.opedrgent.insight.SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
-                    }
-                }
-
-                val qualityScore = computeSproutQualityScore(result)
-                _sproutResult.value = result.markdownReport
-                _sproutUiState.value = SproutUiState.Done(result.markdownReport, qualityScore)
-                _sproutingState.value = SproutingState.DONE
-
-                sproutCache[cacheKey] = result
-                _sproutHistory.value = listOf(result) + _sproutHistory.value.take(49)
-
-                // Index sprout result into global hippocampus
-                val sproutTitle = trimmedText.take(50).replace("\n", " ")
-                hippocampus?.upsertSprout(cacheKey, sproutTitle, result.markdownReport)
-
-                // Persist sprout report to database (restart-safe)
-                try {
-                    sproutReportStore.insert(SproutReportRecord(
-                        sourceNoteId = 0,  // independent sprout (not from a specific note)
-                        sourceTitle = sproutTitle,
-                        markdownReport = result.markdownReport,
-                        summary = result.seeds.joinToString("; ") { "${it.concept}: ${it.description.take(100)}" },
-                        modelUsed = "insight-engine",
-                        createdAt = System.currentTimeMillis(),
-                        wordCount = result.markdownReport.length,
-                    ))
-                } catch (_: Exception) { /* non-critical: persistence failure should not block UI */ }
-
-                DebugLog.i("Sprout: 发芽完成 phases=${result.completedPhases.size}/4 quality=$qualityScore time=${result.processingTimeMs}ms seeds=${result.seeds.size} insights=${result.insights.size}")
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                val completedPhases = _sproutUiState.value.let { (it as? SproutUiState.GeneratingReport)?.phasesCompleted ?: 0 }
-                DebugLog.i("Sprout: 用户取消发芽 completedPhases=$completedPhases")
-                _sproutUiState.value = SproutUiState.Cancelled(completedPhases)
-                _sproutingState.value = SproutingState.IDLE
-            } catch (e: Exception) {
-                val failedPhase = _sproutUiState.value.let { (it as? SproutUiState.PhaseInProgress)?.phase }
-                DebugLog.e("Sprout: 发芽异常 [${failedPhase?.name ?: "UNKNOWN"}] ${e.message}", e)
-                _sproutUiState.value = SproutUiState.Error(
-                    "发芽处理失败: ${e.message}",
-                    failedPhase,
-                )
-                _sproutingState.value = SproutingState.ERROR
-                _sproutResult.value = "发芽处理失败: ${e.message}"
-            }
-        }
-    }
-
-    private fun computeSproutQualityScore(result: top.hsyscn.opedrgent.insight.SproutResult): Int {
-        var score = 50
-        score += (result.completedPhases.size * 10).coerceAtMost(40)
-        score += (result.seeds.size * 3).coerceAtMost(15)
-        score += (result.insights.size * 5).coerceAtMost(15)
-        score += (result.quotes.size * 2).coerceAtMost(10)
-        if (result.markdownReport.length > 500) score += 5
-        if (result.connections.isNotEmpty()) score += 5
-        return score.coerceIn(0, 100)
+        sproutState.triggerSprout(text, config)
     }
 
     fun sproutCurrentContext() {
         val currentSession = _state.value.current ?: run {
-            _sproutUiState.value = SproutUiState.Error("没有当前会话，请先开始对话")
-            _sproutingState.value = SproutingState.ERROR
+            sproutState.setError(app.getString(R.string.sprout_error_no_session))
             return
         }
         val session = store.getSession(currentSession.id)
@@ -6723,8 +6586,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }.trim()
 
         if (contextText.isBlank()) {
-            _sproutUiState.value = SproutUiState.Error("当前对话为空，没有可发芽的内容")
-            _sproutingState.value = SproutingState.ERROR
+            sproutState.setError(app.getString(R.string.sprout_error_empty_context))
             return
         }
 
@@ -6732,13 +6594,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelSprouting() {
-        sproutJob?.cancel()
-        sproutJob = null
-        val currentState = _sproutUiState.value
-        if (currentState !is SproutUiState.Done && currentState !is SproutUiState.Error && currentState !is SproutUiState.Cancelled) {
-            _sproutingState.value = SproutingState.IDLE
-            _sproutUiState.value = SproutUiState.Idle
-        }
+        sproutState.cancelSprouting()
+    }
+
+    fun dismissSproutResult() {
+        sproutState.dismissResult()
     }
 
     // ==================== AI 风格转换 ====================
