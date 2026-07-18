@@ -48,6 +48,7 @@ import top.hsyscn.opedrgent.ui.components.RecordingState
 import top.hsyscn.opedrgent.ui.state.RecorderStateManager
 import top.hsyscn.opedrgent.ui.state.InterviewStateManager
 import top.hsyscn.opedrgent.ui.state.AgentUiBridge
+import top.hsyscn.opedrgent.ui.state.AgentUiStateManager
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -373,6 +374,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** AgentService 与 UI 之间的桥接辅助 */
     private val agentUiBridge = AgentUiBridge(app)
 
+    /** Agent 提问/确认交互状态 */
+    private val agentUiState = AgentUiStateManager()
+    val questionRequest: StateFlow<QuestionRequest?> = agentUiState.questionRequest
+    val confirmationRequest: StateFlow<ConfirmationRequest?> = agentUiState.confirmationRequest
+
     /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
     var recordingState by recorder::recordingState
     /** 录音模式（常规/内录） */
@@ -461,25 +467,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 知识库文档总数（供首页统计卡片使用） */
     val kbDocumentCount: Int get() = knowledgeBase.getGlobalStats().first
 
-    private val _questionRequest = MutableStateFlow<QuestionRequest?>(null)
-    val questionRequest: StateFlow<QuestionRequest?> = _questionRequest
+    fun respondToQuestion(answers: List<List<String>>) = agentUiState.respondToQuestion(answers)
 
-    private val _questionResponse = MutableSharedFlow<List<List<String>>>(replay = 0)
-
-    fun respondToQuestion(answers: List<List<String>>) {
-        _questionRequest.value = null
-        _questionResponse.tryEmit(answers)
-    }
-
-    private val _confirmationRequest = MutableStateFlow<ConfirmationRequest?>(null)
-    val confirmationRequest: StateFlow<ConfirmationRequest?> = _confirmationRequest
-
-    private val _confirmationResponse = MutableSharedFlow<String?>(replay = 0)
-
-    fun respondToConfirmation(selectedOption: String?) {
-        _confirmationRequest.value = null
-        _confirmationResponse.tryEmit(selectedOption)
-    }
+    fun respondToConfirmation(selectedOption: String?) = agentUiState.respondToConfirmation(selectedOption)
 
     val _sttProgress = MutableStateFlow<SttProgressState>(SttProgressState.IDLE)
     val sttProgress: StateFlow<SttProgressState> = _sttProgress.asStateFlow()
@@ -921,11 +911,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 when (interaction.toolName) {
                     "ask_question" -> {
                         val questions = agentUiBridge.parseQuestionInput(interaction.input)
-                        _questionRequest.value = questions
+                        agentUiState.setQuestionRequest(questions)
                         _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_choice))
                         // 等待用户回答后回传给 AgentService
                         viewModelScope.launch {
-                            val answers = _questionResponse.first()
+                            val answers = agentUiState.questionResponse.first()
                             agentService.submitUserResponse(
                                 interaction.toolCallId,
                                 agentUiBridge.buildQuestionResultJson(answers),
@@ -934,10 +924,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     "ask_confirmation" -> {
                         val request = agentUiBridge.parseConfirmationInput(interaction.input)
-                        _confirmationRequest.value = request
+                        agentUiState.setConfirmationRequest(request)
                         _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_confirm))
                         viewModelScope.launch {
-                            val response = _confirmationResponse.first()
+                            val response = agentUiState.confirmationResponse.first()
                             agentService.submitUserResponse(
                                 interaction.toolCallId,
                                 agentUiBridge.buildConfirmationResultJson(response, request),
@@ -3397,14 +3387,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 )
                             }
 
-                            _questionRequest.emit(QuestionRequest(questions = questions))
+                            agentUiState.setQuestionRequest(QuestionRequest(questions = questions))
 
                             _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
 
                             val answers = withTimeout(120_000L) {  // 2 分钟超时保护
-                                _questionResponse.first()
+                                agentUiState.questionResponse.first()
                             }
-                            _questionRequest.value = null
+                            agentUiState.setQuestionRequest(null)
 
                             val resultAnswers = answers.mapIndexed { idx, ans ->
                                 mapOf("question" to questions[idx].question, "answers" to ans)
@@ -3422,11 +3412,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
                             // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
-                            _questionRequest.value = null
+                            agentUiState.setQuestionRequest(null)
                             throw e  // 重新抛出以保持结构化并发
                         } catch (e: Exception) {
                             DebugLog.e("ask_question error: ${e.message}", e)
-                            _questionRequest.value = null
+                            agentUiState.setQuestionRequest(null)
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
                                 error = "ask_question 处理失败: ${e.message}",
@@ -3455,7 +3445,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 )
                             }
 
-                            _confirmationRequest.emit(ConfirmationRequest(
+                            agentUiState.setConfirmationRequest(ConfirmationRequest(
                                 message = message,
                                 detail = detail,
                                 options = options,
@@ -3465,9 +3455,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
 
                             val selectedOption = withTimeout(120_000L) {  // 2 分钟超时保护
-                                _confirmationResponse.first()
+                                agentUiState.confirmationResponse.first()
                             }
-                            _confirmationRequest.value = null
+                            agentUiState.setConfirmationRequest(null)
                             val confirmed = selectedOption != null
                             val actualOption = if (selectedOption == "__confirmed__") null else selectedOption
 
@@ -3493,11 +3483,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
                             // 协程被取消是正常行为（用户切换页面、发送新消息等），不记录错误
-                            _confirmationRequest.value = null
+                            agentUiState.setConfirmationRequest(null)
                             throw e  // 重新抛出以保持结构化并发
                         } catch (e: Exception) {
                             DebugLog.e("ask_confirmation error: ${e.message}", e)
-                            _confirmationRequest.value = null
+                            agentUiState.setConfirmationRequest(null)
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
                                 error = "ask_confirmation 处理失败: ${e.message}",
