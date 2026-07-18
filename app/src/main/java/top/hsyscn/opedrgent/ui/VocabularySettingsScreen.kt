@@ -67,7 +67,9 @@ import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 fun VocabularySettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { VocabularyStore(context) }
-    var terms by rememberSaveable { mutableStateOf(store.listTerms()) }
+    // ★ 使用 remember：词汇列表可能较长，rememberSaveable 会序列化到 Bundle，
+    // 可能导致 TransactionTooLargeException；进程重建后从 store 重新加载即可。
+    var terms by remember { mutableStateOf(store.listTerms()) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var newTerm by rememberSaveable { mutableStateOf("") }
