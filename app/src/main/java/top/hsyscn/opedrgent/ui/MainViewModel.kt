@@ -726,6 +726,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val merged = HamContactLogHelper.mergeContactLog(preFilled, aiLog)
                 contactLog = merged
                 onContactLogGenerated?.invoke(merged)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 DebugLog.w("requestContactLog: AI 提取失败: ${e.message}")
                 // AI 失败时仍展示预填充结果，不阻塞用户
@@ -1297,6 +1299,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 refreshCurrentSession(sessionId)
                 refreshSessions()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.msg_fetch_failed), openWebUrl = url)
             } finally {
@@ -1706,6 +1710,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     streamingText = "",
                 )
                 refreshSessions()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 DebugLog.e("runSwarm", "AgentSwarm 失败: ${e.message}", e)
                 store.addMessage(sessionId, Role.ASSISTANT, app.getString(R.string.msg_multi_agent_failed, e.message ?: ""))
