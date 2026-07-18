@@ -164,6 +164,8 @@ import java.io.FileOutputStream
 import java.util.Date
 import java.util.Locale
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
+import top.hsyscn.opedrgent.ui.state.SttProgressState
+import top.hsyscn.opedrgent.ui.state.SttUiState
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import top.hsyscn.opedrgent.ui.components.isLandscape
