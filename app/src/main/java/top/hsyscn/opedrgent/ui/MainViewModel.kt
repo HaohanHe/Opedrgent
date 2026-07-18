@@ -47,6 +47,7 @@ import top.hsyscn.opedrgent.stt.SystemAudioRecorder
 import top.hsyscn.opedrgent.ui.components.RecordingState
 import top.hsyscn.opedrgent.ui.state.RecorderStateManager
 import top.hsyscn.opedrgent.ui.state.InterviewStateManager
+import top.hsyscn.opedrgent.ui.state.AgentUiBridge
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -369,6 +370,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 录音状态管理器 */
     val recorder = RecorderStateManager()
 
+    /** AgentService 与 UI 之间的桥接辅助 */
+    private val agentUiBridge = AgentUiBridge(app)
+
     /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
     var recordingState by recorder::recordingState
     /** 录音模式（常规/内录） */
@@ -475,61 +479,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun respondToConfirmation(selectedOption: String?) {
         _confirmationRequest.value = null
         _confirmationResponse.tryEmit(selectedOption)
-    }
-
-    // ==================== AgentService 桥接辅助方法 ====================
-
-    private fun parseQuestionInput(input: Map<String, String>): QuestionRequest {
-        val questionsJson = input["questions"] ?: "[]"
-        val arr = org.json.JSONArray(questionsJson)
-        val questions = (0 until arr.length()).map { i ->
-            val q = arr.getJSONObject(i)
-            val optsArr = q.getJSONArray("options")
-            val options = (0 until optsArr.length()).map { j ->
-                val opt = optsArr.getJSONObject(j)
-                QuestionOption(
-                    label = opt.getString("label"),
-                    description = opt.optString("description", ""),
-                )
-            }
-            QuestionInfo(
-                question = q.getString("question"),
-                header = q.optString("header", ""),
-                options = options,
-                multiple = q.optBoolean("multiple", false),
-                allowCustom = q.optBoolean("allowCustom", false),
-            )
-        }
-        return QuestionRequest(questions = questions)
-    }
-
-    private fun parseConfirmationInput(input: Map<String, String>): ConfirmationRequest {
-        val optionsStr = input["options"] ?: app.getString(R.string.confirm_options_default)
-        val options = optionsStr.split(",").map { ConfirmationOption(label = it.trim()) }
-        return ConfirmationRequest(
-            message = input["message"] ?: app.getString(R.string.msg_confirm_execute_default),
-            detail = input["detail"] ?: "",
-            options = options,
-            timeoutSeconds = input["timeoutSeconds"]?.toIntOrNull() ?: 30,
-        )
-    }
-
-    private fun buildQuestionResultJson(answers: List<List<String>>): String {
-        val result = answers.mapIndexed { idx, ans ->
-            mapOf("question" to "Q${idx + 1}", "answers" to ans)
-        }
-        return org.json.JSONObject(mapOf("answers" to result)).toString()
-    }
-
-    private fun buildConfirmationResultJson(selectedOption: String?, request: ConfirmationRequest?): String {
-        if (selectedOption == "__confirmed__") {
-            return org.json.JSONObject(mapOf("confirmed" to true, "timeout" to false)).toString()
-        }
-        return org.json.JSONObject(mapOf(
-            "confirmed" to (selectedOption != null),
-            "selectedOption" to (selectedOption ?: ""),
-            "timeout" to false,
-        )).toString()
     }
 
     val _sttProgress = MutableStateFlow<SttProgressState>(SttProgressState.IDLE)
@@ -971,7 +920,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             agentService.userInteraction.collect { interaction ->
                 when (interaction.toolName) {
                     "ask_question" -> {
-                        val questions = parseQuestionInput(interaction.input)
+                        val questions = agentUiBridge.parseQuestionInput(interaction.input)
                         _questionRequest.value = questions
                         _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_choice))
                         // 等待用户回答后回传给 AgentService
@@ -979,19 +928,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             val answers = _questionResponse.first()
                             agentService.submitUserResponse(
                                 interaction.toolCallId,
-                                buildQuestionResultJson(answers),
+                                agentUiBridge.buildQuestionResultJson(answers),
                             )
                         }
                     }
                     "ask_confirmation" -> {
-                        val request = parseConfirmationInput(interaction.input)
+                        val request = agentUiBridge.parseConfirmationInput(interaction.input)
                         _confirmationRequest.value = request
                         _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_confirm))
                         viewModelScope.launch {
                             val response = _confirmationResponse.first()
                             agentService.submitUserResponse(
                                 interaction.toolCallId,
-                                buildConfirmationResultJson(response, request),
+                                agentUiBridge.buildConfirmationResultJson(response, request),
                             )
                         }
                     }

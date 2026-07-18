@@ -42,6 +42,8 @@ object SizeTokens {
     // 响应式内容最大宽度
     val expandedContentMaxWidth = 1200.dp
     val mediumContentMaxWidth = 840.dp
+    val sessionContentMaxWidthExpanded = 900.dp
+    val sessionContentMaxWidthMedium = 760.dp
 
     // 列表最大高度（用于内嵌可滚动区域，避免占满整屏）
     val citationListMaxHeight = 320.dp
