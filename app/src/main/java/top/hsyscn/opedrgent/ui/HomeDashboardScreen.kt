@@ -202,6 +202,7 @@ fun HomeDashboardScreen(
                                 notes = recentNotes,
                                 onNoteClick = onNoteClick,
                                 onViewAll = onNavigateToNotes,
+                                onNavigateToAi = onNavigateToAi,
                             )
                         }
                         item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
@@ -255,6 +256,7 @@ fun HomeDashboardScreen(
                             notes = recentNotes,
                             onNoteClick = onNoteClick,
                             onViewAll = onNavigateToNotes,
+                            onNavigateToAi = onNavigateToAi,
                         )
                     }
                     item { Spacer(modifier = Modifier.height(SpacingTokens.xl)) }
@@ -277,7 +279,7 @@ private fun GreetingHeader(onAvatarClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 0.dp, bottom = SpacingTokens.md),
+            .padding(bottom = SpacingTokens.md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
@@ -714,6 +716,7 @@ private fun RecentNotesSection(
     notes: List<Note>,
     onNoteClick: (Long) -> Unit,
     onViewAll: () -> Unit,
+    onNavigateToAi: () -> Unit,
 ) {
     Column {
         Row(
@@ -744,7 +747,7 @@ private fun RecentNotesSection(
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (notes.isEmpty()) {
-                EmptyRecentNotes(onNavigateToAi = {})
+                EmptyRecentNotes(onNavigateToAi = onNavigateToAi)
             } else {
                 notes.forEachIndexed { index, note ->
                     RecentNoteRow(

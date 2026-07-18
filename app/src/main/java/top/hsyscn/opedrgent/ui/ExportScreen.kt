@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,9 +36,7 @@ import androidx.compose.material.icons.filled.Html
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -56,14 +54,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.R
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,7 +84,7 @@ fun ExportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_export), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_export), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -111,7 +105,6 @@ fun ExportScreen(
         ) {
             Text(
                 text = stringResource(R.string.export_hui_hua_dao_chu),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
@@ -172,7 +165,6 @@ fun ExportScreen(
 
             Text(
                 text = stringResource(R.string.export_fu_zhi_dao_jian_tie_ban),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
@@ -223,7 +215,6 @@ fun ExportScreen(
 
             Text(
                 text = stringResource(R.string.action_share),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = SpacingTokens.sm),
             )
@@ -289,13 +280,13 @@ private fun ExportOptionCard(
             Surface(
                 shape = ShapeTokens.smallShape,
                 color = AccentBlue.copy(alpha = 0.1f),
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(SizeTokens.featureIconBg),
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = AccentBlue,
-                    modifier = Modifier.size(20.dp).padding(SpacingTokens.md),
+                    modifier = Modifier.size(SizeTokens.iconLg).padding(SpacingTokens.md),
                 )
             }
 
@@ -304,7 +295,6 @@ private fun ExportOptionCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                 )

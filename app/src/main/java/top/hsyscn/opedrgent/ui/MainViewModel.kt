@@ -25,6 +25,9 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import okhttp3.Call
@@ -379,7 +382,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 回放音频 URI */
     var playbackAudioUri by mutableStateOf<String?>(null)
     /** 录音已过秒数 */
-    var recordingElapsedSeconds by mutableStateOf(0)
+    var recordingElapsedSeconds by mutableIntStateOf(0)
     /** AudioRecord 引用（不序列化，ViewModel 存活则有效） */
     @Volatile var audioRecordRef: AudioRecord? = null
     /** SystemAudioRecorder 引用 */
@@ -391,9 +394,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** 是否正在流式识别中 */
     var recordingIsStreamingActive by mutableStateOf(false)
     /** 当前录音振幅（0~1） */
-    var recordingAmplitude by mutableStateOf(0f)
+    var recordingAmplitude by mutableFloatStateOf(0f)
     /** 录音自动保存的笔记 ID */
-    var autoSavedNoteId by mutableStateOf(0L)
+    var autoSavedNoteId by mutableLongStateOf(0L)
     /** 是否已保存到笔记 */
     var savedToNote by mutableStateOf(false)
     /** 防空转门锁：防止 LAUNCHER 重复启动录音 */
@@ -1018,7 +1021,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         val last = apiSettings.getLastSessionId()
         if (!last.isNullOrBlank()) {
-            openSession(last)
+            viewModelScope.launch(Dispatchers.IO) {
+                openSession(last)
+            }
         }
     }
 

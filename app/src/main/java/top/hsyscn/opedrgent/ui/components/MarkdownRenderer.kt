@@ -55,6 +55,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import androidx.compose.ui.res.stringResource
@@ -225,7 +226,6 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                     Spacer(modifier = Modifier.height(SpacingTokens.sm))
                     Text(
                         text = headingText,
-                        fontWeight = FontWeight.Bold,
                         style = style,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.semantics { heading() },
@@ -233,14 +233,30 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                 }
                 isOrderedBullet(trimmed) -> {
                     Text(buildAnnotatedString {
-                        appendMarkdownInline(trimmed, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize)
+                        appendMarkdownInline(
+                            trimmed,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            accentColor,
+                            MaterialTheme.typography.bodySmall.fontSize,
+                            emphasisWeight = MaterialTheme.typography.headlineLarge.fontWeight,
+                            mediumWeight = MaterialTheme.typography.titleMedium.fontWeight,
+                        )
                     })
                 }
                 isBullet(trimmed) -> {
                     val bulletText = trimmed.removePrefix("- ").removePrefix("* ").trim()
                     Text(buildAnnotatedString {
                         append("• ")
-                        appendMarkdownInline(bulletText, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize)
+                        appendMarkdownInline(
+                            bulletText,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            accentColor,
+                            MaterialTheme.typography.bodySmall.fontSize,
+                            emphasisWeight = MaterialTheme.typography.headlineLarge.fontWeight,
+                            mediumWeight = MaterialTheme.typography.titleMedium.fontWeight,
+                        )
                     })
                 }
                 isBlockquote(trimmed) -> {
@@ -249,13 +265,23 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                         Spacer(
                             modifier = Modifier
                                 .width(SpacingTokens.xxs)
-                                .height(20.dp)
+                                .height(SizeTokens.iconLg)
                                 .clip(ShapeTokens.extraSmallShape)
                                 .background(accentColor.copy(alpha = 0.4f))
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.sm))
                         Text(
-                            text = buildAnnotatedString { appendMarkdownInline(quoteText, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize) },
+                            text = buildAnnotatedString {
+                                appendMarkdownInline(
+                                    quoteText,
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    accentColor,
+                                    MaterialTheme.typography.bodySmall.fontSize,
+                                    emphasisWeight = MaterialTheme.typography.headlineLarge.fontWeight,
+                                    mediumWeight = MaterialTheme.typography.titleMedium.fontWeight,
+                                )
+                            },
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
@@ -266,7 +292,17 @@ fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
                     CitationPill(text = trimmed)
                 }
                 else -> {
-                    Text(buildAnnotatedString { appendMarkdownInline(trimmed, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceContainerHigh, accentColor, MaterialTheme.typography.bodySmall.fontSize) })
+                    Text(buildAnnotatedString {
+                        appendMarkdownInline(
+                            trimmed,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            accentColor,
+                            MaterialTheme.typography.bodySmall.fontSize,
+                            emphasisWeight = MaterialTheme.typography.headlineLarge.fontWeight,
+                            mediumWeight = MaterialTheme.typography.titleMedium.fontWeight,
+                        )
+                    })
                 }
             }
             i++
@@ -381,7 +417,7 @@ private fun MarkdownTableRow(
             Text(
                 text = cell.trim(),
                 modifier = Modifier.weight(1f).padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
-                style = if (isHeader) MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                style = if (isHeader) MaterialTheme.typography.labelMedium
                 else MaterialTheme.typography.bodySmall,
                 textAlign = textAlign,
                 color = if (isHeader) accentColor else MaterialTheme.colorScheme.onSurface,
@@ -389,7 +425,7 @@ private fun MarkdownTableRow(
                 overflow = TextOverflow.Ellipsis,
             )
             if (idx < cells.lastIndex) {
-                Spacer(modifier = Modifier.width(1.dp).height(SpacingTokens.lg).background(MaterialTheme.colorScheme.outlineVariant))
+                Spacer(modifier = Modifier.width(SizeTokens.dividerThickness).height(SpacingTokens.lg).background(MaterialTheme.colorScheme.outlineVariant))
             }
         }
     }
@@ -416,6 +452,8 @@ fun AnnotatedString.Builder.appendMarkdownInline(
     inlineCodeBackground: Color,
     accentColor: Color,
     inlineCodeFontSize: TextUnit,
+    emphasisWeight: FontWeight? = null,
+    mediumWeight: FontWeight? = null,
 ) {
     val boldPattern = MD_BOLD_PATTERN
     val italicPattern = MD_ITALIC_PATTERN
@@ -450,7 +488,7 @@ fun AnnotatedString.Builder.appendMarkdownInline(
 
         when (first) {
             firstBold -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                withStyle(SpanStyle(fontWeight = emphasisWeight)) {
                     append(first.groupValues[1])
                 }
                 remaining = remaining.substring(first.range.last + 1)
@@ -481,14 +519,14 @@ fun AnnotatedString.Builder.appendMarkdownInline(
             firstLink -> {
                 withStyle(SpanStyle(
                     color = accentColor,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = mediumWeight,
                 )) {
                     append(first.groupValues[1])
                 }
                 remaining = remaining.substring(first.range.last + 1)
             }
             firstCitation -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = accentColor)) {
+                withStyle(SpanStyle(fontWeight = emphasisWeight, color = accentColor)) {
                     append(first.value)
                 }
                 remaining = remaining.substring(first.range.last + 1)

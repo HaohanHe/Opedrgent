@@ -7,8 +7,10 @@ import top.hsyscn.opedrgent.ui.theme.WarningColor
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
-import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -103,11 +105,10 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
+
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
@@ -309,7 +310,7 @@ fun MeetingRecordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_meeting_recording), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_meeting_recording), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = {
                         recordingState = RecordingState.DONE
@@ -463,7 +464,7 @@ fun MeetingRecordScreen(
                     Card(
                         shape = ShapeTokens.largeShape,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
@@ -473,12 +474,11 @@ fun MeetingRecordScreen(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null, // 装饰性图标，文本已说明
                                     tint = AccentPurple,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(SizeTokens.iconLg),
                                 )
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Text(
                                     text = stringResource(R.string.meeting_zhuan_lu_wan_cheng),
-                                    fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = TextPrimary,
                                 )
@@ -627,11 +627,11 @@ fun MeetingRecordScreen(
                                         }
                                     },
                                     shape = ShapeTokens.mediumShape,
-                                    modifier = Modifier.height(44.dp),
+                                    modifier = Modifier.height(SizeTokens.quickActionIcon),
                                 ) {
-                                    Icon(Icons.Default.Download, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Download, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                                     Spacer(Modifier.width(SpacingTokens.sm))
-                                    Text(stringResource(R.string.action_download), fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.action_download), style = MaterialTheme.typography.titleMedium)
                                 }
                                 // 复制全文
                                 OutlinedButton(
@@ -639,21 +639,21 @@ fun MeetingRecordScreen(
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(result.fullText))
                                     },
                                     shape = ShapeTokens.mediumShape,
-                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    modifier = Modifier.weight(1f).height(SizeTokens.quickActionIcon),
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                                     Spacer(Modifier.width(SpacingTokens.sm))
-                                    Text(stringResource(R.string.action_copy), fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.action_copy), style = MaterialTheme.typography.titleMedium)
                                 }
                                 Button(
                                     onClick = { onSendToChat(result.fullText) },
                                     shape = ShapeTokens.mediumShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    modifier = Modifier.weight(1f).height(SizeTokens.quickActionIcon),
                                 ) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                                     Spacer(Modifier.width(SpacingTokens.sm))
-                                    Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.recording_ai_summary), style = MaterialTheme.typography.titleMedium)
                                 }
                             }
                         }
@@ -675,7 +675,7 @@ private fun TranscriptTabBar(
     hasSmartSummary: Boolean,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
         modifier = Modifier.fillMaxWidth(),
     ) {
         val tabs = listOf(
@@ -695,8 +695,7 @@ private fun TranscriptTabBar(
                 Text(
                     text = stringResource(tab.displayNameRes),
                     color = if (activeTab == tab) MaterialTheme.colorScheme.onPrimary else TextSecondary,
-                    fontWeight = if (activeTab == tab) FontWeight.Medium else FontWeight.Normal,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = if (activeTab == tab) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
             }
@@ -747,7 +746,7 @@ private fun AudioPlayerBar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(SpacingTokens.xs)) {
                     Text(text = "\u21BA", style = MaterialTheme.typography.bodyLarge, color = TextTertiary) // ↶
-                    Text(text = "15", style = MaterialTheme.typography.labelSmall, color = TextTertiary, fontWeight = FontWeight.Medium)
+                    Text(text = "15", style = MaterialTheme.typography.labelMedium, color = TextTertiary)
                 }
             }
 
@@ -763,13 +762,13 @@ private fun AudioPlayerBar(
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(SizeTokens.quickActionIcon),
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) stringResource(R.string.action_pause) else stringResource(R.string.cd_play),
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SizeTokens.iconMd),
                     )
                 }
             }
@@ -781,7 +780,7 @@ private fun AudioPlayerBar(
                 onClick = onSeekForward15s,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(SpacingTokens.xs)) {
-                    Text(text = "15", style = MaterialTheme.typography.labelSmall, color = TextTertiary, fontWeight = FontWeight.Medium)
+                    Text(text = "15", style = MaterialTheme.typography.labelMedium, color = TextTertiary)
                     Text(text = "\u21BB", style = MaterialTheme.typography.bodyLarge, color = TextTertiary) // ↷
                 }
             }
@@ -811,7 +810,7 @@ private fun AudioPlayerBar(
                         trackColor = TextPrimary.copy(alpha = 0.03f),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(SpacingTokens.xs)
+                            .height(SizeTokens.progressTrackHeight)
                             .clip(ShapeTokens.extraSmallShape),
                     )
                 }
@@ -836,9 +835,8 @@ private fun AudioPlayerBar(
                 ) {
                     Text(
                         text = "${playbackSpeed}x",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = TextTertiary,
-                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(SpacingTokens.sm),
                     )
                 }
@@ -945,15 +943,14 @@ private fun SentenceItem(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(SizeTokens.iconLg)
                     .clip(CircleShape)
                     .background(Color(segment.speakerColor)),
             ) {
                 Text(
                     text = "${segment.speakerIndex}",
                     color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
 
@@ -965,9 +962,7 @@ private fun SentenceItem(
                 Text(
                     text = SpeakerColorPalette.formatSpeakerName(segment.speakerLabel),
                     color = normalMetaColor,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    
+                    style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                 )
             }
@@ -977,8 +972,7 @@ private fun SentenceItem(
                 Text(
                     text = TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs),
                     color = if (isPlaying) playingColor else normalMetaColor,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
                 )
                 // ▶ 播放跳转按钮 — 点击跳转到该段起始位置并播放
                 Surface(
@@ -990,7 +984,7 @@ private fun SentenceItem(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = stringResource(R.string.meeting_tiao_zhuan_dao_1, TranscriptTimeFormatter.formatMsToHMS(segment.startTimeMs)),
                         tint = if (isPlaying) playingColor else normalMetaColor.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp).padding(SpacingTokens.xxs),
+                        modifier = Modifier.size(SizeTokens.iconLg).padding(SpacingTokens.xxs),
                     )
                 }
             }
@@ -1018,23 +1012,23 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
     if (summary == null) {
         // 无智能总结数据时显示提示
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 40.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.meeting_zan_wu_zhi_neng_zong_jie),
-                color = themeTextGrey(),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = stringResource(R.string.meeting_qie_huan_dao_wen_zi_ji_lu_cha),
-                color = themeTextGrey().copy(alpha = 0.6f),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = SpacingTokens.xs),
-            )
-        }
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = SpacingTokens.xxl + SpacingTokens.sm),
+            ) {
+                Text(
+                    text = stringResource(R.string.meeting_zan_wu_zhi_neng_zong_jie),
+                    color = themeTextGrey(),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.meeting_qie_huan_dao_wen_zi_ji_lu_cha),
+                    color = themeTextGrey().copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = SpacingTokens.xs),
+                )
+            }
         return
     }
 
@@ -1044,10 +1038,10 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
     ) {
         // 📑 录音信息
         item {
-            Text(text = stringResource(R.string.meeting_ud83d_udcd1_zhi_neng_zong_jie), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.meeting_ud83d_udcd1_zhi_neng_zong_jie), style = MaterialTheme.typography.displaySmall)
         }
         item {
-            Text(text = stringResource(R.string.meeting_lu_yin_xin_xi), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(text = stringResource(R.string.meeting_lu_yin_xin_xi), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(SpacingTokens.sm))
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 summaryInfoLine(stringResource(R.string.stt_result_duration_label), summary.metaInfo.duration)
@@ -1059,11 +1053,11 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         // 录音总结段落
         item {
             Spacer(Modifier.height(SpacingTokens.sm))
-            Text(text = stringResource(R.string.meeting_lu_yin_zong_jie), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(text = stringResource(R.string.meeting_lu_yin_zong_jie), style = MaterialTheme.typography.titleSmall)
         }
         items(summary.summarySections, key = { it.title + "_" + it.content.hashCode() }) { section ->
             Spacer(Modifier.height(SpacingTokens.sm))
-            Text(text = section.title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+            Text(text = section.title, style = MaterialTheme.typography.titleMedium)
             section.content.forEach { para ->
                 Text(text = para, style = MaterialTheme.typography.bodyLarge, color = themeTextDark())
             }
@@ -1073,7 +1067,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.chapters.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = stringResource(R.string.meeting_ud83d_udcc5_zhang_jie_gai_yao), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_ud83d_udcc5_zhang_jie_gai_yao), style = MaterialTheme.typography.headlineLarge)
             }
             items(summary.chapters) { chapter ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1083,14 +1077,12 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                         Text(
                             text = chapter.timestampFormatted,
                             color = AccentPurple,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.titleSmall,
                         )
                         Spacer(Modifier.width(SpacingTokens.sm))
                         Text(
                             text = chapter.title,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.titleMedium,
                         )
                     }
                 }
@@ -1108,7 +1100,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.quotes.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = stringResource(R.string.meeting_u2728_jin_ju_jing_xuan), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_u2728_jin_ju_jing_xuan), style = MaterialTheme.typography.headlineLarge)
             }
             items(summary.quotes, key = { it.text + "_" + it.category }) { quote ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1129,7 +1121,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
         if (summary.actionItems.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(SpacingTokens.md))
-                Text(text = stringResource(R.string.meeting_ud83d_udccb_dai_ban_shi_xiang), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.meeting_ud83d_udccb_dai_ban_shi_xiang), style = MaterialTheme.typography.headlineLarge)
             }
             items(summary.actionItems) { item ->
                 Spacer(Modifier.height(SpacingTokens.sm))
@@ -1195,7 +1187,7 @@ private fun AdditionalNotesContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 40.dp),
+                    .padding(vertical = SpacingTokens.xxl + SpacingTokens.sm),
             ) {
                 Text(text = stringResource(R.string.meeting_zan_wu_zhui_jia_de_bi_ji), color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 Text(
@@ -1215,9 +1207,9 @@ private fun AdditionalNotesContent(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = SpacingTokens.xl, vertical = SpacingTokens.md),
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(SizeTokens.iconMd))
                         Spacer(Modifier.width(SpacingTokens.sm))
-                        Text(stringResource(R.string.note_editor_add_note), color = AccentPurple, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.note_editor_add_note), color = AccentPurple, style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -1268,14 +1260,14 @@ private fun AdditionalNotesContent(
             Surface(
                 shape = ShapeTokens.mediumShape,
                 color = Color.Transparent,
-                border = BorderStroke(1.dp, themeBorderLight()),
+                border = BorderStroke(SizeTokens.borderWidth, themeBorderLight()),
                 onClick = { onToggleAdding(true) },
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md).fillMaxWidth(),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentPurple, modifier = Modifier.size(SizeTokens.iconSm))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.meeting_zhui_jia_bi_ji), color = themeTextGrey(), style = MaterialTheme.typography.bodyLarge)
                 }
@@ -1312,11 +1304,11 @@ private fun NoteItemCard(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(SizeTokens.iconLg)
                         .clip(CircleShape)
                         .background(AccentPurple),
                 ) {
-                    Text(text = "$index", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                    Text(text = "$index", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium)
                 }
                 Spacer(Modifier.width(SpacingTokens.md))
 
@@ -1331,14 +1323,13 @@ private fun NoteItemCard(
                             Text(
                                 text = TranscriptTimeFormatter.formatMsToHMS(note.linkedTimestampMs),
                                 color = AccentPurple,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.titleSmall,
                             )
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = stringResource(R.string.meeting_tiao_zhuan_dao_gai_shi_ke),
                                 tint = AccentPurple,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(SizeTokens.iconSm),
                             )
                         }
                     }
@@ -1355,12 +1346,12 @@ private fun NoteItemCard(
                 Spacer(Modifier.weight(1f))
 
                 // 编辑按钮
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = themeTextGrey(), modifier = Modifier.size(16.dp))
+                IconButton(onClick = onEdit, modifier = Modifier.size(SizeTokens.quickActionIcon)) {
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = themeTextGrey(), modifier = Modifier.size(SizeTokens.iconSm))
                 }
                 // 删除按钮
-                IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = DangerRed, modifier = Modifier.size(16.dp))
+                IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(SizeTokens.quickActionIcon)) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = DangerRed, modifier = Modifier.size(SizeTokens.iconSm))
                 }
             }
 
@@ -1378,7 +1369,7 @@ private fun NoteItemCard(
                 Surface(
                     shape = ShapeTokens.smallShape,
                     color = ErrorBackground,
-                    border = BorderStroke(1.dp, ErrorBorder),
+                    border = BorderStroke(SizeTokens.borderWidth, ErrorBorder),
                     modifier = Modifier.padding(top = SpacingTokens.sm).fillMaxWidth(),
                 ) {
                     Row(
@@ -1390,7 +1381,7 @@ private fun NoteItemCard(
                             Text(stringResource(R.string.action_cancel), color = themeTextGrey(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
                         }
                         Surface(shape = ShapeTokens.smallShape, color = DeleteConfirmRed, onClick = { onDelete(); showDeleteConfirm = false }) {
-                            Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
+                            Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs))
                         }
                     }
                 }
@@ -1417,8 +1408,7 @@ private fun NoteInputArea(
         // 提示文字
         Text(
             text = if (isEditing) stringResource(R.string.note_editor_edit) else stringResource(R.string.note_editor_new),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
             color = TextPrimary,
         )
         Spacer(Modifier.height(SpacingTokens.sm))
@@ -1450,7 +1440,7 @@ private fun NoteInputArea(
             Spacer(Modifier.height(SpacingTokens.xs))
             // 简化的段落选择：显示前 6 个段落供快速选择
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
             ) {
                 itemsIndexed(segments.take(6)) { idx, seg ->
                     val isSelected = selectedSegmentIndex == idx
@@ -1501,8 +1491,7 @@ private fun NoteInputArea(
                 Text(
                     text = if (isEditing) stringResource(R.string.meeting_bao_cun_xiu_gai) else stringResource(R.string.recording_save_note),
                     color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Medium,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                 )
             }

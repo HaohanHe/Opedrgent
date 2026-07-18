@@ -421,7 +421,7 @@ fun SettingsScreen(
                                             enabled = !isFetchingModels,
                                         ) {
                                             if (isFetchingModels) {
-                                                CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconMd), strokeWidth = SpacingTokens.xxs)
+                                                CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconMd), strokeWidth = SizeTokens.progressTrackHeight)
                                             } else {
                                                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.settings_cong_api_huo_qu_mo_xing_lie))
                                             }
@@ -484,7 +484,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = apiKey,
                             onValueChange = { apiKey = it },
-                            label = { Text("API Key") },
+                            label = { Text(stringResource(R.string.settings_api_key_label)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -804,7 +804,7 @@ fun SettingsScreen(
                                         )
                                     }
                                     if (hrDownloading) {
-                                        CircularProgressIndicator(progress = { hrProgress }, modifier = Modifier.size(SpacingTokens.xl), strokeWidth = SpacingTokens.xxs)
+                                        CircularProgressIndicator(progress = { hrProgress }, modifier = Modifier.size(SpacingTokens.xl), strokeWidth = SizeTokens.progressTrackHeight)
                                     } else {
                                         TextButton(onClick = {
                                             hrDownloading = true
@@ -1884,7 +1884,7 @@ fun SettingsScreen(
                             shape = ShapeTokens.smallShape,
                         ) {
                             if (isSyncing) {
-                                CircularProgressIndicator(modifier = Modifier.size(SpacingTokens.lg), strokeWidth = SpacingTokens.xxs)
+                                CircularProgressIndicator(modifier = Modifier.size(SpacingTokens.lg), strokeWidth = SizeTokens.progressTrackHeight)
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Text(stringResource(R.string.settings_tong_bu_zhong), style = MaterialTheme.typography.bodyMedium)
                             } else {
@@ -1954,7 +1954,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.md))
                         Column {
-                            Text(text = "Opedrgent", style = MaterialTheme.typography.headlineLarge, color = themeTextDark())
+                            Text(text = stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge, color = themeTextDark())
                             Text(
                                 text = stringResource(R.string.about_version, "1.0.0"),
                                 style = MaterialTheme.typography.bodySmall,

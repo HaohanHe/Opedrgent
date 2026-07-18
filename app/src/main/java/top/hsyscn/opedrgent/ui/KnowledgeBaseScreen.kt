@@ -103,11 +103,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -126,8 +124,6 @@ import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import top.hsyscn.opedrgent.ui.theme.*
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
-
-private val doubaoRadius = 16.dp
 
 // ============================================================
 // 排序方式
@@ -301,12 +297,12 @@ fun KnowledgeBaseScreen(
                         ) {
                             if (isSyncing) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(SizeTokens.iconLg),
+                                    strokeWidth = SpacingTokens.xxs,
                                     color = themePrimary(),
                                 )
                             } else {
-                                Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.kb_tong_bu), tint = themeForegroundMuted(), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.kb_tong_bu), tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconLg))
                             }
                         }
                         Spacer(Modifier.width(SpacingTokens.sm))
@@ -316,7 +312,7 @@ fun KnowledgeBaseScreen(
                             modifier = Modifier.size(32.dp),
                             shape = CircleShape,
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.kb_new), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.kb_new), modifier = Modifier.size(SizeTokens.iconMd))
                         }
                         Spacer(Modifier.width(SpacingTokens.sm))
                     }
@@ -470,7 +466,7 @@ fun KnowledgeBaseScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing)) {
                         Visibility.entries.forEach { v ->
                             FilterChip(
                                 selected = newVisibility == v,
@@ -528,7 +524,7 @@ fun KnowledgeBaseScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                     OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text(stringResource(R.string.kb_name_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text(stringResource(R.string.kb_desc_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing)) {
                         Visibility.entries.forEach { v ->
                             FilterChip(selected = editVis == v, onClick = { editVis = v }, label = { Text(v.label, style = MaterialTheme.typography.bodySmall) })
                         }
@@ -613,17 +609,17 @@ private fun KbGridView(
     onCreateKb: () -> Unit,
     onKbLongClick: (KnowledgeBaseInfo) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = SizeTokens.screenHorizontalPadding)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text(stringResource(R.string.kb_sou_suo_zhi_shi_ku), color = themeForegroundMuted()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconMd)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconMd))
                     }
                 }
             },
@@ -638,7 +634,7 @@ private fun KbGridView(
             ),
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(SpacingTokens.md))
 
         val filteredKbs = if (searchQuery.isBlank()) {
             knowledgeBases
@@ -655,7 +651,7 @@ private fun KbGridView(
             text = stringResource(R.string.kb_gong_1_ge_zhi_shi_ku_2_pian, filteredKbs.size, totalDocs),
             style = MaterialTheme.typography.labelMedium,
             color = themeForegroundMuted(),
-            modifier = Modifier.padding(bottom = 16.dp),
+            modifier = Modifier.padding(bottom = SpacingTokens.lg),
         )
 
         if (filteredKbs.isEmpty() && !searchQuery.isNotBlank()) {
@@ -665,7 +661,7 @@ private fun KbGridView(
                         Icons.Default.FolderSpecial,
                         contentDescription = null,
                         tint = themeForegroundMuted().copy(alpha = 0.4f),
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(SizeTokens.emptyStateIcon),
                     )
                 },
                 title = stringResource(R.string.kb_empty),
@@ -681,17 +677,18 @@ private fun KbGridView(
                         Icons.Default.Search,
                         contentDescription = null,
                         tint = themeForegroundMuted().copy(alpha = 0.4f),
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(SizeTokens.emptyStateIcon),
                     )
                 },
                 title = stringResource(R.string.kb_no_match),
+                subtitle = stringResource(R.string.kb_no_match_hint),
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(filteredKbs, key = { it.id }) { kb ->
@@ -730,9 +727,9 @@ private fun KbCard(
     }
 
     Card(
-        shape = RoundedCornerShape(doubaoRadius),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
         modifier = Modifier
             .height(132.dp)
             .semantics(mergeDescendants = true) {}
@@ -745,12 +742,12 @@ private fun KbCard(
             // 左侧 4dp 色条
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(SpacingTokens.xs)
                     .fillMaxHeight()
                     .background(coverColor),
             )
             Box(Modifier.weight(1f)) {
-                Column(Modifier.fillMaxSize().padding(12.dp)) {
+                Column(Modifier.fillMaxSize().padding(SpacingTokens.md)) {
                     // 彩色圆角图标背景
                     Surface(
                         shape = CircleShape,
@@ -758,10 +755,10 @@ private fun KbCard(
                         modifier = Modifier.size(32.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(SizeTokens.iconSm))
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(SizeTokens.sectionGapSm))
                     Text(
                         info.name,
                         style = MaterialTheme.typography.titleSmall,
@@ -775,7 +772,7 @@ private fun KbCard(
                         color = themeForegroundMuted(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = SpacingTokens.xs),
                     )
                 }
                 // 可见性图标右上角
@@ -785,7 +782,7 @@ private fun KbCard(
                     tint = themeForegroundMuted(),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(14.dp),
+                        .size(SizeTokens.iconXs),
                 )
             }
         }
@@ -805,7 +802,7 @@ private fun NewKbCard(
     Box(
         modifier = Modifier
             .height(132.dp)
-            .clip(RoundedCornerShape(doubaoRadius))
+            .clip(ShapeTokens.mediumShape)
             .background(themeCardWhite())
             .drawBehind {
                 drawRoundRect(
@@ -814,7 +811,7 @@ private fun NewKbCard(
                         width = 1.5.dp.toPx(),
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
                     ),
-                    cornerRadius = CornerRadius(doubaoRadius.toPx()),
+                    cornerRadius = CornerRadius(ShapeTokens.medium.toPx()),
                 )
             }
             .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_add), onClick = onClick),
@@ -822,7 +819,7 @@ private fun NewKbCard(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(SizeTokens.featureIconBg),
                 contentAlignment = Alignment.Center,
             ) {
                 // 虚线圆环
@@ -843,14 +840,13 @@ private fun NewKbCard(
                     Icons.Default.Add,
                     contentDescription = stringResource(R.string.cd_new),
                     tint = themeForegroundMuted(),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(SizeTokens.iconLg),
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(SpacingTokens.sm))
             Text(
                 stringResource(R.string.kb_new),
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
                 color = themeForegroundMuted(),
             )
         }
@@ -876,17 +872,17 @@ private fun DocumentListView(
     onDelete: (String) -> Unit,
     onDocClick: (KbDocument) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = SizeTokens.screenHorizontalPadding)) {
         // 搜索栏
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = { Text(stringResource(R.string.kb_search_doc_hint), color = themeForegroundMuted()) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(18.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconMd)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kb_qing_chu), tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconMd))
                     }
                 }
             },
@@ -926,7 +922,7 @@ private fun DocumentListView(
         // Loading
         AnimatedVisibility(visible = isLoading) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.sm)) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = themePrimary())
+                CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconLg), strokeWidth = SpacingTokens.xxs, color = themePrimary())
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(stringResource(R.string.import_file_zheng_zai_dao_ru), color = themeForegroundMuted(), style = MaterialTheme.typography.bodyMedium)
             }
@@ -934,23 +930,43 @@ private fun DocumentListView(
 
         // 文档列表
         if (documents.isEmpty() && !isLoading) {
+            val isFiltered = searchQuery.isNotBlank() || filterType != null
             EmptyStateView(
                 icon = {
                     Icon(
-                        Icons.AutoMirrored.Filled.Article,
+                        if (isFiltered) Icons.Default.Search else Icons.AutoMirrored.Filled.Article,
                         contentDescription = null,
                         tint = themeForegroundMuted().copy(alpha = 0.4f),
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(SizeTokens.emptyStateIcon),
                     )
                 },
-                title = stringResource(R.string.kb_no_documents),
-                subtitle = if (allCount == 0) stringResource(R.string.kb_add_file_hint) else "",
-                actionLabel = if (allCount == 0) stringResource(R.string.kb_tian_jia_wen_jian) else null,
-                onAction = if (allCount == 0) onImport else null,
+                title = stringResource(if (isFiltered) R.string.kb_no_match_documents else R.string.kb_no_documents),
+                subtitle = if (isFiltered) {
+                    stringResource(R.string.kb_no_match_documents_hint)
+                } else if (allCount == 0) {
+                    stringResource(R.string.kb_add_file_hint)
+                } else {
+                    ""
+                },
+                actionLabel = when {
+                    isFiltered -> stringResource(R.string.kb_qing_chu)
+                    allCount == 0 -> stringResource(R.string.kb_tian_jia_wen_jian)
+                    else -> null
+                },
+                onAction = when {
+                    isFiltered -> {
+                        {
+                            onSearchChange("")
+                            onFilterChange(null)
+                        }
+                    }
+                    allCount == 0 -> onImport
+                    else -> null
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(SpacingTokens.md)) {
                 items(documents, key = { it.id }) { doc ->
                     Column(modifier = Modifier.animateItem()) {
                         DocumentCard(document = doc, onClick = { onDocClick(doc) }, onDelete = { onDelete(doc.id) })
@@ -990,29 +1006,29 @@ private fun DocumentCard(
     }
 
     Card(
-        shape = RoundedCornerShape(doubaoRadius),
+        shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
         modifier = Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {},
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(SpacingTokens.lg).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
                 shape = ShapeTokens.smallShape,
                 color = iconTint.copy(alpha = 0.1f),
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(SizeTokens.quickActionIcon),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(SizeTokens.iconLg))
                 }
             }
 
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(SizeTokens.contentPaddingMd))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -1036,12 +1052,12 @@ private fun DocumentCard(
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = SpacingTokens.xxs),
                 )
             }
 
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_delete), tint = themeForegroundMuted(), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_delete), tint = themeForegroundMuted(), modifier = Modifier.size(SizeTokens.iconMd))
             }
         }
     }

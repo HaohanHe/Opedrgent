@@ -138,6 +138,7 @@ import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.components.StreamingCard
@@ -150,6 +151,7 @@ import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.components.UserBubble
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role as SemanticsRole
 import top.hsyscn.opedrgent.R
@@ -863,76 +865,94 @@ fun SessionsScreen(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                 ),
             )
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                if (q.isNotBlank() && state.messageSearchResults.isNotEmpty()) {
-                    // 消息级搜索结果
-                    item {
-                        Text(
-                            text = stringResource(R.string.app_root_zai_1_ge_hui_hua_zhong_zhao, state.sessions.size, state.messageSearchResults.size),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
+            if (state.sessions.isEmpty() && q.isBlank()) {
+                EmptyStateView(
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = null,
+                            modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                         )
-                    }
-                    items(state.messageSearchResults, key = { it.messageId }) { result ->
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs)
-                                .fillMaxWidth(),
-                            shape = ShapeTokens.mediumShape,
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            onClick = { onSelectSession(result.sessionId) },
-                        ) {
-                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                    },
+                    title = stringResource(R.string.sessions_empty_title),
+                    subtitle = stringResource(R.string.sessions_empty_subtitle),
+                    actionLabel = stringResource(R.string.sessions_empty_action),
+                    onAction = { createOpen = true },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    if (q.isNotBlank() && state.messageSearchResults.isNotEmpty()) {
+                        // 消息级搜索结果
+                        item {
+                            Text(
+                                text = stringResource(R.string.app_root_zai_1_ge_hui_hua_zhong_zhao, state.sessions.size, state.messageSearchResults.size),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.xs),
+                            )
+                        }
+                        items(state.messageSearchResults, key = { it.messageId }) { result ->
+                            Card(
+                                modifier = Modifier
+                                    .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs)
+                                    .fillMaxWidth(),
+                                shape = ShapeTokens.mediumShape,
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                onClick = { onSelectSession(result.sessionId) },
+                            ) {
+                                Column(modifier = Modifier.padding(SpacingTokens.md)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = result.sessionTitle,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Text(
+                                            text = if (result.role == Role.USER) stringResource(R.string.app_root_ni) else "AI",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (result.role == Role.USER) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(SpacingTokens.xs))
                                     Text(
-                                        text = result.sessionTitle,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.weight(1f),
+                                        text = result.matchSnippet,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
+                                    Spacer(modifier = Modifier.height(SpacingTokens.xxs))
                                     Text(
-                                        text = if (result.role == Role.USER) stringResource(R.string.app_root_ni) else "AI",
+                                        text = formatTime(result.timestamp),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (result.role == Role.USER) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(SpacingTokens.xs))
-                                Text(
-                                    text = result.matchSnippet,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Spacer(modifier = Modifier.height(SpacingTokens.xxs))
-                                Text(
-                                    text = formatTime(result.timestamp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                             }
                         }
-                    }
-                } else {
-                    // 普通会话列表（无搜索或无消息匹配时）
-                    items(state.sessions, key = { it.id }) { s ->
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
-                                .fillMaxWidth(),
-                            shape = ShapeTokens.mediumShape,
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            onClick = { onSelectSession(s.id) },
-                        ) {
-                            Column(modifier = Modifier.padding(SpacingTokens.md)) {
-                                Text(text = s.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                Spacer(modifier = Modifier.height(SpacingTokens.sm))
-                                Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        // 普通会话列表（无搜索或无消息匹配时）
+                        items(state.sessions, key = { it.id }) { s ->
+                            Card(
+                                modifier = Modifier
+                                    .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)
+                                    .fillMaxWidth(),
+                                shape = ShapeTokens.mediumShape,
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                onClick = { onSelectSession(s.id) },
+                            ) {
+                                Column(modifier = Modifier.padding(SpacingTokens.md)) {
+                                    Text(text = s.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Spacer(modifier = Modifier.height(SpacingTokens.sm))
+                                    Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }

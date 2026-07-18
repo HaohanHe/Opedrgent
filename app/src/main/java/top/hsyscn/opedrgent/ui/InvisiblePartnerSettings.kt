@@ -51,9 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -67,8 +65,8 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.service.AutoSproutWorker
 import top.hsyscn.opedrgent.service.DailyDigestNotifier
 import top.hsyscn.opedrgent.storage.PersonaDetector
-import top.hsyscn.opedrgent.ui.theme.BubbleBlue
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -259,7 +257,7 @@ fun InvisiblePartnerSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_invisible_partner), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_invisible_partner), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -367,7 +365,7 @@ fun InvisiblePartnerSettingsScreen(
                                 detectionReason,
                             ),
                             style = MaterialTheme.typography.bodySmall,
-                            color = BubbleBlue,
+                            color = MaterialTheme.colorScheme.primary,
                         )
 
                         Spacer(Modifier.height(SpacingTokens.xs))
@@ -419,7 +417,7 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.invisible_partner_lu_yin_zi_dong_bao_cun), fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_lu_yin_zi_dong_bao_cun), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 text = stringResource(R.string.invisible_partner_lu_yin_jie_shu_hou_zi_dong),
                                 style = MaterialTheme.typography.bodySmall,
@@ -446,7 +444,7 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.invisible_partner_zi_dong_fa_ya), fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_zi_dong_fa_ya), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 text = stringResource(R.string.invisible_partner_mei_tian_ye_jian_zi_dong_fen),
                                 style = MaterialTheme.typography.bodySmall,
@@ -467,7 +465,7 @@ fun InvisiblePartnerSettingsScreen(
                                 Text(
                                     text = String.format("%02d:00", sproutHour),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = BubbleBlue,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                                 Spacer(Modifier.width(SpacingTokens.xs))
                             }
@@ -502,7 +500,7 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.invisible_partner_mei_ri_tui_song), fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_mei_ri_tui_song), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 text = stringResource(R.string.invisible_partner_mei_tian_zao_shang_tui_song),
                                 style = MaterialTheme.typography.bodySmall,
@@ -523,7 +521,7 @@ fun InvisiblePartnerSettingsScreen(
                                 Text(
                                     text = String.format("%02d:00", digestHour),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = BubbleBlue,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                                 Spacer(Modifier.width(SpacingTokens.xs))
                             }
@@ -558,7 +556,7 @@ fun InvisiblePartnerSettingsScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.invisible_partner_wen_nuan_dian_ping), fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_wen_nuan_dian_ping), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 text = stringResource(R.string.invisible_partner_mei_ci_bao_cun_bi_ji_hou_ai),
                                 style = MaterialTheme.typography.bodySmall,
@@ -583,10 +581,10 @@ fun InvisiblePartnerSettingsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(modifier = Modifier.padding(SpacingTokens.md), verticalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = stringResource(R.string.invisible_partner_zui_da_fa_ya_shu), fontWeight = FontWeight.SemiBold)
+                            Text(text = stringResource(R.string.invisible_partner_zui_da_fa_ya_shu), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 text = stringResource(R.string.invisible_partner_mei_ri_zui_duo_zi_dong_sheng),
                                 style = MaterialTheme.typography.bodySmall,
@@ -596,8 +594,7 @@ fun InvisiblePartnerSettingsScreen(
                         Text(
                             text = stringResource(R.string.invisible_partner_1_pian, maxSproutCount),
                             style = MaterialTheme.typography.titleMedium,
-                            color = BubbleBlue,
-                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     Slider(
@@ -615,14 +612,13 @@ fun InvisiblePartnerSettingsScreen(
             Column(modifier = Modifier.padding(vertical = SpacingTokens.sm), verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 Text(
                     text = stringResource(R.string.invisible_partner_guan_yu_wu_gan_huo_ban_mo_shi),
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = stringResource(R.string.invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
-                    lineHeight = 18.sp,
                 )
             }
         }

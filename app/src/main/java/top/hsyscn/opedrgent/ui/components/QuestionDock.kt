@@ -60,11 +60,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -97,7 +97,7 @@ fun QuestionDock(
         modifier = modifier,
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.lg),
     ) {
         Column(
             modifier = Modifier.padding(SpacingTokens.md),
@@ -169,7 +169,7 @@ fun QuestionDock(
                     var showCustomInput by rememberSaveable { mutableStateOf(false) }
 
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 240.dp),
+                        modifier = Modifier.heightIn(max = SizeTokens.citationListMaxHeight),
                         verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                     ) {
                         itemsIndexed(currentQ.options) { idx, opt ->
@@ -316,12 +316,12 @@ fun QuestionDock(
                                 ) {
                                     if (isSubmitting) {
                                         androidx.compose.material3.CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(SizeTokens.iconSm),
+                                            strokeWidth = SizeTokens.borderWidth,
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     } else {
-                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.question_submit_cd), modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.question_submit_cd), modifier = Modifier.size(SizeTokens.iconSm))
                                     }
                                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                     Text(stringResource(if (isSubmitting) R.string.question_submitting else R.string.question_confirm_submit))
@@ -356,7 +356,7 @@ private fun OptionRow(
     Card(
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        border = if (selected) androidx.compose.foundation.BorderStroke(1.5.dp, primaryColor) else null,
+        border = if (selected) androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, primaryColor) else null,
         modifier = Modifier
             .fillMaxWidth()
             .onKeyEvent(onKeyEvent)
@@ -372,7 +372,7 @@ private fun OptionRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(if (multiple) SpacingTokens.lg else SpacingTokens.lg)
+                    .size(SpacingTokens.lg)
                     .clip(if (multiple) ShapeTokens.extraSmallShape else CircleShape)
                     .background(if (selected) primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 contentAlignment = Alignment.Center,
@@ -382,7 +382,7 @@ private fun OptionRow(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(if (multiple) SpacingTokens.sm else SpacingTokens.sm),
+                        modifier = Modifier.size(SpacingTokens.sm),
                     )
                 }
             }
@@ -390,7 +390,7 @@ private fun OptionRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
-                    style = if (selected) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyMedium,
+                    style = if (selected) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
                     color = textColor,
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth(),

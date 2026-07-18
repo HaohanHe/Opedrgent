@@ -2,15 +2,21 @@
 
 package top.hsyscn.opedrgent.ui
 
-import top.hsyscn.opedrgent.ui.theme.WarningColor
-import top.hsyscn.opedrgent.ui.theme.SuccessGreen
-import top.hsyscn.opedrgent.ui.theme.AccentOrange
-import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.themePrimary
+import top.hsyscn.opedrgent.ui.theme.themeSuccess
+import top.hsyscn.opedrgent.ui.theme.themeWarning
 import top.hsyscn.opedrgent.ui.theme.themeErrorBackground
+import top.hsyscn.opedrgent.ui.theme.themeWarningBg
+import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeBorderLight
+import top.hsyscn.opedrgent.ui.theme.themeCardWhite
+import top.hsyscn.opedrgent.ui.theme.themeDividerColor
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
+import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
 import top.hsyscn.opedrgent.ui.theme.InterviewPurple
 import top.hsyscn.opedrgent.ui.theme.InterviewSurface
@@ -130,8 +136,6 @@ import top.hsyscn.opedrgent.interview.AnalysisResult
 import top.hsyscn.opedrgent.interview.Verdict
 import top.hsyscn.opedrgent.interview.EvaluationDimension
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
-import top.hsyscn.opedrgent.ui.theme.AccentBlue
-import top.hsyscn.opedrgent.ui.theme.UserBubbleStart
 import top.hsyscn.opedrgent.ui.collectAsStateCompat
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
@@ -140,13 +144,6 @@ import top.hsyscn.opedrgent.ui.components.rememberWindowSizeInfo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import top.hsyscn.opedrgent.ui.theme.themeBgGray
-import top.hsyscn.opedrgent.ui.theme.themeBorderLight
-import top.hsyscn.opedrgent.ui.theme.themeCardWhite
-import top.hsyscn.opedrgent.ui.theme.themeDividerColor
-import top.hsyscn.opedrgent.ui.theme.themeTextDark
-import top.hsyscn.opedrgent.ui.theme.themeTextGrey
-import top.hsyscn.opedrgent.ui.theme.WarningBg
 
 // ==================== 主入口 ====================
 
@@ -311,7 +308,7 @@ private fun InterviewSetupScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = ShapeTokens.smallShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentBlue,
+                            containerColor = themePrimary(),
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                     ) {
@@ -534,10 +531,10 @@ private fun ModeSelectionCard(
         modifier = modifier,
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) AccentBlue.copy(alpha = 0.08f) else themeCardWhite(),
+            containerColor = if (isSelected) themePrimary().copy(alpha = 0.08f) else themeCardWhite(),
         ),
         border = if (isSelected) {
-            androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, AccentBlue)
+            androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, themePrimary())
         } else {
             androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, MaterialTheme.colorScheme.outlineVariant)
         },
@@ -556,14 +553,14 @@ private fun ModeSelectionCard(
                     .size(SizeTokens.sectionIcon)
                     .clip(CircleShape)
                     .background(
-                        if (isSelected) AccentBlue else AccentBlue.copy(alpha = 0.1f)
+                        if (isSelected) themePrimary() else themePrimary().copy(alpha = 0.1f)
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else AccentBlue,
+                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else themePrimary(),
                     modifier = Modifier.size(SizeTokens.iconXl),
                 )
             }
@@ -617,7 +614,7 @@ private fun InterviewPreparingScreen(
             )
 
             CircularProgressIndicator(
-                color = AccentBlue,
+                color = themePrimary(),
                 modifier = Modifier.size(SizeTokens.fabSize),
                 strokeWidth = SizeTokens.iconXs,
             )
@@ -653,7 +650,7 @@ private fun InterviewPreparingScreen(
                             Text(
                                 text = stringResource(R.string.interview_guan_jian_xin_xi),
                                 style = MaterialTheme.typography.titleSmall,
-                                color = AccentBlue,
+                                color = themePrimary(),
                             )
                             analysisResult.keyPoints.take(5).forEach { point ->
                                 Text(
@@ -671,7 +668,7 @@ private fun InterviewPreparingScreen(
                             Text(
                                 text = stringResource(R.string.interview_jian_yi_guan_zhu_fang_xiang),
                                 style = MaterialTheme.typography.titleSmall,
-                                color = AccentBlue,
+                                color = themePrimary(),
                             )
                             analysisResult.suggestedQuestions.take(3).forEach { q ->
                                 Text(
@@ -689,7 +686,7 @@ private fun InterviewPreparingScreen(
                             Text(
                                 text = stringResource(R.string.interview_ke_neng_bei_shen_wa_de_dian),
                                 style = MaterialTheme.typography.titleSmall,
-                                color = WarningColor,
+                                color = themeWarning(),
                             )
                             analysisResult.riskAreas.take(3).forEach { risk ->
                                 Text(
@@ -839,8 +836,8 @@ private fun InterviewSessionScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(SizeTokens.progressTrackHeight),
-                    color = AccentBlue,
-                    trackColor = AccentBlue.copy(alpha = 0.1f),
+                    color = themePrimary(),
+                    trackColor = themePrimary().copy(alpha = 0.1f),
                 )
             }
 
@@ -957,7 +954,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
             .fillMaxWidth()
             .padding(horizontal = SpacingTokens.md),
         shape = ShapeTokens.mediumShape,
-        colors = CardDefaults.cardColors(containerColor = WarningBg), // 浅黄色背景
+        colors = CardDefaults.cardColors(containerColor = themeWarningBg()), // 浅黄色背景
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(
@@ -987,7 +984,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                     modifier = Modifier.padding(top = SpacingTokens.sm),
                     verticalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
                 ) {
-                    HorizontalDivider(color = WarningColor)
+                    HorizontalDivider(color = themeWarning())
 
                     // 维度评分
                     Row(
@@ -1031,7 +1028,7 @@ private fun ScoreBadge(label: String, score: Float) {
         Text(
             text = "%.1f".format(score),
             style = MaterialTheme.typography.titleMedium,
-            color = if (score >= 7f) MaterialTheme.customColors.chipSuccessText else if (score >= 5f) AccentBlue else WarningColor,
+            color = if (score >= 7f) themeSuccess() else if (score >= 5f) themePrimary() else themeWarning(),
         )
         Text(
             text = label,
@@ -1057,7 +1054,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                 modifier = Modifier
                     .size(SizeTokens.iconXl)
                     .clip(CircleShape)
-                    .background(AccentBlue),
+                    .background(themePrimary()),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
@@ -1075,7 +1072,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier
-                        .background(AccentBlue, ShapeTokens.smallShape)
+                        .background(themePrimary(), ShapeTokens.smallShape)
                         .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                 )
                 Spacer(modifier = Modifier.height(SpacingTokens.xs))
@@ -1103,7 +1100,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                     )
                     .background(
                         if (isInterviewer) androidx.compose.ui.graphics.SolidColor(themeCardWhite()) else Brush.linearGradient(
-                            colors = listOf(UserBubbleStart, UserBubbleStart)
+                            colors = listOf(themePrimary(), themePrimary())
                         )
                     )
                     .shadow(
@@ -1127,7 +1124,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                 modifier = Modifier
                     .size(SizeTokens.iconXl)
                     .clip(CircleShape)
-                    .background(UserBubbleStart),
+                    .background(themePrimary()),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(stringResource(R.string.interview_wo), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
@@ -1159,7 +1156,7 @@ private fun ThinkingIndicator() {
                 modifier = Modifier
                     .size(SizeTokens.iconXl)
                     .clip(CircleShape)
-                    .background(AccentBlue),
+                    .background(themePrimary()),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
@@ -1177,7 +1174,7 @@ private fun ThinkingIndicator() {
                         modifier = Modifier
                             .size(SizeTokens.iconXs)
                             .clip(CircleShape)
-                            .background(AccentBlue.copy(alpha = alpha - i * 0.15f)),
+                            .background(themePrimary().copy(alpha = alpha - i * 0.15f)),
                     )
                 }
             }
@@ -1210,10 +1207,10 @@ private fun DuplexStatusBar(
     }
 
     val statusColor = when {
-        bargeInDetected -> WarningColor // 橙色闪烁
+        bargeInDetected -> themeWarning() // 橙色闪烁
         isMuted || duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> MaterialTheme.colorScheme.error
-        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> AccentBlue
-        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> SuccessGreen
+        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> themePrimary()
+        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> themeSuccess()
         else -> themeTextGrey()
     }
 
@@ -1376,7 +1373,7 @@ private fun DuplexTextInputBar(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(onClick = onCloseTextInput) {
-                    Text(stringResource(R.string.interview_fan_hui_yu_yin_mo_shi), style = MaterialTheme.typography.bodySmall, color = AccentBlue)
+                    Text(stringResource(R.string.interview_fan_hui_yu_yin_mo_shi), style = MaterialTheme.typography.bodySmall, color = themePrimary())
                 }
             }
 
@@ -1393,7 +1390,7 @@ private fun DuplexTextInputBar(
                     shape = ShapeTokens.mediumShape,
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        focusedBorderColor = AccentBlue,
+                        focusedBorderColor = themePrimary(),
                     ),
                     maxLines = 4,
                 )
@@ -1403,7 +1400,7 @@ private fun DuplexTextInputBar(
                     modifier = Modifier
                         .size(SizeTokens.quickActionIcon)
                         .clip(CircleShape)
-                        .background(AccentBlue),
+                        .background(themePrimary()),
                     enabled = inputText.isNotBlank(),
                 ) {
                     Icon(
@@ -1494,7 +1491,7 @@ private fun InterviewReportScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
                     ) {
-                        CircularProgressIndicator(color = AccentBlue)
+                        CircularProgressIndicator(color = themePrimary())
                         Text(stringResource(R.string.interview_zheng_zai_sheng_cheng_mian), color = themeTextGrey())
                     }
                 }
@@ -1530,7 +1527,7 @@ private fun InterviewReportScreen(
                     item {
                         EvaluationSection(
                             title = stringResource(R.string.interview_you_shi),
-                            iconColor = MaterialTheme.customColors.chipSuccessText,
+                            iconColor = themeSuccess(),
                             items = report.strengths,
                         )
                     }
@@ -1552,7 +1549,7 @@ private fun InterviewReportScreen(
                     item {
                         EvaluationSection(
                             title = stringResource(R.string.interview_gai_jin_jian_yi),
-                            iconColor = AccentBlue,
+                            iconColor = themePrimary(),
                             items = report.recommendations,
                         )
                     }
@@ -1595,7 +1592,7 @@ private fun InterviewReportScreen(
                             onClick = onRestart,
                             modifier = Modifier.weight(1f),
                             shape = ShapeTokens.mediumShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                            colors = ButtonDefaults.buttonColors(containerColor = themePrimary()),
                         ) {
                             Icon(
                                 Icons.Default.Refresh,
@@ -1621,8 +1618,8 @@ private fun InterviewReportScreen(
 @Composable
 private fun ScoreCard(report: InterviewReport) {
     val verdictColor = when (report.verdict) {
-        Verdict.PASS -> MaterialTheme.customColors.chipSuccessText
-        Verdict.CONDITIONAL_PASS -> WarningColor
+        Verdict.PASS -> themeSuccess()
+        Verdict.CONDITIONAL_PASS -> themeWarning()
         Verdict.FAIL -> MaterialTheme.colorScheme.error
     }
 
@@ -1734,9 +1731,9 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
 private fun DimensionBar(dimension: EvaluationDimension) {
     val percentage = (dimension.score / dimension.maxScore).coerceIn(0f, 1f)
     val barColor = when {
-        dimension.score >= 8f -> MaterialTheme.customColors.chipSuccessText
-        dimension.score >= 6f -> AccentBlue
-        dimension.score >= 4f -> WarningColor
+        dimension.score >= 8f -> themeSuccess()
+        dimension.score >= 6f -> themePrimary()
+        dimension.score >= 4f -> themeWarning()
         else -> MaterialTheme.colorScheme.error
     }
 
@@ -1864,7 +1861,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                 Text(
                     text = if (expanded) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = AccentBlue,
+                    color = themePrimary(),
                 )
             }
 
@@ -1888,7 +1885,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                                 Text(
                                     text = if (turn.role == "interviewer") stringResource(R.string.interview_mian_shi_guan) else stringResource(R.string.interview_wo_9e0a),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (turn.role == "interviewer") AccentBlue else UserBubbleStart,
+                                    color = if (turn.role == "interviewer") themePrimary() else themePrimary(),
                                 )
                                 Text(
                                     text = turn.content,

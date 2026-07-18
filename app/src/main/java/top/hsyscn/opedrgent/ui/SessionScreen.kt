@@ -300,11 +300,11 @@ fun SessionScreen(
                 modifier = Modifier
                     .shadow(ElevationTokens.md, CircleShape)
                     .clip(CircleShape)
-                    .size(SpacingTokens.xxl),
+                    .size(SizeTokens.quickActionIcon),
                 onClick = { actionSheetOpen = true },
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.cd_more), tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
+                    Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.cd_more), tint = themeTextDark(), modifier = Modifier.size(SizeTokens.iconSm))
                 }
             }
             Spacer(modifier = Modifier.width(SpacingTokens.sm))
@@ -314,11 +314,11 @@ fun SessionScreen(
                 modifier = Modifier
                     .shadow(ElevationTokens.md, CircleShape)
                     .clip(CircleShape)
-                    .size(SpacingTokens.xxl),
+                    .size(SizeTokens.quickActionIcon),
                 onClick = onOpenSettings,
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings), tint = themeTextDark(), modifier = Modifier.size(SpacingTokens.md))
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings), tint = themeTextDark(), modifier = Modifier.size(SizeTokens.iconSm))
                 }
             }
         }
@@ -524,11 +524,15 @@ fun SessionScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(SpacingTokens.md)
+                            .size(SizeTokens.iconSm)
                             .background(MaterialTheme.colorScheme.primary, ShapeTokens.extraSmallShape),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.sm))
-                    Text(stringResource(R.string.session_stop_reply), style = MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary))
+                    Text(
+                        stringResource(R.string.session_stop_reply),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
 
@@ -556,12 +560,13 @@ fun SessionScreen(
                             imageVector = Icons.Default.Search,
                             contentDescription = stringResource(R.string.cd_search_scope),
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(SpacingTokens.sm),
+                            modifier = Modifier.size(SizeTokens.iconXs),
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.xs))
                         Text(
                             text = stringResource(state.searchScope.labelRes),
-                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.primary),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
@@ -580,7 +585,7 @@ fun SessionScreen(
                             Icons.Default.Add,
                             contentDescription = stringResource(R.string.cd_more),
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(SpacingTokens.md),
+                            modifier = Modifier.size(SizeTokens.iconSm),
                         )
                     }
                 }
@@ -622,7 +627,7 @@ fun SessionScreen(
                         )
                         // Camera/Files button
                         IconButton(onClick = { filePicker.launch(arrayOf("image/*", "audio/*", "video/*", "application/pdf")) }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.cd_attach_file), tint = themeTextGrey(), modifier = Modifier.size(SpacingTokens.md))
+                            Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.cd_attach_file), tint = themeTextGrey(), modifier = Modifier.size(SizeTokens.iconSm))
                         }
                         // Microphone button
                         if (vm.isSttEnabled()) {
@@ -639,7 +644,7 @@ fun SessionScreen(
                                     Icons.Default.Mic,
                                     contentDescription = stringResource(R.string.cd_voice_input),
                                     tint = if (listening) MaterialTheme.colorScheme.primary else themeTextGrey(),
-                                    modifier = Modifier.size(SpacingTokens.md),
+                                    modifier = Modifier.size(SizeTokens.iconSm),
                                 )
                             }
                         }
@@ -705,7 +710,7 @@ fun SessionScreen(
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         if (state.isStreaming) {
                             androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(SpacingTokens.md),
+                                modifier = Modifier.size(SizeTokens.iconSm),
                                 strokeWidth = SizeTokens.iconXs,
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )
@@ -714,7 +719,7 @@ fun SessionScreen(
                                 Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = stringResource(R.string.cd_send),
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(SpacingTokens.md),
+                                modifier = Modifier.size(SizeTokens.iconSm),
                             )
                         }
                     }
@@ -814,7 +819,7 @@ fun SessionScreen(
                                     Icons.Default.CameraAlt,
                                     contentDescription = stringResource(R.string.cd_photo_or_image),
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(SpacingTokens.xl),
+                                    modifier = Modifier.size(SizeTokens.iconXl),
                                 )
                                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -852,7 +857,7 @@ fun SessionScreen(
                                     Icons.Default.Save,
                                     contentDescription = stringResource(R.string.cd_knowledge_base),
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(SpacingTokens.xl),
+                                    modifier = Modifier.size(SizeTokens.iconXl),
                                 )
                                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1120,7 +1125,11 @@ fun SessionScreen(
                     Text(stringResource(R.string.automation_label_type, if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) typeHeartbeat else typePrompt))
                     if (suggestion.kind == AutomationKind.RUN_PROMPT && !suggestion.prompt.isNullOrBlank()) {
                         Text("Prompt:", style = MaterialTheme.typography.titleSmall)
-                        Text(suggestion.prompt, style = MaterialTheme.typography.bodySmall.copy(color = themeTextGrey()))
+                        Text(
+                            suggestion.prompt,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeTextGrey(),
+                        )
                     }
                 }
             },

@@ -74,7 +74,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,6 +87,7 @@ import top.hsyscn.opedrgent.mcp.editors.RoleInstance
 import top.hsyscn.opedrgent.note.NoteType
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
@@ -292,7 +292,10 @@ fun EditorTeamScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.editor_team_xie_zuo_mo_shi), fontWeight = FontWeight.Bold)
+                        Text(
+                            stringResource(R.string.editor_team_xie_zuo_mo_shi),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
                         if (messages.any { !it.isUser }) {
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text(
@@ -487,7 +490,6 @@ private fun ParticipantBar(
                 text = stringResource(R.string.editor_team_1_zheng_zai_shuo, speakingAlias),
                 style = MaterialTheme.typography.labelSmall,
                 color = roles.firstOrNull { it.alias == speakingAlias }?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline,
-                fontWeight = FontWeight.Medium,
             )
         } else {
             Text(
@@ -543,7 +545,7 @@ private fun WritingWelcomeArea(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(SizeTokens.featureIconBg)
                             .background(Color(role.color).copy(alpha = 0.1f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -554,7 +556,6 @@ private fun WritingWelcomeArea(
                         text = role.alias,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(role.color),
-                        fontWeight = FontWeight.Medium,
                     )
                 }
             }
@@ -656,7 +657,7 @@ private fun WritingQuickScenarios(onSelect: (String) -> Unit) {
                     Text(icon, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Column {
-                        Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(title, style = MaterialTheme.typography.titleSmall)
                         Text(desc, style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                     }
                 }
@@ -711,7 +712,7 @@ private fun AgentBubble(
         // 头像
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(SizeTokens.featureIconBg)
                 .background(bubbleColor.copy(alpha = 0.1f), CircleShape)
                 .padding(SpacingTokens.xxs),
             contentAlignment = Alignment.Center,
@@ -727,7 +728,6 @@ private fun AgentBubble(
             Text(
                 text = name.ifBlank { alias },
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
                 color = bubbleColor,
             )
             Spacer(Modifier.height(SpacingTokens.xxs))
@@ -808,18 +808,17 @@ private fun FinalDraftCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(SizeTokens.iconXl)
                         .background(finalDraftColor.copy(alpha = 0.15f), ShapeTokens.extraSmallShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("E", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    Text("E", style = MaterialTheme.typography.titleSmall)
                 }
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.editor_team_zhu_bian_ding_gao),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
                         color = finalDraftColor,
                     )
                     Text(
@@ -878,7 +877,7 @@ private fun ErrorBubble(content: String) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.customColors.errorBackground),
     ) {
         Row(modifier = Modifier.padding(SpacingTokens.md), verticalAlignment = Alignment.CenterVertically) {
-            Text("!", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.customColors.dangerRed)
+            Text("!", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.customColors.dangerRed)
             Spacer(Modifier.width(SpacingTokens.sm))
             Text(content, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.customColors.dangerRed)
         }
@@ -896,7 +895,7 @@ private fun TypingIndicator(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(start = 42.dp, top = SpacingTokens.xs),
+        modifier = Modifier.padding(start = SizeTokens.quickActionIcon, top = SpacingTokens.xs),
     ) {
         // 跳动的三个点
         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.xxs)) {
@@ -941,7 +940,7 @@ private fun ChatInputBar(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 42.dp, max = 110.dp)
+                        .heightIn(min = SizeTokens.quickActionIcon, max = 110.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(ShapeTokens.extraLarge))
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                 ) {
@@ -969,10 +968,10 @@ private fun ChatInputBar(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.customColors.dangerRed,
                         ),
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(SizeTokens.quickActionIcon),
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.cd_stop), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.cd_stop), modifier = Modifier.size(SizeTokens.iconMd))
                     }
                 } else {
                     Button(
@@ -980,10 +979,10 @@ private fun ChatInputBar(
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
                         enabled = isEnabled,
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(SizeTokens.quickActionIcon),
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SizeTokens.iconMd))
                     }
                 }
             }

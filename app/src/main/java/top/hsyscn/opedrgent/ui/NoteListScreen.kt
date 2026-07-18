@@ -357,7 +357,19 @@ fun NoteListScreen(
 
                 // 笔记列表
                 if (displayNotes.isEmpty() && !isAiSearching) {
-                    EmptyNoteState(onNewNote = onNewNote)
+                    val isFiltered = searchQuery.isNotBlank() || selectedType != null || selectedTag != null || currentFolderId != null || isAiSearchActive
+                    EmptyNoteState(
+                        onNewNote = onNewNote,
+                        isSearchEmpty = isFiltered,
+                        onClearFilter = {
+                            searchQuery = ""
+                            selectedType = null
+                            selectedTag = null
+                            currentFolderId = null
+                            isAiSearchActive = false
+                            onClearAiSearch()
+                        },
+                    )
                 } else if (!isAiSearching) {
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = SizeTokens.screenHorizontalPadding, vertical = SpacingTokens.sm),
@@ -1035,7 +1047,7 @@ private fun NoteCard(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(ElevationTokens.none),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 // 类型 chip
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1330,20 +1342,28 @@ private fun RecommendationCard(
 }
 
 @Composable
-private fun EmptyNoteState(onNewNote: () -> Unit) {
+private fun EmptyNoteState(
+    onNewNote: () -> Unit,
+    isSearchEmpty: Boolean = false,
+    onClearFilter: (() -> Unit)? = null,
+) {
     EmptyStateView(
         icon = {
             Icon(
-                Icons.Default.Edit,
+                if (isSearchEmpty) Icons.Default.Search else Icons.Default.Edit,
                 contentDescription = null,
                 modifier = Modifier.size(SizeTokens.emptyStateIcon),
                 tint = themeForegroundMuted().copy(alpha = 0.4f),
             )
         },
-        title = stringResource(R.string.home_hai_mei_you_bi_ji),
-        subtitle = stringResource(R.string.note_list_dian_ji_you_xia_jiao_chuang),
-        actionLabel = stringResource(R.string.note_list_xie_yi_tiao_bi_ji),
-        onAction = onNewNote,
+        title = stringResource(if (isSearchEmpty) R.string.note_list_no_search_results else R.string.home_hai_mei_you_bi_ji),
+        subtitle = stringResource(if (isSearchEmpty) R.string.note_list_no_search_results_hint else R.string.note_list_dian_ji_you_xia_jiao_chuang),
+        actionLabel = if (isSearchEmpty) {
+            onClearFilter?.let { stringResource(R.string.note_list_qing_chu) }
+        } else {
+            stringResource(R.string.note_list_xie_yi_tiao_bi_ji)
+        },
+        onAction = if (isSearchEmpty) onClearFilter else onNewNote,
         modifier = Modifier.fillMaxSize().padding(SpacingTokens.xxl),
     )
 }

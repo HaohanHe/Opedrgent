@@ -49,7 +49,7 @@ object HttpClients {
             .connectTimeout(NetworkConfig.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(NetworkConfig.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(NetworkConfig.WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .callTimeout(60, TimeUnit.SECONDS)          // 总调用超时：60秒
+            .callTimeout(NetworkConfig.DEFAULT_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)          // 总调用超时：60秒
             
             // 协议支持
             .protocols(listOf(okhttp3.Protocol.HTTP_2, okhttp3.Protocol.HTTP_1_1))
@@ -86,10 +86,10 @@ object HttpClients {
      */
     val quickTimeout: OkHttpClient by lazy {
         default.newBuilder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .callTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.QUICK_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.QUICK_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.QUICK_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.QUICK_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
     
@@ -98,10 +98,10 @@ object HttpClients {
      */
     val longTimeout: OkHttpClient by lazy {
         default.newBuilder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(120, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.LONG_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.LONG_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.LONG_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.LONG_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
     
@@ -110,10 +110,10 @@ object HttpClients {
      */
     val streaming: OkHttpClient by lazy {
         default.newBuilder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.MINUTES)       // 5分钟读取超时（防止永久挂起）
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.MINUTES)      // 10分钟总超时
+            .connectTimeout(NetworkConfig.STREAMING_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.STREAMING_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)       // 5分钟读取超时（防止永久挂起）
+            .writeTimeout(NetworkConfig.STREAMING_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.STREAMING_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)      // 10分钟总超时
             .build()
     }
 
@@ -122,10 +122,10 @@ object HttpClients {
      */
     val longRunning: OkHttpClient by lazy {
         default.newBuilder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.MINUTES)       // 5分钟读取超时
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.MINUTES)      // 10分钟总超时
+            .connectTimeout(NetworkConfig.LONG_RUNNING_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.LONG_RUNNING_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)       // 5分钟读取超时
+            .writeTimeout(NetworkConfig.LONG_RUNNING_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.LONG_RUNNING_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)      // 10分钟总超时
             .build()
     }
 
@@ -137,9 +137,9 @@ object HttpClients {
      */
     val download: OkHttpClient by lazy {
         default.newBuilder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.MINUTES)      // 30分钟读取超时，容忍长时间无数据
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.DOWNLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.DOWNLOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)      // 30分钟读取超时，容忍长时间无数据
+            .writeTimeout(NetworkConfig.DOWNLOAD_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             // 不设置 callTimeout，允许数小时的大文件下载
             .build()
     }
