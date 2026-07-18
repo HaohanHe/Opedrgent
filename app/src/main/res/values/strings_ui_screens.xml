@@ -93,6 +93,7 @@
     <string name="hippocampus_qing_chu">清除</string>
     <!-- sessions -->
     <string name="sessions_empty_action">新建会话</string>
+    <string name="sessions_empty_secondary_action">返回首页</string>
     <string name="sessions_empty_subtitle">点击右下角 + 创建新对话，开始你的第一段 AI 交流</string>
     <string name="sessions_empty_title">还没有会话</string>
     <!-- home -->
