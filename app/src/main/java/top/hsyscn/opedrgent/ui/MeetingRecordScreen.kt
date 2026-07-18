@@ -1069,7 +1069,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 Spacer(Modifier.height(SpacingTokens.md))
                 Text(text = stringResource(R.string.meeting_ud83d_udcc5_zhang_jie_gai_yao), style = MaterialTheme.typography.headlineLarge)
             }
-            items(summary.chapters) { chapter ->
+            items(summary.chapters, key = { it.title + "_" + it.summary.hashCode() }) { chapter ->
                 Spacer(Modifier.height(SpacingTokens.sm))
                 // 可点击的时间戳链接（模拟opedrgent getnotes.seek 协议）
                 Surface(shape = ShapeTokens.smallShape, color = Color.Transparent) {
@@ -1123,7 +1123,7 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 Spacer(Modifier.height(SpacingTokens.md))
                 Text(text = stringResource(R.string.meeting_ud83d_udccb_dai_ban_shi_xiang), style = MaterialTheme.typography.headlineLarge)
             }
-            items(summary.actionItems) { item ->
+            items(summary.actionItems, key = { it.assignee + "_" + it.task.hashCode() }) { item ->
                 Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
                     text = "\u2022 ${item.assignee}: ${item.task}",
@@ -1220,7 +1220,7 @@ private fun AdditionalNotesContent(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 // 已有笔记条目
-                itemsIndexed(notes) { index, note ->
+                itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
                     NoteItemCard(
                         note = note,
                         index = index + 1,
@@ -1442,7 +1442,7 @@ private fun NoteInputArea(
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
             ) {
-                itemsIndexed(segments.take(6)) { idx, seg ->
+                itemsIndexed(segments.take(6), key = { _, seg -> seg.startTimeMs }) { idx, seg ->
                     val isSelected = selectedSegmentIndex == idx
                     Surface(
                         shape = ShapeTokens.smallShape,
