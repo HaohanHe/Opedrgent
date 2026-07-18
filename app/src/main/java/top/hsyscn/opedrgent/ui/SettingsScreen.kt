@@ -948,7 +948,7 @@ fun SettingsScreen(
                                                     ModelType.PARAFORMER -> "Paraformer"
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
-                                                    ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
+                                                    ModelType.STREAMING_PARAFORMER -> stringResource(R.string.settings_paraformer_liu_shi_kuo_hao)
                                                     else -> modelInfo.modelName
                                                 },
                                                 style = MaterialTheme.typography.labelLarge,
@@ -1034,10 +1034,10 @@ fun SettingsScreen(
                                                     ModelType.PARAFORMER -> "Paraformer"
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
-                                                    ModelType.STREAMING_PARAFORMER -> "Paraformer (流式)"
+                                                    ModelType.STREAMING_PARAFORMER -> context.getString(R.string.settings_paraformer_liu_shi_kuo_hao)
                                                     else -> modelInfo.modelName
                                                 }
-                                                sttDialogModelDesc = "本地离线语音识别模型"
+                                                sttDialogModelDesc = context.getString(R.string.settings_ben_di_li_xian_yu_yin_shi_bie_mo_xing)
                                                 sttDialogPercent = 0
                                                 sttDialogDownloadedMb = 0
                                                 sttDialogTotalMb = (modelInfo.sizeBytes / (1024 * 1024)).toInt()
@@ -1054,7 +1054,7 @@ fun SettingsScreen(
                                                             when (progress) {
                                                                 is ModelManager.DownloadProgress.Downloading -> {
                                                                     downloadProgress = progress.progress
-                                                                    downloadStatusText = "下载中 ${(progress.progress * 100).toInt()}%"
+                                                                    downloadStatusText = context.getString(R.string.settings_xia_zai_zhong_1_percent, (progress.progress * 100).toInt())
                                                                     sttDialogPercent = (progress.progress * 100).toInt()
                                                                     sttDialogDownloadedMb = ((progress.progress * sttDialogTotalMb).toInt())
                                                                     sttDialogStatus = "downloading"
@@ -1064,13 +1064,13 @@ fun SettingsScreen(
                                                                     )
                                                                 }
                                                                 is ModelManager.DownloadProgress.SourceSwitch -> {
-                                                                    downloadStatusText = "切换源: ${progress.sourceName} (${progress.current}/${progress.total})"
+                                                                    downloadStatusText = context.getString(R.string.settings_qie_huan_yuan_1_2_3, progress.sourceName, progress.current.toString(), progress.total.toString())
                                                                     sttDialogStatus = "sourceSwitch"
-                                                                    sttDialogStatusDetail = "切换到 ${progress.sourceName} (${progress.current}/${progress.total})"
+                                                                    sttDialogStatusDetail = context.getString(R.string.settings_qie_huan_dao_1_2_3, progress.sourceName, progress.current.toString(), progress.total.toString())
                                                                 }
                                                                 is ModelManager.DownloadProgress.Error -> {
                                                                     downloadingModel = null
-                                                                    downloadStatusText = "失败: ${progress.message}"
+                                                                    downloadStatusText = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message ?: "")
                                                                     sttDialogStatus = "error"
                                                                     sttDialogStatusDetail = progress.message
                                                                     SttDownloadService.fail(context, sttDialogModelName, progress.message)
@@ -1246,16 +1246,19 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
-                    listOf("录音" to "RECORDING", "手机内录" to "INTERNAL").forEach { (label, modeKey) ->
+                    val recordingModeOptions = listOf(
+                        R.string.settings_lu_yin to "RECORDING",
+                        R.string.settings_shou_ji_nei_lu to "INTERNAL",
+                    )
+                    recordingModeOptions.forEach { (labelRes, modeKey) ->
                         var expanded by rememberSaveable { mutableStateOf(false) }
                         val currentHours = rememberSaveable { mutableStateOf(vm.getRecordingMaxHours(modeKey)) }
                         val hoursOptions = listOf(0, 1, 2, 3, 5, 8, 12, 24)
-                        val hoursLabels = listOf("无限制", "1小时", "2小时", "3小时", "5小时", "8小时", "12小时", "24小时")
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(text = label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Text(text = stringResource(labelRes), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Box {
                                 OutlinedButton(
                                     onClick = { expanded = true },
@@ -1269,9 +1272,9 @@ fun SettingsScreen(
                                     Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
                                 }
                                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                    hoursOptions.forEachIndexed { index, h ->
+                                    hoursOptions.forEach { h ->
                                         DropdownMenuItem(
-                                            text = { Text(hoursLabels[index]) },
+                                            text = { Text(if (h == 0) stringResource(R.string.settings_wu_xian_zhi) else stringResource(R.string.settings_1, h)) },
                                             onClick = {
                                                 currentHours.value = h
                                                 vm.saveRecordingMaxHours(modeKey, h)
@@ -1372,7 +1375,7 @@ fun SettingsScreen(
                     val themeOptions = listOf(
                         "system" to stringResource(R.string.language_system),
                         "light" to stringResource(R.string.settings_qian_se),
-                        "dark" to "深色",
+                        "dark" to stringResource(R.string.settings_shen_se),
                     )
                     val themeIcons = mapOf(
                         "system" to Icons.Default.SettingsBrightness,
@@ -1745,10 +1748,10 @@ fun SettingsScreen(
                                             when (progress) {
                                                 is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Downloading -> {
                                                     ocrProgress.value = progress.progress
-                                                    ocrStatusText.value = "下载中 ${(progress.progress * 100).toInt()}%"
+                                                    ocrStatusText.value = context.getString(R.string.settings_xia_zai_zhong_1_percent, (progress.progress * 100).toInt())
                                                 }
                                                 is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.SourceSwitch -> {
-                                                    ocrStatusText.value = "准备下载..."
+                                                    ocrStatusText.value = context.getString(R.string.settings_zhun_bei_xia_zai)
                                                 }
                                                 is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Complete -> {
                                                     ocrDownloaded.value = true
@@ -1757,7 +1760,7 @@ fun SettingsScreen(
                                                 }
                                                 is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Error -> {
                                                     ocrDownloading.value = false
-                                                    ocrStatusText.value = "失败: ${progress.message}"
+                                                    ocrStatusText.value = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message ?: "")
                                                 }
                                             }
                                         }
@@ -1902,7 +1905,7 @@ fun SettingsScreen(
                                 if (result.errors > 0) {
                                     append(stringResource(R.string.settings_cuo_wu_1, result.errors))
                                 } else {
-                                    append(" | 上传: ${result.uploaded} 下载: ${result.downloaded} 耗时: ${result.duration}ms")
+                                    append(context.getString(R.string.settings_shang_chuan_1_xia_zai_2_hao, result.uploaded.toString(), result.downloaded.toString(), result.duration.toString()))
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall,

@@ -90,16 +90,30 @@ private val KEY_AUTO_PERSONA = booleanPreferencesKey("auto_persona_switch")
 /**
  * 伙伴人格枚举 -- 定义无感伙伴的三种使用模式。
  */
-enum class PartnerPersona(val label: String, val description: String) {
-    LIFE("生活记录", "温暖陪伴，适合日常记录和生活回忆"),
-    WORK("效率工作", "专注产出，适合会议记录和工作整理"),
-    CREATIVE("创作灵感", "连接思考，适合写作和创意工作");
+enum class PartnerPersona {
+    LIFE,
+    WORK,
+    CREATIVE;
 
     companion object {
         fun fromName(name: String): PartnerPersona =
             entries.find { it.name == name } ?: LIFE
     }
 }
+
+val PartnerPersona.labelResId: Int
+    get() = when (this) {
+        PartnerPersona.LIFE -> R.string.invisible_partner_sheng_huo_ji_lu
+        PartnerPersona.WORK -> R.string.invisible_partner_xiao_lv_gong_zuo
+        PartnerPersona.CREATIVE -> R.string.invisible_partner_chuang_zuo_ling_gan
+    }
+
+val PartnerPersona.descriptionResId: Int
+    get() = when (this) {
+        PartnerPersona.LIFE -> R.string.invisible_partner_wen_nuan_pei_ban_shi_he_ri_chang_ji_lu_he_sheng_huo_hui_yi
+        PartnerPersona.WORK -> R.string.invisible_partner_zhuan_zhu_chan_chu_shi_he_hui_yi_ji_lu_he_gong_zuo_zheng_li
+        PartnerPersona.CREATIVE -> R.string.invisible_partner_lian_jie_si_kao_shi_he_xie_zuo_he_chuang_yi_gong_zuo
+    }
 
 /**
  * 无感伙伴模式设置面板。
@@ -327,7 +341,7 @@ fun InvisiblePartnerSettingsScreen(
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Column {
                                     Text(
-                                        text = persona.label,
+                                        text = stringResource(persona.labelResId),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (detectedPersona == persona)
                                             MaterialTheme.colorScheme.primary
@@ -335,7 +349,7 @@ fun InvisiblePartnerSettingsScreen(
                                             MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                     Text(
-                                        text = persona.description,
+                                        text = stringResource(persona.descriptionResId),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -347,7 +361,11 @@ fun InvisiblePartnerSettingsScreen(
 
                         // 检测原因说明
                         Text(
-                            text = stringResource(R.string.invisible_partner_1_zi_dong_jian_ce_2, detectedPersona.label, detectionReason),
+                            text = stringResource(
+                                R.string.invisible_partner_1_zi_dong_jian_ce_2,
+                                stringResource(detectedPersona.labelResId),
+                                detectionReason,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = BubbleBlue,
                         )
@@ -375,9 +393,9 @@ fun InvisiblePartnerSettingsScreen(
                                 )
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Column {
-                                    Text(persona.label, style = MaterialTheme.typography.bodyMedium)
+                                    Text(stringResource(persona.labelResId), style = MaterialTheme.typography.bodyMedium)
                                     Text(
-                                        persona.description,
+                                        stringResource(persona.descriptionResId),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

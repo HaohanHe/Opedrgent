@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -322,7 +323,7 @@ fun NoteShareScreen(
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
-                items(shareFormats, key = { it.name }) { format ->
+                items(shareFormats, key = { it.format }) { format ->
                     ShareFormatItem(
                         format = format,
                         onClick = {
@@ -339,14 +340,14 @@ fun NoteShareScreen(
 }
 
 data class SharePlatform(
-    val name: String,
+    @StringRes val nameRes: Int,
     val icon: ImageVector,
     val color: Color,
     val action: String,
 )
 
 data class ShareFormat(
-    val name: String,
+    @StringRes val nameRes: Int,
     val icon: ImageVector,
     val color: Color,
     val format: String,
@@ -354,20 +355,20 @@ data class ShareFormat(
 
 // 以下颜色为第三方平台品牌色（微信/朋友圈绿、小红书红等），按平台官方规范硬编码，不参与主题切换
 val sharePlatforms = listOf(
-    SharePlatform("微信", Icons.AutoMirrored.Filled.Chat, Color(0xFF07C160), "wechat"),
-    SharePlatform("朋友圈", Icons.Default.Public, Color(0xFF07C160), "moments"),
-    SharePlatform("小红书", Icons.Default.Image, Color(0xFFFF2442), "xiaohongshu"),
-    SharePlatform("复制链接", Icons.Default.Link, AccentBlue, "copy_link"),
-    SharePlatform("复制文本", Icons.Default.ContentCopy, Color(0xFF9B59B6), "copy_text"),
-    SharePlatform("保存图片", Icons.Default.Image, Color(0xFF3498DB), "save_image"),
-    SharePlatform("发送邮件", Icons.Default.Email, Color(0xFF34495E), "email"),
-    SharePlatform("更多", Icons.Default.Share, Color(0xFF95A5A6), "more"),
+    SharePlatform(R.string.note_share_wei_xin, Icons.AutoMirrored.Filled.Chat, Color(0xFF07C160), "wechat"),
+    SharePlatform(R.string.note_share_peng_you_quan, Icons.Default.Public, Color(0xFF07C160), "moments"),
+    SharePlatform(R.string.note_share_xiao_hong_shu, Icons.Default.Image, Color(0xFFFF2442), "xiaohongshu"),
+    SharePlatform(R.string.note_share_fu_zhi_lian_jie, Icons.Default.Link, AccentBlue, "copy_link"),
+    SharePlatform(R.string.note_share_fu_zhi_wen_ben, Icons.Default.ContentCopy, Color(0xFF9B59B6), "copy_text"),
+    SharePlatform(R.string.note_share_bao_cun_tu_pian, Icons.Default.Image, Color(0xFF3498DB), "save_image"),
+    SharePlatform(R.string.note_share_fa_song_you_jian, Icons.Default.Email, Color(0xFF34495E), "email"),
+    SharePlatform(R.string.note_share_geng_duo, Icons.Default.Share, Color(0xFF95A5A6), "more"),
 )
 
 val shareFormats = listOf(
-    ShareFormat("文本", Icons.Default.TextFields, Color(0xFF4A90D9), "text"),
-    ShareFormat("Markdown", Icons.Default.Code, Color(0xFF2ECC71), "markdown"),
-    ShareFormat("HTML", Icons.Default.Language, Color(0xFFE74C3C), "html"),
+    ShareFormat(R.string.note_share_wen_ben, Icons.Default.TextFields, Color(0xFF4A90D9), "text"),
+    ShareFormat(R.string.note_share_markdown, Icons.Default.Code, Color(0xFF2ECC71), "markdown"),
+    ShareFormat(R.string.note_share_html, Icons.Default.Language, Color(0xFFE74C3C), "html"),
 )
 
 @Composable
@@ -375,6 +376,7 @@ private fun SharePlatformItem(
     platform: SharePlatform,
     onClick: () -> Unit,
 ) {
+    val name = stringResource(platform.nameRes)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_share), onClick = onClick),
@@ -387,7 +389,7 @@ private fun SharePlatformItem(
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     platform.icon,
-                    contentDescription = platform.name,
+                    contentDescription = name,
                     tint = platform.color,
                     modifier = Modifier.size(24.dp),
                 )
@@ -395,7 +397,7 @@ private fun SharePlatformItem(
         }
         Spacer(Modifier.height(SpacingTokens.xs))
         Text(
-            platform.name,
+            name,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -407,6 +409,7 @@ private fun ShareFormatItem(
     format: ShareFormat,
     onClick: () -> Unit,
 ) {
+    val name = stringResource(format.nameRes)
     Card(
         onClick = onClick,
         shape = ShapeTokens.smallShape,
@@ -418,13 +421,13 @@ private fun ShareFormatItem(
         ) {
             Icon(
                 format.icon,
-                contentDescription = format.name,
+                contentDescription = name,
                 tint = format.color,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(SpacingTokens.sm))
             Text(
-                format.name,
+                name,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
             )
@@ -454,7 +457,7 @@ private fun shareToPlatform(context: Context, note: Note, platform: SharePlatfor
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            onFeedback("已复制文本")
+            onFeedback(context.getString(R.string.note_share_yi_fu_zhi_wen_ben))
         }
         "email" -> {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -469,7 +472,7 @@ private fun shareToPlatform(context: Context, note: Note, platform: SharePlatfor
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
-            context.startActivity(Intent.createChooser(intent, context.getString(R.string.note_share_fen_xiang_dao_1, platform.name)))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.note_share_fen_xiang_dao_1, context.getString(platform.nameRes))))
         }
     }
 }
@@ -501,7 +504,7 @@ private fun shareAsFormat(context: Context, note: Note, format: ShareFormat, ove
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("note", shareText)
             clipboard.setPrimaryClip(clip)
-            onFeedback("已复制${format.name}")
+            onFeedback(context.getString(R.string.note_share_yi_fu_zhi_1, context.getString(format.nameRes)))
         }
         "html" -> {
             val intent = Intent(Intent.ACTION_SEND).apply {

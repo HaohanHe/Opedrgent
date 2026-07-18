@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 
 private val SessionListWidth = 320.dp
@@ -55,7 +56,7 @@ fun ChatTab(
                 )
             }
             VerticalDivider(
-                thickness = 1.dp,
+                thickness = SizeTokens.dividerThickness,
                 color = themeDividerColor(),
             )
             Box(
@@ -78,7 +79,7 @@ fun ChatTab(
                             Icon(
                                 Icons.Default.AutoAwesome,
                                 contentDescription = null,
-                                modifier = Modifier.size(80.dp),
+                                modifier = Modifier.size(SizeTokens.emptyStateIcon),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                             )
                         },

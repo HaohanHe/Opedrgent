@@ -271,7 +271,8 @@ fun HomeDashboardScreen(
 private fun GreetingHeader(onAvatarClick: () -> Unit) {
     val context = LocalContext.current
     val greeting = rememberGreeting()
-    val displayName = remember { UserDisplayNameHelper.getDisplayName(context) ?: "探索者" }
+    val defaultName = stringResource(R.string.home_tan_suo_zhe)
+    val displayName = remember(defaultName) { UserDisplayNameHelper.getDisplayName(context) ?: defaultName }
 
     Row(
         modifier = Modifier
@@ -649,25 +650,25 @@ private fun QuickActionsRow(
         QuickActionItem(
             icon = Icons.Default.EditNote,
             iconTint = themePrimary(),
-            label = "新笔记",
+            label = stringResource(R.string.home_xin_bi_ji),
             onClick = onNewNote,
         )
         QuickActionItem(
             icon = Icons.Default.RadioButtonChecked,
             iconTint = themeError(),
-            label = "录音",
+            label = stringResource(R.string.home_lu_yin),
             onClick = onVoiceRecord,
         )
         QuickActionItem(
             icon = Icons.Default.Upload,
             iconTint = themeSuccess(),
-            label = "导入",
+            label = stringResource(R.string.home_dao_ru),
             onClick = onImportFile,
         )
         QuickActionItem(
             icon = Icons.Default.Lightbulb,
             iconTint = themePrimaryRing(),
-            label = "洞察",
+            label = stringResource(R.string.home_dong_cha),
             onClick = onInsight,
         )
     }
@@ -907,11 +908,11 @@ private fun rememberGreeting(): String {
         cal.get(java.util.Calendar.HOUR_OF_DAY)
     }
     return when {
-        hour < 6 -> "夜深了"
-        hour < 12 -> "早上好"
-        hour < 14 -> "中午好"
-        hour < 18 -> "下午好"
-        else -> "晚上好"
+        hour < 6 -> stringResource(R.string.home_ye_shen_le)
+        hour < 12 -> stringResource(R.string.home_zao_shang_hao)
+        hour < 14 -> stringResource(R.string.home_zhong_wu_hao)
+        hour < 18 -> stringResource(R.string.home_xia_wu_hao)
+        else -> stringResource(R.string.home_wan_shang_hao)
     }
 }
 

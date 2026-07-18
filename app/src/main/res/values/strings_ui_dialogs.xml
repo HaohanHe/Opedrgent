@@ -124,6 +124,7 @@
     <string name="thinking_card_title">思考过程</string>
 
     <!-- AiBubble.kt / UserBubble.kt -->
+    <string name="ai_bubble_preview_message">你好，我是 Opedrgent，可以帮你解答问题、调度工具、并维护长期记忆。</string>
     <string name="bubble_action_undo">撤回</string>
 
     <!-- ChatTab.kt -->

@@ -1060,7 +1060,7 @@ fun NoteEditorScreen(
 
                         if (lastSavedAt != null) {
                             Text(
-                                stringResource(R.string.note_editor_saved_at, EditorUtils.formatTimeAgo(lastSavedAt!!)),
+                                stringResource(R.string.note_editor_saved_at, EditorUtils.formatTimeAgo(context, lastSavedAt!!)),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.customColors.successGreen,
                                 modifier = Modifier.padding(start = SpacingTokens.sm),
@@ -1477,7 +1477,7 @@ fun NoteEditorScreen(
                                 val completion = if (onRequestCompletion != null) {
                                     try { onRequestCompletion(contextText) } catch (_: Exception) { "" }
                                 } else {
-                                    EditorUtils.heuristicComplete(contextText)
+                                    EditorUtils.heuristicComplete(context, contextText)
                                 }
                                 ghostText = completion
                             }
@@ -1508,7 +1508,7 @@ fun NoteEditorScreen(
 
                     if (lastSavedAt != null) {
                         Text(
-                            stringResource(R.string.note_editor_saved_ago, EditorUtils.formatTimeAgo(lastSavedAt!!)),
+                            stringResource(R.string.note_editor_saved_ago, EditorUtils.formatTimeAgo(context, lastSavedAt!!)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.customColors.successGreen,
                             modifier = Modifier.padding(start = SpacingTokens.sm),

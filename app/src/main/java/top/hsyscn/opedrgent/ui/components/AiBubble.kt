@@ -237,7 +237,7 @@ private fun AIMessageCardPreview() {
         val clipboard = LocalClipboardManager.current
         val message = ChatMessage(
             role = Role.ASSISTANT,
-            content = "你好，我是 Opedrgent，可以帮你解答问题、调度工具、并维护长期记忆。",
+            content = stringResource(R.string.ai_bubble_preview_message),
         )
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             AIMessageCard(
@@ -258,7 +258,7 @@ private fun AIMessageCardDarkPreview() {
         val clipboard = LocalClipboardManager.current
         val message = ChatMessage(
             role = Role.ASSISTANT,
-            content = "你好，我是 Opedrgent，可以帮你解答问题、调度工具、并维护长期记忆。",
+            content = stringResource(R.string.ai_bubble_preview_message),
         )
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             AIMessageCard(
