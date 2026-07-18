@@ -115,8 +115,9 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.MessageType
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.stt.StreamingRecognitionState
-import top.hsyscn.opedrgent.ui.SttProgressState
-import top.hsyscn.opedrgent.ui.SttUiState
+import top.hsyscn.opedrgent.ui.state.AsrUiEvent
+import top.hsyscn.opedrgent.ui.state.SttProgressState
+import top.hsyscn.opedrgent.ui.state.SttUiState
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
 
@@ -183,13 +184,13 @@ fun SessionScreen(
     LaunchedEffect(vm) {
         vm.asrEvent.collect { event ->
             when (event) {
-                is MainViewModel.AsrUiEvent.FinalText -> {
+                is AsrUiEvent.FinalText -> {
                     prompt = if (prompt.isBlank()) event.text else (prompt.trimEnd() + "\n" + event.text)
                 }
-                is MainViewModel.AsrUiEvent.EmptyResult -> {
+                is AsrUiEvent.EmptyResult -> {
                     snackbar.showSnackbar(context.getString(R.string.msg_asr_no_speech))
                 }
-                is MainViewModel.AsrUiEvent.Error -> {
+                is AsrUiEvent.Error -> {
                     snackbar.showSnackbar(event.message)
                 }
             }
