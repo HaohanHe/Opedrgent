@@ -59,7 +59,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.SttProgressState
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -84,11 +86,11 @@ fun SttProgressDialog(
         Surface(
             shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
-            shadowElevation = 8.dp,
+            shadowElevation = ElevationTokens.xl,
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(SpacingTokens.xxl).width(300.dp),
+                modifier = Modifier.padding(SpacingTokens.xxl).width(SizeTokens.dialogMinWidth),
             ) {
                 AnimatedContent(
                     targetState = progressState,

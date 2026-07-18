@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBarBg
 
@@ -99,7 +100,7 @@ fun TextAndVoiceInput(
                 onValueChange = onTextChange,
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 48.dp, max = 120.dp),
+                    .heightIn(min = SizeTokens.textFieldMinHeight, max = SizeTokens.textFieldMaxHeight),
                 placeholder = { Text(placeholder.ifEmpty { stringResource(R.string.msg_type_message) }, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 shape = ShapeTokens.extraLargeShape,
                 maxLines = 5,
@@ -116,7 +117,7 @@ fun TextAndVoiceInput(
                 if (hasText) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(SizeTokens.textFieldMinHeight)
                             .padding(SpacingTokens.xs)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)

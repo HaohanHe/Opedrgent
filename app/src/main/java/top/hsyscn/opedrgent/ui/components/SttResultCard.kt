@@ -57,6 +57,7 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.AudioProcessor
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.stt.SttSegment
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -86,7 +87,7 @@ fun SttResultCard(
         Card(
             shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
             modifier = modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = cardCd }
