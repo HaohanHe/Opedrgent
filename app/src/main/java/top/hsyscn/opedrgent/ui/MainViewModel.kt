@@ -50,6 +50,7 @@ import top.hsyscn.opedrgent.ui.state.InterviewStateManager
 import top.hsyscn.opedrgent.ui.state.AgentUiBridge
 import top.hsyscn.opedrgent.ui.state.AgentUiStateManager
 import top.hsyscn.opedrgent.ui.state.HamContactLogHelper
+import top.hsyscn.opedrgent.ui.state.SettingsStateManager
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -292,17 +293,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val http = HttpClients.default
     private val store = ResearchStore(app)
     val apiSettings = ApiSettings(app)
-    fun getAppLanguage(): String = apiSettings.getAppLanguage()
-    fun saveAppLanguage(lang: String) = apiSettings.saveAppLanguage(lang)
-    fun getEditorMode(): String = apiSettings.getEditorMode()
-    fun saveEditorMode(mode: String) = apiSettings.saveEditorMode(mode)
-    fun getThemeMode(): String = apiSettings.getThemeMode()
-    fun saveThemeMode(mode: String) = apiSettings.saveThemeMode(mode)
+    private val settings = SettingsStateManager(apiSettings)
 
-    fun isDynamicColorEnabled(): Boolean = apiSettings.isDynamicColorEnabled()
-    fun saveDynamicColorEnabled(enabled: Boolean) = apiSettings.saveDynamicColorEnabled(enabled)
-    fun getSelectedLocalModel(): String = apiSettings.getSelectedLocalModel()
-    fun saveSelectedLocalModel(model: String) = apiSettings.saveSelectedLocalModel(model)
+    fun getAppLanguage(): String = settings.getAppLanguage()
+    fun saveAppLanguage(lang: String) = settings.saveAppLanguage(lang)
+    fun getEditorMode(): String = settings.getEditorMode()
+    fun saveEditorMode(mode: String) = settings.saveEditorMode(mode)
+    fun getThemeMode(): String = settings.getThemeMode()
+    fun saveThemeMode(mode: String) = settings.saveThemeMode(mode)
+
+    fun isDynamicColorEnabled(): Boolean = settings.isDynamicColorEnabled()
+    fun saveDynamicColorEnabled(enabled: Boolean) = settings.saveDynamicColorEnabled(enabled)
+    fun getSelectedLocalModel(): String = settings.getSelectedLocalModel()
+    fun saveSelectedLocalModel(model: String) = settings.saveSelectedLocalModel(model)
+    fun isAutoGenerateNoteTitle(): Boolean = settings.isAutoGenerateNoteTitle()
+    fun saveAutoGenerateNoteTitle(enabled: Boolean) = settings.saveAutoGenerateNoteTitle(enabled)
+
+    fun getApiKey(): String? = settings.getApiKey()
     private val localEngine by lazy { LocalLlmEngine.getInstance(app) }
     private val skillsStore = SkillsStore(app)
     private val memoryStore = MemoryStore(app)
@@ -4402,7 +4409,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun getBaseUrl(): String = apiSettings.getBaseUrl()
     fun getModel(): String = apiSettings.getModel()
-    fun getApiKey(): String? = apiSettings.getApiKey()
     fun hasApiKey(): Boolean = apiSettings.hasApiKey()
     fun getMemory(): String = apiSettings.getMemory()
     fun saveMemory(memory: String) {
@@ -4431,8 +4437,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun isLocationEnabled(): Boolean = apiSettings.isLocationEnabled()
     fun isDebugMode(): Boolean = apiSettings.isDebugMode()
     fun isDeepThinking(): Boolean = apiSettings.isDeepThinking()
-    fun isAutoGenerateNoteTitle(): Boolean = apiSettings.isAutoGenerateNoteTitle()
-    fun saveAutoGenerateNoteTitle(enabled: Boolean) { apiSettings.saveAutoGenerateNoteTitle(enabled) }
     fun isWebSearchEnabled(): Boolean = apiSettings.isWebSearchEnabled()
     fun getWebSearchSource(): String = apiSettings.getWebSearchSource()
     fun saveWebSearchEnabled(enabled: Boolean) { apiSettings.saveWebSearchEnabled(enabled) }
