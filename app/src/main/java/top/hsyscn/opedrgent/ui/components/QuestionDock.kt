@@ -172,7 +172,7 @@ fun QuestionDock(
                         modifier = Modifier.heightIn(max = SizeTokens.citationListMaxHeight),
                         verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                     ) {
-                        itemsIndexed(currentQ.options) { idx, opt ->
+                        itemsIndexed(currentQ.options, key = { _, opt -> opt.label }) { idx, opt ->
                             val isSelected = opt.label in answers.getOrDefault(currentQuestionIndex, emptySet())
                             val isCustomOption = currentQ.allowCustom && idx == currentQ.options.lastIndex
 
