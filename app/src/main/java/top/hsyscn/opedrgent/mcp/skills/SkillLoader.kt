@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import top.hsyscn.opedrgent.utils.DebugLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import top.hsyscn.opedrgent.network.NetworkConfig
 import java.io.File
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -160,8 +161,8 @@ class SkillLoader(private val context: Context) {
                 require(url.length <= 2048) { "URL 过长" }
 
                 val client = OkHttpClient.Builder()
-                    .connectTimeout(15, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(NetworkConfig.SKILL_LOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .readTimeout(NetworkConfig.SKILL_LOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                     .followRedirects(true)
                     .build()
                 val request = Request.Builder().url(url)
@@ -461,8 +462,8 @@ class SkillLoader(private val context: Context) {
             }
             runCatching {
                 val client = OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(15, TimeUnit.SECONDS)
+                    .connectTimeout(NetworkConfig.SKILL_UPDATE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .readTimeout(NetworkConfig.SKILL_UPDATE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                     .build()
                 val request = Request.Builder().url(entry.sourcePath).build()
                 val response = client.newCall(request).execute()
@@ -483,8 +484,8 @@ class SkillLoader(private val context: Context) {
         withContext(Dispatchers.IO) {
             val index = getImportedSkillsIndex()
             val client = OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
+                .connectTimeout(NetworkConfig.SKILL_UPDATE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(NetworkConfig.SKILL_UPDATE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
             index.filter { it.sourceType == SkillSourceType.REMOTE_URL && it.sourcePath.isNotBlank() }
                 .mapNotNull { entry ->

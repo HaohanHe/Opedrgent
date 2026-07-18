@@ -5,6 +5,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.network.SourceFetcher
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebViewAgent
@@ -31,7 +32,7 @@ class ReadUrlTool(
         reason: String,
     ): ToolResult {
         val output = buildString {
-            appendLine("[PARTIAL_TIMEOUT: read_url 超过 15 秒，仅获取到部分内容]")
+            appendLine("[PARTIAL_TIMEOUT: read_url 超过 ${NetworkConfig.READ_URL_TIMEOUT_MS / 1000} 秒，仅获取到部分内容]")
             appendLine("页面标题：无标题")
             appendLine("URL：$url")
             appendLine("已获取内容：")
@@ -66,7 +67,7 @@ class ReadUrlTool(
 
         var sourceError: String? = null
         val fetched = try {
-            withTimeout(15_000) { fetcher.fetchUrl(url) }
+            withTimeout(NetworkConfig.READ_URL_TIMEOUT_MS) { fetcher.fetchUrl(url) }
         } catch (e: TimeoutCancellationException) {
             DebugLog.w("read_url: SourceFetcher timeout for $url")
             return buildPartialTimeoutResult(tp, url, maxChars, "SourceFetcher 超过 15 秒")
@@ -89,7 +90,7 @@ class ReadUrlTool(
 
         DebugLog.w("read_url: SourceFetcher failed, trying WebView fallback")
         val wvFetched = try {
-            withTimeout(15_000) { getWebViewAgent().fetchUrl(url) }
+            withTimeout(NetworkConfig.READ_URL_TIMEOUT_MS) { getWebViewAgent().fetchUrl(url) }
         } catch (e: TimeoutCancellationException) {
             DebugLog.w("read_url: WebView timeout for $url")
             return buildPartialTimeoutResult(tp, url, maxChars, "WebView 超过 15 秒")

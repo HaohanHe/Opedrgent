@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
@@ -62,7 +63,7 @@ fun AudioClipPlayerCard(
             IconButton(
                 onClick = { },
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(SizeTokens.quickActionIcon)
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
             ) {
                 Icon(
@@ -109,7 +110,7 @@ fun SourceCitations(sources: List<Pair<String, String>>) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = CardDefaults.outlinedCardBorder().copy(
                     brush = SolidColor(MaterialTheme.customColors.citationBg),
-                    width = 1.dp,
+                    width = SizeTokens.borderWidth,
                 ),
             ) {
                 Row(

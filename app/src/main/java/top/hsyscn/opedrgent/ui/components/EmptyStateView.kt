@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -79,7 +80,7 @@ private fun EmptyStateViewPreview() {
                 Icon(
                     Icons.Default.Inbox,
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(SizeTokens.emptyStateIcon),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 )
             },
@@ -101,7 +102,7 @@ private fun EmptyStateViewDarkPreview() {
                 Icon(
                     Icons.Default.Inbox,
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(SizeTokens.emptyStateIcon),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 )
             },

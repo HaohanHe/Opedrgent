@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
 
@@ -82,8 +83,8 @@ class AsrPostProcessor {
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.ASR_POST_PROCESSOR_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.ASR_POST_PROCESSOR_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
 

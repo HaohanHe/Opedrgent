@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
 import okio.sink
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -60,9 +61,9 @@ object OcrModelManager {
     val AVAILABLE_MODELS = listOf(PP_OCR_V6)
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(NetworkConfig.OCR_MODEL_DOWNLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(NetworkConfig.OCR_MODEL_DOWNLOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(NetworkConfig.OCR_MODEL_DOWNLOAD_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 

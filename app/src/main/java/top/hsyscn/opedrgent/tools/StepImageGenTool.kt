@@ -11,6 +11,7 @@ import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.emptyResult
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
@@ -42,9 +43,9 @@ class StepImageGenTool : ToolSet {
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.IMAGE_GEN_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.IMAGE_GEN_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.IMAGE_GEN_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
 

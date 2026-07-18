@@ -146,7 +146,7 @@ fun UserBubble(
 private fun UserBubblePreview() {
     OpedrgentTheme(darkTheme = false) {
         Box(modifier = Modifier.padding(SpacingTokens.lg)) {
-            UserBubble(text = "你好，这是一条用户消息预览。")
+            UserBubble(text = stringResource(R.string.sample_user_message_preview))
         }
     }
 }
@@ -156,7 +156,7 @@ private fun UserBubblePreview() {
 private fun UserBubbleDarkPreview() {
     OpedrgentTheme(darkTheme = true) {
         Box(modifier = Modifier.padding(SpacingTokens.lg)) {
-            UserBubble(text = "你好，这是一条用户消息预览。")
+            UserBubble(text = stringResource(R.string.sample_user_message_preview))
         }
     }
 }

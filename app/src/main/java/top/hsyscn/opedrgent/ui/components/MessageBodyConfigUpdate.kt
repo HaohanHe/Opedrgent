@@ -20,11 +20,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
@@ -50,21 +50,21 @@ fun MessageBodyConfigUpdate(
         Icon(
             imageVector = Icons.Default.Tune,
             contentDescription = stringResource(R.string.msg_body_cd_config_update),
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(SizeTokens.iconLg),
             tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.width(SpacingTokens.xs))
         Text(
             text = buildAnnotatedString {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+                withStyle(SpanStyle(fontWeight = MaterialTheme.typography.displayLarge.fontWeight, color = MaterialTheme.colorScheme.primary)) {
                     append(configName)
                 }
                 append(fromText)
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)) {
+                withStyle(SpanStyle(fontWeight = MaterialTheme.typography.titleLarge.fontWeight, color = MaterialTheme.colorScheme.error)) {
                     append(oldValue)
                 }
                 append(toText)
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)) {
+                withStyle(SpanStyle(fontWeight = MaterialTheme.typography.titleLarge.fontWeight, color = MaterialTheme.colorScheme.primary)) {
                     append(newValue)
                 }
             },

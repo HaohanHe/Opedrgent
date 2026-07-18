@@ -5,6 +5,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.StringReader
 import java.util.concurrent.TimeUnit
@@ -38,9 +39,9 @@ class WebDavClient(private val config: WebDavConfig) {
     )
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(NetworkConfig.WEBDAV_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(NetworkConfig.WEBDAV_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(NetworkConfig.WEBDAV_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 

@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -135,7 +136,7 @@ fun HoldToDictate(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(56.dp)
+            .size(SizeTokens.fabSize)
             .semantics(mergeDescendants = true) {
                 contentDescription = if (isRecording) recordingLabel else holdToSpeakLabel
                 stateDescription = if (isRecording) stateRecording else stateNotRecording
@@ -183,7 +184,7 @@ fun HoldToDictate(
         if (isRecording) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(SizeTokens.fabSize)
                     .scale(ringScale)
                     .clip(CircleShape)
                     .background(MaterialTheme.customColors.dangerRed.copy(alpha = ringAlpha))
@@ -192,7 +193,7 @@ fun HoldToDictate(
 
         Box(
             modifier = Modifier
-                .size(if (isRecording) 48.dp else 56.dp)
+                .size(if (isRecording) SizeTokens.sectionIcon else SizeTokens.fabSize)
                 .scale(if (isRecording) pulseScale else 1f)
                 .clip(CircleShape)
                 .background(

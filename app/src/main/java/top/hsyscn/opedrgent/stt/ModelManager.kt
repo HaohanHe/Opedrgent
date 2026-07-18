@@ -12,6 +12,7 @@ import okio.buffer
 import okio.sink
 import okio.source
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -174,9 +175,9 @@ object ModelManager {
     )
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)   // 大文件下载给更多时间
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(NetworkConfig.STT_MODEL_DOWNLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(NetworkConfig.STT_MODEL_DOWNLOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)   // 大文件下载给更多时间
+        .writeTimeout(NetworkConfig.STT_MODEL_DOWNLOAD_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)               // GitHub/镜像源会 302 重定向到 CDN
         .build()
 

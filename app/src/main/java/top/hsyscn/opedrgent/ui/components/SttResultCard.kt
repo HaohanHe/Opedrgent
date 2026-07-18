@@ -428,11 +428,11 @@ private fun ActionButtons(
 private fun SttResultCardPreview() {
     OpedrgentTheme(darkTheme = false) {
         val sampleResult = SttResult(
-            text = "你好，这是一段语音转录的样例文本。",
+            text = "stringResource(R.string.sample_transcript)",
             confidence = 0.92f,
             segments = listOf(
                 SttSegment(
-                    text = "你好，这是一段语音转录的样例文本。",
+                    text = "stringResource(R.string.sample_transcript)",
                     startTimeMs = 0,
                     endTimeMs = 3500,
                     confidence = 0.92f,
@@ -457,11 +457,11 @@ private fun SttResultCardPreview() {
 private fun SttResultCardDarkPreview() {
     OpedrgentTheme(darkTheme = true) {
         val sampleResult = SttResult(
-            text = "你好，这是一段语音转录的样例文本。",
+            text = "stringResource(R.string.sample_transcript)",
             confidence = 0.92f,
             segments = listOf(
                 SttSegment(
-                    text = "你好，这是一段语音转录的样例文本。",
+                    text = "stringResource(R.string.sample_transcript)",
                     startTimeMs = 0,
                     endTimeMs = 3500,
                     confidence = 0.92f,
