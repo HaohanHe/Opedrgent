@@ -628,4 +628,15 @@
 
     <!-- Clipboard labels -->
     <string name="clipboard_label_sprout_result">发芽结果</string>
+
+    <!-- Internal data labels (user-visible in lists/history) -->
+    <string name="memory_evolution_title">进化记忆</string>
+    <string name="clip_title">剪藏</string>
+    <string name="clip_default_session_title">剪藏会话</string>
+    <string name="ham_contact_log_session_title">通联日志</string>
+    <string name="new_conversation_default_title">新对话</string>
+
+    <!-- Theme preview (developer-only but localized for consistency) -->
+    <string name="theme_preview_title">Opedrgent 主题色板</string>
+    <string name="theme_preview_semantic_colors">业务语义颜色</string>
 </resources>

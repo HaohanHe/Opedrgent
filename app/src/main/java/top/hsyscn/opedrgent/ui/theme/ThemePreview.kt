@@ -18,8 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 
 /**
  * 主题色板预览，用于在 IDE 中快速检查浅色/深色模式下的颜色与 token。
@@ -36,7 +38,7 @@ private fun ThemePalettePreview() {
                 .background(MaterialTheme.colorScheme.background),
         ) {
             Text(
-                text = "Opedrgent 主题色板",
+                text = stringResource(R.string.theme_preview_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -52,7 +54,7 @@ private fun ThemePalettePreview() {
 
             Spacer(modifier = Modifier.height(SpacingTokens.md))
             Text(
-                text = "业务语义颜色",
+                text = stringResource(R.string.theme_preview_semantic_colors),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )

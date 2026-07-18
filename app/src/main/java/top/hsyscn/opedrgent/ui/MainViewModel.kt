@@ -756,7 +756,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             appendLine(transcript)
         }
 
-        val session = store.createSession("通联日志")
+        val session = store.createSession(app.getString(R.string.ham_contact_log_session_title))
         refreshSessions()
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -2818,7 +2818,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             val firstUser = session.messages.firstOrNull { it.role == Role.USER }?.textContent ?: ""
                             // ★ 改进标题生成：智能截断，尝试在自然边界处断开
                             val generatedTitle = generateSmartTitle(firstUser)
-                            if (generatedTitle != null && generatedTitle != "新对话") {
+                            if (generatedTitle != null && generatedTitle != app.getString(R.string.new_conversation_default_title)) {
                                 val updatedSession = store.getSession(sessionId)?.copy(title = generatedTitle)
                                 if (updatedSession != null) {
                                     store.updateSession(updatedSession)
@@ -5230,7 +5230,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun acceptEvolutionMemory() {
         val s = _state.value.evolutionSuggestion ?: return
         if (s.memory.isNotBlank()) {
-            addMemory(title = "进化记忆", content = s.memory, type = MemoryType.FEEDBACK)
+            addMemory(title = app.getString(R.string.memory_evolution_title), content = s.memory, type = MemoryType.FEEDBACK)
         }
         dismissEvolution()
     }
@@ -5858,14 +5858,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (raw.isEmpty()) return
         val url = raw.takeIf { it.startsWith("http://") || it.startsWith("https://") }
         val existingSessionId = _state.value.current?.id ?: apiSettings.getLastSessionId()
-        val sessionId = existingSessionId ?: store.createSession("剪藏").id
+        val sessionId = existingSessionId ?: store.createSession(app.getString(R.string.clip_default_session_title)).id
         openSession(sessionId)
         _state.value = _state.value.copy(navigateToSessionId = sessionId)
         if (url != null) {
             addUrlSource(url)
             saveLinkAsNote(url)
         } else {
-            addTextSource(title = "剪藏", text = raw)
+            addTextSource(title = app.getString(R.string.clip_title), text = raw)
         }
     }
 
