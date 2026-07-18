@@ -26,9 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -74,7 +72,7 @@ fun HippocampusScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // 顶部栏
         TopAppBar(
-            title = { Text(stringResource(R.string.title_hippocampus), fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.title_hippocampus), style = MaterialTheme.typography.headlineLarge) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
@@ -109,7 +107,7 @@ fun HippocampusScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = SpacingTokens.lg)
-                .height(48.dp),
+                .height(SizeTokens.searchBarHeight),
             shape = ShapeTokens.smallShape,
             singleLine = true,
         )
@@ -267,7 +265,6 @@ private fun HippocampusItemCard(
                     Text(
                         text = item.title,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),

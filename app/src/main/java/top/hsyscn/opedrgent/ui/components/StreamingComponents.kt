@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -72,13 +73,12 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.model.ReasoningPart
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -111,7 +111,7 @@ fun StreamingCard(
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(
             modifier = Modifier.padding(SpacingTokens.md),
@@ -122,13 +122,12 @@ fun StreamingCard(
                 if (isToolRunning) {
                     CircularProgressIndicator(
                         modifier = Modifier
-                            .height(16.dp)
-                            .width(16.dp)
+                            .size(SizeTokens.iconSm)
                             .semantics {
                                 contentDescription = thinkingLabel
                                 stateDescription = processingLabel
                             },
-                        strokeWidth = 2.dp,
+                        strokeWidth = SizeTokens.borderWidth,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
@@ -208,11 +207,12 @@ private fun StreamingTextWithCursor(
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
+    val cursorWidth = with(LocalDensity.current) { SizeTokens.borderWidth.toSp() }
     val inlineContent = mapOf(
         cursorMarker to InlineTextContent(
             placeholder = Placeholder(
-                width = 2.sp,
-                height = 16.sp,
+                width = cursorWidth,
+                height = MaterialTheme.typography.bodyLarge.fontSize,
                 placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
             )
         ) {
@@ -264,9 +264,9 @@ fun DoubaoThinkingIndicator(phase: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
-        Canvas(modifier = Modifier.size(18.dp, 8.dp)) {
-            val radius = 2.5f.dp.toPx()
-            val spacing = 7f.dp.toPx()
+        Canvas(modifier = Modifier.size(SizeTokens.iconMd, SpacingTokens.sm)) {
+            val radius = SizeTokens.progressTrackHeight.toPx()
+            val spacing = SpacingTokens.sm.toPx()
             drawCircle(
                 color = primaryColor.copy(alpha = dot1Alpha),
                 radius = radius,
@@ -295,7 +295,7 @@ fun ThinkingSection(parts: List<ReasoningPart>) {
             Icon(
               imageVector = Icons.Default.AutoAwesome,
                 contentDescription = stringResource(R.string.streaming_cd_thinking),
-                modifier = Modifier.height(16.dp),
+                modifier = Modifier.height(SizeTokens.iconSm),
                 tint = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(SpacingTokens.xs))
@@ -379,7 +379,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
         Icon(
             imageVector = icon,
             contentDescription = stringResource(R.string.tool_state_cd),
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(SizeTokens.iconSm),
             tint = when (toolPart.state.status) {
                 ToolStateType.COMPLETED -> MaterialTheme.colorScheme.primary
                 ToolStateType.ERROR -> MaterialTheme.colorScheme.error
@@ -394,7 +394,7 @@ fun ToolStatusRow(toolPart: ToolPart) {
         } else {
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                    withStyle(SpanStyle(fontWeight = MaterialTheme.typography.titleSmall.fontWeight)) {
                         append(toolDisplayName(toolPart.tool))
                     }
                     append(" ")
@@ -407,8 +407,8 @@ fun ToolStatusRow(toolPart: ToolPart) {
 
         if (toolPart.state.status == ToolStateType.RUNNING) {
             CircularProgressIndicator(
-                modifier = Modifier.height(12.dp).width(12.dp),
-                strokeWidth = 1.5.dp,
+                modifier = Modifier.size(SizeTokens.iconXs),
+                strokeWidth = SizeTokens.borderWidth,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
@@ -464,7 +464,7 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
             Icon(
                 imageVector = statusIcon,
                 contentDescription = stringResource(R.string.tool_state_cd),
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(SizeTokens.iconSm),
                 tint = statusColor,
             )
             Text(
@@ -477,13 +477,13 @@ private fun ToolStatusCollapsedGroup(toolName: String, parts: List<ToolPart>) {
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(SizeTokens.iconSm),
                 tint = themeTextGrey(),
             )
             if (hasRunning) {
                 CircularProgressIndicator(
-                    modifier = Modifier.height(12.dp).width(12.dp),
-                    strokeWidth = 1.5.dp,
+                    modifier = Modifier.size(SizeTokens.iconXs),
+                    strokeWidth = SizeTokens.borderWidth,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -604,7 +604,7 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
             Icon(
                 imageVector = Icons.Default.Link,
                 contentDescription = stringResource(R.string.streaming_cd_sources),
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(SizeTokens.iconSm),
                 tint = themeTextGrey(),
             )
             Text(
@@ -616,7 +616,7 @@ fun SourceLinksSection(toolParts: List<ToolPart>) {
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
                 tint = themeTextGrey(),
             )
         }
@@ -759,7 +759,7 @@ fun ToolCard(toolPart: ToolPart) {
                 Icon(
                     imageVector = statusIcon,
                     contentDescription = stringResource(R.string.tool_state_cd),
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(SizeTokens.iconSm),
                     tint = statusColor,
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
@@ -770,8 +770,8 @@ fun ToolCard(toolPart: ToolPart) {
                 )
                 if (toolPart.state.status == ToolStateType.RUNNING) {
                     CircularProgressIndicator(
-                        modifier = Modifier.height(14.dp).width(14.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(SizeTokens.iconXs),
+                        strokeWidth = SizeTokens.borderWidth,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }

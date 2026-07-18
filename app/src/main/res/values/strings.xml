@@ -481,6 +481,7 @@
     <string name="kb_delete_success">已删除: %s</string>
     <string name="kb_no_documents">暂无文档</string>
     <string name="kb_no_match_documents">未找到匹配文档</string>
+    <string name="kb_no_match_documents_hint">换个关键词或筛选条件试试</string>
     <string name="kb_importing">正在导入…</string>
     <string name="kb_add_file_hint">点击右下角 + 添加文件</string>
     <string name="kb_import_success">已添加: %s</string>

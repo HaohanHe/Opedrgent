@@ -407,7 +407,7 @@
     <string name="kb_filter_text">Text</string>
     <string name="kb_filter_image">Image</string>
     <string name="kb_docs_format">%d docs</string>
-    <string name="kb_doc_info">Document: %s (%s, %d bytes)</string>
+    <string name="kb_doc_info">Document: %1$s (%2$s, %3$d bytes)</string>
     <string name="kb_share_developing">Share feature under development</string>
     <string name="kb_sort_label">Sort</string>
 

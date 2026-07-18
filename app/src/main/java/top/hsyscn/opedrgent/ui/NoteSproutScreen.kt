@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -60,7 +59,9 @@ import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
 import top.hsyscn.opedrgent.ui.components.DownloadQuotes
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.themeDividerColor
@@ -499,7 +500,7 @@ private fun SproutArticleContent(
                 },
                 enabled = !isAppending,
             ) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, stringResource(R.string.note_action_append), Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, stringResource(R.string.note_action_append), Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text(stringResource(R.string.note_action_append))
             }
@@ -516,7 +517,7 @@ private fun SproutArticleContent(
                     context.startActivity(Intent.createChooser(intent, context.getString(R.string.action_share)))
                 },
             ) {
-                Icon(Icons.Default.Share, stringResource(R.string.action_share), Modifier.size(16.dp))
+                Icon(Icons.Default.Share, stringResource(R.string.action_share), Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text(stringResource(R.string.action_share))
             }
@@ -529,13 +530,13 @@ private fun SproutArticleContent(
                 },
                 enabled = !isRefreshing,
             ) {
-                Icon(Icons.Default.AutoAwesome, stringResource(R.string.sprout_zai_fa_ya), Modifier.size(16.dp))
+                Icon(Icons.Default.AutoAwesome, stringResource(R.string.sprout_zai_fa_ya), Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text(stringResource(R.string.sprout_zai_fa_ya))
             }
         }
 
-        Spacer(Modifier.height(48.dp))
+        Spacer(Modifier.height(SizeTokens.sectionIcon))
     }
 }
 
@@ -550,14 +551,13 @@ private fun ReportHeader(dateStr: String, modelName: String) {
     ) {
         Surface(
             shape = ShapeTokens.extraSmallShape,
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface),
+            border = androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, MaterialTheme.colorScheme.onSurface),
             color = Color.Transparent,
         ) {
             Text(
                 text = stringResource(R.string.sprout_fa_ya_bao_gao),
-                style = MaterialTheme.typography.headlineSmall.copy(
+                style = MaterialTheme.typography.headlineLarge.copy(
                     fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
                     letterSpacing = 4.sp,
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
@@ -565,7 +565,7 @@ private fun ReportHeader(dateStr: String, modelName: String) {
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Description, stringResource(R.string.sprout_ri_qi), tint = themeSproutMetaText(), modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.Description, stringResource(R.string.sprout_ri_qi), tint = themeSproutMetaText(), modifier = Modifier.size(SizeTokens.iconXs))
             Text(dateStr, style = MaterialTheme.typography.labelSmall, color = themeSproutMetaText())
         }
     }
@@ -582,7 +582,7 @@ private fun SummaryBlock(summary: String) {
             .padding(SpacingTokens.lg + SpacingTokens.xs),
     ) {
         Text(summary, style = MaterialTheme.typography.bodyLarge.copy(
-            color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, lineHeight = 24.sp,
+            color = MaterialTheme.colorScheme.onPrimary,
         ))
     }
 }
@@ -594,14 +594,13 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
     Card(
         shape = RectangleShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.none),
     ) {
         Column(Modifier.padding(bottom = SpacingTokens.lg)) {
             Text(
                 text = section.title.ifEmpty { stringResource(R.string.sprout_index_1_wei_ming_ming_dong_cha, index + 1) },
-                style = MaterialTheme.typography.titleLarge.copy(
+                style = MaterialTheme.typography.headlineLarge.copy(
                     fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -621,7 +620,7 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
                 ShockingBlock(moment = section.shockingMoment, importance = section.importance)
             }
 
-            HorizontalDivider(color = themeSproutDivider(), thickness = 1.dp)
+            HorizontalDivider(color = themeSproutDivider(), thickness = SizeTokens.dividerThickness)
         }
     }
 }
@@ -637,7 +636,6 @@ private fun SeedBlock(seed: String) {
             style = MaterialTheme.typography.bodyMedium,
             color = themeSproutSeedText(),
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-            lineHeight = 20.sp,
             modifier = Modifier.weight(1f),
         )
     }
@@ -662,18 +660,18 @@ private fun ArticleBody(body: String) {
 
 @Composable
 private fun PlainText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp, color = MaterialTheme.colorScheme.onSurface))
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface))
 }
 
 @Composable
 private fun BoldText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 26.sp, color = MaterialTheme.colorScheme.onSurface))
+    Text(text, style = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface))
 }
 
 @Composable
 private fun QuoteBlock(text: String) {
-    Box(Modifier.fillMaxWidth().background(themeSproutQuoteBg()).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 22.sp))
+    Box(Modifier.fillMaxWidth().background(themeSproutQuoteBg()).padding(horizontal = SizeTokens.contentPaddingMd, vertical = SizeTokens.sectionGapSm)) {
+        Text(text, style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
     }
 }
 
@@ -691,9 +689,7 @@ private fun ShockingBlock(moment: String, importance: Int) {
             val displayText = "\"$moment\""
             Text(
                 text = displayText,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 24.sp,
+                style = MaterialTheme.typography.titleMedium.copy(
                     color = MaterialTheme.customColors.accentOrange,
                     textDecoration = TextDecoration.Underline,
                 ),
@@ -711,7 +707,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
 
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.note_editor_action_suggestion), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+            Text(stringResource(R.string.note_editor_action_suggestion), style = MaterialTheme.typography.titleMedium)
             if (items.isNotEmpty()) Text("${completedCount}/${items.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.customColors.accentBlue)
         }
         if (items.isNotEmpty()) {
@@ -723,7 +719,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
             Row(
                 Modifier.fillMaxWidth().clickable { onToggle(itemHash) }.padding(vertical = SpacingTokens.sm),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(SizeTokens.sectionGapSm),
             ) {
                 Icon(if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                     contentDescription = if (done) stringResource(R.string.state_completed) else stringResource(R.string.sprout_wei_wan_cheng),
@@ -742,7 +738,7 @@ private fun ActionSection(items: List<String>, completed: Set<String>, onToggle:
 @Composable
 private fun ConceptsSection(concepts: List<String>) {
     Column {
-        Text(stringResource(R.string.note_editor_related_concepts), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+        Text(stringResource(R.string.note_editor_related_concepts), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(SpacingTokens.sm))
         // 直接用简单的 Wrap 样式展示
         Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm), modifier = Modifier.wrapContentHeight()) {
@@ -853,7 +849,6 @@ private fun SproutLoadingView() {
         Text(
             stringResource(R.string.sprout_loading_title),
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Text(
@@ -915,7 +910,7 @@ private fun SproutLoadingView() {
 @Composable
 private fun SproutErrorView(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Default.ErrorOutline, stringResource(R.string.msg_body_cd_error), Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+        Icon(Icons.Default.ErrorOutline, stringResource(R.string.msg_body_cd_error), Modifier.size(SizeTokens.emptyStateIcon), tint = MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(SpacingTokens.lg)); Text(stringResource(R.string.sprout_error_title), style = MaterialTheme.typography.titleMedium)
         Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = SpacingTokens.xxl))
         Spacer(Modifier.height(SpacingTokens.xl)); Button(onClick = onRetry) { Icon(Icons.Default.Refresh, stringResource(R.string.action_retry)); Spacer(Modifier.width(SpacingTokens.sm)); Text(stringResource(R.string.action_retry)) }

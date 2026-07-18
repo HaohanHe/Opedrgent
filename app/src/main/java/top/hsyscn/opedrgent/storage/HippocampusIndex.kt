@@ -56,7 +56,7 @@ class HippocampusIndex(context: Context) {
         private const val TAG = "HippocampusIndex"
     }
 
-    private val db = HippocampusDatabase.getInstance(context).writableDatabase
+    private val db by lazy { HippocampusDatabase.getInstance(context).writableDatabase }
 
     suspend fun upsert(item: IndexedItem) = withContext(Dispatchers.IO) {
         val existing = findBySource(item.sourceType, item.sourceId)

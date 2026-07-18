@@ -90,6 +90,10 @@
     <string name="hippocampus_ji_yi">记忆</string>
     <string name="hippocampus_pian_hao">偏好</string>
     <string name="hippocampus_qing_chu">清除</string>
+    <!-- sessions -->
+    <string name="sessions_empty_action">新建会话</string>
+    <string name="sessions_empty_subtitle">点击右下角 + 创建新对话，开始你的第一段 AI 交流</string>
+    <string name="sessions_empty_title">还没有会话</string>
     <!-- home -->
     <string name="home_ai_dui_hua">AI 对话</string>
     <string name="home_ai_qu_dong_zhi_neng_mian_shi">AI 驱动智能面试</string>
@@ -230,6 +234,7 @@
     <string name="kb_gong_1_ge_zhi_shi_ku_2_pian">共 %1$s 个知识库，%2$s 篇文档</string>
     <string name="kb_lai_yuan_1_2">来源: %1$s · %2$s</string>
     <string name="kb_ming_cheng_bu_neng_wei_kong">名称不能为空</string>
+    <string name="kb_no_match_hint">换个关键词试试，或点击下方 + 新建知识库</string>
     <string name="kb_qing_chu">清除</string>
     <string name="kb_que_ding_yao_shan_chu_1_ma_qi">确定要删除「%1$s」吗？其中的所有文档也将被删除。此操作不可撤销。</string>
     <string name="kb_sort_name">名称</string>
@@ -302,6 +307,8 @@
     <string name="note_list_kong_bi_ji">（空笔记）</string>
     <string name="note_list_lai_zi_lu_yin">来自录音</string>
     <string name="note_list_ming_cheng_bu_neng_wei_kong">名称不能为空且不能超过50个字符</string>
+    <string name="note_list_no_search_results">未找到匹配的笔记</string>
+    <string name="note_list_no_search_results_hint">换个关键词试试，或清除筛选条件</string>
     <string name="note_list_quan_bu_biao_qian">全部标签</string>
     <string name="note_list_she_ji">涉及</string>
     <string name="note_list_shuo_dao">说到</string>

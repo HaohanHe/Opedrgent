@@ -407,7 +407,7 @@
     <string name="kb_filter_text">テキスト</string>
     <string name="kb_filter_image">画像</string>
     <string name="kb_docs_format">%d 件</string>
-    <string name="kb_doc_info">ドキュメント: %s (%s, %dバイト)</string>
+    <string name="kb_doc_info">ドキュメント: %1$s (%2$s, %3$dバイト)</string>
     <string name="kb_share_developing">共有機能は開発中です</string>
     <string name="kb_sort_label">並べ替え</string>
     <string name="about_open_source">オープンソースライセンス</string>
