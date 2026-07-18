@@ -303,8 +303,11 @@
     <string name="interview_full_duplex_input_key">请先输入 API Key</string>
     <string name="interview_full_duplex_supported">已支持</string>
     <string name="interview_api_key_label">API Key</string>
+    <string name="interview_api_key_placeholder">sk-...</string>
     <string name="interview_model_label">模型 ID</string>
+    <string name="interview_model_placeholder">your-realtime-model</string>
     <string name="interview_voice_label">音色 ID</string>
+    <string name="interview_voice_placeholder">your-voice</string>
 
     <string name="settings_tts_section">TTS 朗读</string>
     <string name="settings_tts_engine">TTS 引擎</string>
@@ -486,7 +489,7 @@
     <string name="kb_filter_text">文本</string>
     <string name="kb_filter_image">图片</string>
     <string name="kb_docs_format">%d 篇</string>
-    <string name="kb_doc_info">文档: %s (%s, %d字节)</string>
+    <string name="kb_doc_info">文档: %1$s (%2$s, %3$d字节)</string>
     <string name="kb_share_developing">分享功能开发中</string>
     <string name="kb_sort_label">排序</string>
 
@@ -516,22 +519,6 @@
     <string name="graph_stat_total_notes">总笔记</string>
     <string name="graph_stat_total_links">总关联</string>
     <string name="graph_stat_isolated_notes">孤立笔记</string>
-
-    <!-- Onboarding -->
-    <string name="onboarding_skip">跳过</string>
-    <string name="onboarding_next">下一步</string>
-    <string name="onboarding_prev">上一页</string>
-    <string name="onboarding_get_started">进入 Opedrgent</string>
-    <string name="onboarding_page_welcome_title">欢迎来到 Opedrgent</string>
-    <string name="onboarding_page_welcome_subtitle">你的本地优先 AI 助手。对话、笔记、知识图谱三位一体，让思考自然生长。</string>
-    <string name="onboarding_page_chat_title">随时对话</string>
-    <string name="onboarding_page_chat_subtitle">支持多轮对话、工具调用、联网搜索与深度研究。需要时 AI 会主动确认，不会擅自执行敏感操作。</string>
-    <string name="onboarding_page_notes_title">笔记与知识图谱</string>
-    <string name="onboarding_page_notes_subtitle">记录灵感、会议、图片与链接。保存后系统会自动构建知识图谱，帮你发现笔记之间的隐藏联系。</string>
-    <string name="onboarding_page_sprout_title">思想空间发芽</string>
-    <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
-    <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
-    <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
 
     <!-- i18n 补充：会话 / 编辑器 / 发芽 硬编码字符串 -->
     <!-- ASR / 语音输入 -->

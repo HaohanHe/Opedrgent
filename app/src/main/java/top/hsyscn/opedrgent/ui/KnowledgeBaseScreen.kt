@@ -133,7 +133,16 @@ private val doubaoRadius = 16.dp
 // 排序方式
 // ============================================================
 
-private enum class SortBy(val label: String) { TIME("时间"), NAME("名称"), SIZE("大小") }
+private enum class SortBy { TIME, NAME, SIZE }
+
+@Composable
+private fun SortBy.label(): String = stringResource(
+    when (this) {
+        SortBy.TIME -> R.string.kb_sort_time
+        SortBy.NAME -> R.string.kb_sort_name
+        SortBy.SIZE -> R.string.kb_sort_size
+    }
+)
 
 // ============================================================
 // 主入口：多知识库管理系统
@@ -318,7 +327,7 @@ fun KnowledgeBaseScreen(
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             SortBy.entries.forEach { sort ->
                                 DropdownMenuItem(
-                                    text = { Text(sort.label) },
+                                    text = { Text(sort.label()) },
                                     onClick = { sortBy = sort; showSortMenu = false },
                                 )
                             }
@@ -936,7 +945,7 @@ private fun DocumentListView(
                 },
                 title = stringResource(R.string.kb_no_documents),
                 subtitle = if (allCount == 0) stringResource(R.string.kb_add_file_hint) else "",
-                actionLabel = if (allCount == 0) "添加文件" else null,
+                actionLabel = if (allCount == 0) stringResource(R.string.kb_tian_jia_wen_jian) else null,
                 onAction = if (allCount == 0) onImport else null,
                 modifier = Modifier.fillMaxSize(),
             )

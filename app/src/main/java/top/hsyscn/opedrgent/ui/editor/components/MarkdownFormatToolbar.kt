@@ -26,8 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -64,42 +66,42 @@ fun MarkdownFormatToolbar(
                 FormatButton(
                     icon = Icons.Default.FormatBold,
                     onClick = onBold,
-                    description = "加粗"
+                    description = stringResource(R.string.editor_cd_jia_cu)
                 )
                 FormatButton(
                     icon = Icons.Default.FormatItalic,
                     onClick = onItalic,
-                    description = "斜体"
+                    description = stringResource(R.string.editor_cd_xie_ti)
                 )
                 FormatButton(
                     icon = Icons.Default.Code,
                     onClick = onCode,
-                    description = "代码"
+                    description = stringResource(R.string.editor_cd_dai_ma)
                 )
                 FormatButton(
                     icon = Icons.AutoMirrored.Filled.FormatListBulleted,
                     onClick = onBulletList,
-                    description = "无序列表"
+                    description = stringResource(R.string.editor_cd_wu_xu_lie_biao)
                 )
                 FormatButton(
                     icon = Icons.Default.FormatListNumbered,
                     onClick = onNumberedList,
-                    description = "有序列表"
+                    description = stringResource(R.string.editor_cd_you_xu_lie_biao)
                 )
                 FormatButton(
                     icon = Icons.Default.FormatQuote,
                     onClick = onQuote,
-                    description = "引用"
+                    description = stringResource(R.string.editor_cd_yin_yong)
                 )
                 FormatButton(
                     icon = Icons.Default.Link,
                     onClick = onLink,
-                    description = "链接"
+                    description = stringResource(R.string.editor_cd_lian_jie)
                 )
                 FormatButton(
                     icon = Icons.Default.Image,
                     onClick = onImage,
-                    description = "图片"
+                    description = stringResource(R.string.editor_cd_tu_pian)
                 )
             }
 
@@ -114,19 +116,19 @@ fun MarkdownFormatToolbar(
                 FormatButton(
                     icon = Icons.Default.Title,
                     onClick = onHeading1,
-                    description = "标题1",
+                    description = stringResource(R.string.editor_cd_biao_ti_1),
                     text = "H1"
                 )
                 FormatButton(
                     icon = Icons.Default.Title,
                     onClick = onHeading2,
-                    description = "标题2",
+                    description = stringResource(R.string.editor_cd_biao_ti_2),
                     text = "H2"
                 )
                 FormatButton(
                     icon = Icons.Default.Title,
                     onClick = onHeading3,
-                    description = "标题3",
+                    description = stringResource(R.string.editor_cd_biao_ti_3),
                     text = "H3"
                 )
             }

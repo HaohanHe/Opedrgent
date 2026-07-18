@@ -9,6 +9,7 @@ import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -125,7 +126,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -174,10 +174,20 @@ import top.hsyscn.opedrgent.ui.components.isLandscape
 
 private val SelectedBorder = CoralRed
 
-enum class RecordingMode(val label: String, val maxHours: Int, val icon: ImageVector) {
-    RECORDING("录音", 5, Icons.Default.Mic),
-    INTERNAL("手机内录", 5, Icons.Default.SettingsVoice),
+enum class RecordingMode(val maxHours: Int, val icon: ImageVector) {
+    RECORDING(5, Icons.Default.Mic),
+    INTERNAL(5, Icons.Default.SettingsVoice),
 }
+
+private fun RecordingMode.label(context: Context): String = context.getString(
+    when (this) {
+        RecordingMode.RECORDING -> R.string.recording_lu_yin
+        RecordingMode.INTERNAL -> R.string.recording_shou_ji_nei_lu
+    }
+)
+
+@Composable
+private fun RecordingMode.label(): String = label(LocalContext.current)
 
 data class CapturedPhoto(
     val filePath: String,
@@ -475,7 +485,7 @@ fun RecordingTab(
         vm.asrManager.stopStreaming()
         recordingState = RecordingState.RECORDING
         elapsedSeconds = 0
-        RecordingForegroundService.start(context, recordingMode.label)
+        RecordingForegroundService.start(context, recordingMode.label(context))
         amplitude = 0f
         transcriptResult = null
         savedToNote = false
@@ -1111,7 +1121,6 @@ fun RecordingTab(
                             // 顶部标题
                             Text(
                                 text = stringResource(R.string.recording_title),
-                                fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.headlineLarge,
                                 modifier = Modifier.padding(start = SpacingTokens.xl, top = SpacingTokens.lg, bottom = SpacingTokens.sm),
                             )
@@ -1125,11 +1134,11 @@ fun RecordingTab(
                                 imageVector = recordingMode.icon,
                                 contentDescription = null, // 装饰性图标，文本已说明
                                 tint = AccentBlue,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(SizeTokens.iconMd),
                             )
                             Spacer(Modifier.width(SpacingTokens.sm))
                             Text(
-                                text = recordingMode.label,
+                                text = recordingMode.label(),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = themeTextGrey(),
                             )
@@ -1158,16 +1167,7 @@ fun RecordingTab(
                                     onNavigateToNotes = onNavigateToNotes,
                                     onSave = { showSaveDialog = true },
                                     onAiSummary = {
-                                        val structuredPrompt = buildString {
-                                            appendLine("请对以下内容进行结构化总结，按以下四个部分输出，每部分用【标记】开头：")
-                                            appendLine("【智能总结】用2-3句话概括核心内容")
-                                            appendLine("【章节概要】按主题分段，每段配小标题")
-                                            appendLine("【金句精选】提取3-5句关键原话")
-                                            appendLine("【待办事项】列出所有需要后续跟进的事项")
-                                            appendLine()
-                                            appendLine("内容如下：")
-                                            append(result.fullText)
-                                        }
+                                        val structuredPrompt = context.getString(R.string.recording_ai_zong_jie_ti_shi, result.fullText)
                                         vm.sendUserMessage(structuredPrompt)
                                         scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_sent_to_ai)) }
                                     },
@@ -1246,7 +1246,7 @@ fun RecordingTab(
                     title = { Text(stringResource(R.string.recording_import_audio_video_title)) },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(SizeTokens.iconXl), strokeWidth = SizeTokens.iconXs)
                             Spacer(Modifier.width(SpacingTokens.md))
                             Text(stringResource(R.string.recording_transcribing_wait))
                         }
@@ -1518,7 +1518,7 @@ fun RecordingTab(
 @Composable
 private fun LabeledField(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = SpacingTokens.xxs),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
@@ -1544,7 +1544,6 @@ private fun IdleModeSelection(
     val titleSection: @Composable () -> Unit = {
         Text(
             text = stringResource(R.string.recording_select_mode),
-            fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.headlineLarge,
             color = themeTextDark(),
         )
@@ -1612,7 +1611,7 @@ private fun IdleModeSelection(
             )
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(SizeTokens.emptyStateIcon)
                     .clip(CircleShape)
                     .background(CoralRed)
                     .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_start_recording)) { onStartRecording() },
@@ -1622,7 +1621,7 @@ private fun IdleModeSelection(
                     imageVector = Icons.Default.Mic,
                     contentDescription = stringResource(R.string.cd_start_recording),
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(SizeTokens.sectionIcon),
                 )
             }
             Spacer(Modifier.height(SpacingTokens.sm))
@@ -1643,7 +1642,7 @@ private fun IdleModeSelection(
                 },
                 modifier = Modifier.padding(bottom = SpacingTokens.xxl),
             ) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(stringResource(R.string.recording_import_audio_video_title), style = MaterialTheme.typography.bodyLarge)
             }
@@ -1701,11 +1700,11 @@ private fun ModeCard(
                     Modifier.aspectRatio(1.25f)
                 },
             )
-            .border(2.dp, borderColor, ShapeTokens.largeShape)
+            .border(SizeTokens.borderWidth, borderColor, ShapeTokens.largeShape)
             .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select), onClick = onClick),
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) ElevationTokens.md else ElevationTokens.sm),
     ) {
         Column(
             modifier = Modifier
@@ -1717,13 +1716,12 @@ private fun ModeCard(
                 imageVector = mode.icon,
                 contentDescription = null, // 装饰性图标，文本已说明
                 tint = if (isSelected) CoralRed else themeTextGrey(),
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(SizeTokens.iconXl),
             )
             Column {
                 Text(
-                    text = mode.label,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleSmall,
+                    text = mode.label(),
+                    style = MaterialTheme.typography.titleMedium,
                     color = themeTextDark(),
                 )
                 Spacer(Modifier.height(SpacingTokens.xxs))
@@ -1778,11 +1776,11 @@ private fun RecordingScreen(
                     imageVector = mode.icon,
                     contentDescription = null, // 装饰性图标，文本已说明
                     tint = CoralRed,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(SizeTokens.iconMd),
                 )
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
-                    text = mode.label,
+                    text = mode.label(),
                     style = MaterialTheme.typography.bodyLarge,
                     color = themeTextDark(),
                 )
@@ -1800,7 +1798,7 @@ private fun RecordingScreen(
             modifier = cardModifier,
             shape = ShapeTokens.largeShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
         ) {
             Box(
                 modifier = Modifier
@@ -1847,7 +1845,6 @@ private fun RecordingScreen(
             Text(
                 text = timeText,
                 style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
                 color = themeTextDark(),
             )
             Spacer(Modifier.height(SpacingTokens.sm))
@@ -1866,14 +1863,14 @@ private fun RecordingScreen(
                 IconButton(
                     onClick = onCancel,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(SizeTokens.sectionIcon)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.action_cancel),
                         tint = themeTextGrey(),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(SizeTokens.iconXl),
                     )
                 }
                 Spacer(Modifier.height(SpacingTokens.xs))
@@ -1883,7 +1880,7 @@ private fun RecordingScreen(
             // 大圆录音/暂停按钮
             Box(
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(SizeTokens.emptyStateIcon)
                     .clip(CircleShape)
                     .background(CoralRed)
                     .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_pause)) {
@@ -1896,14 +1893,14 @@ private fun RecordingScreen(
                         imageVector = Icons.Default.Pause,
                         contentDescription = stringResource(R.string.action_pause),
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(SizeTokens.iconXl),
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Mic,
                         contentDescription = stringResource(R.string.action_resume),
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(SizeTokens.iconXl),
                     )
                 }
             }
@@ -1913,14 +1910,14 @@ private fun RecordingScreen(
                 IconButton(
                     onClick = onDone,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(SizeTokens.sectionIcon)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = stringResource(R.string.action_done),
                         tint = AccentBlue,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(SizeTokens.iconXl),
                     )
                 }
                 Spacer(Modifier.height(SpacingTokens.xs))
@@ -2015,7 +2012,7 @@ private fun ToolIcon(icon: ImageVector, label: String, onClick: (() -> Unit)? = 
             imageVector = icon,
             contentDescription = label,
             tint = themeTextGrey(),
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(SizeTokens.iconXl),
         )
         Spacer(Modifier.height(SpacingTokens.xxs))
         Text(label, style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
@@ -2124,7 +2121,7 @@ private fun TranscriptResultCard(
     Card(
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = SpacingTokens.xl),
@@ -2135,12 +2132,11 @@ private fun TranscriptResultCard(
                     imageVector = if (autoSaved) Icons.Default.CheckCircle else Icons.Default.CheckCircle,
                     contentDescription = null, // 装饰性图标，文本已说明
                     tint = if (autoSaved) SuccessGreen else AccentBlue,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(SizeTokens.iconLg),
                 )
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
                     text = if (autoSaved) stringResource(R.string.recording_auto_saved) else stringResource(R.string.recording_transcript_result),
-                    fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
                     color = if (autoSaved) SuccessGreen else themeTextDark(),
                 )
@@ -2160,19 +2156,18 @@ private fun TranscriptResultCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(AccentBlue.copy(alpha = 0.06f), ShapeTokens.smallShape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
                 ) {
                     Icon(
                         Icons.Default.Person,
                         contentDescription = null, // 装饰性图标，文本已说明
                         tint = AccentBlue,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(SizeTokens.iconSm),
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = stringResource(R.string.recording_speaker, identifiedSpeakerName),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = AccentBlue,
                     )
                 }
@@ -2190,7 +2185,7 @@ private fun TranscriptResultCard(
                         Icons.Default.CheckCircle,
                         contentDescription = null, // 装饰性图标，文本已说明
                         tint = SuccessGreen,
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(SizeTokens.iconXs),
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
@@ -2213,7 +2208,7 @@ private fun TranscriptResultCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 10.dp),
+                        .padding(bottom = SpacingTokens.md),
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     Surface(
@@ -2223,8 +2218,7 @@ private fun TranscriptResultCard(
                     ) {
                         Text(
                             stringResource(R.string.recording_smart_summary),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (showSummaryTab) FontWeight.Bold else FontWeight.Normal,
+                            style = if (showSummaryTab) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                             color = if (showSummaryTab) AccentBlue else themeTextGrey(),
                             modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                         )
@@ -2236,8 +2230,7 @@ private fun TranscriptResultCard(
                     ) {
                         Text(
                             stringResource(R.string.recording_original_text),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (!showSummaryTab) FontWeight.Bold else FontWeight.Normal,
+                            style = if (!showSummaryTab) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                             color = if (!showSummaryTab) AccentBlue else themeTextGrey(),
                             modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
                         )
@@ -2254,7 +2247,7 @@ private fun TranscriptResultCard(
 
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 300.dp)
+                            .heightIn(max = SizeTokens.citationListMaxHeight)
                             .verticalScroll(rememberScrollState()),
                     )
                 }
@@ -2266,7 +2259,7 @@ private fun TranscriptResultCard(
 
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 300.dp)
+                        .heightIn(max = SizeTokens.citationListMaxHeight)
                         .verticalScroll(rememberScrollState()),
                 )
             }
@@ -2284,11 +2277,11 @@ private fun TranscriptResultCard(
                 OutlinedButton(
                     onClick = onCopy,
                     shape = ShapeTokens.mediumShape,
-                    modifier = Modifier.weight(1f).height(44.dp),
+                    modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text(stringResource(R.string.recording_copy), fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_copy), style = MaterialTheme.typography.labelLarge)
                 }
 
                 if (autoSaved) {
@@ -2296,33 +2289,33 @@ private fun TranscriptResultCard(
                         onClick = onNavigateToNotes,
                         shape = ShapeTokens.mediumShape,
                         colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                         Spacer(Modifier.width(SpacingTokens.sm))
-                        Text(stringResource(R.string.recording_edit_btn), fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_edit_btn), style = MaterialTheme.typography.labelLarge)
                     }
                 } else {
                     Button(
                         onClick = onSave,
                         shape = ShapeTokens.mediumShape,
                         colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                         Spacer(Modifier.width(SpacingTokens.sm))
-                        Text(stringResource(R.string.recording_save_note), fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_save_note), style = MaterialTheme.typography.labelLarge)
                     }
                 }
                 Button(
                     onClick = onAiSummary,
                     shape = ShapeTokens.mediumShape,
                     colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                    modifier = Modifier.weight(1f).height(44.dp),
+                    modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text(stringResource(R.string.recording_ai_summary), fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_ai_summary), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -2333,11 +2326,11 @@ private fun TranscriptResultCard(
                     onClick = onConvertToContactLog,
                     shape = ShapeTokens.mediumShape,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    modifier = Modifier.fillMaxWidth().height(SizeTokens.searchBarHeight),
                 ) {
-                    Icon(Icons.Default.Satellite, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Satellite, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text(stringResource(R.string.recording_convert_to_contact_log), fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_convert_to_contact_log), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -2347,19 +2340,19 @@ private fun TranscriptResultCard(
                     OutlinedButton(
                         onClick = onDiscardAutoSave,
                         shape = ShapeTokens.mediumShape,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) {
-                        Text(stringResource(R.string.recording_undo_save), fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_undo_save), style = MaterialTheme.typography.labelLarge)
                     }
                     OutlinedButton(
                         onClick = onContinueRecording,
                         shape = ShapeTokens.mediumShape,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).height(SizeTokens.searchBarHeight),
                     ) {
-                        Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                         Spacer(Modifier.width(SpacingTokens.sm))
-                        Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.recording_continue), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             } else {
@@ -2367,11 +2360,11 @@ private fun TranscriptResultCard(
                 OutlinedButton(
                     onClick = onContinueRecording,
                     shape = ShapeTokens.mediumShape,
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    modifier = Modifier.fillMaxWidth().height(SizeTokens.searchBarHeight),
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Mic, contentDescription = null, /* 装饰性图标，文本已说明 */ modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text(stringResource(R.string.recording_continue), fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.recording_continue), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -2427,7 +2420,7 @@ private fun SummaryMetaCard(meta: top.hsyscn.opedrgent.stt.SmartSummary.MetaInfo
             modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Info, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Info, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(SizeTokens.iconSm))
             Spacer(Modifier.width(SpacingTokens.sm))
             Text(
                 text = buildString {
@@ -2454,8 +2447,7 @@ private fun SummarySectionsCard(sections: List<top.hsyscn.opedrgent.stt.SmartSum
                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
                     Text(
                         text = section.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = themeTextDark(),
                     )
                     Spacer(Modifier.height(SpacingTokens.sm))
@@ -2483,11 +2475,11 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                     shape = CircleShape,
                     color = AccentBlue,
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(SizeTokens.iconXl)
                         .align(Alignment.Top),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
                 Spacer(Modifier.width(SpacingTokens.md))
@@ -2495,8 +2487,7 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = chapter.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.titleSmall,
                             color = themeTextDark(),
                         )
                         Spacer(Modifier.width(SpacingTokens.sm))
@@ -2505,7 +2496,7 @@ private fun ChaptersCard(chapters: List<top.hsyscn.opedrgent.stt.SmartSummary.Ch
                                 chapter.timestampFormatted,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AccentBlue,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                             )
                         }
                     }
@@ -2536,7 +2527,7 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
                         Icons.Default.FormatQuote,
                         contentDescription = null, // 装饰性图标，文本已说明
                         tint = WarningColor,
-                        modifier = Modifier.size(18.dp).align(Alignment.Top),
+                        modifier = Modifier.size(SizeTokens.iconMd).align(Alignment.Top),
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Column(modifier = Modifier.weight(1f)) {
@@ -2553,7 +2544,6 @@ private fun QuotesCard(quotes: List<top.hsyscn.opedrgent.stt.SmartSummary.QuoteI
                                 quote.category,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = WarningColor,
-                                fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
                             )
                         }
@@ -2573,9 +2563,9 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.TaskAlt, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.TaskAlt, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = AccentBlue, modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text(stringResource(R.string.recording_todo_items), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = themeTextDark())
+                Text(stringResource(R.string.recording_todo_items), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             items.forEach { item ->
@@ -2586,19 +2576,19 @@ private fun ActionItemsCard(items: List<top.hsyscn.opedrgent.stt.SmartSummary.Ac
                     Surface(
                         shape = CircleShape,
                         color = AccentBlue.copy(alpha = 0.15f),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(SizeTokens.iconXl),
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.Person,
                                 contentDescription = null, // 装饰性图标，文本已说明
                                 tint = AccentBlue,
-                                modifier = Modifier.size(12.dp),
+                                modifier = Modifier.size(SizeTokens.iconXs),
                             )
                         }
                     }
                     Spacer(Modifier.width(SpacingTokens.sm))
-                    Text(text = item.assignee, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = AccentBlue)
+                    Text(text = item.assignee, style = MaterialTheme.typography.labelSmall, color = AccentBlue)
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(text = item.task, style = MaterialTheme.typography.bodySmall, color = themeTextDark(), modifier = Modifier.weight(1f))
                 }
@@ -2612,9 +2602,8 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
     Column {
         Text(
             text = stringResource(R.string.recording_photos_taken, photos.size),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.titleSmall,
             color = themeTextGrey(),
-            fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(SpacingTokens.sm))
         Row(
@@ -2628,7 +2617,7 @@ private fun CapturedPhotosRow(photos: List<CapturedPhoto>) {
                             bitmap = bmp.asImageBitmap(),
                             contentDescription = stringResource(R.string.recording_photo_content_desc),
                             modifier = Modifier
-                                .size(80.dp)
+                                .size(SizeTokens.emptyStateIcon)
                                 .clip(ShapeTokens.smallShape),
                         )
                     }

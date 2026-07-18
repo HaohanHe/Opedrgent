@@ -146,10 +146,10 @@ import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import android.content.Context
 
 /** Tab 类型定义（参考opedrgent 4-Tab 系统） */
-enum class TranscriptTab(val displayName: String) {
-    SMART_SUMMARY("智能总结"),
-    TEXT_RECORD("文字记录"),
-    ADDITIONAL_NOTES("追加笔记"),
+enum class TranscriptTab(val displayNameRes: Int) {
+    SMART_SUMMARY(R.string.meeting_zhi_neng_zong_jie),
+    TEXT_RECORD(R.string.meeting_wen_zi_ji_lu),
+    ADDITIONAL_NOTES(R.string.meeting_zhui_jia_bi_ji_biao_qian),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -380,7 +380,7 @@ fun MeetingRecordScreen(
             RecordingCard(
                 recordingState = recordingState,
                 elapsedSeconds = elapsedSeconds,
-                fileName = "会议录音",
+                fileName = stringResource(R.string.meeting_hui_yi_lu_yin),
                 amplitude = amplitude,
                 onStop = {
                     recordingState = RecordingState.PROCESSING
@@ -409,6 +409,7 @@ fun MeetingRecordScreen(
                             // 使用 AsrPostProcessor 管线转录（含说话人分离 + 智能总结）
                             DebugLog.i("MeetingRecord", "使用 AsrPostProcessor 管线转录")
                             transcriptResult = transcribeWithPostProcessor(
+                                context,
                                 wavFile, wavFile.absolutePath,
                                 vm.asrManager, vm.asrPostProcessor,
                                 summaryGenerator = vm.smartSummaryGenerator,
@@ -692,7 +693,7 @@ private fun TranscriptTabBar(
                 onClick = { onTabChange(tab) },
             ) {
                 Text(
-                    text = tab.displayName,
+                    text = stringResource(tab.displayNameRes),
                     color = if (activeTab == tab) MaterialTheme.colorScheme.onPrimary else TextSecondary,
                     fontWeight = if (activeTab == tab) FontWeight.Medium else FontWeight.Normal,
                     style = MaterialTheme.typography.bodyLarge,
@@ -1012,6 +1013,7 @@ private fun SentenceItem(
 
 @Composable
 private fun SmartSummaryContent(result: MeetingTranscriptResult) {
+    val context = LocalContext.current
     val summary = result.smartSummary
     if (summary == null) {
         // 无智能总结数据时显示提示
@@ -1049,8 +1051,8 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
             Spacer(Modifier.height(SpacingTokens.sm))
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs)) {
                 summaryInfoLine(stringResource(R.string.stt_result_duration_label), summary.metaInfo.duration)
-                summaryInfoLine("参与人数", "${summary.metaInfo.participantCount} 人")
-                summaryInfoLine("内容类型", summary.metaInfo.contentType)
+                summaryInfoLine(stringResource(R.string.meeting_can_yu_ren_shu), context.getString(R.string.meeting_1_ren, summary.metaInfo.participantCount))
+                summaryInfoLine(stringResource(R.string.meeting_nei_rong_lei_xing), summary.metaInfo.contentType)
             }
         }
 
@@ -1587,6 +1589,7 @@ private fun shortToLittleEndian(value: Short): ByteArray {
  * 修复了之前硬编码 speakerLabel="Speaker_0" 的问题。
  */
 private suspend fun transcribeWithPostProcessor(
+    context: Context,
     wavFile: File,
     audioFilePath: String,
     asrManager: top.hsyscn.opedrgent.stt.AsrManager,
@@ -1657,7 +1660,7 @@ private suspend fun transcribeWithPostProcessor(
         result
     } catch (e: Exception) {
         DebugLog.e("MeetingRecord", "管线转录失败: ${e.message}", e)
-        MeetingTranscriptResult(error = "转录失败: ${e.message}")
+        MeetingTranscriptResult(error = context.getString(R.string.meeting_zhuan_lu_shi_bai_1, e.message))
     }
 }
 
@@ -1730,7 +1733,7 @@ private fun shareAudioFile(
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "audio/wav"
             putExtra(android.content.Intent.EXTRA_STREAM, shareUri)
-            putExtra(android.content.Intent.EXTRA_TEXT, "[Opedrgent 会议录音]\n\n$transcriptText")
+            putExtra(android.content.Intent.EXTRA_TEXT, context.getString(R.string.meeting_opedrgent_hui_yi_lu_yin_1, transcriptText))
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(
@@ -1748,7 +1751,7 @@ private fun shareAudioFile(
 private fun shareTextOnly(context: android.content.Context, text: String) {
     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_TEXT, "[Opedrgent 会议转录]\n\n$text")
+        putExtra(android.content.Intent.EXTRA_TEXT, context.getString(R.string.meeting_opedrgent_hui_yi_zhuan_lu_1, text))
     }
     context.startActivity(
         android.content.Intent.createChooser(intent, context.getString(R.string.meeting_fen_xiang_zhuan_lu_wen_ben))

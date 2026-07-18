@@ -152,10 +152,10 @@ fun EditorTeamScreen(
         scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
-    fun copyToClipboard(text: String, label: String = "内容") {
+    fun copyToClipboard(text: String, label: String = context.getString(R.string.editor_team_nei_rong)) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
-        showSnackbar("已复制到剪贴板")
+        showSnackbar(context.getString(R.string.editor_team_yi_fu_zhi_dao_jian_tie_ban))
     }
 
     /** 发送消息并触发群聊讨论 */
@@ -165,7 +165,7 @@ fun EditorTeamScreen(
         // 添加用户消息
         val userMsg = GroupChatMessage(
             id = "msg_${System.currentTimeMillis()}",
-            roleAlias = "你",
+            roleAlias = context.getString(R.string.editor_team_ni),
             roleIcon = "",
             roleColor = 0xFF1449E2,
             content = text.trim(),
@@ -248,10 +248,10 @@ fun EditorTeamScreen(
                     val editorRole = selectedPipeline.lastOrNull()
                     val finalMsg = GroupChatMessage(
                         id = "final_${System.currentTimeMillis()}",
-                        roleAlias = editorRole?.alias ?: "主编",
+                        roleAlias = editorRole?.alias ?: context.getString(R.string.editor_team_zhu_bian),
                         roleIcon = editorRole?.icon ?: "E",
                         roleColor = editorRole?.color ?: 0xFF27AE60,
-                        roleName = editorRole?.displayName ?: "主编",
+                        roleName = editorRole?.displayName ?: context.getString(R.string.editor_team_zhu_bian),
                         content = result.finalDraft,
                         timestamp = System.currentTimeMillis(),
                         isUser = false,
@@ -261,15 +261,15 @@ fun EditorTeamScreen(
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
-            showSnackbar("已停止")
+            showSnackbar(context.getString(R.string.editor_team_yi_ting_zhi))
             messages = messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it }
         } catch (e: Exception) {
             val errorMsg = GroupChatMessage(
                 id = "error_${System.currentTimeMillis()}",
-                roleAlias = "系统",
+                roleAlias = context.getString(R.string.editor_team_xi_tong),
                 roleIcon = "!",
                 roleColor = 0xFFE74C3C,
-                content = "出错：${e.message ?: "未知错误"}",
+                content = context.getString(R.string.editor_team_chu_cuo_1, e.message ?: context.getString(R.string.editor_team_wei_zhi_cuo_wu)),
                 timestamp = System.currentTimeMillis(),
                 isUser = false,
                 isError = true,
@@ -292,11 +292,11 @@ fun EditorTeamScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("写作模式", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.editor_team_xie_zuo_mo_shi), fontWeight = FontWeight.Bold)
                         if (messages.any { !it.isUser }) {
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text(
-                                text = "(${participants.size}人讨论中)",
+                                text = stringResource(R.string.editor_team_1_ren_tao_lun_zhong, participants.size),
                                 color = themeTextGrey(),
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -318,7 +318,7 @@ fun EditorTeamScreen(
                             enabled = !isProcessing,
                         ) {
                             Text(
-                                if (pipelineIndex == 0) "完整讨论" else "快速润色",
+                                if (pipelineIndex == 0) stringResource(R.string.editor_team_wan_zheng_tao_lun) else stringResource(R.string.editor_team_kuai_su_run_se),
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
@@ -327,14 +327,14 @@ fun EditorTeamScreen(
                             onDismissRequest = { pipelineMenuExpanded = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("完整讨论（5人）") },
+                                text = { Text(stringResource(R.string.editor_team_wan_zheng_tao_lun_5_ren)) },
                                 onClick = {
                                     pipelineIndex = 0
                                     pipelineMenuExpanded = false
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("快速润色（4人）") },
+                                text = { Text(stringResource(R.string.editor_team_kuai_su_run_se_4_ren)) },
                                 onClick = {
                                     pipelineIndex = 1
                                     pipelineMenuExpanded = false
@@ -349,7 +349,7 @@ fun EditorTeamScreen(
                         },
                         enabled = messages.isNotEmpty() && !isProcessing,
                     ) {
-                        Text("新建", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.editor_team_xin_jian), style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = themeCardWhite()),
@@ -405,7 +405,7 @@ fun EditorTeamScreen(
                                             message.content,
                                             NoteType.TEXT,
                                         )
-                                        showSnackbar("已保存为笔记 (ID: $noteId)")
+                                        showSnackbar(context.getString(R.string.editor_team_yi_bao_cun_wei_bi_ji_1, noteId))
                                     }
                                 },
                             )
@@ -484,14 +484,14 @@ private fun ParticipantBar(
         Spacer(Modifier.weight(1f))
         if (speakingAlias.isNotBlank()) {
             Text(
-                text = "$speakingAlias 正在说...",
+                text = stringResource(R.string.editor_team_1_zheng_zai_shuo, speakingAlias),
                 style = MaterialTheme.typography.labelSmall,
                 color = roles.firstOrNull { it.alias == speakingAlias }?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline,
                 fontWeight = FontWeight.Medium,
             )
         } else {
             Text(
-                text = "${roles.size} 位编辑已就位",
+                text = stringResource(R.string.editor_team_1_wei_bian_ji_yi_jiu_wei, roles.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = themeTextGrey(),
             )
@@ -518,13 +518,13 @@ private fun WritingWelcomeArea(
         Spacer(Modifier.height(SpacingTokens.xxl))
 
         Text(
-            text = "写作模式",
+            text = stringResource(R.string.editor_team_xie_zuo_mo_shi),
             style = MaterialTheme.typography.displaySmall,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.xs))
         Text(
-            text = "把你的想法扔进来，几位编辑会在群里讨论，最后给你一版定稿",
+            text = stringResource(R.string.editor_team_ba_ni_de_xiang_fa_reng_jin_lai),
             style = MaterialTheme.typography.bodyMedium,
             color = themeTextGrey(),
             textAlign = TextAlign.Center,
@@ -533,7 +533,7 @@ private fun WritingWelcomeArea(
         Spacer(Modifier.height(SpacingTokens.xl))
 
         // 群成员预览
-        Text(text = "本次讨论阵容", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+        Text(text = stringResource(R.string.editor_team_ben_ci_tao_lun_zhen_rong), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
         Spacer(Modifier.height(SpacingTokens.sm))
         Row(
             horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md),
@@ -586,7 +586,7 @@ private fun WritingWelcomeArea(
                 ) {
                     if (welcomeInput.isEmpty()) {
                         Text(
-                            text = "把你想写的东西贴进来，或者描述一下你想写什么...\n比如：帮我写一段关于AI改变教育的文字",
+                            text = stringResource(R.string.editor_team_ba_ni_xiang_xie_de_dong_xi),
                             color = themeTextGrey().copy(alpha = 0.5f),
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -611,7 +611,7 @@ private fun WritingWelcomeArea(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SpacingTokens.lg))
                         Spacer(Modifier.width(SpacingTokens.xs))
-                        Text("开始讨论")
+                        Text(stringResource(R.string.editor_team_kaishi_tao_lun))
                     }
                 }
             }
@@ -619,7 +619,7 @@ private fun WritingWelcomeArea(
 
         Spacer(Modifier.height(SpacingTokens.xl))
         Text(
-            text = "文采匠负责润色 / 历史学家拉古论今 / 技术审查找漏洞 / 逻辑侦探查论证 / 主编综合定稿",
+            text = stringResource(R.string.editor_team_wen_cai_jiang_fu_ze),
             style = MaterialTheme.typography.labelSmall,
             color = themeTextGrey().copy(alpha = 0.6f),
             textAlign = TextAlign.Center,
@@ -633,10 +633,10 @@ private fun WritingWelcomeArea(
 @Composable
 private fun WritingQuickScenarios(onSelect: (String) -> Unit) {
     val scenarios = listOf(
-        Triple("写一篇文章", "输入主题或素材", "W"),
-        Triple("润色这段话", "已有内容需要打磨", "P"),
-        Triple("帮我审一审", "检查逻辑和事实问题", "C"),
-        Triple("换个风格写", "改写成其他调性", "S"),
+        Triple(stringResource(R.string.editor_team_xie_yi_pian_wen_zhang), stringResource(R.string.editor_team_shu_ru_zhu_ti_huo_su_cai), "W"),
+        Triple(stringResource(R.string.editor_team_run_se_zhe_duan_hua), stringResource(R.string.editor_team_yi_you_nei_rong_xu_yao_da_mo), "P"),
+        Triple(stringResource(R.string.editor_team_bang_wo_shen_yi_shen), stringResource(R.string.editor_team_jian_cha_luo_ji_he_shi_shi), "C"),
+        Triple(stringResource(R.string.editor_team_huan_ge_feng_ge_xie), stringResource(R.string.editor_team_gai_xie_cheng_qi_ta_diao_xing), "S"),
     )
 
     FlowRow(
@@ -749,7 +749,7 @@ private fun AgentBubble(
                 Column {
                     val displayText = when {
                         isStreaming && content.isNotEmpty() -> "$content▍"
-                        content.isEmpty() -> if (isStreaming) "..." else "(无内容)"
+                        content.isEmpty() -> if (isStreaming) "..." else stringResource(R.string.editor_team_wu_nei_rong)
                         else -> content
                     }
                     MarkdownText(
@@ -817,13 +817,13 @@ private fun FinalDraftCard(
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "主编定稿",
+                        text = stringResource(R.string.editor_team_zhu_bian_ding_gao),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = finalDraftColor,
                     )
                     Text(
-                        text = "${content.length} 字 -- 综合各位意见后的最终版本",
+                        text = stringResource(R.string.editor_team_1_zi_zong_he_ge_wei_yi_jian, content.length),
                         style = MaterialTheme.typography.labelSmall,
                         color = themeTextGrey(),
                     )
@@ -852,7 +852,7 @@ private fun FinalDraftCard(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.cd_save), modifier = Modifier.size(SpacingTokens.md))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("存为笔记", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.editor_team_cun_wei_bi_ji), style = MaterialTheme.typography.labelMedium)
                         }
                         Button(
                             onClick = onCopy,
@@ -861,7 +861,7 @@ private fun FinalDraftCard(
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.cd_copy), modifier = Modifier.size(SpacingTokens.md))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("复制全文", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
+                            Text(stringResource(R.string.editor_team_fu_zhi_quan_wen), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -910,7 +910,7 @@ private fun TypingIndicator(
         }
         Spacer(Modifier.width(SpacingTokens.sm))
         Text(
-            text = "$alias 正在思考...",
+            text = stringResource(R.string.editor_team_1_zheng_zai_si_kao, alias),
             style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey(),
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
@@ -947,7 +947,7 @@ private fun ChatInputBar(
                 ) {
                     if (inputText.isEmpty()) {
                         Text(
-                            text = "把你的想法或草稿贴进来...",
+                            text = stringResource(R.string.editor_team_ba_ni_de_xiang_fa_huo_cao_gao),
                             color = MaterialTheme.colorScheme.outline,
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -989,7 +989,7 @@ private fun ChatInputBar(
             }
             Spacer(Modifier.height(SpacingTokens.xs))
             Text(
-                text = if (isProcessing) "点击红色按钮停止讨论" else "Enter 发送",
+                text = if (isProcessing) stringResource(R.string.editor_team_dian_ji_hong_se_an_niu_ting_zhi_tao_lun) else stringResource(R.string.editor_team_enter_fa_song),
                 style = MaterialTheme.typography.labelSmall,
                 color = themeTextGrey().copy(alpha = 0.6f),
                 modifier = Modifier.align(Alignment.End),

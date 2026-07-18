@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -160,7 +159,7 @@ fun NoteListScreen(
     LaunchedEffect(displayNotes) {
         if (displayNotes.isNotEmpty() && !isAiSearchActive) {
             val latest = displayNotes.first()
-            latestNoteTitle = latest.title.ifBlank { "无标题" }
+            latestNoteTitle = latest.title.ifBlank { context.getString(R.string.note_editor_title_placeholder) }
             recommendedNotes = repository.getLinkedNotesWithTitles(latest.id)
         } else {
             recommendedNotes = emptyList()
@@ -218,7 +217,16 @@ fun NoteListScreen(
                     onSearch = {
                         val query = searchQuery.trim()
                         if (query.isNotBlank()) {
-                            val nlKeywords = listOf("关于", "提到", "有关", "包含", "涉及", "讨论", "谈到", "说到")
+                            val nlKeywords = listOf(
+                                context.getString(R.string.settings_about),
+                                context.getString(R.string.note_list_ti_dao),
+                                context.getString(R.string.note_list_you_guan),
+                                context.getString(R.string.note_list_bao_han),
+                                context.getString(R.string.note_list_she_ji),
+                                context.getString(R.string.note_editor_discuss),
+                                context.getString(R.string.note_list_tan_dao),
+                                context.getString(R.string.note_list_shuo_dao),
+                            )
                             if (nlKeywords.any { query.contains(it) }) {
                                 isAiSearchActive = true
                                 onAiSearch(query)
@@ -447,7 +455,7 @@ fun NoteListScreen(
                     .size(SizeTokens.fabSize),
                 shape = CircleShape,
             ) {
-                Icon(Icons.Default.Add, "新建笔记", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.Add, stringResource(R.string.note_list_xin_jian_bi_ji), tint = MaterialTheme.colorScheme.onPrimary)
             }
         } // Box
     } // noteListContent lambda
@@ -503,7 +511,7 @@ private fun NoteHeader(
             IconButton(onClick = onBack) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
-                    "返回",
+                    stringResource(R.string.note_list_fan_hui),
                     tint = themeForeground(),
                     modifier = Modifier.size(SizeTokens.iconLg),
                 )
@@ -519,7 +527,7 @@ private fun NoteHeader(
             IconButton(onClick = onSearchClick) {
                 Icon(
                     Icons.Default.Search,
-                    "搜索",
+                    stringResource(R.string.note_list_sou_suo),
                     tint = themeForegroundSecondary(),
                     modifier = Modifier.size(SizeTokens.iconLg),
                 )
@@ -527,7 +535,7 @@ private fun NoteHeader(
             IconButton(onClick = onGraphClick) {
                 Icon(
                     Icons.Default.AccountTree,
-                    "知识图谱",
+                    stringResource(R.string.note_list_zhi_shi_tu_pu),
                     tint = themeForegroundSecondary(),
                     modifier = Modifier.size(SizeTokens.iconLg),
                 )
@@ -596,7 +604,7 @@ private fun DoubaoSearchBar(
                     IconButton(onClick = onClear, modifier = Modifier.size(SpacingTokens.xl)) {
                         Icon(
                             Icons.Default.Close,
-                            "清除",
+                            stringResource(R.string.note_list_qing_chu),
                             tint = themeForegroundMuted(),
                             modifier = Modifier.size(SizeTokens.iconMd),
                         )
@@ -609,20 +617,20 @@ private fun DoubaoSearchBar(
 
 private data class FilterPill(val type: NoteType?, val label: String)
 
-private val filterPills = listOf(
-    FilterPill(null, "全部"),
-    FilterPill(NoteType.TEXT, "文本"),
-    FilterPill(NoteType.MEETING, "会议"),
-    FilterPill(NoteType.ASR, "语音"),
-    FilterPill(NoteType.AI_CHAT, "AI"),
-)
-
 @Composable
 private fun TypeFilterPills(
     selectedType: NoteType?,
     onTypeSelected: (NoteType?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val filterPills = listOf(
+        FilterPill(null, stringResource(R.string.note_list_quan_bu)),
+        FilterPill(NoteType.TEXT, stringResource(R.string.note_list_wen_ben)),
+        FilterPill(NoteType.MEETING, stringResource(R.string.note_list_hui_yi)),
+        FilterPill(NoteType.ASR, stringResource(R.string.note_list_yu_yin)),
+        FilterPill(NoteType.AI_CHAT, stringResource(R.string.note_list_ai)),
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -723,7 +731,7 @@ private fun FolderNavigation(
         ) {
             if (currentFolderId != null) {
                 IconButton(onClick = onBackToRoot, modifier = Modifier.size(SpacingTokens.xl)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回根目录", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.note_list_fan_hui_gen_mu_lu), modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
                 }
                 Spacer(Modifier.width(SpacingTokens.xs))
 
@@ -758,7 +766,7 @@ private fun FolderNavigation(
             Spacer(Modifier.weight(1f))
 
             IconButton(onClick = onCreateFolder, modifier = Modifier.size(SpacingTokens.xl)) {
-                Icon(Icons.Default.CreateNewFolder, "新建文件夹", modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
+                Icon(Icons.Default.CreateNewFolder, stringResource(R.string.note_list_xin_jian_wen_jian_jia), modifier = Modifier.size(SpacingTokens.lg), tint = themePrimary())
             }
         }
 
@@ -1171,7 +1179,7 @@ private fun NoteCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Default.Hub,
-                                "关联",
+                                stringResource(R.string.note_list_guan_lian),
                                 tint = themePrimary(),
                                 modifier = Modifier.size(SpacingTokens.md),
                             )
@@ -1195,7 +1203,7 @@ private fun NoteCard(
                 if (note.isPinned) {
                     Icon(
                         Icons.Default.PushPin,
-                        "置顶",
+                        stringResource(R.string.note_list_zhi_ding),
                         tint = themePrimary(),
                         modifier = Modifier.size(SpacingTokens.lg),
                     )
@@ -1362,6 +1370,7 @@ private fun noteListFormatTime(timestamp: Long): String {
     return sdf.format(Date(timestamp))
 }
 
+@Composable
 private fun relativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
@@ -1372,11 +1381,11 @@ private fun relativeTime(timestamp: Long): String {
     return when {
         diff < oneHour -> {
             val minutes = (diff / oneMinute).coerceAtLeast(1)
-            "${minutes}分钟前"
+            stringResource(R.string.note_list_1_fen_zhong_qian, minutes)
         }
-        diff < oneDay -> "${diff / oneHour}小时前"
-        diff < 2 * oneDay -> "昨天"
-        diff < 7 * oneDay -> "${diff / oneDay}天前"
+        diff < oneDay -> stringResource(R.string.note_list_1_xiao_shi_qian, diff / oneHour)
+        diff < 2 * oneDay -> stringResource(R.string.note_list_zuo_tian)
+        diff < 7 * oneDay -> stringResource(R.string.note_list_1_tian_qian, diff / oneDay)
         else -> noteListFormatTime(timestamp)
     }
 }

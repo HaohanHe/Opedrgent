@@ -7,6 +7,8 @@ import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.themeErrorBackground
 import top.hsyscn.opedrgent.ui.theme.InterviewDarkBg
@@ -105,7 +107,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -202,7 +203,7 @@ private fun InterviewSetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_interview_mode), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_interview_mode), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -242,7 +243,6 @@ private fun InterviewSetupScreen(
             ) {
             Text(
                 text = stringResource(R.string.interview_xuan_ze_mian_shi_mo_shi_zhi),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleMedium,
                 color = themeTextDark(),
             )
@@ -296,8 +296,7 @@ private fun InterviewSetupScreen(
                 Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                     Text(
                         text = stringResource(R.string.interview_qi_ta_chang_jing),
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = themeTextDark(),
                     )
                     Spacer(Modifier.height(SpacingTokens.sm))
@@ -316,7 +315,7 @@ private fun InterviewSetupScreen(
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                     ) {
-                        Text(stringResource(R.string.interview_kai_shi_zi_ding_yi_chang_jing), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.interview_kai_shi_zi_ding_yi_chang_jing), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -355,9 +354,9 @@ private fun RealtimeVoiceBanner(
     var showConfig by rememberSaveable { mutableStateOf(false) }
     var apiKey by rememberSaveable { mutableStateOf("") }
     var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
-    // 默认模型/音色仅作为示例占位，用户可自由输入任意兼容的实时语音模型与音色
-    var modelId by rememberSaveable { mutableStateOf("stepaudio-2.5-realtime") }
-    var voiceId by rememberSaveable { mutableStateOf("linjiajiejie") }
+    // 实时语音配置使用通用输入字段，不绑定任何特定供应商的默认值
+    var modelId by rememberSaveable { mutableStateOf("") }
+    var voiceId by rememberSaveable { mutableStateOf("") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -365,7 +364,7 @@ private fun RealtimeVoiceBanner(
         colors = CardDefaults.cardColors(
             containerColor = InterviewDarkBg,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
     ) {
         Column(
             modifier = Modifier.padding(SpacingTokens.lg),
@@ -378,8 +377,7 @@ private fun RealtimeVoiceBanner(
             ) {
                 Text(
                     text = stringResource(R.string.interview_full_duplex_title),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
 
@@ -389,7 +387,6 @@ private fun RealtimeVoiceBanner(
                 Text(
                     text = stringResource(R.string.interview_full_duplex_supported),
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary,
                     letterSpacing = 2.sp,
                     modifier = Modifier
@@ -419,7 +416,7 @@ private fun RealtimeVoiceBanner(
                         contentColor = InterviewTextMuted,
                     ),
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(SizeTokens.iconSm))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.interview_full_duplex_config), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -429,7 +426,7 @@ private fun RealtimeVoiceBanner(
                     value = apiKey,
                     onValueChange = { apiKey = it },
                     label = { Text(stringResource(R.string.interview_api_key_label), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    placeholder = { Text("sk-...", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
+                    placeholder = { Text(stringResource(R.string.interview_api_key_placeholder), style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeTokens.smallShape,
@@ -461,7 +458,7 @@ private fun RealtimeVoiceBanner(
                         value = modelId,
                         onValueChange = { modelId = it },
                         label = { Text(stringResource(R.string.interview_model_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        placeholder = { Text("stepaudio-2.5-realtime", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
+                        placeholder = { Text(stringResource(R.string.interview_model_placeholder), style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         shape = ShapeTokens.smallShape,
@@ -478,7 +475,7 @@ private fun RealtimeVoiceBanner(
                         value = voiceId,
                         onValueChange = { voiceId = it },
                         label = { Text(stringResource(R.string.interview_voice_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        placeholder = { Text("linjiajiejie", style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
+                        placeholder = { Text(stringResource(R.string.interview_voice_placeholder), style = MaterialTheme.typography.bodySmall, color = InterviewDisabledText) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         shape = ShapeTokens.smallShape,
@@ -510,12 +507,11 @@ private fun RealtimeVoiceBanner(
                         disabledContentColor = InterviewDisabledText,
                     ),
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(
                         text = if (canStart) stringResource(R.string.interview_full_duplex_start) else stringResource(R.string.interview_full_duplex_input_key),
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.labelLarge,
                     )
                 }
             }
@@ -541,11 +537,11 @@ private fun ModeSelectionCard(
             containerColor = if (isSelected) AccentBlue.copy(alpha = 0.08f) else themeCardWhite(),
         ),
         border = if (isSelected) {
-            androidx.compose.foundation.BorderStroke(2.dp, AccentBlue)
+            androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, AccentBlue)
         } else {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            androidx.compose.foundation.BorderStroke(SizeTokens.borderWidth, MaterialTheme.colorScheme.outlineVariant)
         },
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
         onClick = onClick,
     ) {
         Column(
@@ -557,7 +553,7 @@ private fun ModeSelectionCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(SizeTokens.sectionIcon)
                     .clip(CircleShape)
                     .background(
                         if (isSelected) AccentBlue else AccentBlue.copy(alpha = 0.1f)
@@ -568,13 +564,12 @@ private fun ModeSelectionCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else AccentBlue,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(SizeTokens.iconXl),
                 )
             }
             Text(
                 text = title,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 color = themeTextDark(),
             )
             Text(
@@ -606,8 +601,8 @@ private fun InterviewPreparingScreen(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier = Modifier.padding(horizontal = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(SpacingTokens.xl),
+            modifier = Modifier.padding(horizontal = SpacingTokens.xxl),
         ) {
             // 加载动画
             val infiniteTransition = rememberInfiniteTransition(label = "preparing")
@@ -623,8 +618,8 @@ private fun InterviewPreparingScreen(
 
             CircularProgressIndicator(
                 color = AccentBlue,
-                modifier = Modifier.size(56.dp),
-                strokeWidth = 4.dp,
+                modifier = Modifier.size(SizeTokens.fabSize),
+                strokeWidth = SizeTokens.iconXs,
             )
 
             Spacer(modifier = Modifier.height(SpacingTokens.sm))
@@ -632,7 +627,6 @@ private fun InterviewPreparingScreen(
             Text(
                 text = stringResource(R.string.interview_ai_zheng_zai_fen_xi_nin_de),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
                 color = themeTextDark(),
             )
 
@@ -642,7 +636,7 @@ private fun InterviewPreparingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeTokens.mediumShape,
                     colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
                 ) {
                     Column(
                         modifier = Modifier.padding(SpacingTokens.lg),
@@ -650,8 +644,7 @@ private fun InterviewPreparingScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.interview_cai_liao_fen_xi_jie_guo),
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             color = themeTextDark(),
                         )
 
@@ -659,8 +652,7 @@ private fun InterviewPreparingScreen(
                         if (analysisResult.keyPoints.isNotEmpty()) {
                             Text(
                                 text = stringResource(R.string.interview_guan_jian_xin_xi),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = AccentBlue,
                             )
                             analysisResult.keyPoints.take(5).forEach { point ->
@@ -678,8 +670,7 @@ private fun InterviewPreparingScreen(
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
                                 text = stringResource(R.string.interview_jian_yi_guan_zhu_fang_xiang),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = AccentBlue,
                             )
                             analysisResult.suggestedQuestions.take(3).forEach { q ->
@@ -697,8 +688,7 @@ private fun InterviewPreparingScreen(
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
                                 text = stringResource(R.string.interview_ke_neng_bei_shen_wa_de_dian),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = WarningColor,
                             )
                             analysisResult.riskAreas.take(3).forEach { risk ->
@@ -784,8 +774,7 @@ private fun InterviewSessionScreen(
                                 InterviewType.SCENARIO -> stringResource(R.string.interview_zi_ding_yi_chang_jing)
                                 else -> stringResource(R.string.interview_qiu_zhi_mian_shi)
                             },
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.headlineLarge,
                         )
                         // 面试进度
                         if (config != null && interviewState.questionCount > 0) {
@@ -849,7 +838,7 @@ private fun InterviewSessionScreen(
                     progress = { interviewState.questionCount.toFloat() / config.questionCount },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(3.dp),
+                        .height(SizeTokens.progressTrackHeight),
                     color = AccentBlue,
                     trackColor = AccentBlue.copy(alpha = 0.1f),
                 )
@@ -863,7 +852,7 @@ private fun InterviewSessionScreen(
                     .fillMaxWidth()
                     .padding(horizontal = SpacingTokens.md),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = SpacingTokens.md),
             ) {
                 items(messages, key = { it.timestamp.toString() + it.role }) { msg ->
                     InterviewBubble(message = msg)
@@ -934,7 +923,7 @@ private fun InterviewSessionScreen(
                     if (interviewState.questionCount < 3)
                         stringResource(R.string.interview_mian_shi_gang_kai_shi_bu_jiu)
                     else
-                        "已回答 ${interviewState.questionCount} 个问题，确定结束并生成报告？"
+                        stringResource(R.string.interview_yi_hui_da_1_ge_wen_ti_que_ding, interviewState.questionCount)
                 )
             },
             confirmButton = {
@@ -969,7 +958,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
             .padding(horizontal = SpacingTokens.md),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = WarningBg), // 浅黄色背景
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(
             modifier = Modifier
@@ -982,8 +971,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
                 Text(" ", style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = feedback.quickFeedback.ifBlank { stringResource(R.string.interview_jiao_lian_jian_yi) },
-                    fontWeight = FontWeight.Medium,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
                 )
@@ -997,7 +985,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
             AnimatedVisibility(visible = expanded) {
                 Column(
                     modifier = Modifier.padding(top = SpacingTokens.sm),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
                 ) {
                     HorizontalDivider(color = WarningColor)
 
@@ -1042,8 +1030,7 @@ private fun ScoreBadge(label: String, score: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "%.1f".format(score),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = if (score >= 7f) MaterialTheme.customColors.chipSuccessText else if (score >= 5f) AccentBlue else WarningColor,
         )
         Text(
@@ -1068,12 +1055,12 @@ private fun InterviewBubble(message: DialogueTurn) {
             // 面试官头像
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(SizeTokens.iconXl)
                     .clip(CircleShape)
                     .background(AccentBlue),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
             }
             Spacer(modifier = Modifier.width(SpacingTokens.sm))
         }
@@ -1120,7 +1107,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                         )
                     )
                     .shadow(
-                        elevation = if (isInterviewer) 1.dp else 2.dp,
+                        elevation = if (isInterviewer) ElevationTokens.sm else ElevationTokens.md,
                         shape = ShapeTokens.largeShape,
                     )
                     .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
@@ -1138,12 +1125,12 @@ private fun InterviewBubble(message: DialogueTurn) {
             // 用户头像
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(SizeTokens.iconXl)
                     .clip(CircleShape)
                     .background(UserBubbleStart),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(stringResource(R.string.interview_wo), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.interview_wo), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -1165,35 +1152,35 @@ private fun ThinkingIndicator() {
     )
 
     Row(
-        modifier = Modifier.padding(start = 40.dp),
+        modifier = Modifier.padding(start = SizeTokens.sectionIcon),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(AccentBlue),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.width(SpacingTokens.sm))
-        Row(
-            modifier = Modifier
-                .clip(ShapeTokens.largeShape)
-                .background(themeCardWhite())
-                .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            repeat(3) { i ->
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(AccentBlue.copy(alpha = alpha - i * 0.15f)),
-                )
+                modifier = Modifier
+                    .size(SizeTokens.iconXl)
+                    .clip(CircleShape)
+                    .background(AccentBlue),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("AI", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
             }
-        }
+            Spacer(modifier = Modifier.width(SpacingTokens.sm))
+            Row(
+                modifier = Modifier
+                    .clip(ShapeTokens.largeShape)
+                    .background(themeCardWhite())
+                    .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
+                horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing),
+            ) {
+                repeat(3) { i ->
+                    Box(
+                        modifier = Modifier
+                            .size(SizeTokens.iconXs)
+                            .clip(CircleShape)
+                            .background(AccentBlue.copy(alpha = alpha - i * 0.15f)),
+                    )
+                }
+            }
     }
 }
 
@@ -1211,14 +1198,14 @@ private fun DuplexStatusBar(
     bargeInAlpha: Float,
 ) {
     val statusText = when {
-        bargeInDetected -> "您打断了 AI"
-        isMuted -> "已静音"
-        duplexState == null -> "连接中..."
-        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> "AI 说话中..."
-        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> "正在听您说..."
-        duplexState == FullDuplexAudioEngine.DuplexState.CONNECTED -> "已连接"
-        duplexState == FullDuplexAudioEngine.DuplexState.IDLE -> "待机中"
-        duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> "已静音"
+        bargeInDetected -> stringResource(R.string.interview_nin_da_duan_le_ai)
+        isMuted -> stringResource(R.string.interview_yi_jing_yin)
+        duplexState == null -> stringResource(R.string.interview_lian_jie_zhong)
+        duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING -> stringResource(R.string.interview_ai_shuo_hua_zhong)
+        duplexState == FullDuplexAudioEngine.DuplexState.LISTENING -> stringResource(R.string.interview_zheng_zai_ting_nin_shuo)
+        duplexState == FullDuplexAudioEngine.DuplexState.CONNECTED -> stringResource(R.string.interview_yi_lian_jie)
+        duplexState == FullDuplexAudioEngine.DuplexState.IDLE -> stringResource(R.string.interview_dai_ji_zhong)
+        duplexState == FullDuplexAudioEngine.DuplexState.MUTED -> stringResource(R.string.interview_yi_jing_yin)
         else -> ""
     }
 
@@ -1239,9 +1226,8 @@ private fun DuplexStatusBar(
     ) {
         Text(
             text = statusText,
-            style = MaterialTheme.typography.bodySmall,
+            style = if (bargeInDetected) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodySmall,
             color = statusColor.copy(alpha = if (bargeInDetected) bargeInAlpha else 1f),
-            fontWeight = if (bargeInDetected) FontWeight.Bold else FontWeight.Normal,
         )
     }
 }
@@ -1269,7 +1255,7 @@ private fun DuplexControlPanel(
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = ShapeTokens.large, topEnd = ShapeTokens.large),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.lg),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.md),
@@ -1289,12 +1275,12 @@ private fun DuplexControlPanel(
                         containerColor = if (isMuted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceContainerLow,
                         contentColor = if (isMuted) MaterialTheme.colorScheme.onPrimary else themeTextDark(),
                     ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(SizeTokens.contentPaddingMd),
                 ) {
                     Icon(
                         imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                         contentDescription = if (isMuted) stringResource(R.string.interview_qu_xiao_jing_yin) else stringResource(R.string.interview_jing_yin),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(SizeTokens.iconLg),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(
@@ -1312,8 +1298,7 @@ private fun DuplexControlPanel(
                     val seconds = elapsedSeconds % 60
                     Text(
                         text = String.format(Locale.getDefault(), "%02d:%02d / --:--", minutes, seconds),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = themeTextDark(),
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
@@ -1333,15 +1318,15 @@ private fun DuplexControlPanel(
                         containerColor = themeErrorBackground(),
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SpacingTokens.lg, vertical = SizeTokens.sectionGapSm),
                 ) {
                     Icon(
                         Icons.Default.Stop,
                         contentDescription = stringResource(R.string.interview_jie_shu_mian_shi),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SizeTokens.iconMd),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
-                    Text(stringResource(R.string.interview_jie_shu), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.interview_jie_shu), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -1380,7 +1365,7 @@ private fun DuplexTextInputBar(
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = ShapeTokens.large, topEnd = ShapeTokens.large),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.lg),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
@@ -1416,7 +1401,7 @@ private fun DuplexTextInputBar(
                 IconButton(
                     onClick = onSend,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(SizeTokens.quickActionIcon)
                         .clip(CircleShape)
                         .background(AccentBlue),
                     enabled = inputText.isNotBlank(),
@@ -1425,7 +1410,7 @@ private fun DuplexTextInputBar(
                         Icons.AutoMirrored.Filled.Send,
                         contentDescription = stringResource(R.string.action_send),
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(SizeTokens.iconLg),
                     )
                 }
             }
@@ -1441,10 +1426,9 @@ private fun InterviewTimer(elapsedSeconds: Int) {
     val seconds = elapsedSeconds % 60
     Text(
         text = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds),
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.titleSmall,
         color = themeTextGrey(),
         modifier = Modifier.padding(end = SpacingTokens.sm),
-        fontWeight = FontWeight.Medium,
     )
 }
 
@@ -1468,7 +1452,7 @@ private fun InterviewReportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_interview_report), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_interview_report), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -1519,7 +1503,7 @@ private fun InterviewReportScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(reportInnerModifier),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(SpacingTokens.lg),
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
                 ) {
                 // ── 总分 + 判定 ──
@@ -1600,9 +1584,9 @@ private fun InterviewReportScreen(
                             Icon(
                                 Icons.Default.Description,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(SizeTokens.iconMd),
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(SizeTokens.compactSpacing))
                             Text(stringResource(R.string.recording_save_note))
                         }
 
@@ -1616,9 +1600,9 @@ private fun InterviewReportScreen(
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(SizeTokens.iconMd),
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(SizeTokens.compactSpacing))
                             Text(stringResource(R.string.interview_chong_xin_mian_shi))
                         }
                     }
@@ -1643,16 +1627,16 @@ private fun ScoreCard(report: InterviewReport) {
     }
 
     val verdictLabel = when (report.verdict) {
-        Verdict.PASS -> "通过"
-        Verdict.CONDITIONAL_PASS -> "有条件通过"
-        Verdict.FAIL -> "未通过"
+        Verdict.PASS -> stringResource(R.string.interview_tong_guo)
+        Verdict.CONDITIONAL_PASS -> stringResource(R.string.interview_you_tiao_jian_tong_guo)
+        Verdict.FAIL -> stringResource(R.string.interview_wei_tong_guo)
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
     ) {
         Column(
             modifier = Modifier
@@ -1664,7 +1648,6 @@ private fun ScoreCard(report: InterviewReport) {
             Text(
                 text = verdictLabel,
                 style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
                 color = verdictColor,
             )
             Spacer(modifier = Modifier.height(SpacingTokens.sm))
@@ -1672,15 +1655,14 @@ private fun ScoreCard(report: InterviewReport) {
             Text(
                 text = stringResource(R.string.interview_1_fen, report.overallScore.toInt()),
                 style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.ExtraBold,
                 color = themeTextDark(),
             )
             Spacer(modifier = Modifier.height(SpacingTokens.xs))
             // 评级描述
             val gradeDesc = when {
-                report.overallScore >= 85 -> "优秀"
-                report.overallScore >= 70 -> "良好"
-                report.overallScore >= 55 -> "一般"
+                report.overallScore >= 85 -> stringResource(R.string.interview_you_xiu)
+                report.overallScore >= 70 -> stringResource(R.string.interview_liang_hao)
+                report.overallScore >= 55 -> stringResource(R.string.interview_yi_ban)
                 report.overallScore >= 40 -> stringResource(R.string.interview_jiao_cha)
                 else -> stringResource(R.string.interview_xu_jia_qiang)
             }
@@ -1701,12 +1683,11 @@ private fun SummaryCard(summary: String) {
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Text(
                 text = stringResource(R.string.interview_zong_ti_ping_jia),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
@@ -1729,12 +1710,11 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Text(
                 text = stringResource(R.string.interview_ge_wei_du_ping_fen),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
@@ -1743,7 +1723,7 @@ private fun DimensionsChart(dimensions: List<EvaluationDimension>) {
             dimensions.forEach { dim ->
                 DimensionBar(dimension = dim)
                 if (dim != dimensions.last()) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(SizeTokens.sectionGapSm))
                 }
             }
         }
@@ -1768,14 +1748,12 @@ private fun DimensionBar(dimension: EvaluationDimension) {
             Text(
                 text = dimension.name,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "${dimension.score.toInt()}/${dimension.maxScore.toInt()}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall,
                 color = barColor,
             )
         }
@@ -1818,12 +1796,11 @@ private fun EvaluationSection(
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Text(
                 text = title,
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
@@ -1869,7 +1846,7 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
         modifier = Modifier.fillMaxWidth(),
         shape = ShapeTokens.mediumShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.lg)) {
             Row(
@@ -1880,7 +1857,6 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
             ) {
                 Text(
                     text = stringResource(R.string.interview_wan_zheng_dui_hua_ji_lu_1_tiao, transcript.size),
-                    fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                     modifier = Modifier.weight(1f),
@@ -1897,11 +1873,11 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 300.dp),
+                        .heightIn(max = SizeTokens.citationListMaxHeight),
                 ) {
                     items(transcript, key = { it.timestamp.toString() + it.role }) { turn ->
                         Row(
-                            modifier = Modifier.padding(vertical = 6.dp),
+                            modifier = Modifier.padding(vertical = SizeTokens.compactSpacing),
                             verticalAlignment = Alignment.Top,
                         ) {
                             Text(
@@ -1912,7 +1888,6 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
                                 Text(
                                     text = if (turn.role == "interviewer") stringResource(R.string.interview_mian_shi_guan) else stringResource(R.string.interview_wo_9e0a),
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
                                     color = if (turn.role == "interviewer") AccentBlue else UserBubbleStart,
                                 )
                                 Text(

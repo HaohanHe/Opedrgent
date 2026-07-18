@@ -13,6 +13,35 @@
     <!-- EditorNoteItemCard -->
     <string name="note_editor_delete_this_note_confirm">删除这条笔记?</string>
 
+    <!-- EditorUtils -->
+    <string name="editor_gang_gang">刚刚</string>
+
+    <!-- EditorUtils.heuristicComplete -->
+    <string name="editor_complete_dan_shi">，但是</string>
+    <string name="editor_complete_dou_hao">，</string>
+    <string name="editor_complete_er_qie">，而且</string>
+    <string name="editor_complete_jie">结</string>
+    <string name="editor_complete_ling_yi_fang_mian">，另一方面</string>
+    <string name="editor_complete_mao_hao">：</string>
+    <string name="editor_complete_qi_ci">，其次</string>
+    <string name="editor_complete_suo_yi">，所以</string>
+    <string name="editor_complete_ti_lai_shuo">体来说</string>
+    <string name="editor_complete_zai_ci">，再次</string>
+    <string name="editor_complete_zui_hou">，最后</string>
+
+    <!-- MarkdownFormatToolbar -->
+    <string name="editor_cd_biao_ti_1">标题1</string>
+    <string name="editor_cd_biao_ti_2">标题2</string>
+    <string name="editor_cd_biao_ti_3">标题3</string>
+    <string name="editor_cd_dai_ma">代码</string>
+    <string name="editor_cd_jia_cu">加粗</string>
+    <string name="editor_cd_lian_jie">链接</string>
+    <string name="editor_cd_tu_pian">图片</string>
+    <string name="editor_cd_wu_xu_lie_biao">无序列表</string>
+    <string name="editor_cd_xie_ti">斜体</string>
+    <string name="editor_cd_yin_yong">引用</string>
+    <string name="editor_cd_you_xu_lie_biao">有序列表</string>
+
     <!-- NoteActionBottomSheet -->
     <string name="note_action_add_tag">添加标签</string>
     <string name="note_action_add_to_kb">添加到知识库</string>
@@ -109,4 +138,20 @@
     <string name="tool_state_timeout">获取超时</string>
     <string name="tool_state_unknown">未知</string>
     <string name="action_skip">跳过</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_prev">上一页</string>
+    <string name="onboarding_get_started">进入 Opedrgent</string>
+    <string name="onboarding_page_welcome_title">欢迎来到 Opedrgent</string>
+    <string name="onboarding_page_welcome_subtitle">你的本地优先 AI 助手。对话、笔记、知识图谱三位一体，让思考自然生长。</string>
+    <string name="onboarding_page_chat_title">随时对话</string>
+    <string name="onboarding_page_chat_subtitle">支持多轮对话、工具调用、联网搜索与深度研究。需要时 AI 会主动确认，不会擅自执行敏感操作。</string>
+    <string name="onboarding_page_notes_title">笔记与知识图谱</string>
+    <string name="onboarding_page_notes_subtitle">记录灵感、会议、图片与链接。保存后系统会自动构建知识图谱，帮你发现笔记之间的隐藏联系。</string>
+    <string name="onboarding_page_sprout_title">思想空间发芽</string>
+    <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
+    <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
+    <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
 </resources>

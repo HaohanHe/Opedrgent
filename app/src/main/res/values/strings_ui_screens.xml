@@ -31,6 +31,48 @@
     <string name="export_sheng_cheng_html">生成 HTML</string>
     <string name="export_tong_guo_wei_xin_you_jian">通过微信、邮件等分享 .md 文件</string>
     <string name="export_wan_zheng_de_hui_hua_ji_lu">完整的会话记录，包含所有消息和工具调用结果</string>
+    <string name="export_opedrgent_hui_hua">Opedrgent 会话</string>
+    <!-- editor team -->
+    <string name="editor_team_1_ren_tao_lun_zhong">%1$d 人讨论中</string>
+    <string name="editor_team_1_wei_bian_ji_yi_jiu_wei">%1$d 位编辑已就位</string>
+    <string name="editor_team_1_zheng_zai_shuo">%1$s 正在说...</string>
+    <string name="editor_team_1_zheng_zai_si_kao">%1$s 正在思考...</string>
+    <string name="editor_team_1_zi_zong_he_ge_wei_yi_jian">%1$d 字 -- 综合各位意见后的最终版本</string>
+    <string name="editor_team_ba_ni_de_xiang_fa_huo_cao_gao">把你的想法或草稿贴进来...</string>
+    <string name="editor_team_ba_ni_de_xiang_fa_reng_jin_lai">把你的想法扔进来，几位编辑会在群里讨论，最后给你一版定稿</string>
+    <string name="editor_team_ba_ni_xiang_xie_de_dong_xi">把你想写的东西贴进来，或者描述一下你想写什么...\n比如：帮我写一段关于AI改变教育的文字</string>
+    <string name="editor_team_bang_wo_shen_yi_shen">帮我审一审</string>
+    <string name="editor_team_ben_ci_tao_lun_zhen_rong">本次讨论阵容</string>
+    <string name="editor_team_chu_cuo_1">出错：%1$s</string>
+    <string name="editor_team_cun_wei_bi_ji">存为笔记</string>
+    <string name="editor_team_dian_ji_hong_se_an_niu_ting_zhi_tao_lun">点击红色按钮停止讨论</string>
+    <string name="editor_team_enter_fa_song">Enter 发送</string>
+    <string name="editor_team_fu_zhi_quan_wen">复制全文</string>
+    <string name="editor_team_gai_xie_cheng_qi_ta_diao_xing">改写成其他调性</string>
+    <string name="editor_team_huan_ge_feng_ge_xie">换个风格写</string>
+    <string name="editor_team_jian_cha_luo_ji_he_shi_shi">检查逻辑和事实问题</string>
+    <string name="editor_team_kaishi_tao_lun">开始讨论</string>
+    <string name="editor_team_kuai_su_run_se">快速润色</string>
+    <string name="editor_team_kuai_su_run_se_4_ren">快速润色（4人）</string>
+    <string name="editor_team_nei_rong">内容</string>
+    <string name="editor_team_ni">你</string>
+    <string name="editor_team_run_se_zhe_duan_hua">润色这段话</string>
+    <string name="editor_team_shu_ru_zhu_ti_huo_su_cai">输入主题或素材</string>
+    <string name="editor_team_wan_zheng_tao_lun">完整讨论</string>
+    <string name="editor_team_wan_zheng_tao_lun_5_ren">完整讨论（5人）</string>
+    <string name="editor_team_wei_zhi_cuo_wu">未知错误</string>
+    <string name="editor_team_wen_cai_jiang_fu_ze">文采匠负责润色 / 历史学家拉古论今 / 技术审查找漏洞 / 逻辑侦探查论证 / 主编综合定稿</string>
+    <string name="editor_team_wu_nei_rong">(无内容)</string>
+    <string name="editor_team_xi_tong">系统</string>
+    <string name="editor_team_xie_yi_pian_wen_zhang">写一篇文章</string>
+    <string name="editor_team_xie_zuo_mo_shi">写作模式</string>
+    <string name="editor_team_xin_jian">新建</string>
+    <string name="editor_team_yi_bao_cun_wei_bi_ji_1">已保存为笔记 (ID: %1$d)</string>
+    <string name="editor_team_yi_fu_zhi_dao_jian_tie_ban">已复制到剪贴板</string>
+    <string name="editor_team_yi_ting_zhi">已停止</string>
+    <string name="editor_team_yi_you_nei_rong_xu_yao_da_mo">已有内容需要打磨</string>
+    <string name="editor_team_zhu_bian">主编</string>
+    <string name="editor_team_zhu_bian_ding_gao">主编定稿</string>
     <!-- hippocampus -->
     <string name="hippocampus_1_tiao">%1$s 条</string>
     <string name="hippocampus_dang_nin_chuang_jian_bi_ji">当您创建笔记、对话、录音或完成面试时，\n海马体会自动建立记忆索引</string>
@@ -39,6 +81,15 @@
     <string name="hippocampus_shan_chu_suo_yin">删除索引</string>
     <string name="hippocampus_sou_suo_ji_yi">搜索记忆...</string>
     <string name="hippocampus_zan_wu_ji_yi_suo_yin">暂无记忆索引</string>
+    <string name="hippocampus_quan_bu">全部</string>
+    <string name="hippocampus_bi_ji">笔记</string>
+    <string name="hippocampus_dui_hua">对话</string>
+    <string name="hippocampus_lu_yin">录音</string>
+    <string name="hippocampus_fa_ya">发芽</string>
+    <string name="hippocampus_mian_shi">面试</string>
+    <string name="hippocampus_ji_yi">记忆</string>
+    <string name="hippocampus_pian_hao">偏好</string>
+    <string name="hippocampus_qing_chu">清除</string>
     <!-- home -->
     <string name="home_ai_dui_hua">AI 对话</string>
     <string name="home_ai_qu_dong_zhi_neng_mian_shi">AI 驱动智能面试</string>
@@ -65,9 +116,18 @@
     <string name="home_zhong_wu_hao">中午好</string>
     <string name="home_xin_bi_ji">新笔记</string>
     <string name="home_zui_jin_bi_ji">最近笔记</string>
+    <string name="home_dao_ru">导入</string>
+    <string name="home_dong_cha">洞察</string>
+    <string name="home_lu_yin">录音</string>
+    <string name="home_tan_suo_zhe">探索者</string>
     <!-- import -->
     <string name="import_file_dao_ru_shi_bai_1">导入失败: %1$s</string>
+    <string name="import_file_pdf_ge_shi_wen_dang">.pdf 格式文档</string>
+    <string name="import_file_pdf_wen_dang">PDF 文档</string>
+    <string name="import_file_tu_pian">图片</string>
+    <string name="import_file_tu_pian_ge_shi">.jpg, .png 等图片格式</string>
     <string name="import_file_txt_md_deng_chun_wen_ben_ge">.txt, .md 等纯文本格式</string>
+    <string name="import_file_wei_zhi_wen_jian">未知文件</string>
     <string name="import_file_wen_ben_wen_jian">文本文件</string>
     <string name="import_file_wen_jian_nei_rong_wei_kong">文件内容为空</string>
     <string name="import_file_xuan_ze_qi_ta_lei_xing_wen">选择其他类型文件</string>
@@ -134,6 +194,12 @@
     <string name="interview_zi_ding_yi_chang_jing">自定义场景</string>
     <string name="interview_zi_xin">自信</string>
     <string name="interview_zong_ti_ping_jia">总体评价</string>
+    <string name="interview_lian_jie_zhong">连接中...</string>
+    <string name="interview_liang_hao">良好</string>
+    <string name="interview_nin_da_duan_le_ai">您打断了 AI</string>
+    <string name="interview_yi_ban">一般</string>
+    <string name="interview_yi_hui_da_1_ge_wen_ti_que_ding">已回答 %1$d 个问题，确定结束并生成报告？</string>
+    <string name="interview_you_xiu">优秀</string>
     <!-- invisible -->
     <string name="invisible_partner_1_pian">%1$s 篇</string>
     <string name="invisible_partner_1_zi_dong_jian_ce_2">%1$s (自动检测: %2$s)</string>
@@ -153,6 +219,12 @@
     <string name="invisible_partner_zi_dong_fa_ya">自动发芽</string>
     <string name="invisible_partner_zi_dong_qie_huan">自动切换</string>
     <string name="invisible_partner_zui_da_fa_ya_shu">最大发芽数</string>
+    <string name="invisible_partner_sheng_huo_ji_lu">生活记录</string>
+    <string name="invisible_partner_xiao_lv_gong_zuo">效率工作</string>
+    <string name="invisible_partner_chuang_zuo_ling_gan">创作灵感</string>
+    <string name="invisible_partner_wen_nuan_pei_ban_shi_he_ri_chang_ji_lu_he_sheng_huo_hui_yi">温暖陪伴，适合日常记录和生活回忆</string>
+    <string name="invisible_partner_zhuan_zhu_chan_chu_shi_he_hui_yi_ji_lu_he_gong_zuo_zheng_li">专注产出，适合会议记录和工作整理</string>
+    <string name="invisible_partner_lian_jie_si_kao_shi_he_xie_zuo_he_chuang_yi_gong_zuo">连接思考，适合写作和创意工作</string>
     <!-- kb -->
     <string name="kb_1_pian_wen_dang">%1$s 篇文档</string>
     <string name="kb_gong_1_ge_zhi_shi_ku_2_pian">共 %1$s 个知识库，%2$s 篇文档</string>
@@ -160,6 +232,9 @@
     <string name="kb_ming_cheng_bu_neng_wei_kong">名称不能为空</string>
     <string name="kb_qing_chu">清除</string>
     <string name="kb_que_ding_yao_shan_chu_1_ma_qi">确定要删除「%1$s」吗？其中的所有文档也将被删除。此操作不可撤销。</string>
+    <string name="kb_sort_name">名称</string>
+    <string name="kb_sort_size">大小</string>
+    <string name="kb_sort_time">时间</string>
     <string name="kb_sou_suo_zhi_shi_ku">搜索知识库...</string>
     <string name="kb_tian_jia_shi_bai_1">添加失败: %1$s</string>
     <string name="kb_tian_jia_wen_jian">添加文件</string>
@@ -172,6 +247,7 @@
     <string name="kb_zhi_shi_ku_yi_geng_xin">知识库已更新</string>
     <!-- meeting -->
     <string name="meeting_1_duan_2_ren_3">%1$s 段 · %2$s 人 · %3$s</string>
+    <string name="meeting_1_ren">%1$s 人</string>
     <string name="meeting_asr_yuan_shi_jie_guo_1_zi_2">ASR 原始结果: %1$s 字, %2$s 段</string>
     <string name="meeting_bao_cun_xiu_gai">保存修改</string>
     <string name="meeting_fen_xiang_hui_yi_lu_yin">分享会议录音</string>
@@ -198,6 +274,18 @@
     <string name="meeting_zan_wu_zhui_jia_de_bi_ji">暂无追加的笔记</string>
     <string name="meeting_zhuan_lu_wan_cheng">转录完成</string>
     <string name="meeting_zhui_jia_bi_ji">追加笔记...</string>
+    <string name="meeting_can_yu_ren_shu">参与人数</string>
+    <string name="meeting_hui_yi_lu_yin">会议录音</string>
+    <string name="meeting_nei_rong_lei_xing">内容类型</string>
+    <string name="meeting_opedrgent_hui_yi_lu_yin_1">[Opedrgent 会议录音]\n\n%1$s</string>
+    <string name="meeting_wen_zi_ji_lu">文字记录</string>
+    <string name="meeting_zhi_neng_zong_jie">智能总结</string>
+    <string name="meeting_zhuan_lu_shi_bai_1">转录失败: %1$s</string>
+    <string name="meeting_zhui_jia_bi_ji_biao_qian">追加笔记</string>
+    <!-- recording -->
+    <string name="recording_lu_yin">录音</string>
+    <string name="recording_shou_ji_nei_lu">手机内录</string>
+    <string name="recording_ai_zong_jie_ti_shi">请对以下内容进行结构化总结，按以下四个部分输出，每部分用【标记】开头：\n【智能总结】用2-3句话概括核心内容\n【章节概要】按主题分段，每段配小标题\n【金句精选】提取3-5句关键原话\n【待办事项】列出所有需要后续跟进的事项\n\n内容如下：\n%1$s</string>
     <!-- note -->
     <string name="note_editor_image_markdown">\n![图片](%1$s)\n</string>
     <string name="note_graph_1_nian_2_yue">%1$s 年 %2$s 月</string>
@@ -231,6 +319,23 @@
     <string name="note_list_yu_1_xiang_guan">与「%1$s」相关</string>
     <string name="note_list_zhong_ming_ming">重命名</string>
     <string name="note_list_zhong_ming_ming_wen_jian_jia">重命名文件夹</string>
+    <string name="note_list_1_fen_zhong_qian">%1$d 分钟前</string>
+    <string name="note_list_1_tian_qian">%1$d 天前</string>
+    <string name="note_list_1_xiao_shi_qian">%1$d 小时前</string>
+    <string name="note_list_ai">AI</string>
+    <string name="note_list_fan_hui">返回</string>
+    <string name="note_list_fan_hui_gen_mu_lu">返回根目录</string>
+    <string name="note_list_hui_yi">会议</string>
+    <string name="note_list_qing_chu">清除</string>
+    <string name="note_list_quan_bu">全部</string>
+    <string name="note_list_sou_suo">搜索</string>
+    <string name="note_list_wen_ben">文本</string>
+    <string name="note_list_xin_jian_bi_ji">新建笔记</string>
+    <string name="note_list_yu_yin">语音</string>
+    <string name="note_list_zhi_ding">置顶</string>
+    <string name="note_list_zhi_shi_tu_pu">知识图谱</string>
+    <string name="note_list_zuo_tian">昨天</string>
+    <string name="note_graph_1_yue_2_ri_3_shi_4_fen">%1$d月%2$d日 %3$02d:%4$02d</string>
     <string name="note_share_ai_feng_ge_zhuan_huan">AI 风格转换</string>
     <string name="note_share_ai_yi_zhuan_huan">AI 已转换</string>
     <string name="note_share_ai_zhuan_huan">AI 转换</string>
@@ -244,6 +349,17 @@
     <string name="note_share_peng_you_quan">朋友圈</string>
     <string name="note_share_xiao_hong_shu">小红书</string>
     <string name="note_share_yi_fu_zhi_zhuan_huan_nei_rong">已复制转换内容</string>
+    <string name="note_share_bao_cun_tu_pian">保存图片</string>
+    <string name="note_share_fa_song_you_jian">发送邮件</string>
+    <string name="note_share_fu_zhi_lian_jie">复制链接</string>
+    <string name="note_share_fu_zhi_wen_ben">复制文本</string>
+    <string name="note_share_geng_duo">更多</string>
+    <string name="note_share_wei_xin">微信</string>
+    <string name="note_share_wen_ben">文本</string>
+    <string name="note_share_markdown">Markdown</string>
+    <string name="note_share_html">HTML</string>
+    <string name="note_share_yi_fu_zhi_1">已复制%1$s</string>
+    <string name="note_share_yi_fu_zhi_wen_ben">已复制文本</string>
     <!-- open -->
     <string name="open_source_android_ye_yu_wei_xing_zhui">Android 业余卫星追踪应用，SGP4/SDP4 轨道传播算法移植来源</string>
     <string name="open_source_bai_du_kai_yuan_ocr_yin_qing">百度开源 OCR 引擎，支持多语言文字识别</string>
@@ -340,6 +456,17 @@
     <string name="settings_yun_tong_bu_webdav">云同步（WebDAV）</string>
     <string name="settings_zi_dong">自动</string>
     <string name="settings_zui_da_shu_chu">最大输出</string>
+    <string name="settings_ben_di_li_xian_yu_yin_shi_bie_mo_xing">本地离线语音识别模型</string>
+    <string name="settings_lu_yin">录音</string>
+    <string name="settings_shou_ji_nei_lu">手机内录</string>
+    <string name="settings_wu_xian_zhi">无限制</string>
+    <string name="settings_shen_se">深色</string>
+    <string name="settings_paraformer_liu_shi_kuo_hao">Paraformer (流式)</string>
+    <string name="settings_xia_zai_zhong_1_percent">下载中 %1$d%%</string>
+    <string name="settings_qie_huan_yuan_1_2_3">切换源: %1$s (%2$s/%3$s)</string>
+    <string name="settings_qie_huan_dao_1_2_3">切换到 %1$s (%2$s/%3$s)</string>
+    <string name="settings_xia_zai_shi_bai_1">失败: %1$s</string>
+    <string name="settings_zhun_bei_xia_zai">准备下载...</string>
     <!-- sprout -->
     <string name="sprout_android_11_qing_shou_yu_suo">Android 11+ 请授予所有文件访问权限后导出</string>
     <string name="sprout_cao_zuo_zheng_zai_jin_xing">操作正在进行中，请稍候</string>
@@ -354,6 +481,11 @@
     <string name="sprout_yi_zhui_jia_wei_xin_bi_ji">已追加为新笔记</string>
     <string name="sprout_zai_fa_ya">再发芽</string>
     <string name="sprout_zhui_jia_shi_bai_1">追加失败: %1$s</string>
+    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">发芽报告</string>
+    <string name="note_sprout_fa_ya_shi_bai">发芽失败</string>
+    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">发芽正在进行中，请稍候</string>
+    <string name="note_sprout_ri_qi_ge_shi">MM月dd日</string>
+    <string name="note_sprout_sheng_cheng_shi_bai">生成失败</string>
     <!-- voiceprint -->
     <string name="voiceprint_enroll_dang_qian_lu_yin_shang_wei">当前录音尚未保存，确定要放弃吗？</string>
     <string name="voiceprint_enroll_deng_dai_kai_shi">等待开始</string>

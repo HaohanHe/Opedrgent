@@ -218,8 +218,8 @@ fun ImportFileScreen(
                 // PDF 文件
                 ImportFileTypeCard(
                     icon = Icons.AutoMirrored.Filled.InsertDriveFile,
-                    title = "PDF 文档",
-                    description = ".pdf 格式文档",
+                    title = stringResource(R.string.import_file_pdf_wen_dang),
+                    description = stringResource(R.string.import_file_pdf_ge_shi_wen_dang),
                     onClick = {
                         filePickerLauncher.launch(arrayOf("application/pdf"))
                     },
@@ -227,8 +227,8 @@ fun ImportFileScreen(
                 // 图片
                 ImportFileTypeCard(
                     icon = Icons.Default.Image,
-                    title = "图片",
-                    description = ".jpg, .png 等图片格式",
+                    title = stringResource(R.string.import_file_tu_pian),
+                    description = stringResource(R.string.import_file_tu_pian_ge_shi),
                     onClick = {
                         filePickerLauncher.launch(arrayOf("image/*"))
                     },
@@ -367,7 +367,7 @@ private fun getFileName(context: Context, uri: android.net.Uri): String {
         }
     }
     if (result.isBlank()) {
-        result = uri.path?.substringAfterLast('/') ?: "未知文件"
+        result = uri.path?.substringAfterLast('/') ?: context.getString(R.string.import_file_wei_zhi_wen_jian)
     }
     return result
 }

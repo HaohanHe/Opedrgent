@@ -102,8 +102,8 @@ fun HippocampusScreen(
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, "清除")
-                    }
+                    Icon(Icons.Default.Close, stringResource(R.string.hippocampus_qing_chu))
+                }
                 }
             },
             modifier = Modifier
@@ -153,12 +153,12 @@ private fun TypeFilterRow(
     selectedType: SourceType?,
     onTypeSelected: (SourceType?) -> Unit,
 ) {
-    val types = listOf(null to "全部") + listOf(
-        SourceType.NOTE to "笔记",
-        SourceType.CONVERSATION to "对话",
-        SourceType.RECORDING to "录音",
-        SourceType.SPROUT to "发芽",
-        SourceType.INTERVIEW to "面试",
+    val types = listOf(null) + listOf(
+        SourceType.NOTE,
+        SourceType.CONVERSATION,
+        SourceType.RECORDING,
+        SourceType.SPROUT,
+        SourceType.INTERVIEW,
     )
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = AccentBlue,
@@ -171,7 +171,17 @@ private fun TypeFilterRow(
             .padding(horizontal = SpacingTokens.lg),
         horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
     ) {
-        types.forEach { (type, label) ->
+        types.forEach { type ->
+            val label = when (type) {
+                null -> stringResource(R.string.hippocampus_quan_bu)
+                SourceType.NOTE -> stringResource(R.string.hippocampus_bi_ji)
+                SourceType.CONVERSATION -> stringResource(R.string.hippocampus_dui_hua)
+                SourceType.RECORDING -> stringResource(R.string.hippocampus_lu_yin)
+                SourceType.SPROUT -> stringResource(R.string.hippocampus_fa_ya)
+                SourceType.INTERVIEW -> stringResource(R.string.hippocampus_mian_shi)
+                SourceType.USER_MEMORY -> stringResource(R.string.hippocampus_ji_yi)
+                SourceType.USER_PREFERENCES -> stringResource(R.string.hippocampus_pian_hao)
+            }
             val isSelected = type == selectedType
             FilterChip(
                 selected = isSelected,
@@ -341,15 +351,16 @@ private fun HippocampusItemCard(
 
 @Composable
 private fun SourceTypeChip(sourceType: SourceType) {
-    val (color, label) = when (sourceType) {
-        SourceType.NOTE -> AccentBlue to "笔记"
-        SourceType.CONVERSATION -> SuccessGreen to "对话"
-        SourceType.RECORDING -> AccentOrange to "录音"
-        SourceType.SPROUT -> AccentPurple to "发芽"
-        SourceType.INTERVIEW -> AccentBlue to "面试"
-        SourceType.USER_MEMORY -> MaterialTheme.colorScheme.outline to "记忆"
-        SourceType.USER_PREFERENCES -> AccentOrange to "偏好"
+    val (color, labelRes) = when (sourceType) {
+        SourceType.NOTE -> AccentBlue to R.string.hippocampus_bi_ji
+        SourceType.CONVERSATION -> SuccessGreen to R.string.hippocampus_dui_hua
+        SourceType.RECORDING -> AccentOrange to R.string.hippocampus_lu_yin
+        SourceType.SPROUT -> AccentPurple to R.string.hippocampus_fa_ya
+        SourceType.INTERVIEW -> AccentBlue to R.string.hippocampus_mian_shi
+        SourceType.USER_MEMORY -> MaterialTheme.colorScheme.outline to R.string.hippocampus_ji_yi
+        SourceType.USER_PREFERENCES -> AccentOrange to R.string.hippocampus_pian_hao
     }
+    val label = stringResource(labelRes)
 
     Surface(
         color = color.copy(alpha = 0.1f),

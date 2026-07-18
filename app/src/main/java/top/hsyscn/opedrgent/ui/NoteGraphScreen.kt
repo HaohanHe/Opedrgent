@@ -1009,6 +1009,7 @@ private fun TimelineView(
     modifier: Modifier = Modifier,
 ) {
     // 按年月分组
+    val context = LocalContext.current
     val grouped = remember(notes) {
         val cal = java.util.Calendar.getInstance()
         notes.sortedByDescending { it.createdAt }
@@ -1016,7 +1017,7 @@ private fun TimelineView(
                 cal.timeInMillis = note.createdAt
                 val year = cal.get(java.util.Calendar.YEAR)
                 val month = cal.get(java.util.Calendar.MONTH) + 1
-                "$year 年 ${month} 月"
+                context.getString(R.string.note_graph_1_nian_2_yue, year, month)
             }
     }
 
@@ -1083,6 +1084,7 @@ private fun TimelineNoteCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val context = LocalContext.current
     val cal = remember { java.util.Calendar.getInstance() }
     val dateStr = remember(note.createdAt) {
         cal.timeInMillis = note.createdAt
@@ -1090,7 +1092,7 @@ private fun TimelineNoteCard(
         val d = cal.get(java.util.Calendar.DAY_OF_MONTH)
         val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
         val min = cal.get(java.util.Calendar.MINUTE)
-        "${m}月${d}日 %02d:%02d".format(h, min)
+        context.getString(R.string.note_graph_1_yue_2_ri_3_shi_4_fen, m, d, h, min)
     }
 
     Card(

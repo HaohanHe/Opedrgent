@@ -129,6 +129,7 @@ fun NoteSproutScreen(
         if (!hasAutoTriggered && article == null && history.isEmpty()) {
             hasAutoTriggered = true
             doSprout(
+                context = context,
                 scope = effectiveScope,
                 mutex = sproutMutex,
                 service = sproutService,
@@ -168,7 +169,7 @@ fun NoteSproutScreen(
                     // 阅读模式：操作全部收进三点菜单
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, "更多操作")
+                            Icon(Icons.Default.MoreVert, stringResource(R.string.sprout_geng_duo_cao_zuo))
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -179,6 +180,7 @@ fun NoteSproutScreen(
                                 onClick = {
                                     showMenu = false
                                     doSprout(
+                                        context = context,
                                         scope = effectiveScope,
                                         mutex = sproutMutex,
                                         service = sproutService,
@@ -252,7 +254,8 @@ fun NoteSproutScreen(
                                     isExporting = true
                                     effectiveScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                         try {
-                                            val fileName = "发芽报告_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
+                                            val prefix = context.getString(R.string.note_sprout_bao_gao_wen_jian_qian_zhui)
+                                            val fileName = "${prefix}_${SimpleDateFormat("yyyy-MM-dd_HHmm").format(Date())}.md"
                                             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                                             File(dir, fileName).writeText(text)
                                             feedback.showFeedback(context.getString(R.string.sprout_yi_dao_chu_dao_xia_zai_mu_lu_1, fileName))
@@ -293,6 +296,7 @@ fun NoteSproutScreen(
                     SproutScreenState.Loading -> SproutLoadingView()
                     is SproutScreenState.Error -> SproutErrorView(message = state.message, onRetry = {
                         doSprout(
+                            context = context,
                             scope = effectiveScope,
                             mutex = sproutMutex,
                             service = sproutService,
@@ -321,6 +325,7 @@ fun NoteSproutScreen(
                         sproutReportStore = sproutReportStore,
                         onResprout = { seedContent ->
                             doSprout(
+                                context = context,
                                 scope = effectiveScope,
                                 mutex = sproutMutex,
                                 service = sproutService,
@@ -369,6 +374,7 @@ fun NoteSproutScreen(
                         errorMessage = state.message,
                         onResprout = { seedContent ->
                             doSprout(
+                                context = context,
                                 scope = effectiveScope,
                                 mutex = sproutMutex,
                                 service = sproutService,
@@ -384,6 +390,7 @@ fun NoteSproutScreen(
                     )
                     SproutScreenState.Empty -> SproutEmptyView(onGenerate = {
                         doSprout(
+                            context = context,
                             scope = effectiveScope,
                             mutex = sproutMutex,
                             service = sproutService,
@@ -425,7 +432,7 @@ private fun SproutArticleContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val feedback = LocalFeedbackController.current
-    val dateFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
+    val dateFormat = SimpleDateFormat(context.getString(R.string.note_sprout_ri_qi_ge_shi), Locale.getDefault())
 
     LaunchedEffect(errorMessage) {
         if (!errorMessage.isNullOrBlank()) {
@@ -944,6 +951,7 @@ private sealed class SproutScreenState {
  * 使用 [mutex] 保证同一页面内不会并发执行多次发芽，避免重复请求与状态错乱。
  */
 private fun doSprout(
+    context: Context,
     scope: kotlinx.coroutines.CoroutineScope,
     mutex: Mutex,
     service: SproutService,
@@ -957,7 +965,7 @@ private fun doSprout(
 ) {
     scope.launch {
         if (!mutex.tryLock()) {
-            setError("发芽正在进行中，请稍候")
+            setError(context.getString(R.string.note_sprout_fa_ya_zheng_zai_jin_xing))
             return@launch
         }
         setGenerating(true)
@@ -978,10 +986,10 @@ private fun doSprout(
                         }
                         onSuccess(article)
                     },
-                    onFailure = { e -> setError(e.message ?: "生成失败") },
+                    onFailure = { e -> setError(e.message ?: context.getString(R.string.note_sprout_sheng_cheng_shi_bai)) },
                 )
             }.onFailure { e ->
-                setError(e.message ?: "发芽失败")
+                setError(e.message ?: context.getString(R.string.note_sprout_fa_ya_shi_bai))
             }
         } finally {
             setGenerating(false)

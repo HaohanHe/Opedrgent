@@ -103,7 +103,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role as SemanticsRole
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.automation.AutomationKind
@@ -143,6 +142,7 @@ import top.hsyscn.opedrgent.ui.theme.themeDividerColor
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -298,7 +298,7 @@ fun SessionScreen(
                 shape = CircleShape,
                 colors = CardDefaults.cardColors(containerColor = themeBarBg()),
                 modifier = Modifier
-                    .shadow(4.dp, CircleShape)
+                    .shadow(ElevationTokens.md, CircleShape)
                     .clip(CircleShape)
                     .size(SpacingTokens.xxl),
                 onClick = { actionSheetOpen = true },
@@ -312,7 +312,7 @@ fun SessionScreen(
                 shape = CircleShape,
                 colors = CardDefaults.cardColors(containerColor = themeBarBg()),
                 modifier = Modifier
-                    .shadow(4.dp, CircleShape)
+                    .shadow(ElevationTokens.md, CircleShape)
                     .clip(CircleShape)
                     .size(SpacingTokens.xxl),
                 onClick = onOpenSettings,
@@ -546,7 +546,7 @@ fun SessionScreen(
                     onClick = { showScopeSheet = true },
                     shape = ShapeTokens.mediumShape,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    modifier = Modifier.height(37.dp),
+                    modifier = Modifier.height(SizeTokens.searchBarHeight),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -571,7 +571,7 @@ fun SessionScreen(
                     shape = CircleShape,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier
-                        .size(37.dp)
+                        .size(SizeTokens.quickActionIcon)
                         .clip(CircleShape),
                     onClick = { showMoreOptionsSheet = true },
                 ) {
@@ -603,7 +603,7 @@ fun SessionScreen(
                             placeholder = { Text(stringResource(R.string.msg_type_message), color = themeTextGrey()) },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 37.dp, max = 120.dp),
+                                .heightIn(min = SizeTokens.searchBarHeight, max = 120.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                                 unfocusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
@@ -692,7 +692,7 @@ fun SessionScreen(
                         },
                     ),
                     modifier = Modifier
-                        .size(37.dp)
+                        .size(SizeTokens.quickActionIcon)
                         .clip(CircleShape),
                     onClick = {
                         if (!state.isStreaming && prompt.isNotBlank()) {
@@ -706,7 +706,7 @@ fun SessionScreen(
                         if (state.isStreaming) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 modifier = Modifier.size(SpacingTokens.md),
-                                strokeWidth = 2.dp,
+                                strokeWidth = SizeTokens.iconXs,
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )
                         } else {
@@ -758,7 +758,7 @@ fun SessionScreen(
                 title = { Text(stringResource(R.string.tool_confirmation_title)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                        Text(confirmation.action, fontWeight = FontWeight.SemiBold)
+                        Text(confirmation.action, style = MaterialTheme.typography.titleSmall)
                         Text(confirmation.detail)
                     }
                 },
@@ -1115,7 +1115,7 @@ fun SessionScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     Text(stringResource(R.string.automation_suggestion_desc))
-                    Text(stringResource(R.string.automation_label_name, suggestion.name), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.automation_label_name, suggestion.name), style = MaterialTheme.typography.titleSmall)
                     Text(stringResource(R.string.automation_label_interval, suggestion.intervalMinutes))
                     Text(stringResource(R.string.automation_label_type, if (suggestion.kind == AutomationKind.HEARTBEAT_NOTES) typeHeartbeat else typePrompt))
                     if (suggestion.kind == AutomationKind.RUN_PROMPT && !suggestion.prompt.isNullOrBlank()) {

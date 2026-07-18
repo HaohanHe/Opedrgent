@@ -707,7 +707,7 @@ private fun CompletionStep(
             } else if (isSherpaAvailable) {
                 stringResource(R.string.voiceprint_enroll_te_zheng_ti_qu_sherpa_onnx)
             } else {
-                "特征提取: 统计特征 (16 维音频指纹)"
+                stringResource(R.string.voiceprint_enroll_te_zheng_ti_qu_tong_ji_te)
             },
             style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey().copy(alpha = 0.7f),

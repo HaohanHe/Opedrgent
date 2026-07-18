@@ -1,7 +1,9 @@
 package top.hsyscn.opedrgent.ui.editor.utils
 
+import android.content.Context
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import top.hsyscn.opedrgent.R
 
 /**
  * 编辑器工具函数集合
@@ -11,13 +13,13 @@ object EditorUtils {
     /**
      * 格式化时间为相对时间（刚刚、X分钟前、X小时前、X天前）
      */
-    fun formatTimeAgo(timestamp: Long): String {
+    fun formatTimeAgo(context: Context, timestamp: Long): String {
         val diff = System.currentTimeMillis() - timestamp
         return when {
-            diff < 60_000L -> "刚刚"
-            diff < 3600_000L -> "${diff / 60_000}分钟前"
-            diff < 86400_000L -> "${diff / 3600_000}小时前"
-            else -> "${diff / 86400_000}天前"
+            diff < 60_000L -> context.getString(R.string.editor_gang_gang)
+            diff < 3600_000L -> context.getString(R.string.note_list_1_fen_zhong_qian, diff / 60_000)
+            diff < 86400_000L -> context.getString(R.string.note_list_1_xiao_shi_qian, diff / 3600_000)
+            else -> context.getString(R.string.note_list_1_tian_qian, diff / 86400_000)
         }
     }
 
@@ -29,8 +31,8 @@ object EditorUtils {
      * - 列表项自动补全下一项前缀
      * - 标点后的常见接续词
      */
-    fun heuristicComplete(context: String): String {
-        val trimmed = context.trimEnd()
+    fun heuristicComplete(context: Context, text: String): String {
+        val trimmed = text.trimEnd()
         if (trimmed.isEmpty()) return ""
 
         // 列表模式检测：如果当前行以数字/符号开头，提示下一项
@@ -52,17 +54,17 @@ object EditorUtils {
 
         // 常见句尾补全
         return when {
-            trimmed.endsWith("首先") -> "，其次"
-            trimmed.endsWith("其次") -> "，再次"
-            trimmed.endsWith("再次") -> "，最后"
-            trimmed.endsWith("一方面") -> "，另一方面"
-            trimmed.endsWith("例如") -> "，"
-            trimmed.endsWith("包括") -> "："
-            trimmed.endsWith("因为") -> "，所以"
-            trimmed.endsWith("虽然") -> "，但是"
-            trimmed.endsWith("不仅") -> "，而且"
-            trimmed.endsWith("总") -> "结"
-            trimmed.endsWith("具") -> "体来说"
+            trimmed.endsWith("首先") -> context.getString(R.string.editor_complete_qi_ci)
+            trimmed.endsWith("其次") -> context.getString(R.string.editor_complete_zai_ci)
+            trimmed.endsWith("再次") -> context.getString(R.string.editor_complete_zui_hou)
+            trimmed.endsWith("一方面") -> context.getString(R.string.editor_complete_ling_yi_fang_mian)
+            trimmed.endsWith("例如") -> context.getString(R.string.editor_complete_dou_hao)
+            trimmed.endsWith("包括") -> context.getString(R.string.editor_complete_mao_hao)
+            trimmed.endsWith("因为") -> context.getString(R.string.editor_complete_suo_yi)
+            trimmed.endsWith("虽然") -> context.getString(R.string.editor_complete_dan_shi)
+            trimmed.endsWith("不仅") -> context.getString(R.string.editor_complete_er_qie)
+            trimmed.endsWith("总") -> context.getString(R.string.editor_complete_jie)
+            trimmed.endsWith("具") -> context.getString(R.string.editor_complete_ti_lai_shuo)
             else -> ""
         }
     }

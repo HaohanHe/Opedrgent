@@ -25,9 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
@@ -46,6 +47,7 @@ fun EditorNoteItemCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
 
     Surface(
@@ -62,7 +64,7 @@ fun EditorNoteItemCard(
                 ) {}
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(
-                    EditorUtils.formatTimeAgo(createdAtMs),
+                    EditorUtils.formatTimeAgo(context, createdAtMs),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )

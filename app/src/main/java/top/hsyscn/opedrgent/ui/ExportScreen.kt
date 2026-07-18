@@ -253,7 +253,7 @@ fun ExportScreen(
                         val file = vm.exportMarkdown()
                         if (file != null) {
                             val md = file.readText()
-                            val html = markdownToHtml(md, "Opedrgent 会话")
+                            val html = markdownToHtml(md, context.getString(R.string.export_opedrgent_hui_hua))
                             val htmlFile = File(file.parent, file.nameWithoutExtension + ".html")
                             htmlFile.writeText(html, Charsets.UTF_8)
                             shareFile(context, vm.getPackageNameForShare(context), htmlFile, "text/html")
