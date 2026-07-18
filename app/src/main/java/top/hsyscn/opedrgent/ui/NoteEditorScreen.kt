@@ -315,8 +315,8 @@ fun NoteEditorScreen(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
             val contentMaxWidth = when {
-                isExpandedWidth() -> 980.dp
-                isAtLeastMediumWidth() -> 760.dp
+                isExpandedWidth() -> SizeTokens.noteEditorMaxWidthExpanded
+                isAtLeastMediumWidth() -> SizeTokens.noteEditorMaxWidthMedium
                 else -> Dp.Unspecified
             }
             Box(
@@ -1198,8 +1198,8 @@ fun NoteEditorScreen(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { padding ->
         val contentMaxWidth = when {
-            isExpandedWidth() -> 980.dp
-            isAtLeastMediumWidth() -> 760.dp
+            isExpandedWidth() -> SizeTokens.noteEditorMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.noteEditorMaxWidthMedium
             else -> Dp.Unspecified
         }
         Box(

@@ -215,8 +215,8 @@ private fun InterviewSetupScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val contentMaxWidth = when {
-            isExpandedWidth() -> 840.dp
-            isAtLeastMediumWidth() -> 640.dp
+            isExpandedWidth() -> SizeTokens.interviewContentMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.interviewContentMaxWidthMedium
             else -> Dp.Unspecified
         }
         Box(
@@ -808,8 +808,8 @@ private fun InterviewSessionScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val contentMaxWidth = when {
-            isExpandedWidth() -> 900.dp
-            isAtLeastMediumWidth() -> 720.dp
+            isExpandedWidth() -> SizeTokens.interviewTranscriptMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.interviewTranscriptMaxWidthMedium
             else -> Dp.Unspecified
         }
         Box(
@@ -1464,8 +1464,8 @@ private fun InterviewReportScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val contentMaxWidth = when {
-            isExpandedWidth() -> 900.dp
-            isAtLeastMediumWidth() -> 720.dp
+            isExpandedWidth() -> SizeTokens.interviewResultMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.interviewResultMaxWidthMedium
             else -> Dp.Unspecified
         }
         val reportInnerModifier = if (contentMaxWidth != Dp.Unspecified) {
