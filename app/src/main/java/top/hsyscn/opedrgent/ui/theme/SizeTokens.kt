@@ -21,6 +21,7 @@ object SizeTokens {
     val quickActionIcon = 44.dp
     val searchBarHeight = 44.dp
     val emptyStateIcon = 64.dp
+    val emptyStateIconBoxHeight = 120.dp
     val fabSize = 56.dp
     val folderItemHeight = 60.dp
     val folderGridMaxHeight = 120.dp
@@ -37,6 +38,10 @@ object SizeTokens {
 
     // 展开内容区最大高度
     val expandedContentMaxHeight = 400.dp
+
+    // 响应式内容最大宽度
+    val expandedContentMaxWidth = 1200.dp
+    val mediumContentMaxWidth = 840.dp
 
     // 列表最大高度（用于内嵌可滚动区域，避免占满整屏）
     val citationListMaxHeight = 320.dp
@@ -55,6 +60,8 @@ object SizeTokens {
     val dividerThickness = 1.dp
     val thinDividerThickness = 0.5.dp
     val borderWidth = 1.dp
+    val borderWidthMd = 1.5.dp
+    val borderWidthLg = 2.dp
     val progressTrackHeight = 3.dp
 
     // 徽章

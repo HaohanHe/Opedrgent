@@ -133,8 +133,8 @@ fun HomeDashboardScreen(
     ) { innerPadding ->
         // 响应式布局：Expanded 宽度使用双栏，其余宽度单列并限制最大宽度
         val contentMaxWidth = when {
-            isExpandedWidth() -> 1200.dp
-            isAtLeastMediumWidth() -> 840.dp
+            isExpandedWidth() -> SizeTokens.expandedContentMaxWidth
+            isAtLeastMediumWidth() -> SizeTokens.mediumContentMaxWidth
             else -> Dp.Unspecified
         }
         Box(
