@@ -99,6 +99,13 @@ fun OnboardingScreen(
             gradientEnd = Color.Transparent,
         ),
         OnboardingPage(
+            icon = Icons.Default.Mic,
+            title = stringResource(R.string.onboarding_page_interview_title),
+            subtitle = stringResource(R.string.onboarding_page_interview_subtitle),
+            gradientStart = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            gradientEnd = Color.Transparent,
+        ),
+        OnboardingPage(
             icon = Icons.Default.Lock,
             title = stringResource(R.string.onboarding_page_offline_title),
             subtitle = stringResource(R.string.onboarding_page_offline_subtitle),
