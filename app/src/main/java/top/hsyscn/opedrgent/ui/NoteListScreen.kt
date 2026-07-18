@@ -39,7 +39,9 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.note.Folder
 import top.hsyscn.opedrgent.note.FolderRepository
 import top.hsyscn.opedrgent.note.Note
@@ -142,12 +144,18 @@ fun NoteListScreen(
         }
     }
     val notes by notesFlow.collectAsState(initial = emptyList())
-    val displayNotes = if (isAiSearchActive) aiSearchResults.map { it.note } else notes
+    val displayNotes = remember(isAiSearchActive, aiSearchResults, notes) {
+        if (isAiSearchActive) aiSearchResults.map { it.note } else notes
+    }
     val noteCount by repository.countAll().collectAsState(initial = 0L)
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
 
-    val pinnedNotes = remember(displayNotes) { displayNotes.filter { it.isPinned } }
-    val unpinnedNotes = remember(displayNotes) { displayNotes.filter { !it.isPinned } }
+    val pinnedNotes by remember(displayNotes) {
+        derivedStateOf { displayNotes.filter { it.isPinned } }
+    }
+    val unpinnedNotes by remember(displayNotes) {
+        derivedStateOf { displayNotes.filter { !it.isPinned } }
+    }
 
     // 宽屏预览面板：选中的笔记
     var previewNote by remember { mutableStateOf<Note?>(null) }
@@ -401,6 +409,7 @@ fun NoteListScreen(
                                 Column(modifier = Modifier.animateItem()) {
                                     NoteCard(
                                         note = note,
+                                        repository = repository,
                                         relevance = relevance,
                                         isPinnedSection = true,
                                         onClick = {
@@ -417,7 +426,6 @@ fun NoteListScreen(
                                         onCorrect = { onCorrectNote(note.id) },
                                         onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
                                         onAddTag = { onAddTag(note.id) },
-                                        linkCount = repository.getLinkCount(note.id),
                                     )
                                 }
                             }
@@ -432,6 +440,7 @@ fun NoteListScreen(
                             Column(modifier = Modifier.animateItem()) {
                                 NoteCard(
                                     note = note,
+                                    repository = repository,
                                     relevance = relevance,
                                     isPinnedSection = false,
                                     onClick = {
@@ -448,7 +457,6 @@ fun NoteListScreen(
                                     onCorrect = { onCorrectNote(note.id) },
                                     onAddToKnowledgeBase = { onAddToKnowledgeBase(note.id) },
                                     onAddTag = { onAddTag(note.id) },
-                                    linkCount = repository.getLinkCount(note.id),
                                 )
                             }
                         }
@@ -992,6 +1000,7 @@ private fun NotePreviewPanel(
 @Composable
 private fun NoteCard(
     note: Note,
+    repository: NoteRepository,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
     onDelete: () -> Unit,
@@ -1004,7 +1013,6 @@ private fun NoteCard(
     onCorrect: () -> Unit = {},
     onAddToKnowledgeBase: () -> Unit = {},
     onAddTag: () -> Unit = {},
-    linkCount: Int = 0,
     relevance: Int? = null,
     isPinnedSection: Boolean = false,
 ) {
@@ -1013,6 +1021,9 @@ private fun NoteCard(
     val chipColors = note.type.chipColors()
     val ctx = LocalContext.current
     val primaryColor = themePrimary()
+    val linkCount by produceState(initialValue = 0, note.id) {
+        value = withContext(Dispatchers.IO) { repository.getLinkCount(note.id) }
+    }
 
     Card(
         shape = ShapeTokens.mediumShape,
