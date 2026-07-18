@@ -14,6 +14,10 @@
     <string name="automation_yi_zhi_xing_1_ci_zui_jin_2">已执行 %1$s 次 · 最近: %2$s</string>
     <string name="automation_zhou_qi_fen_zhong_shu_15">周期分钟数（&amp;amp;gt;=15）</string>
     <string name="automation_zui_jin_cuo_wu_1">最近错误: %1$s</string>
+    <string name="automation_empty_title">暂无自动化任务</string>
+    <string name="automation_empty_subtitle">创建后，Opedrgent 会按周期帮你整理笔记或运行提示词</string>
+    <string name="automation_empty_action">新建自动化</string>
+    <string name="automation_prompt_label">提示词</string>
     <!-- export -->
     <string name="export_bao_han_hui_hua_ji_yi_bi_ji">包含会话、记忆、笔记、来源的完整上下文</string>
     <string name="export_dao_chu_chun_wen_ben">导出纯文本</string>
