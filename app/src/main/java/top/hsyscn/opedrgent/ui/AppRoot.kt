@@ -233,7 +233,7 @@ fun AppRoot(
                     selectedTab = MainTab.RECORDING
                 }
                 "new_chat" -> {
-                    vm.createSessionAndNavigate("新对话")
+                    vm.createSessionAndNavigate(context.getString(R.string.title_new_session))
                     selectedTab = MainTab.AI
                 }
             }
@@ -613,7 +613,7 @@ fun AppRoot(
                             onNavigateToAi = {
                                 selectedTab = MainTab.AI
                                 if (vm.state.value.current == null) {
-                                    vm.createSessionAndNavigate("新对话")
+                                    vm.createSessionAndNavigate(context.getString(R.string.title_new_session))
                                 }
                             },
                             onNavigateToNotes = { selectedTab = MainTab.NOTES },
@@ -1165,9 +1165,9 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
             isImporting = false
             importMessage = if (result.isSuccess) {
                 vm.refreshGallerySkills() // 刷新列表
-                "导入成功：${result.getOrNull()?.skillName}"
+                context.getString(R.string.msg_import_success_name, result.getOrNull()?.skillName ?: "")
             } else {
-                "导入失败：${result.exceptionOrNull()?.message}"
+                context.getString(R.string.msg_import_failed_reason, result.exceptionOrNull()?.message ?: "")
             }
         }
     }
@@ -1406,7 +1406,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     onClick = {
                         val url = urlInput.trim()
                         if (url.isBlank()) {
-                            importMessage = "请输入 SKILL.md 的 URL"
+                            importMessage = context.getString(R.string.skills_url_input_hint)
                             return@Button
                         }
                         isImporting = true
@@ -1420,9 +1420,9 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 // 延迟关闭对话框
                                 kotlinx.coroutines.delay(800)
                                 showUrlImportDialog = false
-                                "导入成功：${result.getOrNull()?.skillName}"
+                                context.getString(R.string.msg_import_success_name, result.getOrNull()?.skillName ?: "")
                             } else {
-                                "导入失败：${result.exceptionOrNull()?.message}"
+                                context.getString(R.string.msg_import_failed_reason, result.exceptionOrNull()?.message ?: "")
                             }
                         }
                     },

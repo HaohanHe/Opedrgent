@@ -38,8 +38,10 @@ import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -94,7 +96,7 @@ fun AIMessageCard(
                     ),
                 shape = ShapeTokens.largeShape,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
             ) {
                 Column(
                     modifier = Modifier.padding(SpacingTokens.md),
@@ -156,10 +158,10 @@ fun AIMessageCard(
                                 IconButton(onClick = {
                                     userReaction = "up"
                                     feedback.showFeedback(context.getString(R.string.msg_thanks_feedback))
-                                }, modifier = Modifier.size(28.dp)) {
+                                }, modifier = Modifier.size(SizeTokens.iconXl)) {
                                     Box(
                                         modifier = Modifier
-                                            .size(28.dp)
+                                            .size(SizeTokens.iconXl)
                                             .then(
                                                 if (userReaction == "up")
                                                     Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), ShapeTokens.extraSmallShape)
@@ -173,10 +175,10 @@ fun AIMessageCard(
                                 IconButton(onClick = {
                                     userReaction = "down"
                                     feedback.showFeedback(context.getString(R.string.msg_thanks_feedback))
-                                }, modifier = Modifier.size(28.dp)) {
+                                }, modifier = Modifier.size(SizeTokens.iconXl)) {
                                     Box(
                                         modifier = Modifier
-                                            .size(28.dp)
+                                            .size(SizeTokens.iconXl)
                                             .then(
                                                 if (userReaction == "down")
                                                     Modifier.background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), ShapeTokens.extraSmallShape)
@@ -192,7 +194,7 @@ fun AIMessageCard(
                                         clipboard.setText(AnnotatedString(message.textContent))
                                         feedback.showFeedback(context.getString(R.string.msg_copied))
                                     },
-                                    modifier = Modifier.size(28.dp),
+                                    modifier = Modifier.size(SizeTokens.iconXl),
                                 ) {
                                     Text("\uD83D\uDCCB", style = MaterialTheme.typography.bodyMedium)
                                 }

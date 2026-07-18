@@ -19,6 +19,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.Base64
@@ -81,10 +82,10 @@ class StepRealtimeClient(
     private var webSocket: WebSocket? = null
     private var connectionJob: Job? = null
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MINUTES) // WebSocket 长连接，不设读超时
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .pingInterval(20, TimeUnit.SECONDS)
+        .connectTimeout(NetworkConfig.REALTIME_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(NetworkConfig.REALTIME_READ_TIMEOUT_MINUTES, TimeUnit.MINUTES) // WebSocket 长连接，不设读超时
+        .writeTimeout(NetworkConfig.REALTIME_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .pingInterval(NetworkConfig.REALTIME_PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
         .build()
 
     private var currentApiKey = ""

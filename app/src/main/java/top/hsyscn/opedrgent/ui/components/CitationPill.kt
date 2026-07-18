@@ -8,7 +8,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
@@ -34,7 +33,6 @@ fun CitationPill(
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Medium,
         color = accentColor,
         modifier = if (onClick != null) base.clickable { onClick() } else base,
     )

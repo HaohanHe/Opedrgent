@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.ui
 
 import android.app.Application
+import top.hsyscn.opedrgent.R
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -44,6 +45,8 @@ import top.hsyscn.opedrgent.note.AiSearchEngine
 import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
 import top.hsyscn.opedrgent.stt.SystemAudioRecorder
 import top.hsyscn.opedrgent.ui.components.RecordingState
+import top.hsyscn.opedrgent.ui.state.RecorderStateManager
+import top.hsyscn.opedrgent.ui.state.InterviewStateManager
 import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.note.AiSearchResult
 import top.hsyscn.opedrgent.note.Note
@@ -119,18 +122,8 @@ import top.hsyscn.opedrgent.ui.components.QuestionRequest
 import top.hsyscn.opedrgent.ui.components.ConfirmationOption
 import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.tts.TtsPlayer
-import top.hsyscn.opedrgent.interview.InterviewAgent
 import top.hsyscn.opedrgent.interview.InterviewConfig
-import top.hsyscn.opedrgent.interview.InterviewPhase
-import top.hsyscn.opedrgent.interview.InterviewReport
-import top.hsyscn.opedrgent.interview.InterviewType
-import top.hsyscn.opedrgent.interview.DialogueTurn
-import top.hsyscn.opedrgent.interview.CoachFeedback
-import top.hsyscn.opedrgent.interview.VoiceConversationEngine
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
-import top.hsyscn.opedrgent.interview.AnalysisResult
-import top.hsyscn.opedrgent.interview.NextAction
-import top.hsyscn.opedrgent.interview.MaterialEntry
 import java.io.File
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
@@ -358,7 +351,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var contentReplacementState: ContentReplacementState? = null
     private val insightSproutEngine = InsightSproutEngine(
         llmCall = { prompt: String ->
-            val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException("请先在设置里填写 API Key")
+            val apiConfig = apiSettings.getApiConfig() ?: throw IllegalStateException(app.getString(R.string.error_api_key_required))
             LlmClient().chatCompletions(
                 config = apiConfig,
                 system = "你是一个知识分析助手，请根据用户输入进行深度分析。",
@@ -373,34 +366,37 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var currentConfirmationDeferred: CompletableDeferred<Boolean>? = null
 
     // ==================== 录音状态（跨页面存活） ====================
+    /** 录音状态管理器 */
+    val recorder = RecorderStateManager()
+
     /** 当前录音状态，null=空闲/未录音，切页面不丢失 */
-    var recordingState by mutableStateOf<RecordingState?>(null)
+    var recordingState by recorder::recordingState
     /** 录音模式（常规/内录） */
-    var recordingMode by mutableStateOf(RecordingMode.RECORDING)
+    var recordingMode by recorder::recordingMode
     /** 转写结果 */
-    var transcriptResult by mutableStateOf<MeetingTranscriptResult?>(null)
+    var transcriptResult by recorder::transcriptResult
     /** 回放音频 URI */
-    var playbackAudioUri by mutableStateOf<String?>(null)
+    var playbackAudioUri by recorder::playbackAudioUri
     /** 录音已过秒数 */
-    var recordingElapsedSeconds by mutableIntStateOf(0)
+    var recordingElapsedSeconds by recorder::recordingElapsedSeconds
     /** AudioRecord 引用（不序列化，ViewModel 存活则有效） */
-    @Volatile var audioRecordRef: AudioRecord? = null
+    var audioRecordRef: AudioRecord? by recorder::audioRecordRef
     /** SystemAudioRecorder 引用 */
-    @Volatile var systemAudioRecorderRef: SystemAudioRecorder? = null
+    var systemAudioRecorderRef: SystemAudioRecorder? by recorder::systemAudioRecorderRef
     /** 当前录音临时 PCM 文件路径 */
-    var recordingTempFilePath by mutableStateOf<String?>(null)
+    var recordingTempFilePath by recorder::recordingTempFilePath
     /** 实时流式转写文本（录音期间跨页面保留） */
-    var recordingStreamingText by mutableStateOf("")
+    var recordingStreamingText by recorder::recordingStreamingText
     /** 是否正在流式识别中 */
-    var recordingIsStreamingActive by mutableStateOf(false)
+    var recordingIsStreamingActive by recorder::recordingIsStreamingActive
     /** 当前录音振幅（0~1） */
-    var recordingAmplitude by mutableFloatStateOf(0f)
+    var recordingAmplitude by recorder::recordingAmplitude
     /** 录音自动保存的笔记 ID */
-    var autoSavedNoteId by mutableLongStateOf(0L)
+    var autoSavedNoteId by recorder::autoSavedNoteId
     /** 是否已保存到笔记 */
-    var savedToNote by mutableStateOf(false)
+    var savedToNote by recorder::savedToNote
     /** 防空转门锁：防止 LAUNCHER 重复启动录音 */
-    @Volatile var recordingLaunched: Boolean = false
+    var recordingLaunched: Boolean by recorder::recordingLaunched
     // ==================== 通联日志状态 ====================
     /** 当前生成的通联日志（由 AI 解析产生） */
     var contactLog by mutableStateOf<HamContactLog?>(null)
@@ -508,10 +504,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private fun parseConfirmationInput(input: Map<String, String>): ConfirmationRequest {
-        val optionsStr = input["options"] ?: "确认,取消"
+        val optionsStr = input["options"] ?: app.getString(R.string.confirm_options_default)
         val options = optionsStr.split(",").map { ConfirmationOption(label = it.trim()) }
         return ConfirmationRequest(
-            message = input["message"] ?: "确认执行？",
+            message = input["message"] ?: app.getString(R.string.msg_confirm_execute_default),
             detail = input["detail"] ?: "",
             options = options,
             timeoutSeconds = input["timeoutSeconds"]?.toIntOrNull() ?: 30,
@@ -977,7 +973,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     "ask_question" -> {
                         val questions = parseQuestionInput(interaction.input)
                         _questionRequest.value = questions
-                        _state.value = _state.value.copy(streamingPhase = "等待用户选择...")
+                        _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_choice))
                         // 等待用户回答后回传给 AgentService
                         viewModelScope.launch {
                             val answers = _questionResponse.first()
@@ -990,7 +986,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     "ask_confirmation" -> {
                         val request = parseConfirmationInput(interaction.input)
                         _confirmationRequest.value = request
-                        _state.value = _state.value.copy(streamingPhase = "等待确认...")
+                        _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_confirm))
                         viewModelScope.launch {
                             val response = _confirmationResponse.first()
                             agentService.submitUserResponse(
@@ -1428,7 +1424,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             setLoading(true)
             try {
                 val fetched = withContext(Dispatchers.IO) { sourceFetcher.fetchUrl(url) }
-                val raw = fetched.text.takeIf { it.isNotBlank() } ?: "抓取失败：正文为空"
+                val raw = fetched.text.takeIf { it.isNotBlank() } ?: app.getString(R.string.msg_fetch_empty_body)
                 val sanitized = PromptSafety.sanitizeForPrompt(raw, sourceLabel = url)
                 val content = sanitized.content
                 val next = store.addSource(
@@ -1441,7 +1437,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 refreshCurrentSession(sessionId)
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "抓取失败", openWebUrl = url)
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.msg_fetch_failed), openWebUrl = url)
             } finally {
                 setLoading(false)
             }
@@ -1467,7 +1463,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         var sessionId = _state.value.current?.id
         if (sessionId == null) {
             // 从外部入口进入时没有活跃 session，自动创建
-            val session = store.createSession("新对话")
+            val session = store.createSession(app.getString(R.string.title_new_session))
             refreshSessions()
             openSession(session.id)
             sessionId = session.id
@@ -1603,8 +1599,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             "deep" -> {
                 val enabled = !isDeepResearch()
                 saveDeepResearch(enabled)
-                val status = if (enabled) "已开启" else "已关闭"
-                addSystemMessage(sessionId, "深度研究模式$status。开启后复杂问题将由多 Agent 协作处理。")
+                val status = app.getString(if (enabled) R.string.state_enabled else R.string.state_disabled)
+                addSystemMessage(sessionId, app.getString(R.string.msg_deep_research_status, status))
             }
             "orchestrate" -> {
                 if (cmd.requiresArgs && args.isBlank()) {
@@ -1620,9 +1616,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 viewModelScope.launch(Dispatchers.IO) {
                     val file = exportChatMarkdown()
                     val msg = if (file != null) {
-                        "会话已导出: ${file.name}\n路径: ${file.absolutePath}"
+                        app.getString(R.string.msg_export_success, file.name, file.absolutePath)
                     } else {
-                        "导出失败：当前没有活跃会话"
+                        app.getString(R.string.msg_export_failed_no_active_session)
                     }
                     addSystemMessage(sessionId, msg)
                 }
@@ -1639,11 +1635,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         rate = apiSettings.getTtsRate(),
                         pitch = apiSettings.getTtsPitch(),
                     )
-                    addSystemMessage(sessionId, "TTS 朗读: $args")
+                    addSystemMessage(sessionId, app.getString(R.string.msg_tts_speak, args))
                 }
             }
             "interview" -> {
-                addSystemMessage(sessionId, "请在「面试」标签页配置面试参数后开始面试。快捷指令 /interview 仅作导航提示。")
+                addSystemMessage(sessionId, app.getString(R.string.msg_interview_shortcut_hint))
             }
             "help" -> {
                 val helpText = top.hsyscn.opedrgent.utils.SlashCommands.helpText()
@@ -1677,7 +1673,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val dataUrl = uriToBase64DataUrl(imageUri)
             if (dataUrl == null) {
                 DebugLog.w("sendUserMessageWithImage: 图片转换失败: $imageUri")
-                _feedbackMessage.value = "图片加载失败"
+                _feedbackMessage.value = app.getString(R.string.msg_image_load_failed)
                 return@launch
             }
             pendingImage = dataUrl
@@ -1727,7 +1723,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun runSwarm(sessionId: String, userText: String) {
         _state.value = _state.value.copy(
             isStreaming = true,
-            streamingText = "正在启动多Agent协作...",
+            streamingText = app.getString(R.string.msg_starting_multi_agent),
             streamingSessionId = sessionId,
             streamingToolParts = emptyList(),
             streamingPhase = "",
@@ -1772,7 +1768,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val answer = if (result.agentOutputs.size > 1) {
                     buildString {
                         append(result.finalAnswer)
-                        appendLine("\n\n---\n**多Agent协作详情** (${result.agentOutputs.size}个Agent, 耗时${result.processingTimeMs}ms)")
+                        appendLine(app.getString(R.string.msg_multi_agent_details_header, result.agentOutputs.size, result.processingTimeMs))
                         for (output in result.agentOutputs) {
                             appendLine("- **${output.agentName}**: ${output.content.take(80)}...")
                         }
@@ -1798,7 +1794,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 refreshSessions()
             } catch (e: Exception) {
                 DebugLog.e("runSwarm", "AgentSwarm 失败: ${e.message}", e)
-                store.addMessage(sessionId, Role.ASSISTANT, "多Agent执行失败: ${e.message}")
+                store.addMessage(sessionId, Role.ASSISTANT, app.getString(R.string.msg_multi_agent_failed, e.message ?: ""))
                 refreshCurrentSession(sessionId)
                 _state.value = _state.value.copy(
                     isStreaming = false,
@@ -1815,7 +1811,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun sendAudioMessage(filePath: String, durationMs: Long, transcript: String? = null) {
         var sessionId = _state.value.current?.id
         if (sessionId == null) {
-            val session = store.createSession("新对话")
+            val session = store.createSession(app.getString(R.string.title_new_session))
             refreshSessions()
             openSession(session.id)
             sessionId = session.id
@@ -1831,8 +1827,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         // 构造带转录文本的消息内容（如果有）
         val contentText = if (!transcript.isNullOrBlank()) {
-            "[语音消息] $transcript"
-        } else "[语音消息]"
+            app.getString(R.string.msg_voice_message_with_transcript, transcript)
+        } else app.getString(R.string.msg_voice_message)
 
         store.addMessage(
             sessionId = sessionId,
@@ -1863,7 +1859,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             // 创建会话（如果没有活跃会话）
             var sessionId = _state.value.current?.id
             if (sessionId == null) {
-                val session = store.createSession("新对话")
+                val session = store.createSession(app.getString(R.string.title_new_session))
                 refreshSessions()
                 openSession(session.id)
                 sessionId = session.id
@@ -6873,495 +6869,31 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ==================== 面试模式 ====================
 
-    /** 面试 UI 状态数据类 */
-    data class InterviewUiState(
-        val phase: InterviewPhase = InterviewPhase.SETUP,
-        val config: InterviewConfig? = null,
-        val messages: List<DialogueTurn> = emptyList(),
-        val currentQuestionIndex: Int = 0,
-        val questionCount: Int = 0,
-        val elapsedSeconds: Int = 0,
-        val isListening: Boolean = false,
-        val isSpeaking: Boolean = false,
-        val report: InterviewReport? = null,
-        val coachFeedback: CoachFeedback? = null,
-        val analysisResult: AnalysisResult? = null,
-        val error: String? = null,
-        // 全双工通话状态
-        val duplexState: FullDuplexAudioEngine.DuplexState? = null,
-        val isMuted: Boolean = false,
-        val bargeInDetected: Boolean = false,
+    /** 面试状态管理器 */
+    val interview = InterviewStateManager(
+        app = app,
+        apiSettings = apiSettings,
+        llm = llm,
+        tts = tts,
+        noteRepository = noteRepository,
+        scope = viewModelScope,
     )
 
-    private val _interviewState = MutableStateFlow(InterviewUiState())
-
     /** 面试状态暴露给 UI 层 */
-    val interviewState: StateFlow<InterviewUiState> = _interviewState.asStateFlow()
+    val interviewState: StateFlow<InterviewStateManager.InterviewUiState> = interview.interviewState
 
-    /** 面试开始时间戳 */
-    private var interviewStartTime: Long = 0L
-
-    /** 面试对话历史 */
-    private val interviewTranscript: MutableList<DialogueTurn> = Collections.synchronizedList(mutableListOf())
-
-    /** 当前问题索引 */
-    private var currentQuestionIdx = 0
-
-    /** 语音对话引擎 */
-    private var voiceEngine: VoiceConversationEngine? = null
-
-    /**
-     * 开始面试 — 从设置页调用。
-     *
-     * 流程：
-     * 1. 保存配置，切换到 PREPARING 阶段
-     * 2. 分析用户提交的材料（如果有）
-     * 3. 切换到 IN_PROGRESS 阶段
-     * 4. 调用 LLM 生成开场白 + 第一题
-     */
-    fun startInterview(config: InterviewConfig) {
-        viewModelScope.launch {
-            val apiConfig = apiSettings.getApiConfig() ?: return@launch
-            try {
-                // 重置状态
-                interviewTranscript.clear()
-                currentQuestionIdx = 0
-                interviewStartTime = System.currentTimeMillis()
-
-                // 更新状态：进入准备阶段
-                _interviewState.value = InterviewUiState(
-                    phase = InterviewPhase.PREPARING,
-                    config = config,
-                )
-
-                // 如果有材料，先分析
-                if (config.materials.isNotEmpty()) {
-                    val analysisResult = withContext(Dispatchers.IO) {
-                        InterviewAgent.analyzeMaterials(
-                            llmClient = llm,
-                            config = apiConfig,
-                            materials = config.getMaterialsText(),
-                            interviewType = config.type,
-                        )
-                    }
-                    _interviewState.value = _interviewState.value.copy(
-                        analysisResult = analysisResult,
-                    )
-                }
-
-                // 短暂展示分析结果后进入面试
-                delay(1500)
-
-                // 更新状态：进入进行中阶段
-                _interviewState.value = InterviewUiState(
-                    phase = InterviewPhase.IN_PROGRESS,
-                    config = config,
-                    messages = interviewTranscript.toList(),
-                    questionCount = 0,
-                    elapsedSeconds = 0,
-                )
-
-                // 启动计时器
-                launchInterviewTimer()
-
-                // 启动全双工语音引擎
-                val context = getApplication<Application>()
-                val engine = VoiceConversationEngine(context, tts, apiSettings)
-                voiceEngine = engine
-
-                engine.startFullDuplex(
-                    onAiSpeak = { text ->
-                        val turn = DialogueTurn(role = "interviewer", content = text, questionCategory = "追问")
-                        interviewTranscript.add(turn)
-                        currentQuestionIdx++
-                        _interviewState.value = _interviewState.value.copy(
-                            messages = interviewTranscript.toList(),
-                            questionCount = currentQuestionIdx,
-                            isSpeaking = true,
-                        )
-                    },
-                    onUserSpeak = { text ->
-                        val turn = DialogueTurn(role = "candidate", content = text)
-                        interviewTranscript.add(turn)
-                        _interviewState.value = _interviewState.value.copy(
-                            messages = interviewTranscript.toList(),
-                            isListening = false,
-                        )
-                    },
-                    onPartialUserText = { partial ->
-                        _interviewState.value = _interviewState.value.copy(isListening = true)
-                    },
-                    onStateChange = { duplexState ->
-                        _interviewState.value = _interviewState.value.copy(
-                            duplexState = duplexState,
-                            isSpeaking = duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING,
-                            isListening = duplexState == FullDuplexAudioEngine.DuplexState.LISTENING,
-                        )
-                    },
-                    onBargeIn = {
-                        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
-                    },
-                    getAiResponse = { userInput ->
-                        withContext(Dispatchers.IO) {
-                            if (userInput == null) {
-                                // 开场白：生成第一个问题
-                                val firstQuestion = InterviewAgent.generateFirstQuestion(
-                                    llmClient = llm, apiConfig = apiConfig, config = config,
-                                )
-                                firstQuestion
-                            } else {
-                                // 处理用户回答，获取下一个问题
-                                val lastQuestion = interviewTranscript.lastOrNull { it.role == "interviewer" }
-                                val nextAction = InterviewAgent.processAnswer(
-                                    llmClient = llm, apiConfig = apiConfig, config = config,
-                                    answer = userInput,
-                                    currentQuestion = lastQuestion ?: DialogueTurn(role = "interviewer", content = ""),
-                                    history = interviewTranscript.toList(),
-                                    currentQuestionIndex = currentQuestionIdx,
-                                )
-                                when (nextAction) {
-                                    is NextAction.FollowUp -> nextAction.question
-                                    is NextAction.NextQuestion -> nextAction.question
-                                    is NextAction.EndInterview -> {
-                                        launch(Dispatchers.Main) { endInterview() }
-                                        nextAction.reason
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    interviewConfig = config,
-                )
-
-            } catch (e: Exception) {
-                DebugLog.e("Interview", "启动面试失败: ${e.message}", e)
-                _interviewState.value = _interviewState.value.copy(
-                    error = "启动面试失败: ${e.message}",
-                )
-            }
-        }
-    }
-
-    /**
-     * 发送候选人回答 — 文字输入模式。
-     */
-    fun sendInterviewAnswer(answer: String) {
-        viewModelScope.launch {
-            val currentState = _interviewState.value
-            if (currentState.phase != InterviewPhase.IN_PROGRESS || currentState.config == null) return@launch
-            val apiConfig = apiSettings.getApiConfig() ?: return@launch
-
-            try {
-                // 记录候选人回答
-                val answerTurn = DialogueTurn(
-                    role = "candidate",
-                    content = answer,
-                )
-                interviewTranscript.add(answerTurn)
-                currentQuestionIdx++
-
-                // 更新状态为思考中
-                _interviewState.value = currentState.copy(
-                    messages = interviewTranscript.toList(),
-                    questionCount = currentQuestionIdx,
-                    phase = InterviewPhase.EVALUATING, // 复用 EVALUATING 表示 AI 思考中
-                )
-
-                // 获取当前问题（最后一个面试官问题）
-                val lastInterviewerMessage = interviewTranscript.lastOrNull { it.role == "interviewer" }
-                    ?: return@launch
-
-                // 调用 LLM 处理回答
-                val nextAction = withContext(Dispatchers.IO) {
-                    InterviewAgent.processAnswer(
-                        llmClient = llm,
-                        apiConfig = apiConfig,
-                        config = currentState.config,
-                        answer = answer,
-                        currentQuestion = lastInterviewerMessage,
-                        history = interviewTranscript.toList(),
-                        currentQuestionIndex = currentQuestionIdx - 1,
-                    )
-                }
-
-                // 处理下一步动作
-                when (nextAction) {
-                    is NextAction.FollowUp -> {
-                        val followUpTurn = DialogueTurn(
-                            role = "interviewer",
-                            content = nextAction.question,
-                            questionCategory = "追问",
-                            followUpDepth = lastInterviewerMessage.followUpDepth + 1,
-                        )
-                        interviewTranscript.add(followUpTurn)
-                    }
-                    is NextAction.NextQuestion -> {
-                        val nextQTurn = DialogueTurn(
-                            role = "interviewer",
-                            content = nextAction.question,
-                            questionCategory = nextAction.category,
-                            followUpDepth = 0,
-                        )
-                        interviewTranscript.add(nextQTurn)
-                    }
-                    is NextAction.EndInterview -> {
-                        // 结束面试，生成报告
-                        val endTurn = DialogueTurn(
-                            role = "interviewer",
-                            content = nextAction.reason,
-                            questionCategory = "结束",
-                        )
-                        interviewTranscript.add(endTurn)
-
-                        generateFinalReport(currentState.config, apiConfig)
-                        return@launch
-                    }
-                }
-
-                // 可选：生成教练反馈（如果启用）
-                if (currentState.config.enableCoach || currentState.config.enableRealtimeFeedback) {
-                    val coachFb = withContext(Dispatchers.IO) {
-                        InterviewAgent.generateCoachFeedback(
-                            llmClient = llm,
-                            apiConfig = apiConfig,
-                            question = lastInterviewerMessage,
-                            answer = answerTurn,
-                        )
-                    }
-                    _interviewState.value = _interviewState.value.copy(coachFeedback = coachFb)
-                }
-
-                // 恢复正常状态
-                _interviewState.value = _interviewState.value.copy(
-                    phase = InterviewPhase.IN_PROGRESS,
-                    config = currentState.config,
-                    messages = interviewTranscript.toList(),
-                    questionCount = interviewTranscript.count { it.role == "interviewer" },
-                    elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
-                )
-
-            } catch (e: Exception) {
-                DebugLog.e("Interview", "处理回答失败: ${e.message}", e)
-                _interviewState.value = _interviewState.value.copy(
-                    phase = InterviewPhase.IN_PROGRESS,
-                    error = "处理失败: ${e.message}",
-                )
-            }
-        }
-    }
-
-    /**
-     * 结束面试并生成报告。
-     */
-    fun endInterview() {
-        viewModelScope.launch {
-            val currentState = _interviewState.value
-            if (currentState.config == null) return@launch
-            val apiConfig = apiSettings.getApiConfig() ?: return@launch
-
-            generateFinalReport(currentState.config, apiConfig)
-        }
-    }
-
-    /**
-     * 生成最终评估报告。
-     */
-    private suspend fun generateFinalReport(config: InterviewConfig, apiConfig: top.hsyscn.opedrgent.settings.ApiConfig) {
-        _interviewState.value = _interviewState.value.copy(phase = InterviewPhase.EVALUATING)
-
-        try {
-            val report = withContext(Dispatchers.IO) {
-                InterviewAgent.generateReport(
-                    llmClient = llm,
-                    apiConfig = apiConfig,
-                    config = config,
-                    fullTranscript = interviewTranscript.toList(),
-                )
-            }
-
-            _interviewState.value = InterviewUiState(
-                phase = InterviewPhase.COMPLETED,
-                config = config,
-                messages = interviewTranscript.toList(),
-                questionCount = interviewTranscript.count { it.role == "interviewer" },
-                elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
-                report = report,
-            )
-        } catch (e: Exception) {
-            DebugLog.e("Interview", "生成报告失败: ${e.message}", e)
-            _interviewState.value = _interviewState.value.copy(
-                phase = InterviewPhase.COMPLETED,
-                error = "报告生成失败: ${e.message}",
-            )
-        } finally {
-            voiceEngine?.stopFullDuplex()
-        }
-    }
-
-    /**
-     * 重置面试状态。
-     */
-    fun resetInterview() {
-        voiceEngine?.stopFullDuplex()
-        voiceEngine = null
-        interviewTranscript.clear()
-        currentQuestionIdx = 0
-        interviewStartTime = 0L
-        _interviewState.value = InterviewUiState()
-    }
-
-    /**
-     * 开始语音监听（ASR）。
-     */
-    fun startInterviewListening() {
-        val context = getApplication<Application>()
-
-        // 延迟初始化语音引擎
-        if (voiceEngine == null) {
-            voiceEngine = VoiceConversationEngine(context, tts, apiSettings)
-        }
-
-        _interviewState.value = _interviewState.value.copy(isListening = true)
-
-        voiceEngine?.startListening { partialText ->
-            // 可以在这里实时显示识别结果（可选）
-        }
-    }
-
-    /**
-     * 停止语音监听。
-     */
-    fun stopInterviewListening() {
-        voiceEngine?.stopListening()
-        _interviewState.value = _interviewState.value.copy(isListening = false)
-    }
-
-    /**
-     * 停止 TTS 播放。
-     */
-    fun stopInterviewSpeaking() {
-        tts.stop()
-        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
-    }
-
-    /**
-     * 切换面试模式静音状态（全双工通话控制）。
-     *
-     * 调用 FullDuplexAudioEngine.muteUser() / unmuteUser()
-     * 同时更新 UI 状态中的 isMuted 字段
-     */
-    fun toggleInterviewMute() {
-        val currentState = _interviewState.value
-        val newMuted = !currentState.isMuted
-
-        // 通过语音引擎切换静音
-        voiceEngine?.let { engine ->
-            // VoiceConversationEngine 内部应封装对 FullDuplexAudioEngine 的静音调用
-            runCatching {
-                if (newMuted) {
-                    engine.muteUser()
-                } else {
-                    engine.unmuteUser()
-                }
-            }
-        }
-
-        // 更新 UI 状态
-        _interviewState.value = currentState.copy(
-            isMuted = newMuted,
-            duplexState = if (newMuted) FullDuplexAudioEngine.DuplexState.MUTED else currentState.duplexState,
-        )
-    }
-
-    /**
-     * 更新全双工通话状态（由语音引擎回调触发）。
-     */
-    fun updateDuplexState(state: FullDuplexAudioEngine.DuplexState) {
-        _interviewState.value = _interviewState.value.copy(duplexState = state)
-    }
-
-    /**
-     * 标记插话事件（BargeIn）发生/消失。
-     */
-    fun setBargeInDetected(detected: Boolean) {
-        _interviewState.value = _interviewState.value.copy(bargeInDetected = detected)
-    }
-
-    /**
-     * 让面试官说话（TTS）。
-     */
-    suspend fun speakAsInterviewer(text: String) {
-        _interviewState.value = _interviewState.value.copy(isSpeaking = true)
-        voiceEngine?.aiSpeak(text)
-        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
-    }
-
-    /**
-     * 保存面试报告到笔记。
-     */
-    fun saveInterviewReportToNote() {
-        viewModelScope.launch {
-            val report = _interviewState.value.report ?: return@launch
-
-            try {
-                val noteContent = buildString {
-                    appendLine("# 面试评估报告")
-                    appendLine()
-                    appendLine("**类型**: ${report.type.label}")
-                    appendLine("**总分**: ${report.overallScore} 分 (${report.verdict.label})")
-                    appendLine("**时长**: ${report.durationSeconds} 秒")
-                    appendLine("**问题数**: ${report.questionCount}")
-                    appendLine()
-                    appendLine("## 总体评价")
-                    appendLine(report.summary)
-                    appendLine()
-                    if (report.strengths.isNotEmpty()) {
-                        appendLine("## [优势]")
-                        report.strengths.forEach { appendLine("- $it") }
-                        appendLine()
-                    }
-                    if (report.weaknesses.isNotEmpty()) {
-                        appendLine("## [不足]")
-                        report.weaknesses.forEach { appendLine("- $it") }
-                        appendLine()
-                    }
-                    if (report.recommendations.isNotEmpty()) {
-                        appendLine("## [改进建议]")
-                        report.recommendations.forEach { appendLine("- $it") }
-                        appendLine()
-                    }
-                    if (report.dimensions.isNotEmpty()) {
-                        appendLine("## [各维度评分]")
-                        report.dimensions.forEach { dim ->
-                            appendLine("- **${dim.name}**: ${dim.score}/${dim.maxScore.toInt()} - ${dim.feedback}")
-                        }
-                    }
-                }
-
-                noteRepository.quickCreate(
-                    content = noteContent,
-                    type = top.hsyscn.opedrgent.note.NoteType.TEXT,
-                )
-
-                DebugLog.i("Interview", "面试报告已保存到笔记")
-            } catch (e: Exception) {
-                DebugLog.e("Interview", "保存报告失败: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
-     * 启动面试计时器（每秒更新一次）。
-     */
-    private fun launchInterviewTimer() {
-        viewModelScope.launch {
-            while (_interviewState.value.phase == InterviewPhase.IN_PROGRESS) {
-                delay(1000L)
-                val elapsed = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt()
-                _interviewState.value = _interviewState.value.copy(elapsedSeconds = elapsed)
-            }
-        }
-    }
+    fun startInterview(config: InterviewConfig) = interview.startInterview(config)
+    fun sendInterviewAnswer(answer: String) = interview.sendInterviewAnswer(answer)
+    fun endInterview() = interview.endInterview()
+    fun resetInterview() = interview.resetInterview()
+    fun startInterviewListening() = interview.startInterviewListening()
+    fun stopInterviewListening() = interview.stopInterviewListening()
+    fun stopInterviewSpeaking() = interview.stopInterviewSpeaking()
+    fun toggleInterviewMute() = interview.toggleInterviewMute()
+    fun updateDuplexState(state: FullDuplexAudioEngine.DuplexState) = interview.updateDuplexState(state)
+    fun setBargeInDetected(detected: Boolean) = interview.setBargeInDetected(detected)
+    suspend fun speakAsInterviewer(text: String) = interview.speakAsInterviewer(text)
+    fun saveInterviewReportToNote() = interview.saveInterviewReportToNote()
 
     // ==================== AI 笔记搜索 ====================
 

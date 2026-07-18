@@ -18,6 +18,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.storage.HippocampusIndex
@@ -125,9 +126,9 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
     private val httpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(600, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.SPROUT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.SPROUT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.SPROUT_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
 

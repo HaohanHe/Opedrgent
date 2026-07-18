@@ -28,9 +28,9 @@ object MapTileFetcher {
 
     private val tileClient: OkHttpClient by lazy {
         HttpClients.default.newBuilder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .callTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(NetworkConfig.MAP_TILE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.MAP_TILE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.MAP_TILE_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
 

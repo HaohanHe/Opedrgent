@@ -154,4 +154,32 @@
     <string name="onboarding_page_sprout_subtitle">对任意笔记触发发芽，AI 将从多个视角深度分析，生成灵感连接、洞察与行动建议。支持以结果为种子再次发芽。</string>
     <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
     <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
+
+    <!-- MainViewModel / AppRoot UI messages -->
+    <string name="error_api_key_required">请先在设置里填写 API Key</string>
+    <string name="msg_confirm_execute_default">确认执行？</string>
+    <string name="confirm_options_default">确认,取消</string>
+    <string name="streaming_phase_waiting_choice">等待用户选择...</string>
+    <string name="streaming_phase_waiting_confirm">等待确认...</string>
+    <string name="msg_fetch_empty_body">抓取失败：正文为空</string>
+    <string name="msg_fetch_failed">抓取失败</string>
+    <string name="msg_deep_research_status">深度研究模式%1$s。开启后复杂问题将由多 Agent 协作处理。</string>
+    <string name="state_enabled">已开启</string>
+    <string name="state_disabled">已关闭</string>
+    <string name="msg_export_success">会话已导出: %1$s\n路径: %2$s</string>
+    <string name="msg_export_failed_no_active_session">导出失败：当前没有活跃会话</string>
+    <string name="msg_tts_speak">TTS 朗读: %1$s</string>
+    <string name="msg_interview_shortcut_hint">请在「面试」标签页配置面试参数后开始面试。快捷指令 /interview 仅作导航提示。</string>
+    <string name="msg_image_load_failed">图片加载失败</string>
+    <string name="msg_starting_multi_agent">正在启动多Agent协作...</string>
+    <string name="msg_multi_agent_details_header">\n\n---\n**多Agent协作详情** (%1$d个Agent, 耗时%2$dms)</string>
+    <string name="msg_multi_agent_failed">多Agent执行失败: %1$s</string>
+    <string name="msg_voice_message_with_transcript">[语音消息] %1$s</string>
+    <string name="msg_voice_message">[语音消息]</string>
+    <string name="msg_import_success_name">导入成功：%1$s</string>
+    <string name="msg_import_failed_reason">导入失败：%1$s</string>
+
+    <!-- Preview samples -->
+    <string name="sample_transcript">你好，这是一段语音转录的样例文本。</string>
+    <string name="sample_user_message_preview">你好，这是一条用户消息预览。</string>
 </resources>

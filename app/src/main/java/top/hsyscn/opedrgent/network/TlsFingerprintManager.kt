@@ -194,10 +194,10 @@ object TlsFingerprintManager {
             return OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .callTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(NetworkConfig.TLS_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(NetworkConfig.TLS_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .writeTimeout(NetworkConfig.TLS_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .callTimeout(NetworkConfig.TLS_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
                 
         } catch (e: Exception) {

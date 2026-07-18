@@ -50,4 +50,60 @@ object NetworkConfig {
 
     // 默认客户端总调用超时兜底
     const val DEFAULT_CALL_TIMEOUT_SECONDS = 60L
+
+    // WebDAV 同步客户端超时
+    const val WEBDAV_CONNECT_TIMEOUT_SECONDS = 15L
+    const val WEBDAV_READ_TIMEOUT_SECONDS = 30L
+    const val WEBDAV_WRITE_TIMEOUT_SECONDS = 30L
+
+    // OCR 模型下载客户端超时
+    const val OCR_MODEL_DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 30L
+    const val OCR_MODEL_DOWNLOAD_READ_TIMEOUT_SECONDS = 120L
+    const val OCR_MODEL_DOWNLOAD_WRITE_TIMEOUT_SECONDS = 30L
+
+    // ASR 后处理器 API 客户端超时
+    const val ASR_POST_PROCESSOR_CONNECT_TIMEOUT_SECONDS = 10L
+    const val ASR_POST_PROCESSOR_READ_TIMEOUT_SECONDS = 30L
+
+    // STT 模型下载客户端超时
+    const val STT_MODEL_DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 30L
+    const val STT_MODEL_DOWNLOAD_READ_TIMEOUT_SECONDS = 120L
+    const val STT_MODEL_DOWNLOAD_WRITE_TIMEOUT_SECONDS = 30L
+
+    // === SkillLoader 技能加载/更新 ===
+    const val SKILL_LOAD_CONNECT_TIMEOUT_SECONDS = 15L
+    const val SKILL_LOAD_READ_TIMEOUT_SECONDS = 30L
+
+    const val SKILL_UPDATE_CONNECT_TIMEOUT_SECONDS = 10L
+    const val SKILL_UPDATE_READ_TIMEOUT_SECONDS = 15L
+
+    // === StepImageGenTool 图片生成 ===
+    const val IMAGE_GEN_CONNECT_TIMEOUT_SECONDS = 30L
+    const val IMAGE_GEN_READ_TIMEOUT_SECONDS = 120L
+    const val IMAGE_GEN_WRITE_TIMEOUT_SECONDS = 60L
+
+    // === ReadUrlTool URL 读取 ===
+    const val READ_URL_TIMEOUT_MS = 15_000L
+
+    // === TlsFingerprintManager TLS 指纹 ===
+    const val TLS_CONNECT_TIMEOUT_SECONDS = 15L
+    const val TLS_READ_TIMEOUT_SECONDS = 30L
+    const val TLS_WRITE_TIMEOUT_SECONDS = 30L
+    const val TLS_CALL_TIMEOUT_SECONDS = 60L
+
+    // === 阶跃星辰 StepRealtime 实时语音 WebSocket 客户端 ===
+    const val REALTIME_CONNECT_TIMEOUT_SECONDS = 10L
+    const val REALTIME_READ_TIMEOUT_MINUTES = 0L         // WebSocket 长连接，不设读超时
+    const val REALTIME_WRITE_TIMEOUT_SECONDS = 30L
+    const val REALTIME_PING_INTERVAL_SECONDS = 20L
+
+    // === 发芽服务 LLM 调用超时 ===
+    const val SPROUT_CONNECT_TIMEOUT_SECONDS = 30L
+    const val SPROUT_READ_TIMEOUT_SECONDS = 600L         // 10 分钟
+    const val SPROUT_WRITE_TIMEOUT_SECONDS = 30L
+
+    // === 地图瓦片下载超时 ===
+    const val MAP_TILE_CONNECT_TIMEOUT_SECONDS = 8L
+    const val MAP_TILE_READ_TIMEOUT_SECONDS = 8L
+    const val MAP_TILE_CALL_TIMEOUT_SECONDS = 15L
 }
