@@ -299,8 +299,8 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
             // 按 NORAD ID 精确匹配
             listOfNotNull(allTle[noradIdQuery])
         } else {
-            // 按名称模糊匹配（大小写不敏感）
-            allTle.values.filter { it.name.contains(satelliteQuery, ignoreCase = true) }
+            // 按名称整词匹配，避免 "AO-7" 误匹配 "AO-73"
+            allTle.values.filter { it.name.containsToken(satelliteQuery, ignoreCase = true) }
         }
 
         if (matched.isEmpty()) {
@@ -661,6 +661,31 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         val aosEl = elevationAt(orbitalObject, geoPos, aosTime) ?: return "升段"
         val prevEl = elevationAt(orbitalObject, geoPos, aosTime - 60_000L) ?: return "升段"
         return if (aosEl >= prevEl) "升段" else "降段"
+    }
+
+    // ==================== 通用字符串工具 ====================
+
+    /**
+     * 判断 [text] 中是否包含完整的 [token]（token 前后不能是字母、数字或连字符）。
+     * 避免 "AO-7" 子串误匹配到 "AO-73"。
+     */
+    private fun String.containsToken(token: String, ignoreCase: Boolean = true): Boolean {
+        if (token.isBlank()) return false
+        val t = if (ignoreCase) token.lowercase() else token
+        val s = if (ignoreCase) this.lowercase() else this
+        var start = 0
+        while (true) {
+            val idx = s.indexOf(t, start, ignoreCase = false)
+            if (idx == -1) return false
+            val before = if (idx == 0) ' ' else s[idx - 1]
+            val after = if (idx + t.length >= s.length) ' ' else s[idx + t.length]
+            if (!before.isLetterOrDigit() && before != '-' &&
+                !after.isLetterOrDigit() && after != '-'
+            ) {
+                return true
+            }
+            start = idx + 1
+        }
     }
 
     // ==================== TLE 解析 ====================
