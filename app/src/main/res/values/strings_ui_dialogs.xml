@@ -221,6 +221,9 @@
     <string name="recording_csv_export_failed">CSV 导出失败: %1$s</string>
     <string name="recording_save_failed">保存失败: %1$s</string>
     <string name="recording_unknown_error">未知错误</string>
+    <string name="recording_norad_id">NORAD ID</string>
+    <string name="recording_export_adif">ADIF</string>
+    <string name="recording_export_csv">CSV</string>
     <string name="recording_contact_log_note_title">通联日志 %1$s %2$s</string>
     <string name="recording_contact_log_header">## 通联日志</string>
     <string name="recording_contact_log_satellite">- 卫星: %1$s</string>
