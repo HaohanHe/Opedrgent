@@ -752,6 +752,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun isHamModeEnabled(): Boolean = apiSettings.isHamModeEnabled()
     fun saveHamModeEnabled(enabled: Boolean) = apiSettings.saveHamModeEnabled(enabled)
+    fun getStationCallsign(): String = apiSettings.getStationCallsign()
+    fun saveStationCallsign(callsign: String) = apiSettings.saveStationCallsign(callsign)
+    fun getMyGridsquare(): String = apiSettings.getMyGridsquare()
+    fun saveMyGridsquare(grid: String) = apiSettings.saveMyGridsquare(grid)
     fun getLastLatitude(): Float? = apiSettings.getLastLatitude()
     fun getLastLongitude(): Float? = apiSettings.getLastLongitude()
 

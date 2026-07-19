@@ -13,6 +13,7 @@ import android.net.Uri
 import androidx.health.connect.client.HealthConnectClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -211,6 +212,10 @@ fun SettingsScreen(
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
     var hamModeEnabled by rememberSaveable { mutableStateOf(vm.isHamModeEnabled()) }
+    var hamCallsign by rememberSaveable { mutableStateOf(vm.getStationCallsign()) }
+    var hamCallsignError by rememberSaveable { mutableStateOf(false) }
+    var hamGridsquare by rememberSaveable { mutableStateOf(vm.getMyGridsquare()) }
+    var hamGridsquareError by rememberSaveable { mutableStateOf(false) }
     var debugMode by rememberSaveable { mutableStateOf(vm.isDebugMode()) }
     var calendarEnabled by rememberSaveable { mutableStateOf(vm.isCalendarEnabled()) }
     var healthEnabled by rememberSaveable { mutableStateOf(vm.isHealthEnabled()) }
@@ -1517,6 +1522,48 @@ fun SettingsScreen(
                             }
                         },
                     )
+                    AnimatedVisibility(visible = hamModeEnabled) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = SpacingTokens.md)
+                                .padding(bottom = SpacingTokens.sm),
+                        ) {
+                            OutlinedTextField(
+                                value = hamCallsign,
+                                onValueChange = {
+                                    hamCallsign = it.uppercase()
+                                    hamCallsignError = it.isNotBlank() && !it.matches(Regex("""[A-Za-z0-9/]+"""))
+                                    if (!hamCallsignError) vm.saveStationCallsign(it.uppercase())
+                                },
+                                label = { Text(stringResource(R.string.settings_ham_station_callsign)) },
+                                placeholder = { Text(stringResource(R.string.settings_ham_station_callsign_hint)) },
+                                isError = hamCallsignError,
+                                supportingText = if (hamCallsignError) {
+                                    { Text(stringResource(R.string.settings_ham_station_callsign_invalid)) }
+                                } else null,
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(SpacingTokens.sm))
+                            OutlinedTextField(
+                                value = hamGridsquare,
+                                onValueChange = {
+                                    hamGridsquare = it.uppercase()
+                                    hamGridsquareError = it.isNotBlank() && !it.matches(Regex("""[A-Ra-r]{2}\d{2}([A-Xa-x]{2})?"""))
+                                    if (!hamGridsquareError) vm.saveMyGridsquare(it.uppercase())
+                                },
+                                label = { Text(stringResource(R.string.settings_ham_my_gridsquare)) },
+                                placeholder = { Text(stringResource(R.string.settings_ham_my_gridsquare_hint)) },
+                                isError = hamGridsquareError,
+                                supportingText = if (hamGridsquareError) {
+                                    { Text(stringResource(R.string.settings_ham_my_gridsquare_invalid)) }
+                                } else null,
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                     SettingSwitchRow(
                         title = stringResource(R.string.settings_deep_thinking),
                         subtitle = stringResource(R.string.settings_deep_thinking_desc),
