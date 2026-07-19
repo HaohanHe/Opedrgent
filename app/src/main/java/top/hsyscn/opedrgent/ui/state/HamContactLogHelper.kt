@@ -32,12 +32,39 @@ object HamContactLogHelper {
         return try {
             val sats = satelliteTool(app, apiSettings).satelliteDb()
             sats.firstOrNull { sat ->
-                text.contains(sat.name, ignoreCase = true) ||
-                    (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true)) ||
-                    text.contains(sat.noradId.toString())
+                val aliases = listOfNotNull(
+                    sat.name,
+                    sat.name.substringBefore("(").trim().takeIf { it != sat.name },
+                    sat.oscar,
+                )
+                aliases.any { alias -> text.containsToken(alias, ignoreCase = true) } ||
+                    text.containsToken(sat.noradId.toString(), ignoreCase = true)
             }
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * 判断 [text] 中是否包含完整的 [token]（ token 前后不能是字母、数字或连字符）。
+     * 用于避免 "AO-7" 误匹配到 "AO-73" 这类子串问题。
+     */
+    private fun String.containsToken(token: String, ignoreCase: Boolean = true): Boolean {
+        if (token.isBlank()) return false
+        val t = if (ignoreCase) token.lowercase() else token
+        val s = if (ignoreCase) this.lowercase() else this
+        var start = 0
+        while (true) {
+            val idx = s.indexOf(t, start, ignoreCase = false)
+            if (idx == -1) return false
+            val before = if (idx == 0) ' ' else s[idx - 1]
+            val after = if (idx + t.length >= s.length) ' ' else s[idx + t.length]
+            if (!before.isLetterOrDigit() && before != '-' &&
+                !after.isLetterOrDigit() && after != '-'
+            ) {
+                return true
+            }
+            start = idx + 1
         }
     }
 
