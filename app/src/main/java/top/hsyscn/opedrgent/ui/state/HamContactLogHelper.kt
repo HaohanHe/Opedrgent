@@ -6,6 +6,7 @@ import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.lang.ref.WeakReference
 
 /**
  * 业余卫星通联日志辅助类。
@@ -15,14 +16,21 @@ import top.hsyscn.opedrgent.utils.DebugLog
  */
 object HamContactLogHelper {
 
+    /** 缓存 [SatellitePassTool] 实例，避免每次转通联日志都重新解析 assets 卫星数据库。 */
+    private var satelliteToolRef: WeakReference<SatellitePassTool>? = null
+
+    private fun satelliteTool(app: Application, apiSettings: ApiSettings): SatellitePassTool {
+        return satelliteToolRef?.get()
+            ?: SatellitePassTool(app, apiSettings).also { satelliteToolRef = WeakReference(it) }
+    }
+
     /**
      * 从卫星数据库中查找文本里提及的卫星。
      */
     fun findSatelliteInText(text: String, app: Application, apiSettings: ApiSettings): SatellitePassTool.HamSatellite? {
         if (text.isBlank()) return null
         return try {
-            val tool = SatellitePassTool(app, apiSettings)
-            val sats = tool.satelliteDb()
+            val sats = satelliteTool(app, apiSettings).satelliteDb()
             sats.firstOrNull { sat ->
                 text.contains(sat.name, ignoreCase = true) ||
                     (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true))
@@ -34,16 +42,18 @@ object HamContactLogHelper {
 
     /**
      * 合并预填充 + AI 提取：预填充优先，AI 只补空字段。
+     *
+     * 对 AI 返回的 time/frequency/result 做归一化，避免格式不统一导致 ADIF/CSV 导出失败。
      */
     fun mergeContactLog(preFilled: HamContactLog, aiLog: HamContactLog?): HamContactLog {
         if (aiLog == null) return preFilled
         return HamContactLog(
             date = preFilled.date.ifBlank { aiLog.date },
-            timeOn = preFilled.timeOn.ifBlank { aiLog.timeOn },
-            timeOff = preFilled.timeOff.ifBlank { aiLog.timeOff },
+            timeOn = preFilled.timeOn.ifBlank { normalizeTime(aiLog.timeOn) },
+            timeOff = preFilled.timeOff.ifBlank { normalizeTime(aiLog.timeOff) },
             satName = preFilled.satName.ifBlank { aiLog.satName },
             callsign = preFilled.callsign.ifBlank { aiLog.callsign },
-            frequency = preFilled.frequency.ifBlank { aiLog.frequency },
+            frequency = preFilled.frequency.ifBlank { normalizeFrequency(aiLog.frequency) },
             mode = preFilled.mode.ifBlank { aiLog.mode },
             rstSent = preFilled.rstSent.ifBlank { aiLog.rstSent },
             rstReceived = preFilled.rstReceived.ifBlank { aiLog.rstReceived },
@@ -51,8 +61,30 @@ object HamContactLogHelper {
             gridLocator = preFilled.gridLocator.ifBlank { aiLog.gridLocator },
             noradId = preFilled.noradId.ifBlank { aiLog.noradId },
             maxElevation = preFilled.maxElevation.ifBlank { aiLog.maxElevation },
-            result = preFilled.result.ifBlank { aiLog.result },
+            result = preFilled.result.ifBlank { HamContactLog.normalizeResult(aiLog.result) },
         )
+    }
+
+    /**
+     * 时间归一化：尝试把 AI 可能返回的 HHMM/HH:MM/HH:MM:SS 等转为 ADIF 要求的 HHMMSS。
+     */
+    private fun normalizeTime(raw: String): String {
+        val digits = raw.filter { it.isDigit() }
+        return when (digits.length) {
+            4 -> digits + "00"
+            6 -> digits
+            else -> raw.trim()
+        }
+    }
+
+    /**
+     * 频率归一化：去掉单位，只保留数字（MHz）。
+     */
+    private fun normalizeFrequency(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        if (trimmed.toDoubleOrNull() != null) return trimmed
+        return Regex("""\d+(\.\d+)?""").find(trimmed)?.value ?: trimmed
     }
 
     /**
@@ -66,9 +98,10 @@ object HamContactLogHelper {
 
     /**
      * 经纬度转梅登海格 6 字符网格。
+     *
+     * 标准 Maidenhead 算法：field (18° x 9°) + square (2° x 1°) + subsquare (5' x 2.5')。
      */
     fun latLonToGrid(lat: Float, lon: Float): String {
-        // 简化转换：仅做粗略估算，不做完整梅登海格计算
         val latAdj = lat + 90.0
         val lonAdj = lon + 180.0
         val fieldLon = (lonAdj / 20.0).toInt().coerceIn(0, 17)
