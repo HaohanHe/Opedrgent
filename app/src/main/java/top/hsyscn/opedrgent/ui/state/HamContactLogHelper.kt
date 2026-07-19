@@ -48,20 +48,22 @@ object HamContactLogHelper {
     fun mergeContactLog(preFilled: HamContactLog, aiLog: HamContactLog?): HamContactLog {
         if (aiLog == null) return preFilled
         return HamContactLog(
-            date = preFilled.date.ifBlank { aiLog.date },
-            timeOn = preFilled.timeOn.ifBlank { normalizeTime(aiLog.timeOn) },
-            timeOff = preFilled.timeOff.ifBlank { normalizeTime(aiLog.timeOff) },
+            // 日期/时间优先采用 AI 从文本中提取的值；提取不到时再用录音开始时间兜底
+            date = aiLog.date.takeIf { it.isNotBlank() } ?: preFilled.date,
+            timeOn = aiLog.timeOn.takeIf { it.isNotBlank() }?.let { normalizeTime(it) } ?: preFilled.timeOn,
+            timeOff = aiLog.timeOff.takeIf { it.isNotBlank() }?.let { normalizeTime(it) } ?: preFilled.timeOff,
+            // 卫星、频率、调制、网格等可靠信息预填充优先，防止 AI 幻觉
             satName = preFilled.satName.ifBlank { aiLog.satName },
-            callsign = preFilled.callsign.ifBlank { aiLog.callsign },
+            callsign = aiLog.callsign.takeIf { it.isNotBlank() } ?: preFilled.callsign,
             frequency = preFilled.frequency.ifBlank { normalizeFrequency(aiLog.frequency) },
             mode = preFilled.mode.ifBlank { aiLog.mode },
-            rstSent = preFilled.rstSent.ifBlank { aiLog.rstSent },
-            rstReceived = preFilled.rstReceived.ifBlank { aiLog.rstReceived },
-            notes = preFilled.notes.ifBlank { aiLog.notes },
+            rstSent = aiLog.rstSent.takeIf { it.isNotBlank() } ?: preFilled.rstSent,
+            rstReceived = aiLog.rstReceived.takeIf { it.isNotBlank() } ?: preFilled.rstReceived,
+            notes = aiLog.notes.takeIf { it.isNotBlank() } ?: preFilled.notes,
             gridLocator = preFilled.gridLocator.ifBlank { aiLog.gridLocator },
             noradId = preFilled.noradId.ifBlank { aiLog.noradId },
-            maxElevation = preFilled.maxElevation.ifBlank { aiLog.maxElevation },
-            result = preFilled.result.ifBlank { HamContactLog.normalizeResult(aiLog.result) },
+            maxElevation = aiLog.maxElevation.takeIf { it.isNotBlank() } ?: preFilled.maxElevation,
+            result = aiLog.result.takeIf { it.isNotBlank() }?.let { HamContactLog.normalizeResult(it) } ?: preFilled.result,
         )
     }
 
