@@ -33,7 +33,8 @@ object HamContactLogHelper {
             val sats = satelliteTool(app, apiSettings).satelliteDb()
             sats.firstOrNull { sat ->
                 text.contains(sat.name, ignoreCase = true) ||
-                    (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true))
+                    (sat.oscar != null && text.contains(sat.oscar, ignoreCase = true)) ||
+                    text.contains(sat.noradId.toString())
             }
         } catch (e: Exception) {
             null
