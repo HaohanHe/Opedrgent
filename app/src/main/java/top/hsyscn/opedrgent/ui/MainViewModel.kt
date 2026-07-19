@@ -684,7 +684,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         appendLine()
                         appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
                         appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
-                        appendLine("  callsign: 对方呼号（地面通联时）")
+                        appendLine("  callsign: 对方呼号（卫星或地面通联都必须填写，若文本中确实没有则留空）")
                         appendLine("  rstSent: 发射信号报告 (如 59, 599)")
                         appendLine("  rstReceived: 接收信号报告")
                         appendLine("  maxElevation: 最高仰角度数")
