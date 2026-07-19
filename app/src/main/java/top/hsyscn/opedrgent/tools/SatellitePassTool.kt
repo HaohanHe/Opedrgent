@@ -309,6 +309,9 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
     /**
      * 拉取 celestrak 全部活跃卫星 TLE（GROUP=active），用于 action=search。
      * 使用独立缓存（tle_active.txt，与 amateur 缓存分离，避免相互覆盖），24 小时有效。
+     *
+     * 若活跃目录拉取失败且无有效缓存，则回退到业余卫星 TLE 缓存（fetchTleMap），
+     * 保证在国内网络/弱网环境下仍能搜索常见业余卫星。
      */
     private suspend fun fetchActiveTleText(): String? = withContext(Dispatchers.IO) {
         val cacheFile = File(context.cacheDir, "tle_active.txt")
@@ -344,6 +347,12 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         // 拉取失败，回退到过期缓存
         if (cacheFile.exists()) {
             return@withContext runCatching { cacheFile.readText() }.getOrNull()
+        }
+
+        // 活跃目录完全不可用，降级到业余卫星缓存（覆盖常见 HAM 卫星）
+        val amateurTle = fetchTleMap()
+        if (amateurTle.isNotEmpty()) {
+            return@withContext amateurTle.values.joinToString("\n") { "${it.name}\n${it.line1}\n${it.line2}" }
         }
         null
     }
