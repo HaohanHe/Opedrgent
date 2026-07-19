@@ -1365,6 +1365,9 @@ fun RecordingTab(
         val log = editDraft!!
         val satMissing = log.satName.isBlank()
         val dateMissing = log.date.isBlank()
+        val timeOnMissing = log.timeOn.isBlank()
+        val requiredMissing = satMissing || dateMissing || timeOnMissing
+        val aiEmpty = log.satName.isBlank() && log.timeOn.isBlank() && log.callsign.isBlank() && log.frequency.isBlank()
 
         val requiredLabel = stringResource(R.string.recording_required)
         val satelliteLabel = stringResource(R.string.recording_satellite_required)
@@ -1402,9 +1405,17 @@ fun RecordingTab(
             title = { Text(stringResource(R.string.recording_contact_log_title)) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (aiEmpty) {
+                        Text(
+                            text = stringResource(R.string.recording_contact_log_ai_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeWarning(),
+                            modifier = Modifier.padding(bottom = SpacingTokens.sm),
+                        )
+                    }
                     OutlinedTextField(value = log.satName, onValueChange = { editDraft = log.copy(satName = it) }, label = { Text(satelliteLabel) }, isError = satMissing, supportingText = if (satMissing) { { Text(requiredLabel) } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.date, onValueChange = { editDraft = log.copy(date = it) }, label = { Text(dateLabel) }, isError = dateMissing, supportingText = if (dateMissing) { { Text(requiredLabel) } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.timeOn, onValueChange = { editDraft = log.copy(timeOn = it) }, label = { Text(timeOnLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.timeOn, onValueChange = { editDraft = log.copy(timeOn = it) }, label = { Text(timeOnLabel) }, isError = timeOnMissing, supportingText = if (timeOnMissing) { { Text(requiredLabel) } } else null, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.timeOff, onValueChange = { editDraft = log.copy(timeOff = it) }, label = { Text(timeOffLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.callsign, onValueChange = { editDraft = log.copy(callsign = it) }, label = { Text(callsignLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.frequency, onValueChange = { editDraft = log.copy(frequency = it) }, label = { Text(frequencyLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
@@ -1420,46 +1431,52 @@ fun RecordingTab(
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            runCatching {
-                                val file = vm.exportContactLog(log)
-                                top.hsyscn.opedrgent.ui.shareFile(
-                                    context, vm.getPackageNameForShare(context), file, "text/plain",
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    val file = vm.exportContactLog(log)
+                                    top.hsyscn.opedrgent.ui.shareFile(
+                                        context, vm.getPackageNameForShare(context), file, "text/plain",
+                                    )
+                                }.fold(
+                                    onSuccess = {
+                                        showContactLogDialog = false
+                                        snackbar.showSnackbar(context.getString(R.string.recording_adif_exported))
+                                    },
+                                    onFailure = { e ->
+                                        DebugLog.e("RecordingTab", "ADIF 导出失败: ${e.message}", e)
+                                        snackbar.showSnackbar(context.getString(R.string.recording_adif_export_failed, e.message ?: unknownError))
+                                    },
                                 )
-                            }.fold(
-                                onSuccess = {
-                                    showContactLogDialog = false
-                                    snackbar.showSnackbar(context.getString(R.string.recording_adif_exported))
-                                },
-                                onFailure = { e ->
-                                    DebugLog.e("RecordingTab", "ADIF 导出失败: ${e.message}", e)
-                                    snackbar.showSnackbar(context.getString(R.string.recording_adif_export_failed, e.message ?: unknownError))
-                                },
-                            )
-                        }
-                    }) {
+                            }
+                        },
+                        enabled = !requiredMissing,
+                    ) {
                         Text(stringResource(R.string.recording_export_adif))
                     }
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            runCatching {
-                                val file = vm.exportContactLogCsv(log)
-                                top.hsyscn.opedrgent.ui.shareFile(
-                                    context, vm.getPackageNameForShare(context), file, "text/csv",
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    val file = vm.exportContactLogCsv(log)
+                                    top.hsyscn.opedrgent.ui.shareFile(
+                                        context, vm.getPackageNameForShare(context), file, "text/csv",
+                                    )
+                                }.fold(
+                                    onSuccess = {
+                                        showContactLogDialog = false
+                                        snackbar.showSnackbar(context.getString(R.string.recording_csv_exported))
+                                    },
+                                    onFailure = { e ->
+                                        DebugLog.e("RecordingTab", "CSV 导出失败: ${e.message}", e)
+                                        snackbar.showSnackbar(context.getString(R.string.recording_csv_export_failed, e.message ?: unknownError))
+                                    },
                                 )
-                            }.fold(
-                                onSuccess = {
-                                    showContactLogDialog = false
-                                    snackbar.showSnackbar(context.getString(R.string.recording_csv_exported))
-                                },
-                                onFailure = { e ->
-                                    DebugLog.e("RecordingTab", "CSV 导出失败: ${e.message}", e)
-                                    snackbar.showSnackbar(context.getString(R.string.recording_csv_export_failed, e.message ?: unknownError))
-                                },
-                            )
-                        }
-                    }) {
+                            }
+                        },
+                        enabled = !requiredMissing,
+                    ) {
                         Text(stringResource(R.string.recording_export_csv))
                     }
                     Button(
@@ -1498,7 +1515,7 @@ fun RecordingTab(
                                 )
                             }
                         },
-                        enabled = !satMissing && !dateMissing,
+                        enabled = !requiredMissing,
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
