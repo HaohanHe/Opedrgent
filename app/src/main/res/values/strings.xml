@@ -633,7 +633,6 @@
     <string name="memory_evolution_title">进化记忆</string>
     <string name="clip_title">剪藏</string>
     <string name="clip_default_session_title">剪藏会话</string>
-    <string name="ham_contact_log_session_title">通联日志</string>
     <string name="new_conversation_default_title">新对话</string>
 
     <!-- Theme preview (developer-only but localized for consistency) -->
