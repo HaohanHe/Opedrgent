@@ -218,9 +218,11 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         }
 
         val passes = mutableListOf<String>()
+        val missingTle = mutableListOf<HamSatellite>()
         for (sat in targetSats) {
             val tle = tleMap[sat.noradId]
             if (tle == null) {
+                missingTle.add(sat)
                 continue
             }
             try {
@@ -243,13 +245,22 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         }
 
         if (passes.isEmpty()) {
-            return@withContext "未来 $hours 小时内，指定卫星在您的位置（${lat.format(2)}°, ${lon.format(2)}°）无仰角 > 最低阈值的过境窗口。"
+            val missingHint = if (missingTle.isNotEmpty()) {
+                "未在业余卫星星历中找到：${missingTle.joinToString { "${it.name}(NORAD ${it.noradId})" }}。若这些不是常见业余卫星，请先用 action=search 获取 TLE，再以 tle_line1/tle_line2 传入 action=passes。"
+            } else ""
+            return@withContext buildString {
+                appendLine("未来 $hours 小时内，指定卫星在您的位置（${lat.format(2)}°, ${lon.format(2)}°）无仰角 > 最低阈值的过境窗口。")
+                if (missingHint.isNotBlank()) appendLine(missingHint)
+            }.trimEnd()
         }
 
         return@withContext buildString {
             appendLine("## 卫星过境预报")
             appendLine("观测站: ${lat.format(2)}°, ${lon.format(2)}° | 未来 $hours 小时")
             appendLine("时间已转换为本地时区（${java.util.TimeZone.getDefault().id}），原始计算为 UTC。")
+            if (missingTle.isNotEmpty()) {
+                appendLine("提示：未在业余卫星星历中找到 ${missingTle.joinToString { it.name }}，若需其过境请先用 action=search 获取 TLE。")
+            }
             appendLine()
             appendLine(passes.joinToString("\n"))
         }.trimEnd()
