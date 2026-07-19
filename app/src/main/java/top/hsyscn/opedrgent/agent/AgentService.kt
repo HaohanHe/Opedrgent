@@ -10,6 +10,7 @@ import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.storage.ResearchStore
 import top.hsyscn.opedrgent.utils.ContextCompressor
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.utils.ModelLimits
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -197,7 +198,7 @@ class AgentService(
         val agentTools: List<ToolDefinition>,
         val memoryContext: String,
         val systemPromptBuilder: (ResearchSession) -> String,
-        val maxContextTokens: Int = 100_000,
+        var maxContextTokens: Int = 100_000,
         val toolMessages: MutableList<ChatMessage> = mutableListOf(),
         val accumulatedText: StringBuilder = StringBuilder(),
         val accumulatedReasoning: StringBuilder = StringBuilder(),
@@ -229,9 +230,15 @@ class AgentService(
         var retryCount = 0
         var roundsThisRun = 0
         val guardrail = top.hsyscn.opedrgent.utils.ToolCallGuardrail()
+        val maxContextTokens = ModelLimits.inferMaxContextTokens(ctx.config.model)
+        val maxRounds = ModelLimits.maxAgentRounds(maxContextTokens)
+        ctx.maxContextTokens = maxContextTokens
+
+        _state.value = _state.value.copy(maxRounds = maxRounds)
+        DebugLog.i("AgentService: model=${ctx.config.model}, context=${maxContextTokens}, maxRounds=${maxRounds}")
 
         try {
-            while (roundsThisRun < MAX_ROUNDS) {
+            while (roundsThisRun < maxRounds) {
                 if (cancelled.get()) {
                     DebugLog.i("runLoop cancelled at round ${ctx.round}")
                     saveCheckpoint(ctx, guardrail, "用户取消")
@@ -286,7 +293,7 @@ class AgentService(
                 }
             }
 
-            if (roundsThisRun >= MAX_ROUNDS) {
+            if (roundsThisRun >= maxRounds) {
                 saveCheckpoint(ctx, guardrail, "达到最大轮数")
             }
         } finally {
@@ -433,6 +440,8 @@ class AgentService(
                     parseToolArgs(tc.arguments),
                     ctx.config,
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 ToolExecutionResult(
                     status = ToolExecutionStatus.FATAL_ERROR,

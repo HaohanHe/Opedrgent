@@ -118,7 +118,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -385,7 +384,6 @@ private fun RealtimeVoiceBanner(
                     text = stringResource(R.string.interview_full_duplex_supported),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
-                    letterSpacing = 2.sp,
                     modifier = Modifier
                         .background(
                             color = InterviewPurple,
@@ -1091,12 +1089,7 @@ private fun InterviewBubble(message: DialogueTurn) {
                 modifier = Modifier
                     .widthIn(max = maxBubbleWidth)
                     .clip(
-                        RoundedCornerShape(
-                            topStart = if (isInterviewer) ShapeTokens.extraSmall else ShapeTokens.large,
-                            topEnd = if (isInterviewer) ShapeTokens.large else ShapeTokens.extraSmall,
-                            bottomStart = ShapeTokens.large,
-                            bottomEnd = ShapeTokens.large,
-                        )
+                        if (isInterviewer) ShapeTokens.interviewInterviewerBubbleShape else ShapeTokens.interviewUserBubbleShape
                     )
                     .background(
                         if (isInterviewer) androidx.compose.ui.graphics.SolidColor(themeCardWhite()) else Brush.linearGradient(
@@ -1250,7 +1243,7 @@ private fun DuplexControlPanel(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        shape = RoundedCornerShape(topStart = ShapeTokens.large, topEnd = ShapeTokens.large),
+        shape = ShapeTokens.topLargeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.lg),
     ) {
@@ -1332,7 +1325,7 @@ private fun DuplexControlPanel(
             // 第二行：切换到文字输入备选
             TextButton(
                 onClick = onShowTextInput,
-                modifier = Modifier.padding(vertical = 0.dp),
+                modifier = Modifier.padding(vertical = SpacingTokens.none),
             ) {
                 Text(
                     stringResource(R.string.interview_gai_yong_wen_zi_shu_ru),
@@ -1360,7 +1353,7 @@ private fun DuplexTextInputBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        shape = RoundedCornerShape(topStart = ShapeTokens.large, topEnd = ShapeTokens.large),
+        shape = ShapeTokens.topLargeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.lg),
     ) {

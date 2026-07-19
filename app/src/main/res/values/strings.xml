@@ -3,6 +3,8 @@
     <!-- App -->
     <string name="app_name">Opedrgent</string>
     <string name="widget_description">Opedrgent 快捷方式 — 一键进入 AI 助手、会议录音、新对话</string>
+    <string name="label_legacy">Legacy</string>
+    <string name="label_api_key">API Key</string>
 
     <!-- Tab labels -->
     <string name="tab_home">首页</string>
@@ -12,8 +14,9 @@
     <string name="tab_settings">设置</string>
 
     <!-- Common actions -->
-    <string name="action_cancel">取消</string>
     <string name="action_delete">删除</string>
+    <string name="action_recall">撤回</string>
+    <string name="action_cancel">取消</string>
     <string name="action_back">返回</string>
     <string name="action_save">保存</string>
     <string name="action_share">分享</string>
@@ -113,6 +116,11 @@
 
     <!-- Settings -->
     <string name="settings_recording_duration">录音时长限制</string>
+    <string name="settings_recording_quality">录音质量</string>
+    <string name="settings_recording_quality_desc">影响录音文件大小与回放音质，语音识别仍会使用 16kHz 标准采样</string>
+    <string name="recording_quality_low">紧凑（8kHz，可分辨语音）</string>
+    <string name="recording_quality_normal">标准（16kHz，推荐）</string>
+    <string name="recording_quality_high">高质量（44.1kHz）</string>
     <string name="settings_api_config">API 配置</string>
     <string name="settings_voice">语音设置</string>
     <string name="settings_tts">文字转语音</string>
@@ -430,9 +438,9 @@
     <string name="note_editor_title_placeholder">无标题</string>
     <string name="note_editor_delete_title">删除笔记</string>
     <string name="note_editor_delete_confirm">确定要删除这条笔记吗？此操作不可撤销。</string>
-    <string name="session_delete_message_title">删除消息</string>
-    <string name="session_delete_message_confirm">确定要删除这条消息吗？此操作不可撤销。</string>
-    <string name="session_delete_message_toast">消息已删除</string>
+    <string name="session_delete_message_title">撤回消息</string>
+    <string name="session_delete_message_confirm">确定要撤回这条消息吗？此操作不可撤销。</string>
+    <string name="session_delete_message_toast">消息已撤回</string>
     <string name="tool_confirmation_title">安全确认</string>
     <string name="tool_confirmation_allow">允许</string>
     <string name="tool_confirmation_deny">拒绝</string>

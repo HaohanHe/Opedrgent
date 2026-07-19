@@ -45,7 +45,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -74,7 +76,7 @@ fun AudioPickerDialog(
         Surface(
             shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
+            tonalElevation = ElevationTokens.lg,
             modifier = modifier
                 .semantics { contentDescription = dialogCd }
                 .padding(horizontal = SpacingTokens.xl),
@@ -107,7 +109,7 @@ fun AudioPickerDialog(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(ShapeTokens.largeShape)
@@ -151,7 +153,7 @@ fun AudioPickerDialog(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                                 contentDescription = stringResource(R.string.cd_enter),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(SizeTokens.iconMd),
                             )
                         }
                     }
@@ -162,7 +164,7 @@ fun AudioPickerDialog(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(ShapeTokens.largeShape)
@@ -209,7 +211,7 @@ fun AudioPickerDialog(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = stringResource(R.string.audio_picker_cd_record),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier.size(SizeTokens.audioPickerTrailingIconSize),
                             )
                         }
                     }
@@ -237,7 +239,7 @@ fun AudioPickerDialog(
                             onDismiss()
                         },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(SizeTokens.featureIconBg)
                             .semantics {
                                 contentDescription = closeDialogCd
                             },

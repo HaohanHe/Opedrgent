@@ -47,7 +47,6 @@ import top.hsyscn.opedrgent.ui.theme.SpacingTokens
  * 宽度自适应内容，但上限为父容器宽度的 75%（适配手机/平板/折叠屏），
  * 替代原先固定的 280dp 上限。用户消息不显示头像/名称头部。
  */
-@Suppress("DEPRECATION")
 @Composable
 fun UserBubble(
     text: String,

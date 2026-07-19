@@ -54,10 +54,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.NoteType
@@ -140,7 +138,7 @@ fun ImportFileScreen(
                 }
 
                 // 创建笔记
-                vm.createNoteFromText(
+                val noteId = vm.createNoteFromText(
                     title = fileName,
                     content = content,
                     type = noteType
@@ -150,7 +148,7 @@ fun ImportFileScreen(
 
                 // 延迟一下让用户看到成功提示，然后跳转
                 kotlinx.coroutines.delay(500)
-                onImportSuccess(-1)
+                onImportSuccess(noteId)
 
             } catch (e: Exception) {
                 importError = context.getString(R.string.import_file_dao_ru_shi_bai_1, e.message ?: "")
@@ -166,7 +164,7 @@ fun ImportFileScreen(
         containerColor = themeBgGray(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_import_file), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_import_file)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -340,7 +338,7 @@ private fun ImportFileTypeCard(
                     .background(AccentBlue.copy(alpha = 0.1f), ShapeTokens.mediumShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = title, tint = AccentBlue, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = title, tint = AccentBlue, modifier = Modifier.size(SizeTokens.listActionIconSize))
             }
             Spacer(modifier = Modifier.width(SpacingTokens.lg))
             Column(modifier = Modifier.weight(1f)) {

@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.tools
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -124,6 +125,8 @@ class StepSearchTool : ToolSet {
             } else {
                 emptyResult(toolPart, "搜索失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepSearchTool 异常: ${e.message}", e)
             emptyResult(toolPart, "搜索异常: ${e.message}")
@@ -177,6 +180,8 @@ class StepSearchTool : ToolSet {
             }
 
             SearchResult(success = true, items = items)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "搜索异常: ${e.message}", e)
             SearchResult(false, errorMessage = e.message ?: "未知错误")

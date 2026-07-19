@@ -110,6 +110,23 @@ enum class MemoryType(val label: String) {
     NOTE_SUMMARY("笔记"),
 }
 
+/**
+ * 录音质量预设。
+ *
+ * - [LOW] 8kHz / 16bit / 单声道：文件最小，语音可分辨，但语音识别准确率可能下降。
+ * - [NORMAL] 16kHz / 16bit / 单声道：语音识别最佳，文件适中。
+ * - [HIGH] 44.1kHz / 16bit / 单声道：音质最好，文件最大。
+ */
+enum class RecordingQuality(val key: String, val sampleRate: Int, val displayName: String, val description: String) {
+    LOW("low", 8000, "低质量（省空间）", "8kHz，语音可分辨，文件最小"),
+    NORMAL("normal", 16000, "标准", "16kHz，语音识别最佳，推荐"),
+    HIGH("high", 44100, "高质量", "44.1kHz，音质最好，文件较大");
+
+    companion object {
+        fun fromKey(key: String?): RecordingQuality = entries.find { it.key == key } ?: NORMAL
+    }
+}
+
 data class MemoryEntry(
     val id: String = UUID.randomUUID().toString(),
     val title: String,

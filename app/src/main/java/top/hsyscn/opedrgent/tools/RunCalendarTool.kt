@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import top.hsyscn.opedrgent.calendar.CalendarEventDraft
@@ -115,6 +116,8 @@ class RunCalendarTool(
                     ),
                 ),
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("RunCalendarTool 异常: ${e.message}", e)
             emptyResult(toolPart, "日历操作异常: ${e.message}")

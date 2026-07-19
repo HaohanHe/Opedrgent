@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.tools
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -141,6 +142,8 @@ class StepVisionTool(
             } else {
                 emptyResult(toolPart, "视觉分析失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepVisionTool 异常: ${e.message}", e)
             emptyResult(toolPart, "视觉分析异常: ${e.message}")
@@ -221,6 +224,8 @@ class StepVisionTool(
                 rawResponse = content,
                 analysisText = formatAnalysisOutput(parsedAnalysis, content),
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[vision] 异常: ${e.message}", e)
             VisionResult(false, errorMessage = e.message ?: "未知错误")

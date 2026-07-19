@@ -55,7 +55,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.VocabularyStore
 import top.hsyscn.opedrgent.ui.theme.BubbleBlue
@@ -83,7 +82,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_vocabulary), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_vocabulary), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -138,7 +137,7 @@ fun VocabularySettingsScreen(onBack: () -> Unit) {
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
-                    contentPadding = PaddingValues(bottom = 80.dp),
+                    contentPadding = PaddingValues(bottom = SizeTokens.fabBottomContentPadding),
                 ) {
                     items(displayTerms, key = { it }) { term ->
                         Card(

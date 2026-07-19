@@ -27,9 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -52,7 +52,7 @@ fun MarkdownFormatToolbar(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        tonalElevation = 2.dp,
+        tonalElevation = ElevationTokens.toolbarTonalElevation,
     ) {
         Column {
             // 第一行：基础格式
@@ -148,19 +148,19 @@ fun FormatButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(36.dp),
+        modifier = Modifier.size(SizeTokens.iconButtonSize),
     ) {
         if (text != null) {
             Text(
                 text,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
         } else {
             Icon(
                 icon,
                 description,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }

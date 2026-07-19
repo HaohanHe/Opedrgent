@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
@@ -41,7 +42,7 @@ fun MessageBodyInfo(
         Icon(
             imageVector = Icons.Default.Info,
             contentDescription = stringResource(R.string.msg_body_cd_info),
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(SizeTokens.iconLg),
             tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.width(SpacingTokens.xs))

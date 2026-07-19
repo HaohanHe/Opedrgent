@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -19,14 +22,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.MessagePart
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
@@ -51,6 +63,49 @@ fun AudioClipPlayerCard(
     audioClip: MessagePart.AudioClip,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(audioClip.durationMs.coerceAtLeast(0L)) }
+
+    val exoPlayer = remember(audioClip.filePath) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(java.io.File(audioClip.filePath))))
+            prepare()
+        }
+    }
+
+    DisposableEffect(audioClip.filePath) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    duration = exoPlayer.duration.coerceAtLeast(0L)
+                }
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+        }
+        exoPlayer.addListener(listener)
+        exoPlayer.playWhenReady = false
+
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            currentPosition = exoPlayer.currentPosition.coerceAtLeast(0L)
+            delay(200L)
+        }
+    }
+
+    val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
+    val durationText = if (duration > 0) chatFormatDuration(duration) else chatFormatDuration(audioClip.durationMs)
+
     Card(
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
@@ -61,28 +116,37 @@ fun AudioClipPlayerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
-                onClick = { },
+                onClick = {
+                    if (isPlaying) {
+                        exoPlayer.pause()
+                    } else {
+                        if (currentPosition >= duration && duration > 0) {
+                            exoPlayer.seekTo(0L)
+                        }
+                        exoPlayer.play()
+                    }
+                },
                 modifier = Modifier
                     .size(SizeTokens.quickActionIcon)
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
             ) {
                 Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = stringResource(R.string.cd_play),
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = stringResource(if (isPlaying) R.string.cd_pause else R.string.cd_play),
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
             Spacer(Modifier.width(SpacingTokens.md))
             Column(modifier = Modifier.weight(1f)) {
                 LinearProgressIndicator(
-                    progress = { 0f },
+                    progress = { progress },
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(SpacingTokens.xs))
                 Text(
-                    text = chatFormatDuration(audioClip.durationMs),
+                    text = durationText,
                     style = MaterialTheme.typography.labelSmall,
                     color = themeTextGrey(),
                 )

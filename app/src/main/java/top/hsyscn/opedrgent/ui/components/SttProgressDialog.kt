@@ -169,16 +169,16 @@ private fun DownloadingPhase(downloadProgress: Float) {
         imageVector = Icons.Default.CloudDownload,
         contentDescription = stringResource(R.string.stt_progress_cd_download_model),
         tint = MaterialTheme.colorScheme.primary.copy(alpha = cloudAlpha),
-        modifier = Modifier.size(56.dp),
+        modifier = Modifier.size(SizeTokens.dialogIconSizeLg),
     )
 
     Spacer(Modifier.height(SpacingTokens.lg))
 
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(SizeTokens.dialogIconSizeXl)) {
         CircularProgressIndicator(
             progress = { animatedProgress },
-            modifier = Modifier.size(72.dp),
-            strokeWidth = 5.dp,
+            modifier = Modifier.size(SizeTokens.dialogIconSizeXl),
+            strokeWidth = SizeTokens.progressStrokeWidthLg,
             color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
@@ -220,14 +220,14 @@ private fun ExtractingPhase() {
         imageVector = Icons.Default.GraphicEq,
         contentDescription = stringResource(R.string.stt_progress_cd_extract_audio),
         tint = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(SizeTokens.dialogIconSizeMd),
     )
 
     Spacer(Modifier.height(SpacingTokens.xl))
 
     CircularProgressIndicator(
-        modifier = Modifier.size(52.dp),
-        strokeWidth = 4.dp,
+        modifier = Modifier.size(SizeTokens.progressIndicatorSizeMd),
+        strokeWidth = SizeTokens.progressStrokeWidthMd,
         color = MaterialTheme.colorScheme.secondary,
         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
@@ -262,7 +262,7 @@ private fun RecognizingPhase(currentPhase: String?) {
         imageVector = Icons.Default.Mic,
         contentDescription = stringResource(R.string.stt_progress_cd_recognizing),
         tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size((48 * micScale).dp),
+        modifier = Modifier.size((SizeTokens.dialogIconSizeMd.value * micScale).dp),
     )
 
     Spacer(Modifier.height(SpacingTokens.lg))
@@ -277,7 +277,7 @@ private fun RecognizingPhase(currentPhase: String?) {
     }
 
     LinearProgressIndicator(
-        modifier = Modifier.fillMaxWidth().height(6.dp).clip(ShapeTokens.smallShape),
+        modifier = Modifier.fillMaxWidth().height(SizeTokens.progressTrackHeightSm).clip(ShapeTokens.smallShape),
         color = MaterialTheme.colorScheme.primary,
         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
@@ -299,7 +299,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
         imageVector = Icons.Default.Error,
         contentDescription = stringResource(R.string.stt_progress_cd_error),
         tint = MaterialTheme.colorScheme.error,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(SizeTokens.dialogIconSizeMd),
     )
 
     Spacer(Modifier.height(SpacingTokens.lg))
@@ -356,7 +356,7 @@ private fun ErrorPhase(onRetry: () -> Unit) {
 private fun AudioWaveformIndicator(waveOffset: Float) {
     val secondaryColor = MaterialTheme.colorScheme.secondary
 
-    Canvas(modifier = Modifier.fillMaxWidth().height(24.dp)) {
+    Canvas(modifier = Modifier.fillMaxWidth().height(SizeTokens.audioWaveformHeight)) {
         val barCount = 24
         val barWidth = size.width / (barCount * 2f)
         for (i in 0 until barCount) {

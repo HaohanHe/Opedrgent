@@ -8,14 +8,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 
 @Composable
 fun BalloonEmptyIllustration(modifier: Modifier = Modifier) {
     val strokeColor = MaterialTheme.colorScheme.onSurface
-    Canvas(modifier = modifier.size(100.dp)) {
-        val strokeWidth = 2.dp.toPx()
+    Canvas(modifier = modifier.size(SizeTokens.emptyIllustrationSize)) {
+        val strokeWidth = SizeTokens.emptyIllustrationStrokeWidth.toPx()
+        val thinStrokeWidth = SizeTokens.emptyIllustrationThinStroke.toPx()
         val style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        val balloonRadiusMd = SizeTokens.emptyIllustrationBalloonRadiusMd.toPx()
+        val balloonRadiusLg = SizeTokens.emptyIllustrationBalloonRadiusLg.toPx()
+        val balloonRadiusSm = SizeTokens.emptyIllustrationBalloonRadiusSm.toPx()
 
         // 花盆 - 梯形底部
         drawPath(
@@ -42,48 +46,48 @@ fun BalloonEmptyIllustration(modifier: Modifier = Modifier) {
         // 气球1 - 左
         drawCircle(
             color = strokeColor,
-            radius = 12.dp.toPx(),
+            radius = balloonRadiusMd,
             center = Offset(size.width * 0.30f, size.height * 0.25f),
             style = style
         )
         // 气球1 线
         drawLine(
             color = strokeColor,
-            start = Offset(size.width * 0.30f, size.height * 0.25f + 12.dp.toPx()),
+            start = Offset(size.width * 0.30f, size.height * 0.25f + balloonRadiusMd),
             end = Offset(size.width * 0.42f, size.height * 0.78f),
-            strokeWidth = 1.5f,
+            strokeWidth = thinStrokeWidth,
             cap = StrokeCap.Round
         )
 
         // 气球2 - 中（稍高一点）
         drawCircle(
             color = strokeColor,
-            radius = 14.dp.toPx(),
+            radius = balloonRadiusLg,
             center = Offset(size.width * 0.50f, size.height * 0.18f),
             style = style
         )
         // 气球2 线
         drawLine(
             color = strokeColor,
-            start = Offset(size.width * 0.50f, size.height * 0.18f + 14.dp.toPx()),
+            start = Offset(size.width * 0.50f, size.height * 0.18f + balloonRadiusLg),
             end = Offset(size.width * 0.50f, size.height * 0.78f),
-            strokeWidth = 1.5f,
+            strokeWidth = thinStrokeWidth,
             cap = StrokeCap.Round
         )
 
         // 气球3 - 右
         drawCircle(
             color = strokeColor,
-            radius = 11.dp.toPx(),
+            radius = balloonRadiusSm,
             center = Offset(size.width * 0.72f, size.height * 0.28f),
             style = style
         )
         // 气球3 线
         drawLine(
             color = strokeColor,
-            start = Offset(size.width * 0.72f, size.height * 0.28f + 11.dp.toPx()),
+            start = Offset(size.width * 0.72f, size.height * 0.28f + balloonRadiusSm),
             end = Offset(size.width * 0.58f, size.height * 0.78f),
-            strokeWidth = 1.5f,
+            strokeWidth = thinStrokeWidth,
             cap = StrokeCap.Round
         )
     }

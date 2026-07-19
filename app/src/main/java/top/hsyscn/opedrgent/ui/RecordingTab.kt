@@ -136,7 +136,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -478,7 +477,7 @@ fun RecordingTab(
     }
 
     // Start recording
-    val startRecordingPipeline: (AudioRecord) -> Unit = { recorder ->
+    val startRecordingPipeline: (AudioRecord, Int) -> Unit = { recorder, sampleRate ->
         // 先停止上一次的流式会话，避免多个协程同时运行
         vm.asrManager.stopStreaming()
         recordingState = RecordingState.RECORDING
@@ -550,7 +549,7 @@ fun RecordingTab(
         // 录音读取协程：放到 ViewModel 的 backgroundScope，切 Tab 后继续录音
         vm.backgroundScope.launch {
             withContext(Dispatchers.IO) {
-                val bufferSize = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 val buffer = ShortArray(bufferSize / 2)
                 FileOutputStream(tempFile).use { fos ->
                     // 使用 ViewModel 状态判断，避免 Composable 重建后闭包状态不一致
@@ -571,7 +570,13 @@ fun RecordingTab(
 
                             if (vm.recordingIsStreamingActive) {
                                 val floats = FloatArray(read) { i -> buffer[i] / 32768.0f }
-                                feedAudioToEngine(vm.asrManager.getCachedEngine(), floats)
+                                // 语音识别统一使用 16kHz，必要时重采样
+                                val asrSamples = if (sampleRate == 16000) {
+                                    floats
+                                } else {
+                                    top.hsyscn.opedrgent.stt.AudioProcessor.resample(floats, sampleRate, 16000)
+                                }
+                                feedAudioToEngine(vm.asrManager.getCachedEngine(), asrSamples)
                             }
                         }
                     }
@@ -584,7 +589,8 @@ fun RecordingTab(
         if (!hasPermission) {
             permLauncher.launch(Manifest.permission.RECORD_AUDIO)
         } else {
-            val sampleRate = 16000
+            val quality = vm.getRecordingQuality()
+            val sampleRate = quality.sampleRate
             val channelConfig = AudioFormat.CHANNEL_IN_MONO
             val audioFormat = AudioFormat.ENCODING_PCM_16BIT
             val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
@@ -594,8 +600,9 @@ fun RecordingTab(
                 scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_device_init_failed)) }
                 recordingState = null
             } else {
+                vm.recordingSampleRate = sampleRate
                 recorder.startRecording()
-                startRecordingPipeline(recorder)
+                startRecordingPipeline(recorder, sampleRate)
             }
         }
     }
@@ -607,8 +614,9 @@ fun RecordingTab(
             scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_system_audio_init_failed)) }
             recordingState = null
         } else {
+            vm.recordingSampleRate = 16000
             systemAudioRecorder = sysRecorder
-            startRecordingPipeline(recorder)
+            startRecordingPipeline(recorder, 16000)
         }
     }
 
@@ -676,7 +684,7 @@ fun RecordingTab(
                     }
                     val pcmFile = java.io.File(pcmPath)
                     val wavFile = java.io.File(context.cacheDir, "recording_${System.currentTimeMillis()}.wav")
-                    pcmToWav(pcmFile, wavFile, 16000, 1, 16)
+                    pcmToWav(pcmFile, wavFile, vm.recordingSampleRate, 1, 16)
 
                     val streamText = streamingText.trim()
                     transcriptResult = if (streamText.isNotBlank()) {
@@ -862,8 +870,8 @@ fun RecordingTab(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val contentMaxWidth = when {
-            isExpandedWidth() -> 980.dp
-            isAtLeastMediumWidth() -> 760.dp
+            isExpandedWidth() -> SizeTokens.noteEditorMaxWidthExpanded
+            isAtLeastMediumWidth() -> SizeTokens.noteEditorMaxWidthMedium
             else -> Dp.Unspecified
         }
         Box(
@@ -1096,8 +1104,8 @@ fun RecordingTab(
                 // ==================== 完成，显示结果 ====================
                 recordingState == RecordingState.DONE -> {
                     val doneMaxWidth = when {
-                        isExpandedWidth() -> 840.dp
-                        isAtLeastMediumWidth() -> 720.dp
+                        isExpandedWidth() -> SizeTokens.recordingResultMaxWidthExpanded
+                        isAtLeastMediumWidth() -> SizeTokens.recordingResultMaxWidthMedium
                         else -> Dp.Unspecified
                     }
                     Box(
@@ -1607,7 +1615,7 @@ private fun IdleModeSelection(
         if (landscape && isMediumOrExpanded) {
             // 横屏大屏：卡片垂直堆叠，避免两个大方块并排成“鼻孔”。
             Column(
-                modifier = Modifier.widthIn(max = 420.dp),
+                modifier = Modifier.widthIn(max = SizeTokens.recordingModeCardColumnMaxWidth),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
             ) {
                 ModeCard(
@@ -1744,7 +1752,7 @@ private fun ModeCard(
         modifier = modifier
             .then(
                 if (landscape) {
-                    Modifier.heightIn(min = 120.dp, max = 148.dp)
+                    Modifier.heightIn(min = SizeTokens.recordingModeCardMinHeight, max = SizeTokens.recordingModeCardMaxHeight)
                 } else {
                     Modifier.aspectRatio(1.25f)
                 },
@@ -1864,7 +1872,6 @@ private fun RecordingScreen(
                         text = hintText,
                         style = MaterialTheme.typography.titleLarge,
                         color = themeTextGrey().copy(alpha = 0.5f),
-                        lineHeight = (18 * 1.8).sp,
                         modifier = Modifier.align(Alignment.Center),
                     )
                 } else {
@@ -1877,7 +1884,6 @@ private fun RecordingScreen(
                             text = if (streamingText.length > 5000) streamingText.takeLast(5000) else streamingText,
                             style = MaterialTheme.typography.titleLarge,
                             color = themeTextDark(),
-                            lineHeight = (18 * 1.8).sp,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -2022,7 +2028,7 @@ private fun RecordingScreen(
             }
             Column(
                 modifier = Modifier
-                    .widthIn(min = 260.dp, max = 340.dp)
+                    .widthIn(min = SizeTokens.recordingPanelMinWidth, max = SizeTokens.recordingPanelMaxWidth)
                     .fillMaxHeight()
                     .padding(vertical = SpacingTokens.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -2073,9 +2079,9 @@ private fun WaveformBars(
     amplitude: Float,
     isRecording: Boolean,
     color: Color,
-    barWidth: androidx.compose.ui.unit.Dp = 4.dp,
-    barSpacing: androidx.compose.ui.unit.Dp = 3.dp,
-    maxHeight: androidx.compose.ui.unit.Dp = 32.dp,
+    barWidth: androidx.compose.ui.unit.Dp = SizeTokens.waveformBarWidth,
+    barSpacing: androidx.compose.ui.unit.Dp = SizeTokens.waveformBarSpacing,
+    maxHeight: androidx.compose.ui.unit.Dp = SizeTokens.waveformBarMaxHeight,
 ) {
     // 自管理动画状态，不触发父组件重组
     var bars by remember { mutableStateOf(List(24) { 0.2f }) }
@@ -2138,7 +2144,7 @@ private fun SkeletonLoadingScreen() {
                 modifier = Modifier
                     .fillMaxWidth(widthFraction)
                     .padding(horizontal = SpacingTokens.xl, vertical = SpacingTokens.md)
-                    .height(14.dp)
+                    .height(SizeTokens.waveformBarMinHeight)
                     .background(brush, ShapeTokens.smallShape),
             )
         }
@@ -2258,10 +2264,10 @@ private fun TranscriptResultCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = SpacingTokens.md),
-                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(SpacingTokens.none),
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(topStart = ShapeTokens.small, topEnd = ShapeTokens.small),
+                        shape = ShapeTokens.topSmallShape,
                         color = if (showSummaryTab) themePrimary().copy(alpha = 0.1f) else Color.Transparent,
                         onClick = { showSummaryTab = true },
                     ) {
@@ -2273,7 +2279,7 @@ private fun TranscriptResultCard(
                         )
                     }
                     Surface(
-                        shape = RoundedCornerShape(topStart = ShapeTokens.small, topEnd = ShapeTokens.small),
+                        shape = ShapeTokens.topSmallShape,
                         color = if (!showSummaryTab) themePrimary().copy(alpha = 0.1f) else Color.Transparent,
                         onClick = { showSummaryTab = false },
                     ) {

@@ -10,6 +10,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.R
 import android.Manifest
 import android.content.pm.PackageManager
@@ -85,7 +86,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -341,7 +341,7 @@ fun VoiceprintEnrollmentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.voiceprint_enroll_tian_jia_sheng_wen), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.voiceprint_enroll_tian_jia_sheng_wen), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (isRecording) {
@@ -364,7 +364,7 @@ fun VoiceprintEnrollmentScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = SizeTokens.screenHorizontalPadding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -489,13 +489,12 @@ private fun NameInputStep(
             imageVector = Icons.Default.Person,
             contentDescription = null,
             tint = AccentBlue,
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier.size(SizeTokens.emptyStateIcon),
         )
         Spacer(Modifier.height(SpacingTokens.lg))
         Text(
             text = stringResource(R.string.voiceprint_enroll_qing_shu_ru_shuo_hua_ren_xing),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineLarge,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.sm))
@@ -526,7 +525,7 @@ private fun NameInputStep(
         Spacer(Modifier.height(SpacingTokens.xl))
         Button(
             onClick = onNext,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.fillMaxWidth().height(SizeTokens.buttonHeightLg),
             shape = ShapeTokens.smallShape,
         ) {
             Text(stringResource(R.string.onboarding_next), style = MaterialTheme.typography.titleMedium)
@@ -551,9 +550,8 @@ private fun RecordingStep(
         // 进度指示
         Text(
             text = stringResource(R.string.voiceprint_enroll_di_1_2_duan, step, total),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = themeTextGrey(),
-            fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(SpacingTokens.sm))
 
@@ -577,8 +575,7 @@ private fun RecordingStep(
                 Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
                     text = stringResource(R.string.voiceprint_enroll_ni_hao_wo_shi_1, speakerName),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge,
                     color = themeTextDark(),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -613,7 +610,7 @@ private fun RecordingStep(
         // 大圆录音按钮
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(SizeTokens.recordButtonSize)
                 .clip(CircleShape)
                 .background(if (isRecording) CoralRed else AccentBlue)
                 .clickable {
@@ -626,14 +623,14 @@ private fun RecordingStep(
                     imageVector = Icons.Default.Stop,
                     contentDescription = stringResource(R.string.voiceprint_enroll_ting_zhi_lu_yin),
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(SizeTokens.icon2xl),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = stringResource(R.string.cd_start_recording),
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(SizeTokens.icon2xl),
                 )
             }
         }
@@ -660,7 +657,7 @@ private fun CompletionStep(
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(SizeTokens.recordButtonSize)
                 .clip(CircleShape)
                 .background(if (isProcessing) AccentBlue else SuccessGreen),
             contentAlignment = Alignment.Center,
@@ -670,22 +667,21 @@ private fun CompletionStep(
                     imageVector = Icons.Default.Mic,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(SizeTokens.iconButtonSize),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(SizeTokens.iconButtonSize),
                 )
             }
         }
         Spacer(Modifier.height(SpacingTokens.xl))
         Text(
             text = if (isProcessing) stringResource(R.string.voiceprint_enroll_zheng_zai_ti_qu_sheng_wen_te) else stringResource(R.string.voiceprint_enroll_sheng_wen_zhu_ce_wan_cheng),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineLarge,
             color = themeTextDark(),
         )
         Spacer(Modifier.height(SpacingTokens.sm))
@@ -715,7 +711,7 @@ private fun CompletionStep(
         Spacer(Modifier.height(SpacingTokens.xxl))
         Button(
             onClick = onDone,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.fillMaxWidth().height(SizeTokens.buttonHeightLg),
             shape = ShapeTokens.smallShape,
             enabled = !isProcessing,
         ) {
@@ -728,9 +724,9 @@ private fun CompletionStep(
 private fun WaveformBars(
     bars: List<Float>,
     color: Color,
-    barWidth: androidx.compose.ui.unit.Dp = 4.dp,
-    barSpacing: androidx.compose.ui.unit.Dp = 3.dp,
-    maxHeight: androidx.compose.ui.unit.Dp = 64.dp,
+    barWidth: androidx.compose.ui.unit.Dp = SizeTokens.waveformBarWidth,
+    barSpacing: androidx.compose.ui.unit.Dp = SizeTokens.waveformBarSpacing,
+    maxHeight: androidx.compose.ui.unit.Dp = SizeTokens.voiceprintWaveformMaxHeight,
 ) {
     Row(
         modifier = Modifier.height(maxHeight),

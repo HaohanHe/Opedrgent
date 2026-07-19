@@ -65,7 +65,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +72,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.SproutingState
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -104,7 +105,7 @@ fun SproutResultView(
     Card(
         shape = ShapeTokens.largeShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.md),
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = context.getString(R.string.sprout_cd_report_view) }
@@ -171,7 +172,6 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
                 SproutingState.CANCELLED -> stringResource(R.string.sprout_title_cancelled)
             },
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.weight(1f))
@@ -184,7 +184,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
         IconButton(
             onClick = onDismiss,
             modifier = Modifier
-                .size(36.dp)
+                .size(SizeTokens.iconButtonSize)
             .semantics { contentDescription = context.getString(R.string.sprout_cd_close_report) },
         ) {
             // 装饰性关闭图标，外层 IconButton 已提供“关闭发芽报告”语义
@@ -192,7 +192,7 @@ private fun SproutTitleBar(sproutingState: SproutingState, qualityScore: Int?, o
                 imageVector = Icons.Default.Close,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(SizeTokens.iconLg),
             )
         }
     }
@@ -220,7 +220,6 @@ private fun QualityScoreBadge(score: Int) {
             Text(
                 text = "$score",
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
                 color = badgeColor,
             )
             Spacer(Modifier.width(SpacingTokens.xs))
@@ -258,7 +257,7 @@ private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) 
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.fillMaxWidth().height(180.dp),
+        modifier = Modifier.fillMaxWidth().height(SizeTokens.sproutBannerHeight),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             SproutGrowingAnimation(progress = growProgress)
@@ -281,7 +280,7 @@ private fun ProcessingPhase(currentPhase: SproutingState, onCancel: () -> Unit) 
                 onClick = onCancel,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
-                Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.action_cancel))
             }
         }
     }
@@ -293,7 +292,7 @@ private fun SproutGrowingAnimation(progress: Float) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
 
-    Canvas(modifier = Modifier.size(80.dp)) {
+    Canvas(modifier = Modifier.size(SizeTokens.sproutPlantCanvasSize)) {
         val stemHeight = size.height * 0.5f * progress
         val leafSize = size.width * 0.25f
 
@@ -303,11 +302,16 @@ private fun SproutGrowingAnimation(progress: Float) {
             center = Offset(size.width / 2, size.height * 0.78f),
         )
 
+        val stemWidthPx = SizeTokens.sproutStemWidth.toPx()
+        val stemHalfWidthPx = stemWidthPx / 2
+        val leafOffsetPx = SizeTokens.sproutLeafOffset.toPx()
+        val stemCornerRadiusPx = SizeTokens.sproutStemCornerRadius.toPx()
+
         drawRoundRect(
             color = primaryColor.copy(alpha = 0.7f + 0.3f * progress),
-            topLeft = Offset(x = size.width / 2 - 2.dp.toPx(), y = size.height * 0.78f - stemHeight),
-            size = Size(width = 4.dp.toPx(), height = stemHeight),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+            topLeft = Offset(x = size.width / 2 - stemHalfWidthPx, y = size.height * 0.78f - stemHeight),
+            size = Size(width = stemWidthPx, height = stemHeight),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(stemCornerRadiusPx),
         )
 
         if (progress > 0.3f) {
@@ -315,7 +319,7 @@ private fun SproutGrowingAnimation(progress: Float) {
             drawOval(
                 color = tertiaryColor.copy(alpha = 0.6f * leftLeafScale),
                 topLeft = Offset(
-                    x = size.width / 2 - leafSize - 4.dp.toPx(),
+                    x = size.width / 2 - leafSize - leafOffsetPx,
                     y = size.height * 0.78f - stemHeight - leafSize * 0.3f,
                 ),
                 size = Size(width = leafSize, height = leafSize * 0.7f),
@@ -327,7 +331,7 @@ private fun SproutGrowingAnimation(progress: Float) {
             drawOval(
                 color = primaryColor.copy(alpha = 0.5f * rightLeafScale),
                 topLeft = Offset(
-                    x = size.width / 2 + 4.dp.toPx(),
+                    x = size.width / 2 + leafOffsetPx,
                     y = size.height * 0.78f - stemHeight * 0.85f - leafSize * 0.2f,
                 ),
                 size = Size(width = leafSize * 0.9f, height = leafSize * 0.55f),
@@ -385,12 +389,12 @@ private fun PhaseIndicatorDots(currentPhase: SproutingState) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size((12 * pulseScale).dp),
+                    modifier = Modifier.size((SizeTokens.statusDotSize.value * pulseScale).dp),
                 ) {
                     if (isCompleted) {
-                        Text("[OK]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        Text("[OK]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
                     } else {
-                        Canvas(modifier = Modifier.size((10 * pulseScale).dp)) {
+                        Canvas(modifier = Modifier.size((SizeTokens.statusDotSmallSize.value * pulseScale).dp)) {
                             drawCircle(color = dotColor)
                         }
                     }
@@ -446,8 +450,8 @@ private fun DonePhase(report: String, qualityScore: Int?, processingTimeMs: Long
                 maxChars = Int.MAX_VALUE,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState())
+                    .heightIn(max = SizeTokens.expandedContentMaxHeight)
+                .verticalScroll(rememberScrollState())
                     .semantics { contentDescription = context.getString(R.string.sprout_cd_report_content, report.length) },
             )
         }
@@ -469,7 +473,6 @@ private fun ErrorPhase(onRetry: () -> Unit) {
         Text(
             text = stringResource(R.string.sprout_error_desc),
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.height(SpacingTokens.xs))
@@ -484,9 +487,9 @@ private fun ErrorPhase(onRetry: () -> Unit) {
             shape = ShapeTokens.mediumShape,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.action_retry), modifier = Modifier.size(18.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.action_retry), modifier = Modifier.size(SizeTokens.iconMd))
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text(stringResource(R.string.action_retry), fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.action_retry))
         }
     }
 }
@@ -506,7 +509,6 @@ private fun CancelledPhase(onRestart: () -> Unit) {
         Text(
             text = stringResource(R.string.sprout_title_cancelled),
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(SpacingTokens.lg))
@@ -514,9 +516,9 @@ private fun CancelledPhase(onRestart: () -> Unit) {
             onClick = onRestart,
             shape = ShapeTokens.mediumShape,
         ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.sprout_action_restart), modifier = Modifier.size(18.dp))
+            Icon(imageVector = Icons.Default.Refresh, contentDescription = stringResource(R.string.sprout_action_restart), modifier = Modifier.size(SizeTokens.iconMd))
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text(stringResource(R.string.sprout_action_restart), fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.sprout_action_restart))
         }
     }
 }
@@ -538,7 +540,7 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
             shape = ShapeTokens.mediumShape,
             modifier = Modifier
                 .weight(1f)
-                .height(44.dp)
+                .height(SizeTokens.buttonHeightMd)
                 .semantics { contentDescription = context.getString(R.string.sprout_action_copy_full) },
         ) {
             if (copyFeedbackShown) {
@@ -546,18 +548,18 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
                     imageVector = Icons.Default.ContentCopy,
                     contentDescription = stringResource(R.string.sprout_action_copied),
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(SizeTokens.iconMd),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text(stringResource(R.string.sprout_action_copied), fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.sprout_action_copied))
             } else {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
                     contentDescription = stringResource(R.string.sprout_action_copy_full),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(SizeTokens.iconMd),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
-                Text(stringResource(R.string.sprout_action_copy_full), fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.sprout_action_copy_full))
             }
         }
 
@@ -567,16 +569,16 @@ private fun DoneActionButtons(onCopy: () -> Unit, onContinueChat: () -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier
                 .weight(1f)
-                .height(44.dp)
+                .height(SizeTokens.buttonHeightMd)
                 .semantics { contentDescription = context.getString(R.string.sprout_action_continue_chat) },
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Chat,
                 contentDescription = stringResource(R.string.sprout_action_continue_chat),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
             )
             Spacer(Modifier.width(SpacingTokens.xs))
-            Text(stringResource(R.string.sprout_action_continue_chat), fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.sprout_action_continue_chat))
         }
     }
 }

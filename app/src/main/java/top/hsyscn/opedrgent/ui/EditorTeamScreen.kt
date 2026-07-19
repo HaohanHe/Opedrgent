@@ -72,7 +72,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -123,7 +122,6 @@ fun EditorTeamScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val service = remember { EditorTeamService(vm.apiSettings, context = context) }
@@ -436,7 +434,7 @@ fun EditorTeamScreen(
                         }
                     }
 
-                    item { Spacer(Modifier.height(70.dp)) }
+                    item { Spacer(Modifier.height(SizeTokens.fabClearanceTop)) }
                 }
             }
 
@@ -584,7 +582,7 @@ private fun WritingWelcomeArea(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 90.dp, max = 180.dp)
+                        .heightIn(min = SizeTokens.editorTeamInputMinHeight, max = SizeTokens.editorTeamInputMaxHeight)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow, ShapeTokens.smallShape)
                         .padding(SpacingTokens.md),
                 ) {
@@ -681,12 +679,7 @@ private fun UserBubble(content: String) {
                 .fillMaxWidth(0.78f)
                 .background(
                     MaterialTheme.customColors.accentBlue.copy(alpha = 0.08f),
-                    RoundedCornerShape(
-                        topStart = ShapeTokens.large,
-                        topEnd = ShapeTokens.large,
-                        bottomEnd = ShapeTokens.extraSmall,
-                        bottomStart = ShapeTokens.large,
-                    ),
+                    ShapeTokens.editorTeamUserBubbleShape,
                 )
                 .padding(SpacingTokens.md),
         ) {
@@ -740,12 +733,7 @@ private fun AgentBubble(
                 modifier = Modifier
                     .background(
                         bubbleColor.copy(alpha = 0.05f),
-                        RoundedCornerShape(
-                            topStart = ShapeTokens.large,
-                            topEnd = ShapeTokens.large,
-                            bottomEnd = ShapeTokens.large,
-                            bottomStart = ShapeTokens.extraSmall,
-                        ),
+                        ShapeTokens.editorTeamAgentBubbleShape,
                     )
                     .padding(SpacingTokens.md),
             ) {
@@ -931,7 +919,7 @@ private fun ChatInputBar(
     isEnabled: Boolean,
 ) {
     Card(
-        shape = RoundedCornerShape(topStart = ShapeTokens.extraLarge, topEnd = ShapeTokens.extraLarge),
+        shape = ShapeTokens.topExtraLargeShape,
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -943,8 +931,8 @@ private fun ChatInputBar(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = SizeTokens.quickActionIcon, max = 110.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(ShapeTokens.extraLarge))
+                        .heightIn(min = SizeTokens.quickActionIcon, max = SizeTokens.editorTeamAvatarMaxHeight)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, ShapeTokens.extraLargeShape)
                         .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                 ) {
                     if (inputText.isEmpty()) {
@@ -972,7 +960,7 @@ private fun ChatInputBar(
                             contentColor = MaterialTheme.customColors.dangerRed,
                         ),
                         modifier = Modifier.size(SizeTokens.quickActionIcon),
-                        contentPadding = PaddingValues(0.dp),
+                        contentPadding = PaddingValues(SpacingTokens.none),
                     ) {
                         Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.cd_stop), modifier = Modifier.size(SizeTokens.iconMd))
                     }
@@ -983,7 +971,7 @@ private fun ChatInputBar(
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.customColors.accentBlue),
                         enabled = isEnabled,
                         modifier = Modifier.size(SizeTokens.quickActionIcon),
-                        contentPadding = PaddingValues(0.dp),
+                        contentPadding = PaddingValues(SpacingTokens.none),
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send), modifier = Modifier.size(SizeTokens.iconMd))
                     }

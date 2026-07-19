@@ -272,7 +272,7 @@ fun InvisiblePartnerSettingsScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(SpacingTokens.md)
-                .padding(bottom = 100.dp)
+                .padding(bottom = SizeTokens.settingsBottomPaddingLg)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),

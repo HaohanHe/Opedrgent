@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -41,7 +40,9 @@ import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.NoteRepository
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import java.io.File
@@ -124,14 +125,13 @@ fun NoteShareScreen(
                         else
                             MaterialTheme.colorScheme.surface,
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
                 ) {
                     Column(modifier = Modifier.padding(SpacingTokens.lg)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = noteItem.title,
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
                                 maxLines = 2,
                                 modifier = Modifier.weight(1f),
                             )
@@ -142,10 +142,10 @@ fun NoteShareScreen(
                                     label = { Text(stringResource(R.string.note_share_ai_yi_zhuan_huan), style = MaterialTheme.typography.labelSmall) },
                                     leadingIcon = {
                                         Icon(
-                                            Icons.Default.AutoAwesome,
-                                            contentDescription = stringResource(R.string.note_share_ai_yi_zhuan_huan),
-                                            modifier = Modifier.size(14.dp),
-                                        )
+                                                Icons.Default.AutoAwesome,
+                                                contentDescription = stringResource(R.string.note_share_ai_yi_zhuan_huan),
+                                                modifier = Modifier.size(SizeTokens.iconXs),
+                                            )
                                     },
                                 )
                             }
@@ -183,7 +183,7 @@ fun NoteShareScreen(
                             },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy), modifier = Modifier.size(SizeTokens.iconSm))
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text(stringResource(R.string.action_copy), style = MaterialTheme.typography.labelSmall)
                         }
@@ -191,7 +191,7 @@ fun NoteShareScreen(
                             onClick = { onClearConversion() },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.note_share_hui_fu_yuan_wen), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.note_share_hui_fu_yuan_wen), modifier = Modifier.size(SizeTokens.iconSm))
                             Spacer(Modifier.width(SpacingTokens.xs))
                             Text(stringResource(R.string.note_share_hui_fu_yuan_wen), style = MaterialTheme.typography.labelSmall)
                         }
@@ -199,13 +199,12 @@ fun NoteShareScreen(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SizeTokens.sectionGapMd))
 
             // AI 风格转换区域
             Text(
                 text = stringResource(R.string.note_share_ai_feng_ge_zhuan_huan),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(SpacingTokens.sm))
 
@@ -218,7 +217,7 @@ fun NoteShareScreen(
                     onClick = { aiStyle = if (aiStyle == "xiaohongshu") null else "xiaohongshu" },
                     label = { Text(stringResource(R.string.note_share_xiao_hong_shu)) },
                     leadingIcon = if (aiStyle == "xiaohongshu") {
-                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(SizeTokens.iconSm)) }
                     } else null,
                 )
                 FilterChip(
@@ -226,7 +225,7 @@ fun NoteShareScreen(
                     onClick = { aiStyle = if (aiStyle == "wechat") null else "wechat" },
                     label = { Text(stringResource(R.string.note_share_gong_zhong_hao)) },
                     leadingIcon = if (aiStyle == "wechat") {
-                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(SizeTokens.iconSm)) }
                     } else null,
                 )
                 FilterChip(
@@ -234,7 +233,7 @@ fun NoteShareScreen(
                     onClick = { aiStyle = if (aiStyle == "moments") null else "moments" },
                     label = { Text(stringResource(R.string.note_share_peng_you_quan)) },
                     leadingIcon = if (aiStyle == "moments") {
-                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.state_selected), modifier = Modifier.size(SizeTokens.iconSm)) }
                     } else null,
                 )
             }
@@ -250,26 +249,25 @@ fun NoteShareScreen(
             ) {
                 if (isConverting) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(SizeTokens.iconSm),
+                        strokeWidth = SizeTokens.borderWidthLg,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.note_share_ai_zhuan_huan_zhong))
                 } else {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.note_share_ai_zhuan_huan), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.note_share_ai_zhuan_huan), modifier = Modifier.size(SizeTokens.iconMd))
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.note_share_ai_zhuan_huan))
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SizeTokens.sectionGapMd))
 
             // 分享平台网格
             Text(
                 text = stringResource(R.string.note_share_fen_xiang_dao_ping_tai),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(SpacingTokens.md))
 
@@ -307,19 +305,18 @@ fun NoteShareScreen(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(SizeTokens.sectionGapMd))
 
             // 分享格式选项
             Text(
                 text = stringResource(R.string.note_share_fen_xiang_ge_shi),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(SpacingTokens.md))
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                modifier = Modifier.height(120.dp),
+                modifier = Modifier.height(SizeTokens.contentHeightMd),
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
             ) {
@@ -384,14 +381,14 @@ private fun SharePlatformItem(
         Surface(
             color = platform.color.copy(alpha = 0.1f),
             shape = CircleShape,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(SizeTokens.sectionIcon),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     platform.icon,
                     contentDescription = name,
                     tint = platform.color,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(SizeTokens.listActionIconSize),
                 )
             }
         }
@@ -423,13 +420,12 @@ private fun ShareFormatItem(
                 format.icon,
                 contentDescription = name,
                 tint = format.color,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(SizeTokens.iconLg),
             )
             Spacer(Modifier.width(SpacingTokens.sm))
             Text(
                 name,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
             )
         }
     }

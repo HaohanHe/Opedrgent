@@ -132,6 +132,8 @@
     <string name="chat_empty_state_subtitle">点击下方按钮，与 Opedrgent 开启一段新的对话</string>
     <string name="chat_empty_state_title">开始新对话</string>
     <string name="chat_new_session_title">新对话</string>
+    <string name="chat_session_empty_subtitle">在下方输入框发送第一条消息，开始对话吧</string>
+    <string name="chat_session_empty_title">还没有消息</string>
 
     <!-- EmptyStateView.kt -->
     <string name="empty_state_action">立即创建</string>
@@ -255,4 +257,22 @@
     <string name="recording_photo_taken_at">拍摄于 %1$02d:%2$02d</string>
     <string name="recording_photos_taken">拍摄的照片 (%1$d张)</string>
     <string name="recording_transcription_failed">转录失败: %1$s</string>
+
+    <!-- NoteEditor 硬编码文本 / 符号 -->
+    <string name="note_editor_quote_prefix">"</string>
+    <string name="note_editor_checkbox_empty">☐</string>
+    <string name="note_editor_action_item_format">%1$d.</string>
+    <string name="note_editor_section_title_format">%1$02d. %2$s</string>
+
+    <!-- NoteList 硬编码文本 / 符号 -->
+    <string name="note_list_folder_separator"> &gt; </string>
+    <string name="note_list_tag_prefix">#%1$s</string>
+    <string name="note_list_more_tags">+%1$d</string>
+    <string name="note_list_meta_separator">·</string>
+    <string name="note_list_link_count_format">%1$d</string>
+
+    <!-- AiBubble reaction content descriptions -->
+    <string name="ai_bubble_cd_reaction_up">赞同</string>
+    <string name="ai_bubble_cd_reaction_down">不赞同</string>
+    <string name="ai_bubble_cd_copy">复制</string>
 </resources>

@@ -42,7 +42,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -556,10 +555,7 @@ private fun ReportHeader(dateStr: String, modelName: String) {
         ) {
             Text(
                 text = stringResource(R.string.sprout_fa_ya_bao_gao),
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontFamily = FontFamily.Serif,
-                    letterSpacing = 4.sp,
-                ),
+                style = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Serif),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs),
             )
@@ -784,7 +780,7 @@ private fun SproutLoadingView() {
     ) {
         Box(
             modifier = Modifier
-                .size(160.dp)
+                .size(SizeTokens.sproutAnimationCanvasSize)
                 .drawBehind {
                     val centerX = size.width / 2f
                     val groundY = size.height * 0.72f
@@ -795,19 +791,19 @@ private fun SproutLoadingView() {
                         center = Offset(centerX, groundY),
                     )
 
-                    val seedY = groundY - 8.dp.toPx()
+                    val seedY = groundY - SizeTokens.sproutSeedYOffset.toPx()
                     drawOval(
                         color = seedColor.copy(alpha = 0.6f),
-                        topLeft = Offset(centerX - 14.dp.toPx(), seedY - 10.dp.toPx()),
-                        size = androidx.compose.ui.geometry.Size(28.dp.toPx(), 20.dp.toPx()),
+                        topLeft = Offset(centerX - SizeTokens.sproutSeedWidth.toPx() / 2, seedY - SizeTokens.sproutSeedHeight.toPx() / 2),
+                        size = androidx.compose.ui.geometry.Size(SizeTokens.sproutSeedWidth.toPx(), SizeTokens.sproutSeedHeight.toPx()),
                     )
 
                     val stemHeight = size.height * 0.45f * sproutProgress
                     if (stemHeight > 0f) {
                         val stemPath = Path().apply {
                             moveTo(centerX, groundY)
-                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * 8.dp.toPx()
-                            quadraticBezierTo(
+                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * SizeTokens.sproutSwayAmplitude.toPx()
+                            quadraticTo(
                                 centerX + swayX,
                                 groundY - stemHeight * 0.5f,
                                 centerX + swayX * 0.5f,
@@ -818,16 +814,16 @@ private fun SproutLoadingView() {
                             path = stemPath,
                             color = successColor,
                             style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                width = 4.dp.toPx(),
+                                width = SizeTokens.sproutStemWidth.toPx(),
                                 cap = androidx.compose.ui.graphics.StrokeCap.Round,
                             ),
                         )
 
                         if (sproutProgress > 0.35f) {
                             val leafProgress = (sproutProgress - 0.35f) / 0.65f
-                            val leafSize = 22.dp.toPx() * leafProgress.coerceIn(0f, 1f)
+                            val leafSize = SizeTokens.sproutLeafSize.toPx() * leafProgress.coerceIn(0f, 1f)
                             val leafY = groundY - stemHeight * 0.7f
-                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * 8.dp.toPx()
+                            val swayX = kotlin.math.sin(sproutProgress * Math.PI * 2).toFloat() * SizeTokens.sproutSwayAmplitude.toPx()
                             drawOval(
                                 color = successColor.copy(alpha = 0.85f),
                                 topLeft = Offset(centerX + swayX * 0.5f - leafSize * 0.7f, leafY - leafSize * 0.3f),

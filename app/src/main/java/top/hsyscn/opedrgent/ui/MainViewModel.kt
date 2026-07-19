@@ -390,6 +390,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     var systemAudioRecorderRef: SystemAudioRecorder? by recorder::systemAudioRecorderRef
     /** 当前录音临时 PCM 文件路径 */
     var recordingTempFilePath by recorder::recordingTempFilePath
+    /** 本次录音采样率（Hz），用于 WAV 头与回放 */
+    var recordingSampleRate by recorder::recordingSampleRate
     /** 实时流式转写文本（录音期间跨页面保留） */
     var recordingStreamingText by recorder::recordingStreamingText
     /** 是否正在流式识别中 */
@@ -1360,6 +1362,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun sendUserMessage(text: String) {
+        if (text.isBlank()) return
 
         var sessionId = _state.value.current?.id
         if (sessionId == null) {
@@ -1372,7 +1375,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             _state.value = _state.value.copy(navigateToSessionId = session.id)
             DebugLog.i("sendUserMessage: 自动创建新 session $sessionId, 导航到 AI Tab")
         }
-        if (text.isBlank()) return
         DebugLog.i("sendUserMessage: ${text.take(100)}")
 
         val finalText = text.trim()
@@ -2820,6 +2822,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 DebugLog.i("runModel: complete, final=${displayContent.length} chars, tools=${loopResult.allToolParts.size}")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (!cancelled.get()) {
                     DebugLog.e("runModel error: ${e.message}", e)
@@ -4484,6 +4488,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun getRecordingMaxHours(mode: String): Int = apiSettings.getRecordingMaxHours(mode)
     fun saveRecordingMaxHours(mode: String, hours: Int) = apiSettings.saveRecordingMaxHours(mode, hours)
 
+    // 录音质量设置
+    fun getRecordingQuality(): top.hsyscn.opedrgent.model.RecordingQuality = apiSettings.getRecordingQuality()
+    fun saveRecordingQuality(quality: top.hsyscn.opedrgent.model.RecordingQuality) = apiSettings.saveRecordingQuality(quality)
+
     fun toggleDeepThinking(): Boolean {
         val next = !isDeepThinking()
         apiSettings.saveDeepThinking(next)
@@ -4894,11 +4902,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         refreshSessions()
     }
 
-    /** 撤回/删除指定消息 */
+    /** 撤回指定消息。若撤回的是用户消息，则同时删除其后的所有消息，避免留下孤立的助手回复。 */
     fun deleteMessage(messageId: String) {
         val sessionId = _state.value.current?.id ?: return
         val session = store.getSession(sessionId) ?: return
-        val updatedMessages = session.messages.filter { it.id != messageId }
+        val index = session.messages.indexOfFirst { it.id == messageId }
+        if (index == -1) return
+        val updatedMessages = session.messages.take(index)
         val updatedSession = session.copy(messages = updatedMessages, updatedAt = System.currentTimeMillis())
         store.updateSession(updatedSession)
         refreshCurrentSession(sessionId)

@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -159,6 +160,8 @@ class RunJsTool(
             } else {
                 emptyResult(toolPart, "JS 执行失败 (${result.executionMs}ms): ${result.error}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("RunJsTool 异常: ${e.message}", e)
             emptyResult(toolPart, "JS 执行异常: ${e.message}")

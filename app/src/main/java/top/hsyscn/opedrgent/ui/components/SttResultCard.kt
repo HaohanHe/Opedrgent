@@ -60,6 +60,7 @@ import top.hsyscn.opedrgent.stt.SttSegment
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.OpedrgentTheme
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.ui.tooling.preview.Preview
 
@@ -149,14 +150,14 @@ private fun ResultTitleBar(isSuccess: Boolean, onDismiss: () -> Unit) {
         IconButton(
             onClick = onDismiss,
             modifier = Modifier
-                .size(36.dp)
+                .size(SizeTokens.iconButtonSize)
                 .semantics { contentDescription = closeCd },
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = stringResource(R.string.cd_close),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(SizeTokens.iconLg),
             )
         }
     }
@@ -170,7 +171,7 @@ private fun ErrorContent(error: String) {
                 imageVector = Icons.Default.Error,
                 contentDescription = stringResource(R.string.stt_result_cd_error),
                 tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
             )
             Spacer(Modifier.width(SpacingTokens.xs))
             Text(
@@ -205,7 +206,7 @@ private fun SuccessContent(result: SttResult) {
             overflow = TextOverflow.Clip,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 200.dp)
+                .heightIn(max = SizeTokens.resultTextMaxHeight)
                 .verticalScroll(rememberScrollState())
                 .semantics { contentDescription = textCd },
         )
@@ -289,7 +290,7 @@ private fun StatsBar(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
             )
         }
     }
@@ -324,7 +325,7 @@ private fun SegmentList(segments: List<SttSegment>) {
                         text = "${segment.startTimeMs / 1000}s - ${segment.endTimeMs / 1000}s",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(90.dp),
+                        modifier = Modifier.width(SizeTokens.sttButtonWidth),
                     )
                     Text(
                         text = segment.text,
@@ -375,7 +376,7 @@ private fun ActionButtons(
             shape = ShapeTokens.mediumShape,
             modifier = Modifier
                 .weight(1f)
-                .height(44.dp)
+                .height(SizeTokens.buttonHeightMd)
                 .semantics { contentDescription = copyCd },
         ) {
             if (copyFeedbackShown) {
@@ -383,7 +384,7 @@ private fun ActionButtons(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = stringResource(R.string.msg_copied),
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(SizeTokens.iconMd),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text(stringResource(R.string.msg_copied), style = MaterialTheme.typography.labelLarge)
@@ -391,7 +392,7 @@ private fun ActionButtons(
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
                     contentDescription = stringResource(R.string.cd_copy),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(SizeTokens.iconMd),
                 )
                 Spacer(Modifier.width(SpacingTokens.xs))
                 Text(stringResource(R.string.action_copy), style = MaterialTheme.typography.labelLarge)
@@ -410,13 +411,13 @@ private fun ActionButtons(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier
                 .weight(1f)
-                .height(44.dp)
+                .height(SizeTokens.sttResultCardHeight)
                 .semantics { contentDescription = sendCd },
         ) {
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = stringResource(R.string.stt_result_cd_send_ai),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
             )
             Spacer(Modifier.width(SpacingTokens.xs))
             Text(stringResource(R.string.stt_result_send_to_ai), style = MaterialTheme.typography.labelLarge)

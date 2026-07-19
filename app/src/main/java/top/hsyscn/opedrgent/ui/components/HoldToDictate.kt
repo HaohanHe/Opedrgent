@@ -205,7 +205,7 @@ fun HoldToDictate(
                 painter = painterResource(id = if (isRecording) android.R.drawable.ic_btn_speak_now else android.R.drawable.ic_btn_speak_now),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(SizeTokens.listActionIconSize)
             )
         }
 

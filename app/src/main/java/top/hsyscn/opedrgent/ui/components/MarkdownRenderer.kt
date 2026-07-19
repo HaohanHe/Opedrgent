@@ -49,7 +49,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,8 +60,9 @@ import top.hsyscn.opedrgent.ui.theme.customColors
 import androidx.compose.ui.res.stringResource
 
 private val TABLE_LINE_PATTERN = Regex("""^\s*\|.+\|""")
+private val TABLE_PLAIN_SEPARATOR_PATTERN = Regex("""^[\s\-:=]+$""")
 
-private val SNAPSHOT_PATTERN = Regex("""[\s.,!?;:)\]]""")
+private val SNAPSHOT_PATTERN = Regex("""[\s.,!?;:)]""")
 
 private val ORDERED_BULLET_PATTERN = Regex("""^\d+\.\s""")
 private val TABLE_SEPARATOR_PATTERN = Regex("""\|[\s\-:\|]+\|""")
@@ -74,6 +74,67 @@ private val MD_CODE_PATTERN = Regex("""`(.+?)`""")
 private val MD_LINK_PATTERN = Regex("""\[([^\]]+)\]\(([^)]+)\)""")
 private val MD_CITATION_PATTERN = Regex("""\[S\d+]""")
 private val MD_ORDERED_LIST_PATTERN = Regex("""^(\d+)\.\s(.+)""")
+
+/**
+ * 规范化 Markdown 块级标记。
+ * AI 输出时常把标题、表格直接接在正文同一行（如 "...UTC+8)### 今晚"），
+ * 导致按行解析器无法识别。此函数在块级标记前强制换行。
+ */
+fun normalizeBlockMarkdown(text: String): String {
+    val lines = text.split("\n")
+    val result = StringBuilder()
+    for (rawLine in lines) {
+        val line = rawLine.trimEnd()
+        if (line.isBlank()) {
+            result.appendLine()
+            continue
+        }
+        result.appendLine(splitInlineBlockMarkers(line))
+    }
+    return result.toString().trimEnd()
+}
+
+private val INLINE_HEADING_PATTERN = Regex("""#{1,6}\s+""")
+private val INLINE_TABLE_PATTERN = Regex("""\|[^|\n]*?(\|[^|\n]*?)+""")
+
+private fun splitInlineBlockMarkers(line: String): String {
+    val trimmedStart = line.trimStart()
+    // 行首已经是块级元素，不再处理
+    if (trimmedStart.startsWith("#") ||
+        TABLE_LINE_PATTERN.matches(trimmedStart) ||
+        trimmedStart.startsWith("> ") ||
+        trimmedStart.startsWith("- ") ||
+        trimmedStart.startsWith("* ") ||
+        ORDERED_BULLET_PATTERN.matches(trimmedStart)
+    ) {
+        return line
+    }
+
+    // 优先处理标题：在行内出现的 "### 标题" 前换行
+    val headingMatch = INLINE_HEADING_PATTERN.find(line)
+    if (headingMatch != null) {
+        val pos = headingMatch.range.first
+        // 只在标记不在行首且前面不是空白时才分割（避免破坏合法行首标题）
+        if (pos > 0 && !line[pos - 1].isWhitespace()) {
+            val before = line.substring(0, pos)
+            val after = line.substring(pos)
+            return before.trimEnd() + "\n" + splitInlineBlockMarkers(after)
+        }
+    }
+
+    // 处理表格行：在行内出现的 "| a | b |" 前换行
+    val tableMatch = INLINE_TABLE_PATTERN.find(line)
+    if (tableMatch != null) {
+        val pos = tableMatch.range.first
+        if (pos > 0 && !line[pos - 1].isWhitespace()) {
+            val before = line.substring(0, pos)
+            val after = line.substring(pos)
+            return before.trimEnd() + "\n" + splitInlineBlockMarkers(after)
+        }
+    }
+
+    return line
+}
 
 fun healPartialMarkdown(text: String): String {
     val sb = StringBuilder(text)
@@ -133,7 +194,7 @@ data class ParsedMarkdownContent(
 @Composable
 fun MarkdownText(text: String, maxChars: Int, modifier: Modifier = Modifier) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
-    val t = text.trim()
+    val t = normalizeBlockMarkdown(text.trim())
     val show = if (!expanded && t.length > maxChars) t.take(maxChars) + "…" else t
 
     val parsedContent by produceState<ParsedMarkdownContent?>(initialValue = null, key1 = show) {
@@ -354,22 +415,19 @@ fun MarkdownTable(tableLines: List<String>, accentColor: Color) {
     }
 
     var sepIdx = cleanLines.indexOfFirst { line ->
-        TABLE_SEPARATOR_PATTERN.matches(line)
+        TABLE_SEPARATOR_PATTERN.matches(line) ||
+            (TABLE_PLAIN_SEPARATOR_PATTERN.matches(line) && line.count { it == '-' || it == '=' || it == ':' } >= 3)
     }
 
     if (sepIdx < 1) {
         val colCounts = cleanLines.map { parseTableRow(it).size }.distinct()
-        if (colCounts.size == 1 && colCounts.first() >= 2) {
-            sepIdx = 0
-        } else {
-            sepIdx = 0
-        }
+        sepIdx = if (colCounts.size == 1 && colCounts.first() >= 2) 0 else 0
     }
 
     val headerLine = if (sepIdx > 0) cleanLines[sepIdx - 1] else cleanLines[0]
     val headers = parseTableRow(headerLine)
     val aligns = if (sepIdx > 0 && sepIdx < cleanLines.size) {
-        parseAlignments(cleanLines[sepIdx])
+        parseAlignments(cleanLines[sepIdx], headers.size)
     } else {
         List(headers.size) { "left" }
     }
@@ -377,6 +435,8 @@ fun MarkdownTable(tableLines: List<String>, accentColor: Color) {
         cleanLines.drop(sepIdx + 1).filter { it.isNotEmpty() }
     } else {
         cleanLines.drop(1)
+    }.filter {
+        !TABLE_PLAIN_SEPARATOR_PATTERN.matches(it)
     }.map { parseTableRow(it) }
 
     Card(
@@ -415,7 +475,17 @@ private fun MarkdownTableRow(
                 else -> TextAlign.Start
             }
             Text(
-                text = cell.trim(),
+                text = buildAnnotatedString {
+                    appendMarkdownInline(
+                        cell.trim(),
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        accentColor,
+                        MaterialTheme.typography.bodySmall.fontSize,
+                        emphasisWeight = MaterialTheme.typography.headlineLarge.fontWeight,
+                        mediumWeight = MaterialTheme.typography.titleMedium.fontWeight,
+                    )
+                },
                 modifier = Modifier.weight(1f).padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs),
                 style = if (isHeader) MaterialTheme.typography.labelMedium
                 else MaterialTheme.typography.bodySmall,
@@ -435,15 +505,27 @@ private fun parseTableRow(line: String): List<String> {
     return line.split("|").filter { it.isNotEmpty() }.map { it.trim() }
 }
 
-private fun parseAlignments(sepLine: String): List<String> {
-    return sepLine.split("|").filter { it.isNotEmpty() }.map { cell ->
-        val t = cell.trim()
-        when {
-            t.startsWith(":") && t.endsWith(":") -> "center"
-            t.endsWith(":") -> "right"
-            else -> "left"
+private fun parseAlignments(sepLine: String, expectedSize: Int): List<String> {
+    val cells = if (sepLine.contains("|")) {
+        sepLine.split("|").filter { it.isNotEmpty() }.map { it.trim() }
+    } else {
+        // 无 | 分隔线，按列数拆分为等长段（如 "------" 视为全部左对齐）
+        val segmentLength = sepLine.length / expectedSize
+        if (segmentLength > 0) {
+            (0 until expectedSize).map { i ->
+                sepLine.substring(i * segmentLength, minOf((i + 1) * segmentLength, sepLine.length)).trim()
+            }
+        } else {
+            emptyList()
         }
     }
+    return cells.map { cell ->
+        when {
+            cell.startsWith(":") && cell.endsWith(":") -> "center"
+            cell.endsWith(":") -> "right"
+            else -> "left"
+        }
+    }.let { if (it.size < expectedSize) it + List(expectedSize - it.size) { "left" } else it.take(expectedSize) }
 }
 
 fun AnnotatedString.Builder.appendMarkdownInline(

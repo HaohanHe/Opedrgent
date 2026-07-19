@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
  * - xxl: 页面级间距
  */
 object SpacingTokens {
+    val none = 0.dp
     val xxs = 2.dp
     val xs = 4.dp
     val sm = 8.dp

@@ -27,11 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.editor.utils.EditorUtils
@@ -97,7 +96,7 @@ fun EditorNoteItemCard(
                 Surface(
                     shape = ShapeTokens.smallShape,
                     color = MaterialTheme.customColors.errorBackground,
-                    border = BorderStroke(1.dp, MaterialTheme.customColors.errorBorder),
+                    border = BorderStroke(SizeTokens.borderWidth, MaterialTheme.customColors.errorBorder),
                     modifier = Modifier
                         .padding(top = SpacingTokens.sm)
                         .fillMaxWidth(),
@@ -131,7 +130,7 @@ fun EditorNoteItemCard(
                         ) {
                             Text(
                                 stringResource(R.string.action_delete),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onError,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.xs, vertical = SpacingTokens.xxs)
                             )

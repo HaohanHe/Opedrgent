@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -26,7 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,7 +46,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
@@ -204,7 +204,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.about_open_source), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.about_open_source), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back)) }
                 },
@@ -216,7 +216,7 @@ fun OpenSourceScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(SpacingTokens.lg),
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
         ) {
             item {
@@ -245,11 +245,10 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = project.name,
-                                fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.titleSmall,
                                 color = themeTextDark(),
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(SpacingTokens.xxs))
                             Text(
                                 text = project.description,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -263,10 +262,10 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                             )
                         }
                         Icon(
-                            Icons.Default.OpenInNew,
+                            Icons.AutoMirrored.Filled.OpenInNew,
                             contentDescription = stringResource(R.string.cd_open_link),
                             modifier = Modifier
-                                .size(18.dp)
+                                .size(SizeTokens.iconMd)
                                 .clickable {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(project.url)))
                                 },

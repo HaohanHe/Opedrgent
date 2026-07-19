@@ -101,7 +101,7 @@ fun ModelSelectorDialog(
                         .fillMaxWidth()
                         .heightIn(max = SizeTokens.expandedContentMaxHeight),
                     state = listState,
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(SpacingTokens.none),
                 ) {
                     items(
                         items = AvailableLocalModels.MODELS,

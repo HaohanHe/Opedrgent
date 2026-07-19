@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 
 /**
@@ -180,7 +181,7 @@ fun OnboardingScreen(
             )
         }
 
-        val onboardingMaxWidth = if (isAtLeastMediumWidth()) 560.dp else Dp.Unspecified
+        val onboardingMaxWidth = if (isAtLeastMediumWidth()) SizeTokens.onboardingMaxWidth else Dp.Unspecified
         Column(
             modifier = Modifier
                 .then(
@@ -261,7 +262,7 @@ fun OnboardingScreen(
                     ) { isActive ->
                         Box(
                             modifier = Modifier
-                                .size(if (isActive) 24.dp else 8.dp)
+                                .size(if (isActive) SizeTokens.onboardingIndicatorActive else SizeTokens.onboardingIndicatorInactive)
                                 .clip(CircleShape)
                                 .background(
                                     if (isActive) {
@@ -293,13 +294,13 @@ fun OnboardingScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.onboarding_prev),
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(SizeTokens.iconMd),
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(SpacingTokens.xs))
                         Text(stringResource(R.string.onboarding_prev))
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(80.dp))
+                    Spacer(modifier = Modifier.width(SizeTokens.onboardingButtonPlaceholderWidth))
                 }
 
                 // 主按钮
@@ -323,21 +324,21 @@ fun OnboardingScreen(
                         if (last) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(stringResource(R.string.onboarding_get_started))
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                 Icon(
                                     Icons.Default.ArrowForward,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(SizeTokens.iconMd),
                                 )
                             }
                         } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(stringResource(R.string.onboarding_next))
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                 Icon(
                                     Icons.Default.ArrowForward,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(SizeTokens.iconMd),
                                 )
                             }
                         }
@@ -397,7 +398,7 @@ private fun OnboardingPageContent(
         // 图标容器：弹跳入场
         Box(
             modifier = Modifier
-                .size(140.dp)
+                .size(SizeTokens.onboardingIconContainerSize)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer)
                 .scale(iconScale.value)
@@ -407,7 +408,7 @@ private fun OnboardingPageContent(
             Icon(
                 imageVector = page.icon,
                 contentDescription = null,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(SizeTokens.onboardingIconSize),
                 tint = MaterialTheme.colorScheme.primary,
             )
         }

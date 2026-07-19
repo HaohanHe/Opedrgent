@@ -113,8 +113,32 @@ val Typography = Typography(
         lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
+    // 标题中号强调 - 对应 titleMedium 尺寸，加粗
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.sp
+    ),
+    // 标题小号强调 - 对应 titleSmall 尺寸，加粗
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
 )
 
 /** 图谱节点标签：比 labelSmall 更小，避免覆盖节点。 */
 val Typography.graphLabel: TextStyle
     get() = labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp)
+
+/** 标签中号强调 - 用于工具栏标签等需要加粗的场景。 */
+val Typography.labelMediumEmphasized: TextStyle
+    get() = labelMedium.copy(fontWeight = FontWeight.Bold)
+
+/** 正文小号强调 - 用于小尺寸但需要 Medium 字重的场景。 */
+val Typography.bodySmallEmphasized: TextStyle
+    get() = bodySmall.copy(fontWeight = FontWeight.Medium)

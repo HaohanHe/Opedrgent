@@ -8,13 +8,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.dp
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 
 @Composable
 fun SproutEmptyIllustration(modifier: Modifier = Modifier) {
     val strokeColor = MaterialTheme.colorScheme.onSurface
-    Canvas(modifier = modifier.size(100.dp)) {
-        val strokeWidth = 2.dp.toPx()
+    Canvas(modifier = modifier.size(SizeTokens.emptyIllustrationSize)) {
+        val strokeWidth = SizeTokens.emptyIllustrationStrokeWidth.toPx()
         val style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
 
         // 土壤线 - 底部弯曲水平线

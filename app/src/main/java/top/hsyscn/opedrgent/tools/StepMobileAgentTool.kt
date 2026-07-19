@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.tools
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -154,6 +155,8 @@ press_back(返回), press_home(主页), scroll(滚动), wait(等待) 等。""",
             } else {
                 emptyResult(toolPart, "Mobile Agent 分析失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepMobileAgentTool 异常: ${e.message}", e)
             emptyResult(toolPart, "Mobile Agent 异常: ${e.message}")
@@ -316,6 +319,8 @@ press_back(返回), press_home(主页), scroll(滚动), wait(等待) 等。""",
                     ?: parsed?.optString("action_plan"),
                 confidence = parsed?.optDouble("confidence")?.let { "${(it * 100).toInt()}%" },
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[mobile-agent] 异常: ${e.message}", e)
             AgentResult(false, errorMessage = e.message ?: "未知错误")

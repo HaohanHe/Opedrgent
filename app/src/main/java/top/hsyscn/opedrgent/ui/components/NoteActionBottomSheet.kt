@@ -29,6 +29,7 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.note.ExportFormat
 import top.hsyscn.opedrgent.note.Note
 import top.hsyscn.opedrgent.note.exportNoteToFile
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.ui.res.stringResource
 
@@ -101,7 +102,7 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_export_txt)) },
                     leadingContent = {
-                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_txt), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_txt), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         scope.launch {
@@ -127,7 +128,7 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_export_markdown)) },
                     leadingContent = {
-                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_markdown), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Description, stringResource(R.string.note_action_cd_export_markdown), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         scope.launch {
@@ -159,38 +160,38 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.action_edit)) },
                     leadingContent = {
-                        Icon(Icons.Default.Edit, stringResource(R.string.cd_edit), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Edit, stringResource(R.string.cd_edit), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onEdit() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.action_share)) },
                     leadingContent = {
-                        Icon(Icons.Default.Share, stringResource(R.string.cd_share), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Share, stringResource(R.string.cd_share), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onShare() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_append)) },
                     leadingContent = {
-                        Icon(Icons.Default.AddCircleOutline, stringResource(R.string.note_action_cd_append), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AddCircleOutline, stringResource(R.string.note_action_cd_append), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAppend() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.action_export)) },
                     leadingContent = {
-                        Icon(Icons.Default.FileDownload, stringResource(R.string.note_action_cd_export), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.FileDownload, stringResource(R.string.note_action_cd_export), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     trailingContent = {
-                        Icon(Icons.Default.ChevronRight, stringResource(R.string.note_action_cd_enter_export_submenu), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.ChevronRight, stringResource(R.string.note_action_cd_enter_export_submenu), modifier = Modifier.size(SizeTokens.iconLg), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     },
                     modifier = Modifier.clickable { showExportSubmenu = true },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_copy_summary)) },
                     leadingContent = {
-                        Icon(Icons.Default.ContentCopy, stringResource(R.string.note_action_cd_copy_summary), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.ContentCopy, stringResource(R.string.note_action_cd_copy_summary), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         val summary = note.summary.ifBlank { note.content.take(200) }
@@ -202,7 +203,7 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_copy_full_text)) },
                     leadingContent = {
-                        Icon(Icons.Default.CopyAll, stringResource(R.string.note_action_cd_copy_full_text), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.CopyAll, stringResource(R.string.note_action_cd_copy_full_text), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable {
                         clipboardManager.setText(AnnotatedString(note.content))
@@ -213,49 +214,49 @@ fun NoteActionBottomSheet(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_correct)) },
                     leadingContent = {
-                        Icon(Icons.Default.Spellcheck, stringResource(R.string.note_action_cd_correct), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(Icons.Default.Spellcheck, stringResource(R.string.note_action_cd_correct), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onCorrect() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_sprout)) },
                     leadingContent = {
-                        Icon(Icons.Default.AutoAwesome, stringResource(R.string.note_action_cd_sprout), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AutoAwesome, stringResource(R.string.note_action_cd_sprout), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onSprout() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_add_to_kb)) },
                     leadingContent = {
-                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.note_action_cd_add_to_kb), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.note_action_cd_add_to_kb), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.secondary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddToKnowledgeBase() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_add_tag)) },
                     leadingContent = {
-                        Icon(Icons.AutoMirrored.Filled.Label, stringResource(R.string.note_action_cd_add_tag), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(Icons.AutoMirrored.Filled.Label, stringResource(R.string.note_action_cd_add_tag), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.tertiary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onAddTag() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(if (note.isPinned) R.string.note_action_unpin else R.string.note_action_pin)) },
                     leadingContent = {
-                        Icon(Icons.Default.PushPin, stringResource(if (note.isPinned) R.string.note_action_cd_unpin else R.string.note_action_cd_pin), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.PushPin, stringResource(if (note.isPinned) R.string.note_action_cd_unpin else R.string.note_action_cd_pin), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onTogglePin() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.note_action_discuss_in_chat)) },
                     leadingContent = {
-                        Icon(Icons.Default.ChatBubbleOutline, stringResource(R.string.note_action_cd_discuss_in_chat), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.ChatBubbleOutline, stringResource(R.string.note_action_cd_discuss_in_chat), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier.clickable { onDismiss(); onSendToChat() },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingContent = {
-                        Icon(Icons.Default.Delete, stringResource(R.string.cd_delete), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Delete, stringResource(R.string.cd_delete), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.error)
                     },
                     modifier = Modifier.clickable { showDeleteConfirm = true },
                 )
