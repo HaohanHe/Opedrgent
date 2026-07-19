@@ -628,7 +628,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * @param transcript 录音转写全文
      * @param conversationContext 对话上下文（提及的频率、设备、卫星名称等），可为空
      */
-    fun requestContactLog(transcript: String, conversationContext: String = "") {
+    fun requestContactLog(
+        transcript: String,
+        conversationContext: String = "",
+        recordingStartAtUtcMs: Long? = null,
+    ) {
         if (!apiSettings.isHamModeEnabled()) return
         if (transcript.isBlank()) return
 
@@ -644,6 +648,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
                     preFilled = HamContactLog(
                         date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
+                        timeOn = recordingStartAtUtcMs?.let { formatUtcTimeHHMMSS(it) } ?: "",
+                        timeOff = "",
                         gridLocator = apiSettings.getMyGridsquare().ifBlank { with(HamContactLogHelper) { apiSettings.getLastGridLocator() } ?: "" },
                         satName = satMatch?.name ?: "",
                         frequency = satMatch?.downlinkMHz ?: "",
@@ -766,6 +772,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         file.writeText(adifContent, Charsets.UTF_8)
         file
+    }
+
+    /** 将 UTC 毫秒时间戳格式化为 ADIF 所需的 HHMMSS。 */
+    private fun formatUtcTimeHHMMSS(utcMs: Long): String {
+        return java.time.Instant.ofEpochMilli(utcMs)
+            .atOffset(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("HHmmss"))
     }
 
     /** Ham 模式：导出通联日志为 CSV 格式文件（备用格式，便于 Excel/日志软件导入） */

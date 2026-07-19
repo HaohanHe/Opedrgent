@@ -1175,7 +1175,11 @@ fun RecordingTab(
                                         } else {
                                             scope.launch {
                                                 val contactLogContext = vm.buildContactLogContext(result.fullText)
-                                                vm.requestContactLog(result.fullText, contactLogContext)
+                                                vm.requestContactLog(
+                                                    transcript = result.fullText,
+                                                    conversationContext = contactLogContext,
+                                                    recordingStartAtUtcMs = startTime.longValue,
+                                                )
                                                 snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log))
                                             }
                                         }
