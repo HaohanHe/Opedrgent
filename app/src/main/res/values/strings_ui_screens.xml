@@ -445,6 +445,12 @@
     <string name="settings_gong_1_tiao_suo_yin_tiao_mu">共 %1$s 条索引条目</string>
     <string name="settings_gong_ying_shang">供应商</string>
     <string name="settings_ham_mo_shi_ye_yu_wei_xing">Ham 模式（业余卫星）</string>
+    <string name="settings_ham_station_callsign">本台呼号（STATION_CALLSIGN）</string>
+    <string name="settings_ham_station_callsign_hint">例如 BI4MIB</string>
+    <string name="settings_ham_station_callsign_invalid">呼号只能包含字母、数字和斜杠</string>
+    <string name="settings_ham_my_gridsquare">本台网格（MY_GRIDSQUARE）</string>
+    <string name="settings_ham_my_gridsquare_hint">例如 PM01ab</string>
+    <string name="settings_ham_my_gridsquare_invalid">网格格式应为 4 或 6 位字母+数字组合（如 PM01ab）</string>
     <string name="settings_huo_qu_mo_xing_lie_biao_shi">获取模型列表失败 — 请检查 API Key 是否正确，或查看日志详情</string>
     <string name="settings_jia_zai_shi_bai_1">加载失败: %1$s</string>
     <string name="settings_kai_qi_hou_ke_yu_ce_wei_xing">开启后可预测卫星过境、生成通联日志</string>
