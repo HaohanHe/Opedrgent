@@ -651,6 +651,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         noradId = if (satMatch != null) satMatch.noradId.toString() else "",
                     )
                     val filled = checkNotNull(preFilled)
+                    val zoneOffset = java.time.ZoneOffset.ofTotalSeconds(
+                        java.util.TimeZone.getDefault().rawOffset / 1000
+                    )
+                    val nowUtc = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                     buildString {
                         appendLine("分析业余卫星通联的录音转写文本，提取以下字段。")
                         appendLine()
@@ -662,7 +667,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         if (filled.gridLocator.isNotBlank()) appendLine("  QTH网格: ${filled.gridLocator}")
                         if (filled.date.isNotBlank()) appendLine("  日期: ${filled.date}")
                         appendLine()
-                        appendLine("以下字段必须从转写文本中提取，找不到则留空：")
+                        appendLine("以下字段必须从转写文本中提取，找不到则留空。")
+                        appendLine("注意：timeOn/timeOff 必须是 UTC 时间。若转写文本中说的是本地时间（当前本地时区 ${zoneOffset.id}），请先换算成 UTC 再输出。")
+                        appendLine("当前 UTC 时间参考: $nowUtc")
+                        appendLine()
                         appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
                         appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
                         appendLine("  callsign: 对方呼号（地面通联时）")
