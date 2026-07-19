@@ -1173,8 +1173,11 @@ fun RecordingTab(
                                         if (result.fullText.isBlank()) {
                                             scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_contact_log_empty_transcript)) }
                                         } else {
-                                            vm.requestContactLog(result.fullText)
-                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log)) }
+                                            scope.launch {
+                                                val contactLogContext = vm.buildContactLogContext(result.fullText)
+                                                vm.requestContactLog(result.fullText, contactLogContext)
+                                                snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log))
+                                            }
                                         }
                                     },
                                     onDiscardAutoSave = {
@@ -1292,6 +1295,8 @@ fun RecordingTab(
     var currentContactLog by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
     // 编辑草稿独立于对话框生命周期：对话框关闭后草稿保留，可重新打开继续编辑（修复 dismiss 后状态丢失问题）
     var editDraft by remember { mutableStateOf<top.hsyscn.opedrgent.model.HamContactLog?>(null) }
+    // 导出 ADIF 前若设置中缺少本台呼号/网格，弹出提醒
+    var showStationInfoMissingDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(vm.contactLog) {
         if (vm.contactLog != null && vm.apiSettings.isHamModeEnabled()) {
@@ -1437,6 +1442,12 @@ fun RecordingTab(
                 Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                     OutlinedButton(
                         onClick = {
+                            val stationMissing = vm.apiSettings.getStationCallsign().isBlank() ||
+                                vm.apiSettings.getMyGridsquare().isBlank()
+                            if (stationMissing) {
+                                showStationInfoMissingDialog = true
+                                return@OutlinedButton
+                            }
                             scope.launch {
                                 runCatching {
                                     val file = vm.exportContactLog(log)
@@ -1528,6 +1539,20 @@ fun RecordingTab(
             dismissButton = {
                 TextButton(onClick = { showContactLogDialog = false }) {
                     Text(stringResource(R.string.action_close))
+                }
+            },
+        )
+    }
+
+    // 导出 ADIF 前缺少台站信息时的提醒弹窗
+    if (showStationInfoMissingDialog) {
+        AlertDialog(
+            onDismissRequest = { showStationInfoMissingDialog = false },
+            title = { Text(stringResource(R.string.recording_station_info_missing_title)) },
+            text = { Text(stringResource(R.string.recording_station_info_missing_message)) },
+            confirmButton = {
+                TextButton(onClick = { showStationInfoMissingDialog = false }) {
+                    Text(stringResource(R.string.recording_station_info_missing_confirm))
                 }
             },
         )

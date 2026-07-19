@@ -717,6 +717,32 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * 为语音转通联日志构建对话上下文。
+     *
+     * 在转写文本之外，把已识别的卫星参数、频率、调制方式等信息显式交给 AI，
+     * 提高对含混语音的提取准确率。
+     */
+    suspend fun buildContactLogContext(text: String): String = withContext(Dispatchers.IO) {
+        val satMatch = try {
+            HamContactLogHelper.findSatelliteInText(text, app, apiSettings)
+        } catch (_: Exception) {
+            null
+        }
+        buildString {
+            if (satMatch != null) {
+                appendLine("识别到预置业余卫星：")
+                appendLine("  卫星名称: ${satMatch.name}")
+                satMatch.oscar?.let { appendLine("  AMSAT编号: $it") }
+                appendLine("  NORAD ID: ${satMatch.noradId}")
+                satMatch.downlinkMHz?.let { appendLine("  下行频率: $it MHz") }
+                satMatch.uplinkMHz?.let { appendLine("  上行频率: $it MHz") }
+                appendLine("  调制方式: ${satMatch.modulation}")
+                appendLine("  最低仰角: ${satMatch.minElevationDeg}°")
+            }
+        }
+    }
+
     /** Ham 模式：导出通联日志为 ADIF 格式文件（兼容 QRZ Logbook / LoTW / ClubLog） */
     suspend fun exportContactLog(log: HamContactLog): File = withContext(Dispatchers.IO) {
         val app = getApplication<Application>()

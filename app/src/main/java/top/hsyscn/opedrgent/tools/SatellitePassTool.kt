@@ -179,6 +179,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
                         appendLine("## 卫星过境预报（用户传入 TLE）")
                         appendLine("卫星: ${tle.name} (NORAD $noradId) | 观测站: ${lat.format(2)}°, ${lon.format(2)}° | 未来 $hours 小时")
                         appendLine("最低仰角阈值: ${minEl.format(0)}°（未预置卫星默认值，无频率/调制信息）")
+                        appendLine("时间已转换为本地时区（${java.util.TimeZone.getDefault().id}），原始计算为 UTC。")
                         appendLine()
                         satPasses.forEach { p ->
                             appendLine("- ${p}")
@@ -248,6 +249,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         return@withContext buildString {
             appendLine("## 卫星过境预报")
             appendLine("观测站: ${lat.format(2)}°, ${lon.format(2)}° | 未来 $hours 小时")
+            appendLine("时间已转换为本地时区（${java.util.TimeZone.getDefault().id}），原始计算为 UTC。")
             appendLine()
             appendLine(passes.joinToString("\n"))
         }.trimEnd()
@@ -599,15 +601,16 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
             cursor = losTime + quarterOrbitMs * 3
         }
 
+        val tzId = java.util.TimeZone.getDefault().id
         return passes.map { p ->
-            val fmt = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()).apply {
+            val fmt = java.text.SimpleDateFormat("MM-dd HH:mm:ss 'UTC'Z", java.util.Locale.getDefault()).apply {
                 timeZone = java.util.TimeZone.getDefault()
             }
             val aosStr = fmt.format(java.util.Date(p.aosUtc))
             val maxStr = fmt.format(java.util.Date(p.maxElevationTimeUtc))
             val losStr = fmt.format(java.util.Date(p.losUtc))
             val durationSec = (p.losUtc - p.aosUtc) / 1000
-            "$aosStr → $losStr (${durationSec}s) 最大仰角 ${p.maxElevationDeg.format(1)}° @$maxStr [${p.direction}]"
+            "$aosStr → $losStr (${durationSec}s) 最大仰角 ${p.maxElevationDeg.format(1)}° @$maxStr [$p.direction]（本地时区 $tzId）"
         }
     }
 

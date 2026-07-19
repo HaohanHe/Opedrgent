@@ -227,6 +227,9 @@
     <string name="recording_contact_log_note_title">通联日志 %1$s %2$s</string>
     <string name="recording_contact_log_ai_empty_hint">AI 未识别到有效通联信息，请手动补充卫星、日期、开始时间等必填字段。</string>
     <string name="recording_contact_log_empty_transcript">转写文本为空，无法生成通联日志</string>
+    <string name="recording_station_info_missing_title">缺少台站信息</string>
+    <string name="recording_station_info_missing_message">导出 ADIF 前请先在设置中填写本台呼号（STATION_CALLSIGN）和本台网格（MY_GRIDSQUARE），否则上传 QRZ/LoTW 时可能因缺少必要字段被拒绝。</string>
+    <string name="recording_station_info_missing_confirm">知道了</string>
     <string name="recording_contact_log_header">## 通联日志</string>
     <string name="recording_contact_log_satellite">- 卫星: %1$s</string>
     <string name="recording_contact_log_date">- 日期: %1$s</string>
