@@ -50,6 +50,7 @@ import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -94,7 +95,7 @@ fun ConfirmationDialog(
                     imageVector = Icons.Default.Check,
                     contentDescription = stringResource(R.string.confirm_dialog_cd_confirm),
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(SizeTokens.iconXl),
                 )
                 Spacer(modifier = Modifier.width(SpacingTokens.md))
                 Text(
@@ -158,7 +159,7 @@ fun ConfirmationDialog(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.confirm_dialog_cd_cancel),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SizeTokens.iconMd),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(stringResource(R.string.action_cancel))
@@ -188,7 +189,7 @@ fun ConfirmationDialog(
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = stringResource(R.string.confirm_dialog_cd_confirm),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(SizeTokens.iconMd),
                     )
                     Spacer(modifier = Modifier.width(SpacingTokens.xs))
                     Text(stringResource(R.string.action_confirm))

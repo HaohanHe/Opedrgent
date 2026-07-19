@@ -46,7 +46,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
@@ -56,6 +55,7 @@ import top.hsyscn.opedrgent.llm.DownloadStatus
 import top.hsyscn.opedrgent.llm.LocalModelInfo
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 @Composable
@@ -437,7 +437,7 @@ private fun ActionButtons(
                     shape = ShapeTokens.mediumShape,
                     contentPadding = PaddingValues(vertical = SpacingTokens.md),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                    border = androidx.compose.foundation.BorderStroke(SizeTokens.borderWidthMd, MaterialTheme.colorScheme.primary),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Pause,
@@ -456,7 +456,7 @@ private fun ActionButtons(
                     shape = ShapeTokens.mediumShape,
                     contentPadding = PaddingValues(vertical = SpacingTokens.md),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                    border = androidx.compose.foundation.BorderStroke(SizeTokens.borderWidthMd, MaterialTheme.colorScheme.primary),
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,

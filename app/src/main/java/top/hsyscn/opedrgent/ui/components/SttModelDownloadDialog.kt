@@ -39,6 +39,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -84,7 +85,7 @@ fun SttModelDownloadDialog(
                 .padding(horizontal = SpacingTokens.xl),
             shape = ShapeTokens.extraLargeShape,
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp,
+            tonalElevation = ElevationTokens.xl,
         ) {
             Column(
                 modifier = Modifier

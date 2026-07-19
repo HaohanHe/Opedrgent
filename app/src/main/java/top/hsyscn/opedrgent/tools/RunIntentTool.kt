@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import android.util.Patterns
 import android.widget.Toast
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -82,6 +83,8 @@ class RunIntentTool(
                     ),
                 ),
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("RunIntentTool 异常: ${e.message}", e)
             emptyResult(toolPart, "Intent 执行异常: ${e.message}")

@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.network
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -1866,6 +1867,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                                 engineStatus[provider] = "EMPTY"
                                 null
                             }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             val classifiedError = errorClassifier.classify(e)
                             if (classifiedError.shouldTriggerCircuitBreaker) {

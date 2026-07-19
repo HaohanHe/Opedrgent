@@ -39,7 +39,9 @@ import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.AccentPurple
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
+import top.hsyscn.opedrgent.ui.theme.bodySmallEmphasized
 import top.hsyscn.opedrgent.ui.theme.themeBorderLight
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceElevated
 import top.hsyscn.opedrgent.ui.theme.themeSurfaceLight
@@ -147,7 +149,7 @@ fun EditorAdditionalNotesTab() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = stringResource(if (editingId != null) R.string.note_editor_edit_note else R.string.note_editor_new_note),
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.headlineSmall,
                             modifier = Modifier.weight(1f),
                         )
                         IconButton(
@@ -178,7 +180,7 @@ fun EditorAdditionalNotesTab() {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 60.dp, max = 120.dp),
+                            .heightIn(min = SizeTokens.noteInputMinHeight, max = SizeTokens.textFieldMaxHeight),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AccentPurple,
                             unfocusedBorderColor = themeBorderLight(),
@@ -227,7 +229,7 @@ fun EditorAdditionalNotesTab() {
                         ) {
                             Text(
                                 text = stringResource(if (editingId != null) R.string.action_save else R.string.action_add),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                style = MaterialTheme.typography.bodySmallEmphasized,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
                             )
@@ -239,7 +241,7 @@ fun EditorAdditionalNotesTab() {
             // 浮动添加按钮
             Surface(
                 shape = ShapeTokens.mediumShape,
-                border = BorderStroke(1.dp, themeBorderLight()),
+                border = BorderStroke(SizeTokens.borderWidth, themeBorderLight()),
                 onClick = { isEditing = true },
                 modifier = Modifier
                     .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm)

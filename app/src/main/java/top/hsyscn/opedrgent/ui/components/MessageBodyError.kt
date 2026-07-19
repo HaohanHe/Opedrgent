@@ -37,11 +37,10 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextDark
 
@@ -83,7 +82,7 @@ fun MessageBodyError(
         Icon(
             imageVector = Icons.Default.Error,
             contentDescription = stringResource(R.string.msg_body_cd_error),
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(SizeTokens.listActionIconSize),
             tint = MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.width(SpacingTokens.sm))

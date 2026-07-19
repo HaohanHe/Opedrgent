@@ -37,7 +37,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
@@ -103,7 +102,7 @@ fun ThinkingCard(
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(SizeTokens.iconMd),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -162,7 +161,7 @@ private fun ThinkingPulseIndicator(isComplete: Boolean) {
 
     Box(
         modifier = Modifier
-            .size(12.dp)
+            .size(SizeTokens.statusDotSize)
             .graphicsLayer { alpha = if (isComplete) 1f else pulse }
             .clip(CircleShape)
             .background(indicatorBrush),

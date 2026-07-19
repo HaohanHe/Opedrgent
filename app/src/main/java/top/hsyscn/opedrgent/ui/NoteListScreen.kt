@@ -768,7 +768,7 @@ private fun FolderNavigation(
 
                 currentPath.forEachIndexed { index, folder ->
                     if (index > 0) {
-                        Text(" > ", style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
+                        Text(stringResource(R.string.note_list_folder_separator), style = MaterialTheme.typography.labelMedium, color = themeForegroundMuted())
                     }
                     Text(
                         folder.name,
@@ -951,7 +951,7 @@ private fun NotePreviewPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(SizeTokens.compactSpacing)) {
                 for (tag in tagList.take(5)) {
                     Text(
-                        text = "#$tag",
+                        text = stringResource(R.string.note_list_tag_prefix, tag),
                         style = MaterialTheme.typography.labelSmall,
                         color = themePrimary(),
                         modifier = Modifier
@@ -1058,7 +1058,7 @@ private fun NoteCard(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
+                verticalArrangement = Arrangement.spacedBy(SpacingTokens.none),
             ) {
                 // 类型 chip
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1131,7 +1131,7 @@ private fun NoteCard(
                             }
                         }
                         if (tags.size > 3) {
-                            Text("+${tags.size - 3}", style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
+                            Text(stringResource(R.string.note_list_more_tags, tags.size - 3), style = MaterialTheme.typography.labelSmall, color = themeForegroundMuted())
                         }
                     }
                 }
@@ -1191,14 +1191,14 @@ private fun NoteCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = themeForegroundMuted(),
                     )
-                    Text("·", style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
+                    Text(stringResource(R.string.note_list_meta_separator), style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
                     Text(
                         noteMetaText(note),
                         style = MaterialTheme.typography.labelSmall,
                         color = themeForegroundMuted(),
                     )
                     if (linkCount > 0) {
-                        Text("·", style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
+                        Text(stringResource(R.string.note_list_meta_separator), style = MaterialTheme.typography.labelSmall, color = themeBackgroundMuted())
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Default.Hub,
@@ -1208,7 +1208,7 @@ private fun NoteCard(
                             )
                             Spacer(Modifier.width(SpacingTokens.xxs))
                             Text(
-                                "$linkCount",
+                                stringResource(R.string.note_list_link_count_format, linkCount),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = themePrimary(),
                             )
@@ -1397,7 +1397,7 @@ private fun noteMetaText(note: Note): String {
 }
 
 private fun noteListFormatTime(timestamp: Long): String {
-    val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
+    val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
 }
 

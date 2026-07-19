@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.network
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -158,6 +159,8 @@ class ToolExecutor(
         } catch (e: TimeoutCancellationException) {
             DebugLog.w("Tool '${started.tool}' timed out after ${ToolConfig.DEFAULT_TOOL_TIMEOUT_MS}ms")
             buildTimeoutResult(started)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("ToolExecutor error for ${started.tool}: ${e.message}", e)
             buildToolErrorResult(started, e)
@@ -180,6 +183,7 @@ class ToolExecutor(
                 runCatching {
                     execute(part, config, systemPrompt, useProviderSearch)
                 }.getOrElse { e ->
+                    if (e is CancellationException) throw e
                     buildToolErrorResult(part, e)
                 }
             }
@@ -460,6 +464,8 @@ class ToolExecutor(
         return try {
             val result = execute(invocationPart, config, systemPrompt)
             mapToolResultToStructured(result)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: SecurityException) {
             ToolExecutionResult(
                 status = ToolExecutionStatus.FATAL_ERROR,

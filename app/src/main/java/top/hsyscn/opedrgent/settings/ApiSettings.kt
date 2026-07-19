@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.settings
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import top.hsyscn.opedrgent.model.RecordingQuality
 import java.net.URI
 
 data class ApiConfig(
@@ -470,5 +471,14 @@ class ApiSettings(private val context: Context) {
     fun getAllRecordingMaxHours(): Map<String, Int> {
         val modes = listOf("RECORDING", "INTERNAL")
         return modes.associateWith { getRecordingMaxHours(it) }
+    }
+
+    /** 录音质量预设：默认标准（16kHz，语音识别最佳） */
+    fun getRecordingQuality(): RecordingQuality {
+        return RecordingQuality.fromKey(prefs.getString("recordingQuality", null))
+    }
+
+    fun saveRecordingQuality(quality: RecordingQuality) {
+        prefs.edit().putString("recordingQuality", quality.key).apply()
     }
 }

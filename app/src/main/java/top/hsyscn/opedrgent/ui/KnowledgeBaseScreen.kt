@@ -8,6 +8,7 @@ import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -293,7 +294,7 @@ fun KnowledgeBaseScreen(
                                 }
                             },
                             enabled = !isSyncing,
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(SizeTokens.icon2xl),
                         ) {
                             if (isSyncing) {
                                 CircularProgressIndicator(
@@ -309,7 +310,7 @@ fun KnowledgeBaseScreen(
                         // 新建知识库按钮（圆形主色）
                         FilledIconButton(
                             onClick = { showCreateKbDialog = true },
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(SizeTokens.icon2xl),
                             shape = CircleShape,
                         ) {
                             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.kb_new), modifier = Modifier.size(SizeTokens.iconMd))
@@ -482,7 +483,7 @@ fun KnowledgeBaseScreen(
                                 shape = CircleShape,
                                 color = Color(android.graphics.Color.parseColor(color)),
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(SizeTokens.icon2xl)
                                     .then(if (selectedColor == color) Modifier.padding(SpacingTokens.xxs) else Modifier)
                                     .clip(CircleShape)
                                     .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select)) { selectedColor = color },
@@ -733,7 +734,7 @@ private fun KbCard(
         colors = CardDefaults.cardColors(containerColor = themeCardWhite()),
         elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
         modifier = Modifier
-            .height(132.dp)
+            .height(SizeTokens.contentHeightLg)
             .semantics(mergeDescendants = true) {}
             .combinedClickable(
                 onClick = onClick,
@@ -754,7 +755,7 @@ private fun KbCard(
                     Surface(
                         shape = CircleShape,
                         color = coverColor.copy(alpha = 0.12f),
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(SizeTokens.icon2xl),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = coverColor, modifier = Modifier.size(SizeTokens.iconSm))
@@ -803,14 +804,14 @@ private fun NewKbCard(
     val mutedColor = themeForegroundMuted()
     Box(
         modifier = Modifier
-            .height(132.dp)
+            .height(SizeTokens.contentHeightLg)
             .clip(ShapeTokens.mediumShape)
             .background(themeCardWhite())
             .drawBehind {
                 drawRoundRect(
                     color = borderColor,
                     style = Stroke(
-                        width = 1.5.dp.toPx(),
+                        width = SizeTokens.borderWidthMd.toPx(),
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
                     ),
                     cornerRadius = CornerRadius(ShapeTokens.medium.toPx()),
@@ -832,7 +833,7 @@ private fun NewKbCard(
                             drawCircle(
                                 color = mutedColor,
                                 style = Stroke(
-                                    width = 1.5.dp.toPx(),
+                                    width = SizeTokens.borderWidthMd.toPx(),
                                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 3f), 0f),
                                 ),
                             )

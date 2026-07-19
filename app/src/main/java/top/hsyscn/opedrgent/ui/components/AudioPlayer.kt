@@ -55,6 +55,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -136,7 +137,7 @@ fun AudioPlayer(
                 text = formatTime(displayPosition),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(SizeTokens.audioTimeWidth),
             )
 
             Spacer(Modifier.width(SpacingTokens.sm))
@@ -165,7 +166,7 @@ fun AudioPlayer(
                 text = formatTime(duration),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(SizeTokens.audioTimeWidth),
             )
         }
 
@@ -190,10 +191,10 @@ fun AudioPlayer(
             // 播放/暂停
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(SizeTokens.sectionIcon)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                    .border(SizeTokens.borderWidth, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                     .clickable(role = Role.Button, onClickLabel = stringResource(R.string.cd_play)) {
                         if (isPlaying) {
                             exoPlayer.pause()
@@ -211,7 +212,7 @@ fun AudioPlayer(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = stringResource(if (isPlaying) R.string.cd_pause else R.string.cd_play),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(SizeTokens.audioWaveIconSize),
                 )
             }
 
@@ -229,9 +230,9 @@ fun AudioPlayer(
             // 倍速按钮
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(SizeTokens.audioSpeedButtonSize)
                     .clip(CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+                    .border(SizeTokens.borderWidth, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
                     .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select)) { showSpeedSheet = true },
                 contentAlignment = Alignment.Center,
             ) {
@@ -266,8 +267,8 @@ private fun CustomProgressBar(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val trackHeight = 4.dp
-    val thumbRadius = 10.dp
+    val trackHeight = SizeTokens.audioPlayerTrackHeight
+    val thumbRadius = SizeTokens.audioPlayerThumbRadius
     val thumbRadiusPx = with(density) { thumbRadius.toPx() }
 
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -278,7 +279,7 @@ private fun CustomProgressBar(
 
     Box(
         modifier = modifier
-            .height(32.dp)
+            .height(SizeTokens.audioPlayerControlHeight)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
@@ -342,7 +343,7 @@ private fun CustomProgressBar(
                     .size(thumbRadius * 2)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.onSurface)
-                    .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    .border(SizeTokens.borderWidthLg, MaterialTheme.colorScheme.surface, CircleShape),
             )
         }
     }
@@ -357,14 +358,14 @@ private fun SkipButton(
     val iconColor = MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(SizeTokens.audioSpeedButtonSize)
             .clip(CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+            .border(SizeTokens.borderWidth, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
             .clickable(role = Role.Button, onClickLabel = stringResource(R.string.action_select), onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(28.dp)) {
-            val strokeWidth = 2.dp.toPx()
+        Canvas(modifier = Modifier.size(SizeTokens.audioWaveIconSize)) {
+            val strokeWidth = SizeTokens.borderWidthLg.toPx()
             val radius = size.minDimension / 2 - strokeWidth / 2
             val center = Offset(size.width / 2, size.height / 2)
 
@@ -385,7 +386,7 @@ private fun SkipButton(
             val arrowAngle = Math.toRadians(if (isForward) 30.0 else 150.0)
             val arrowTipX = center.x + radius * kotlin.math.cos(arrowAngle).toFloat()
             val arrowTipY = center.y + radius * kotlin.math.sin(arrowAngle).toFloat()
-            val arrowLen = 5.dp.toPx()
+            val arrowLen = SizeTokens.audioSkipArrowLength.toPx()
             val arrowAngle1 = arrowAngle + Math.toRadians(30.0 * if (isForward) 1 else -1)
             val arrowAngle2 = arrowAngle - Math.toRadians(30.0 * if (isForward) 1 else -1)
 
@@ -414,7 +415,7 @@ private fun SkipButton(
         // 数字标签
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }

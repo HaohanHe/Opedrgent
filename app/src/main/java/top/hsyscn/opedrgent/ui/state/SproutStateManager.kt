@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package top.hsyscn.opedrgent.ui.state
 
 import android.app.Application

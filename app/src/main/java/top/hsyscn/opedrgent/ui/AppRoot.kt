@@ -122,9 +122,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -138,6 +136,7 @@ import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.components.MarkdownText
@@ -408,7 +407,7 @@ fun AppRoot(
                 if (!useNavigationRail) {
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
+                        tonalElevation = ElevationTokens.none,
                         windowInsets = WindowInsets(0, 0, 0, 0)
                     ) {
                         val navLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -832,7 +831,7 @@ fun SessionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Opedrgent", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                title = { Text(stringResource(R.string.app_name), color = MaterialTheme.colorScheme.onSurface) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -895,7 +894,7 @@ fun SessionsScreen(
                                     .fillMaxWidth(),
                                 shape = ShapeTokens.mediumShape,
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
                                 onClick = { onSelectSession(result.sessionId) },
                             ) {
                                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
@@ -904,14 +903,12 @@ fun SessionsScreen(
                                             text = result.sessionTitle,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Medium,
                                             modifier = Modifier.weight(1f),
                                         )
                                         Text(
                                             text = if (result.role == Role.USER) stringResource(R.string.app_root_ni) else "AI",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (result.role == Role.USER) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = FontWeight.Medium,
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(SpacingTokens.xs))
@@ -940,11 +937,11 @@ fun SessionsScreen(
                                     .fillMaxWidth(),
                                 shape = ShapeTokens.mediumShape,
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
                                 onClick = { onSelectSession(s.id) },
                             ) {
                                 Column(modifier = Modifier.padding(SpacingTokens.md)) {
-                                    Text(text = s.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(text = s.title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleSmall)
                                     Spacer(modifier = Modifier.height(SpacingTokens.sm))
                                     Text(text = formatTime(s.updatedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
@@ -1048,7 +1045,7 @@ fun MemoryManagerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.padding(SpacingTokens.md)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = entry.title.ifBlank { stringResource(R.string.memory_no_title) }, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(text = entry.title.ifBlank { stringResource(R.string.memory_no_title) }, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                             AssistChip(
                                 onClick = {},
                                 label = { Text(entry.type.label, style = MaterialTheme.typography.labelSmall) },
@@ -1328,14 +1325,14 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = s.name,
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Spacer(modifier = Modifier.width(SpacingTokens.sm))
                                 // 旧版标识标签
                                 AssistChip(
                                     onClick = {},
-                                    label = { Text("Legacy", style = MaterialTheme.typography.labelSmall) },
+                                    label = { Text(stringResource(R.string.label_legacy), style = MaterialTheme.typography.labelSmall) },
                                     border = null,
                                     colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
                                         containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
@@ -1368,7 +1365,7 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Icon(
                                 imageVector = Icons.Default.DeveloperBoard,
                                 contentDescription = null, // decorative empty-state illustration
-                                modifier = Modifier.size(SpacingTokens.xxl * 2),
+                                modifier = Modifier.size(SizeTokens.emptyStateIcon),
                                 tint = MaterialTheme.colorScheme.outline,
                             )
                             Spacer(modifier = Modifier.height(SpacingTokens.lg))
@@ -1425,8 +1422,8 @@ fun SkillsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     if (isImporting) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(SpacingTokens.md),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(SizeTokens.iconMd),
+                            strokeWidth = SizeTokens.borderWidthLg,
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                         Spacer(modifier = Modifier.width(SpacingTokens.sm))
@@ -1533,15 +1530,14 @@ private fun SectionHeader(title: String, subtitle: String, count: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(SpacingTokens.xxs))
             Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(
             text = "$count",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.customColors.accentBlue,
-            fontWeight = FontWeight.Medium,
         )
     }
 }
@@ -1557,9 +1553,9 @@ private fun ImportFabOption(icon: androidx.compose.ui.graphics.vector.ImageVecto
             .clickable(role = SemanticsRole.Button, onClickLabel = stringResource(R.string.cd_enter), onClick = onClick)
             .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(SpacingTokens.md)) // decorative, label describes action
+        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(SizeTokens.iconMd)) // decorative, label describes action
         Spacer(modifier = Modifier.width(SpacingTokens.sm))
-        Text(text = label, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        Text(text = label, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -1584,7 +1580,7 @@ private fun GallerySkillCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = skill.metadata.name,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
                     color = if (skill.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
@@ -1605,7 +1601,7 @@ private fun GallerySkillCard(
                 if (skill.needsSecret) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("API Key", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(stringResource(R.string.label_api_key), style = MaterialTheme.typography.labelSmall) },
                         border = null,
                         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
                             containerColor = MaterialTheme.customColors.chipWarningBg, // 浅橙

@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.max
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
@@ -135,7 +136,8 @@ fun NoteEditorScreen(
     var isGenerating by remember { mutableStateOf(false) }
     val sproutMutex = remember { Mutex() }
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current  // 保留此警告，需要后续迁移
+    @Suppress("DEPRECATION")
+    val clipboardManager = LocalClipboardManager.current
 
     // 未保存更改追踪：记录上次保存时的内容快照
     var lastSavedContentSnapshot by remember { mutableStateOf(initialContent) }
@@ -174,9 +176,9 @@ fun NoteEditorScreen(
             // 同步保存快照，用于未保存更改检测
             lastSavedContentSnapshot = content.text
             onSaved(id)
-            // 手动保存时显示知识图谱关联信息
+            // 手动保存时显示知识图谱关联信息（DB 查询切到 IO 线程，避免主线程卡顿）
             if (showGraphInfo && id > 0) {
-                val newLinkCount = repository.getLinkCount(id)
+                val newLinkCount = withContext(Dispatchers.IO) { repository.getLinkCount(id) }
                 snackbarHostState.showSnackbar(
                     message = if (newLinkCount > 0) context.getString(R.string.note_editor_saved_with_links, newLinkCount) else context.getString(R.string.note_editor_saved),
                     duration = SnackbarDuration.Short
@@ -549,7 +551,7 @@ fun NoteEditorScreen(
                                                     Spacer(Modifier.height(SpacingTokens.xxs))
                                                     Box(
                                                         modifier = Modifier
-                                                            .width(20.dp)
+                                                            .width(SizeTokens.subtabIndicatorWidth)
                                                             .height(SpacingTokens.xxs)
                                                             .background(MaterialTheme.customColors.accentBlue, CircleShape),
                                                     )
@@ -604,7 +606,7 @@ fun NoteEditorScreen(
                                                                 verticalAlignment = Alignment.Top,
                                                             ) {
                                                                 Text(
-                                                        "\"",
+                                                        stringResource(R.string.note_editor_quote_prefix),
                                                         style = MaterialTheme.typography.headlineLarge,
                                                         color = MaterialTheme.customColors.accentBlue,
                                                         modifier = Modifier.padding(end = SpacingTokens.sm),
@@ -649,7 +651,7 @@ fun NoteEditorScreen(
                                                             modifier = Modifier.fillMaxWidth(),
                                                         ) {
                                                             Text(
-                                                                "\u2610",
+                                                                stringResource(R.string.note_editor_checkbox_empty),
                                                                 style = MaterialTheme.typography.bodyLarge,
                                                                 color = MaterialTheme.customColors.accentBlue,
                                                                 modifier = Modifier.padding(end = SpacingTokens.sm),
@@ -753,7 +755,7 @@ fun NoteEditorScreen(
                                                         // 章节标题 + 重要性标记
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             Text(
-                                                                "${String.format("%02d", idx + 1)}. ${section.title}",
+                                                                stringResource(R.string.note_editor_section_title_format, idx + 1, section.title),
                                                                 style = MaterialTheme.typography.titleMedium,
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 modifier = Modifier.weight(1f),
@@ -762,11 +764,11 @@ fun NoteEditorScreen(
                                                             repeat(section.importance.coerceIn(1, 5)) {
                                                                 Box(
                                                                     modifier = Modifier
-                                                                        .size(6.dp)
+                                                                        .size(SizeTokens.importanceDotSize)
                                                                         .background(MaterialTheme.customColors.accentOrange, CircleShape)
                                                                 )
                                                                 if (section.importance.coerceIn(1, 5) > it) {
-                                                                    Spacer(Modifier.width(3.dp))
+                                                                    Spacer(Modifier.width(SizeTokens.importanceDotSpacing))
                                                                 }
                                                             }
                                                         }
@@ -833,7 +835,7 @@ fun NoteEditorScreen(
                                                     Icons.Default.Lightbulb,
                                                     contentDescription = stringResource(R.string.note_editor_legacy_sprout),
                                                     tint = MaterialTheme.customColors.accentOrange,
-                                                    modifier = Modifier.size(32.dp),
+                                                    modifier = Modifier.size(SizeTokens.sproutLegacyIconSize),
                                                 )
                                                 Spacer(Modifier.height(SpacingTokens.md))
                                                 Text(
@@ -937,8 +939,8 @@ fun NoteEditorScreen(
                                                 allActionItems.forEachIndexed { index, item ->
                                                     Row(modifier = Modifier.padding(vertical = SpacingTokens.xxs)) {
                                                         Text(
-                                                            "${index + 1}.",
-                                                            modifier = Modifier.width(20.dp),
+                                                            stringResource(R.string.note_editor_action_item_format, index + 1),
+                                                            modifier = Modifier.width(SizeTokens.actionItemNumberWidth),
                                                             color = MaterialTheme.customColors.accentBlue,
                                                             style = MaterialTheme.typography.labelLarge,
                                                         )
@@ -1262,7 +1264,7 @@ fun NoteEditorScreen(
                                         onClick = { removeTag(tag) },
                                         modifier = Modifier.size(SizeTokens.iconXs),
                                     ) {
-                                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_delete), modifier = Modifier.size(10.dp), tint = MaterialTheme.customColors.accentOrange)
+                                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_delete), modifier = Modifier.size(SizeTokens.tagCloseIconSize), tint = MaterialTheme.customColors.accentOrange)
                                     }
                                 }
                             }
@@ -1294,7 +1296,7 @@ fun NoteEditorScreen(
                         modifier = Modifier.weight(1f),
                     )
                     if (tagInput.isNotEmpty()) {
-                        IconButton(onClick = { addTag() }, modifier = Modifier.size(24.dp)) {
+                        IconButton(onClick = { addTag() }, modifier = Modifier.size(SizeTokens.tagAddButtonSize)) {
                             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add), modifier = Modifier.size(SizeTokens.iconSm), tint = MaterialTheme.customColors.accentOrange)
                         }
                     }

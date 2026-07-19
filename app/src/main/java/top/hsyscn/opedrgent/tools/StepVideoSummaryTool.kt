@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -128,6 +129,8 @@ class StepVideoSummaryTool(
             } else {
                 emptyResult(toolPart, "视频摘要失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "视频摘要异常: ${e.message}", e)
             emptyResult(toolPart, "视频摘要异常: ${e.message}")
@@ -162,6 +165,8 @@ class StepVideoSummaryTool(
             )
 
             SummaryResult(success = true, text = response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[remote] 失败: ${e.message}", e)
             SummaryResult(success = false, errorMessage = e.message)
@@ -218,6 +223,8 @@ class StepVideoSummaryTool(
             )
 
             SummaryResult(success = true, text = response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[local] 模型调用失败: ${e.message}", e)
             SummaryResult(success = false, errorMessage = e.message)
@@ -235,6 +242,8 @@ class StepVideoSummaryTool(
         return try {
             retriever.setDataSource(filePath)
             extractFrames(retriever, maxFrames)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "extractFramesFromFile 失败: ${e.message}", e)
             emptyList()
@@ -251,6 +260,8 @@ class StepVideoSummaryTool(
         return try {
             retriever.setDataSource(context, uri)
             extractFrames(retriever, maxFrames)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "extractFramesFromUri 失败: ${e.message}", e)
             emptyList()
@@ -318,6 +329,8 @@ class StepVideoSummaryTool(
             val baos = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
             Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "bitmapToBase64 失败: ${e.message}")
             null

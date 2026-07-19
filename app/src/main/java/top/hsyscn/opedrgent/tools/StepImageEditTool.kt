@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -158,6 +159,8 @@ class StepImageEditTool(
 
             if (result.success) formatSuccess(toolPart, result, "图像编辑", prompt, model, size)
             else emptyResult(toolPart, "图像编辑失败: ${result.errorMessage}")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepImageEditTool 异常: ${e.message}", e)
             emptyResult(toolPart, "图像编辑异常: ${e.message}")
@@ -196,6 +199,8 @@ class StepImageEditTool(
 
             val response = client.newCall(request).execute()
             parseImageResponse(response, "edits")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[edits] 异常: ${e.message}", e)
             EditResult(false, errorMessage = e.message ?: "未知错误")
@@ -254,6 +259,8 @@ class StepImageEditTool(
             } else {
                 emptyResult(toolPart, "图生图失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepImageEditTool[图生图] 异常: ${e.message}", e)
             emptyResult(toolPart, "图生图异常: ${e.message}")
@@ -315,6 +322,8 @@ class StepImageEditTool(
 
             val response = client.newCall(request).execute()
             parseImageResponse(response, "image2image")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[image2image] 异常: ${e.message}", e)
             EditResult(false, errorMessage = e.message ?: "未知错误")
@@ -350,6 +359,8 @@ class StepImageEditTool(
                 finishReason = firstItem.optString("finish_reason", "").ifBlank { null },
                 seed = firstItem.optLong("seed", -1).takeIf { it > 0L }?.toInt(),
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "[$endpoint] 解析响应异常: ${e.message}", e)
             EditResult(false, errorMessage = e.message ?: "解析异常")

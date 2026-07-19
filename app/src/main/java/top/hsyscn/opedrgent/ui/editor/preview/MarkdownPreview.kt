@@ -7,8 +7,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
@@ -27,19 +25,19 @@ fun MarkdownPreview(
             when {
                 line.startsWith("# ") -> Text(
                     text = line.removePrefix("# "),
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.padding(vertical = SpacingTokens.sm),
                 )
 
                 line.startsWith("## ") -> Text(
                     text = line.removePrefix("## "),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.padding(vertical = SpacingTokens.sm),
                 )
 
                 line.startsWith("### ") -> Text(
                     text = line.removePrefix("### "),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.padding(vertical = SpacingTokens.xs),
                 )
 

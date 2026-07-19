@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -103,6 +104,8 @@ class StepRagTool(
             val output = formatSearchResults(query, summary)
 
             successResult(toolPart, output, source = summary.searchMode)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepRagTool 异常: ${e.message}", e)
             emptyResult(toolPart, "检索异常: ${e.message}")

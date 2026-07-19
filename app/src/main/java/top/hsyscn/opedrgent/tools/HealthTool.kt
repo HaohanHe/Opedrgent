@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 import top.hsyscn.opedrgent.health.HealthConnectHelper
 import top.hsyscn.opedrgent.model.ToolPart
@@ -82,6 +83,8 @@ class HealthTool(private val context: Context) : ToolSet {
         } catch (e: SecurityException) {
             DebugLog.e("HealthTool: permission denied: ${e.message}")
             errorResult(tp, "Health Connect 权限未授予，请在设置中开启运动健康并授权")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("HealthTool: error: ${e.message}")
             errorResult(tp, "读取健康数据失败: ${e.message}")

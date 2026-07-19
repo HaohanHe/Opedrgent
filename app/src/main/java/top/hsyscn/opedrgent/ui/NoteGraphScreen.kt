@@ -34,10 +34,8 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -97,9 +95,23 @@ fun NoteGraphScreen(
     val cdRebuildGraph = stringResource(R.string.cd_rebuild_graph)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
-    // 获取图谱数据
-    val stats = remember(refreshTrigger) { repository.getKnowledgeStats() }
-    val edgeDetails = remember(refreshTrigger) { repository.getAllGraphEdgeDetails() }
+    // 获取图谱数据：DB 查询切到 IO 线程，避免主线程卡顿
+    var stats by remember { mutableStateOf(KnowledgeGraph.GraphStats(0, 0, 0, 0f)) }
+    var edgeDetails by remember { mutableStateOf<List<KnowledgeGraph.GraphEdgeDetail>>(emptyList()) }
+    var linkCounts by remember { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    val allNotes by repository.getAllNotes().collectAsState(initial = emptyList())
+
+    LaunchedEffect(refreshTrigger, allNotes) {
+        val newStats = withContext(Dispatchers.IO) { repository.getKnowledgeStats() }
+        val newEdgeDetails = withContext(Dispatchers.IO) { repository.getAllGraphEdgeDetails() }
+        val newLinkCounts = withContext(Dispatchers.IO) {
+            allNotes.associate { it.id to repository.getLinkCount(it.id) }
+        }
+        stats = newStats
+        edgeDetails = newEdgeDetails
+        linkCounts = newLinkCounts
+    }
+
     val allEdges = remember(edgeDetails) { edgeDetails.toGraphEdges().distinct() }
     val visibleEdgeDetails = remember(edgeDetails, selectedRelationType) {
         if (selectedRelationType == null) {
@@ -108,15 +120,14 @@ fun NoteGraphScreen(
             edgeDetails.filter { it.relationType == selectedRelationType }
         }
     }
-    val allNotes by repository.getAllNotes().collectAsState(initial = emptyList())
 
     // 构建节点列表
-    val nodes = remember(allNotes) {
+    val nodes = remember(allNotes, linkCounts) {
         allNotes.map { note ->
             GraphNode(
                 id = note.id.toString(),
                 label = note.title.ifBlank { note.content.take(15).replace("\n", " ") },
-                linkCount = repository.getLinkCount(note.id),
+                linkCount = linkCounts[note.id] ?: 0,
                 noteId = note.id,
             )
         }
@@ -163,11 +174,11 @@ fun NoteGraphScreen(
     }
     val positions = layout.positions
 
-    // 搜索触发高亮
+    // 搜索触发高亮（语义搜索含 embedding 计算，切到 IO 线程）
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank() && searchQuery.length >= 2) {
             delay(300) // 防抖
-            val results = repository.searchByRelevance(searchQuery, 10)
+            val results = withContext(Dispatchers.IO) { repository.searchByRelevance(searchQuery, 10) }
             highlightNoteIds = results.map { it.first }.toSet()
         } else {
             highlightNoteIds = emptySet()
@@ -308,20 +319,31 @@ fun NoteGraphScreen(
 
             // 搜索框
             SearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = {},
-                active = false,
-                onActiveChange = {},
-                placeholder = { Text(stringResource(R.string.graph_search_hint)) },
-                leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.action_search)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = ""; highlightNoteIds = emptySet() }) {
-                            Icon(Icons.Default.Close, stringResource(R.string.action_close))
-                        }
-                    }
+                inputField = {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.graph_search_hint)) },
+                        leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.action_search)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = ""; highlightNoteIds = emptySet() }) {
+                                    Icon(Icons.Default.Close, stringResource(R.string.action_close))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.outline,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        ),
+                    )
                 },
+                expanded = false,
+                onExpandedChange = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = SpacingTokens.lg)
@@ -914,7 +936,6 @@ private fun NotePreviewDialog(
         title = {
             Text(
                 note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
-                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1039,14 +1060,13 @@ private fun TimelineView(
                     // 时间线圆点
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
-                            .background(MaterialTheme.customColors.accentBlue, shape = CircleShape)
+                            .size(SizeTokens.statusDotSize)
+                        .background(MaterialTheme.customColors.accentBlue, shape = CircleShape)
                     )
                     Spacer(Modifier.width(SpacingTokens.md))
                     Text(
                         monthLabel,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
@@ -1119,7 +1139,7 @@ private fun TimelineNoteCard(
             // 左侧时间标签
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(56.dp),
+                modifier = Modifier.width(SizeTokens.timelineColumnWidth),
             ) {
                 Text(
                     dateStr,
@@ -1132,8 +1152,8 @@ private fun TimelineNoteCard(
             // 竖线
             Box(
                 modifier = Modifier
-                    .width(2.dp)
-                    .height(40.dp)
+                    .width(SizeTokens.borderWidthLg)
+                    .height(SizeTokens.timelineLineHeight)
                     .background(MaterialTheme.customColors.accentBlue.copy(alpha = 0.3f))
             )
 
@@ -1143,8 +1163,7 @@ private fun TimelineNoteCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

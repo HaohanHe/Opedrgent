@@ -6,6 +6,8 @@ import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.DisabledColor
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,7 +52,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.stt.VoiceprintManager
 import top.hsyscn.opedrgent.ui.theme.AccentBlue
@@ -74,7 +75,7 @@ fun VoiceprintSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_voiceprint), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_voiceprint), style = MaterialTheme.typography.headlineLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -100,7 +101,6 @@ fun VoiceprintSettingsScreen(
         ) {
             Text(
                 text = stringResource(R.string.voiceprint_registered_speakers),
-                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 color = themeTextDark(),
             )
@@ -173,7 +173,7 @@ private fun SpeakerCard(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = themeTextDark(),
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ElevationTokens.sm),
     ) {
         Row(
             modifier = Modifier
@@ -185,17 +185,16 @@ private fun SpeakerCard(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
                 tint = if (isSherpa) SherpaGreen else AccentBlue,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(SizeTokens.iconXl),
             )
             Spacer(Modifier.width(SpacingTokens.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = name,
-                    fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     color = themeTextDark(),
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(SpacingTokens.xxs))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
@@ -217,7 +216,7 @@ private fun SpeakerCard(
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(R.string.cd_delete),
                     tint = themeTextGrey(),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(SizeTokens.iconLg),
                 )
             }
         }
@@ -227,7 +226,7 @@ private fun SpeakerCard(
 @Composable
 private fun EmptySpeakerList() {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = SizeTokens.emptyStateTopPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SpacingTokens.md),
     ) {
@@ -235,7 +234,7 @@ private fun EmptySpeakerList() {
             imageVector = Icons.Default.Person,
             contentDescription = null,
             tint = themeTextGrey().copy(alpha = 0.4f),
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier.size(SizeTokens.emptyStateIcon),
         )
         Text(
             text = stringResource(R.string.voiceprint_empty),

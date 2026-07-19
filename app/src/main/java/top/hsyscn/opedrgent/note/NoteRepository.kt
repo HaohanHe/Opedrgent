@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +96,8 @@ class NoteRepository(
             val textMatches = dao.searchNotes(query)
             val semanticResults = try {
                 knowledgeGraph.searchByRelevance(query, maxResults = 20)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 DebugLog.e("NoteRepository", "semantic search failed: ${e.message}", e)
                 emptyList()
@@ -202,6 +205,8 @@ class NoteRepository(
             } else {
                 false
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.w("NoteRepository", "finalizeTitle failed: ${e.message}")
             false
@@ -327,10 +332,10 @@ class NoteRepository(
     }
 
     /** 获取笔记的关联笔记列表（带标题）。 */
-    suspend fun getLinkedNotesWithTitles(noteId: Long): List<Note> {
+    suspend fun getLinkedNotesWithTitles(noteId: Long): List<Note> = withContext(Dispatchers.IO) {
         val linkedIds = knowledgeGraph.getLinkedNotes(noteId.toString())
         val noteIds = linkedIds.mapNotNull { it.toLongOrNull() }
-        return dao.getByIds(noteIds)
+        dao.getByIds(noteIds)
     }
 
     /** 获取笔记的关联数 */

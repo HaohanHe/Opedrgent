@@ -46,6 +46,9 @@ class RecorderStateManager {
     /** 当前录音临时 PCM 文件路径 */
     var recordingTempFilePath by mutableStateOf<String?>(null)
 
+    /** 本次录音采样率（Hz），用于 WAV 头与回放 */
+    var recordingSampleRate by mutableIntStateOf(16000)
+
     /** 实时流式转写文本（录音期间跨页面保留） */
     var recordingStreamingText by mutableStateOf("")
 
@@ -75,6 +78,7 @@ class RecorderStateManager {
         audioRecordRef = null
         systemAudioRecorderRef = null
         recordingTempFilePath = null
+        recordingSampleRate = 16000
         recordingStreamingText = ""
         recordingIsStreamingActive = false
         recordingAmplitude = 0f

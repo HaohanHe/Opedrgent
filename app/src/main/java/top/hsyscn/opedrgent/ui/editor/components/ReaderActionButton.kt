@@ -16,8 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 
 /**
@@ -45,7 +45,7 @@ fun ReaderActionButton(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .padding(SpacingTokens.md)
-                    .size(22.dp),
+                    .size(SizeTokens.readerActionIconSize),
             )
         }
         Spacer(Modifier.height(SpacingTokens.xs))

@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.network
 
+import kotlinx.coroutines.CancellationException
 import java.net.URI
 
 enum class WebResearchMode { AUTO, NATIVE, PROVIDER, BROWSER }
@@ -105,7 +106,13 @@ class WebResearchRouter(
         val warnings = ArrayList<String>()
         val toFetch = filtered.take(maxFetch)
         toFetch.forEach { hit ->
-            val got = try { fetcher.fetchUrl(hit.url) } catch (e: Exception) { null }
+            val got = try {
+                fetcher.fetchUrl(hit.url)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             if (got != null) fetched.add(got) else warnings.add("抓取失败：${hit.url}")
         }
 

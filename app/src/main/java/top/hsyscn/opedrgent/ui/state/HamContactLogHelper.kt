@@ -6,6 +6,7 @@ import top.hsyscn.opedrgent.model.HamContactLog
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.utils.DebugLog
+import kotlinx.coroutines.CancellationException
 import java.lang.ref.WeakReference
 
 /**
@@ -40,7 +41,9 @@ object HamContactLogHelper {
                 aliases.any { alias -> text.containsToken(alias, ignoreCase = true) } ||
                     text.containsToken(sat.noradId.toString(), ignoreCase = true)
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
             null
         }
     }

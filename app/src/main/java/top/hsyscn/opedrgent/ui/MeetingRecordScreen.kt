@@ -878,7 +878,7 @@ private fun TranscriptTextContent(
     onSegmentClick: (Int) -> Unit,
 ) {
     LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(0.dp),
+        verticalArrangement = Arrangement.spacedBy(SpacingTokens.none),
         modifier = Modifier.fillMaxSize(),
     ) {
         itemsIndexed(segments, key = { index, _ -> index }) { index, segment ->
@@ -1420,7 +1420,7 @@ private fun NoteInputArea(
             placeholder = { Text(stringResource(R.string.meeting_ji_lu_ni_de_xiang_fa_yao_dian), color = themeTextGrey().copy(alpha = 0.5f), style = MaterialTheme.typography.bodyLarge) },
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 80.dp, max = 160.dp),
+                .heightIn(min = SizeTokens.meetingTranscriptMinHeight, max = SizeTokens.meetingTranscriptMaxHeight),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AccentPurple,
                 unfocusedBorderColor = themeBorderLight(),

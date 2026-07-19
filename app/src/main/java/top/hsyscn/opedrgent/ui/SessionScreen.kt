@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Link
@@ -98,7 +99,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -120,8 +120,7 @@ import top.hsyscn.opedrgent.ui.state.SttProgressState
 import top.hsyscn.opedrgent.ui.state.SttUiState
 import top.hsyscn.opedrgent.ui.components.AIMessageCard
 import top.hsyscn.opedrgent.ui.components.ConfirmationDialog
-
-
+import top.hsyscn.opedrgent.ui.components.EmptyStateView
 import top.hsyscn.opedrgent.ui.components.MessageBodyConfigUpdate
 import top.hsyscn.opedrgent.ui.components.MessageBodyError
 import top.hsyscn.opedrgent.ui.components.MessageBodyInfo
@@ -290,7 +289,7 @@ fun SessionScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = themeTextDark())
             }
             Text(
-                text = session?.title ?: "Opedrgent",
+                text = session?.title ?: stringResource(R.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
                 color = themeTextDark(),
                 modifier = Modifier.weight(1f),
@@ -325,24 +324,56 @@ fun SessionScreen(
         }
 
         if (session == null) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(stringResource(R.string.session_select_prompt), color = themeTextGrey())
-            }
+            EmptyStateView(
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubble,
+                        contentDescription = null,
+                        modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    )
+                },
+                title = stringResource(R.string.session_select_prompt),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(SpacingTokens.xxl),
+            )
         } else {
             // 发芽结果视图 - 自然显示在聊天中
             val sproutResult by vm.sproutResult.collectAsStateCompat()
             val sproutingState by vm.sproutingState.collectAsStateCompat()
 
-            val totalListItems = 1 + session.messages.size +
-                (if (state.isStreaming && state.streamingSessionId == session.id) 1 else 0) +
-                (if (state.activeQuestion != null) 1 else 0) +
-                (if (sproutResult != null || sproutingState != SproutingState.IDLE) 1 else 0)
+            val isConversationEmpty = session.messages.isEmpty() &&
+                !state.isStreaming &&
+                state.activeQuestion == null &&
+                sproutResult == null &&
+                sproutingState == SproutingState.IDLE
 
-            LaunchedEffect(totalListItems, state.streamingText.length) {
+            if (isConversationEmpty) {
+                EmptyStateView(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubble,
+                            contentDescription = null,
+                            modifier = Modifier.size(SizeTokens.emptyStateIcon),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        )
+                    },
+                    title = stringResource(R.string.chat_session_empty_title),
+                    subtitle = stringResource(R.string.chat_session_empty_subtitle),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(SpacingTokens.xxl),
+                )
+            } else {
+                val totalListItems = 1 + session.messages.size +
+                    (if (state.isStreaming && state.streamingSessionId == session.id) 1 else 0) +
+                    (if (state.activeQuestion != null) 1 else 0) +
+                    (if (sproutResult != null || sproutingState != SproutingState.IDLE) 1 else 0)
+
+                LaunchedEffect(totalListItems, state.streamingText.length) {
                 val currentLastMessageId = session.messages.lastOrNull()?.id
                 val shouldScroll = (state.isStreaming && state.streamingSessionId == session.id) ||
                     currentLastMessageId != lastBottomMessageId
@@ -409,7 +440,7 @@ fun SessionScreen(
                             if (state.isLoadingOlderRounds) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(SizeTokens.iconMd),
-                                    strokeWidth = 2.dp,
+                                    strokeWidth = SizeTokens.borderWidthLg,
                                 )
                             } else if (!state.hasMoreOlderRounds) {
                                 Text(
@@ -510,6 +541,7 @@ fun SessionScreen(
                     }
                 }
             }
+            }
 
             // Stop responding
             AnimatedVisibility(visible = state.isStreaming) {
@@ -608,7 +640,7 @@ fun SessionScreen(
                             placeholder = { Text(stringResource(R.string.msg_type_message), color = themeTextGrey()) },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = SizeTokens.searchBarHeight, max = 120.dp),
+                                .heightIn(min = SizeTokens.searchBarHeight, max = SizeTokens.inputFieldMaxHeight),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                                 unfocusedBorderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
@@ -616,7 +648,7 @@ fun SessionScreen(
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
                             ),
                             maxLines = 5,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = {
                                 if (!state.isStreaming && prompt.isNotBlank()) {
                                     val text = prompt
@@ -654,7 +686,7 @@ fun SessionScreen(
                         val slashMatches = remember(prompt) {
                             top.hsyscn.opedrgent.utils.SlashCommands.filterByPrefix(prompt.trim())
                         }
-                        val slashDropdownWidth = if (isExpandedWidth()) 360.dp else 280.dp
+                        val slashDropdownWidth = if (isExpandedWidth()) SizeTokens.slashDropdownWidthExpanded else SizeTokens.slashDropdownWidthMedium
                         DropdownMenu(
                             expanded = slashMatches.isNotEmpty(),
                             onDismissRequest = { /* 输入变化时自动更新 */ },
@@ -745,7 +777,7 @@ fun SessionScreen(
                                 }
                             }
                         },
-                    ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                    ) { Text(stringResource(R.string.action_recall), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
                     TextButton(onClick = { pendingDeleteMessageId = null }) {
@@ -891,10 +923,11 @@ fun SessionScreen(
                                     .padding(SpacingTokens.lg),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    text = "\uD83E\uDDD1\u200D\uD83C\uDFA8",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    modifier = Modifier.padding(end = SpacingTokens.xs),
+                                Icon(
+                                    imageVector = Icons.Default.Brush,
+                                    contentDescription = stringResource(R.string.session_ai_editor_team),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(SizeTokens.iconXl),
                                 )
                                 Spacer(Modifier.width(SpacingTokens.sm))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -985,7 +1018,7 @@ fun SessionScreen(
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = SpacingTokens.lg)
-                    .padding(bottom = 80.dp),
+                    .padding(bottom = SizeTokens.questionDockBottomPadding),
             )
         }
 
@@ -1052,7 +1085,7 @@ fun SessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = SpacingTokens.md, vertical = 110.dp),
+                    .padding(horizontal = SpacingTokens.md, vertical = SizeTokens.chatInputBottomPadding),
             )
         }
     }

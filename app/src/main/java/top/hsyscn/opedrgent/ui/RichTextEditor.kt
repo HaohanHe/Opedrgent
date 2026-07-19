@@ -7,6 +7,8 @@ import top.hsyscn.opedrgent.ui.theme.WarningColor
 import top.hsyscn.opedrgent.ui.theme.SuccessGreen
 import top.hsyscn.opedrgent.ui.theme.AccentOrange
 import top.hsyscn.opedrgent.ui.theme.customColors
+import top.hsyscn.opedrgent.ui.theme.ElevationTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import android.graphics.Typeface
@@ -414,8 +416,8 @@ private fun SelectionFormatToolbar(
     Surface(
         shape = ShapeTokens.extraLargeShape,
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-        tonalElevation = 4.dp,
+        shadowElevation = ElevationTokens.lg,
+        tonalElevation = ElevationTokens.selectionToolbarTonalElevation,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
@@ -458,15 +460,15 @@ private fun FormatToolbarButton(
     onClick: () -> Unit,
 ) {
     IconButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(36.dp)
-            .background(Color.Transparent, CircleShape),
+            onClick = onClick,
+            modifier = Modifier
+                .size(SizeTokens.iconButtonSize)
+                .background(Color.Transparent, CircleShape),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(SizeTokens.iconLg),
             tint = MaterialTheme.colorScheme.onSurface,
         )
     }

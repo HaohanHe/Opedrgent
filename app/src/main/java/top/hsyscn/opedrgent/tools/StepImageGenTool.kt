@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.tools
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -145,6 +146,8 @@ class StepImageGenTool : ToolSet {
             } else {
                 emptyResult(toolPart, "图片生成失败: ${result.errorMessage}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("StepImageGenTool 异常: ${e.message}", e)
             emptyResult(toolPart, "图片生成异常: ${e.message}")
@@ -220,6 +223,8 @@ class StepImageGenTool : ToolSet {
                 images = images,
                 revisedPrompt = revisedPrompt,
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "图片生成异常: ${e.message}", e)
             GenResult(false, errorMessage = e.message ?: "未知错误")

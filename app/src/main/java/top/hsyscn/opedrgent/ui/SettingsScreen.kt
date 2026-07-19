@@ -142,6 +142,7 @@ import top.hsyscn.opedrgent.stt.ModelManager.DownloadProgress
 import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.service.SttDownloadService
 import top.hsyscn.opedrgent.settings.PROVIDER_PRESETS
+import top.hsyscn.opedrgent.model.RecordingQuality
 import top.hsyscn.opedrgent.network.ModelFetcher
 import top.hsyscn.opedrgent.ui.components.ModelSelectorDialog
 import top.hsyscn.opedrgent.ui.components.SttModelDownloadDialog
@@ -1291,6 +1292,37 @@ fun SettingsScreen(
                             }
                         }
                     }
+
+                    HorizontalDivider(color = themeBorder())
+
+                    // 录音质量
+                    var recordingQuality by rememberSaveable { mutableStateOf(vm.getRecordingQuality()) }
+                    Text(stringResource(R.string.settings_recording_quality), style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = stringResource(R.string.settings_recording_quality_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        val qualityOptions = listOf(
+                            RecordingQuality.LOW to R.string.recording_quality_low,
+                            RecordingQuality.NORMAL to R.string.recording_quality_normal,
+                            RecordingQuality.HIGH to R.string.recording_quality_high,
+                        )
+                        qualityOptions.forEach { (quality, labelRes) ->
+                            FilterChip(
+                                selected = recordingQuality == quality,
+                                onClick = {
+                                    recordingQuality = quality
+                                    vm.saveRecordingQuality(quality)
+                                },
+                                label = { Text(stringResource(labelRes), style = MaterialTheme.typography.bodyMedium) },
+                            )
+                        }
+                    }
                 }
             }
             }
@@ -2158,14 +2190,14 @@ fun SettingsScreen(
                         .verticalScroll(scrollState),
                     contentAlignment = Alignment.TopCenter,
                 ) {
-                    val contentMaxWidth = if (isExpandedWidth()) 840.dp else 640.dp
+                    val contentMaxWidth = if (isExpandedWidth()) SizeTokens.settingsContentMaxWidthExpanded else SizeTokens.settingsContentMaxWidthMedium
                     Column(modifier = Modifier.widthIn(max = contentMaxWidth)) {
                         settingsContent()
                     }
                 }
             }
         } else {
-            val settingsMaxWidth = if (isAtLeastMediumWidth()) 720.dp else Dp.Unspecified
+            val settingsMaxWidth = if (isAtLeastMediumWidth()) SizeTokens.settingsMaxWidthMedium else Dp.Unspecified
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.TopCenter,

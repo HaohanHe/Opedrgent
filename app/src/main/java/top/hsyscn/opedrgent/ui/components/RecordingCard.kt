@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
+import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import androidx.compose.material3.Text
 
@@ -130,7 +131,7 @@ fun RecordingCard(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(SizeTokens.sectionIcon)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
@@ -190,7 +191,7 @@ fun RecordingCard(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.recording_card_cd_cancel),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(SizeTokens.iconLg),
                     )
                 }
             }
@@ -203,7 +204,7 @@ fun RecordingCard(
                 isRecording = recordingState == RecordingState.RECORDING,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp),
+                    .height(SizeTokens.recordingCardThumbnailHeight),
             )
 
             Spacer(Modifier.height(SpacingTokens.xl))
@@ -219,14 +220,14 @@ fun RecordingCard(
                         onClick = onPause,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(SizeTokens.fabSize),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Pause,
                                 contentDescription = stringResource(R.string.cd_pause),
                                 tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(SizeTokens.listActionIconSize),
                             )
                         }
                     }
@@ -238,7 +239,7 @@ fun RecordingCard(
                         onClick = onStop,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(SizeTokens.fabSize),
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
@@ -247,7 +248,7 @@ fun RecordingCard(
                             // 方块停止图标（比 MusicNote 更语义化）
                             Box(
                                 modifier = Modifier
-                                    .size(20.dp)
+                                    .size(SizeTokens.iconLg)
                                     .background(MaterialTheme.colorScheme.onError, ShapeTokens.extraSmallShape),
                             )
                         }
@@ -258,14 +259,14 @@ fun RecordingCard(
                         onClick = onResume,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(SizeTokens.fabSize),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = stringResource(R.string.action_resume),
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(SizeTokens.listActionIconSize),
                             )
                         }
                     }
@@ -277,7 +278,7 @@ fun RecordingCard(
                         onClick = onStop,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(SizeTokens.fabSize),
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
@@ -285,7 +286,7 @@ fun RecordingCard(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(20.dp)
+                                    .size(SizeTokens.iconLg)
                                     .background(MaterialTheme.colorScheme.onError, ShapeTokens.extraSmallShape),
                             )
                         }
@@ -294,8 +295,8 @@ fun RecordingCard(
                     // Processing indicator
                     LinearProgressIndicator(
                         modifier = Modifier
-                            .width(200.dp)
-                            .height(4.dp)
+                            .width(SizeTokens.recordingCardWaveformWidth)
+                            .height(SizeTokens.recordingCardWaveformHeight)
                             .clip(ShapeTokens.extraSmallShape),
                         color = MaterialTheme.colorScheme.primary,
                     )

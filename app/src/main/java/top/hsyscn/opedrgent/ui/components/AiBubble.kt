@@ -13,10 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,8 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -61,13 +65,14 @@ fun AIMessageCard(
     isSpeaking: Boolean,
     clipboard: ClipboardManager,
     onUndo: (() -> Unit)? = null,
-    aiName: String = "Opedrgent",
+    aiName: String = "",
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var userReaction by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val feedback = LocalFeedbackController.current
     val timeText = remember(message.createdAt) { formatMessageTime(message.createdAt) }
+    val displayAiName = aiName.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name)
 
     // 根据窗口宽度动态调整 AI 消息块宽度：大屏更窄，避免文字过长
     val widthFraction = when (rememberWindowSizeInfo().widthSizeClass) {
@@ -82,7 +87,7 @@ fun AIMessageCard(
     ) {
         MessageHeader(
             avatar = Icons.Default.AutoAwesome,
-            name = aiName,
+            name = displayAiName,
             timestamp = timeText,
         )
 
@@ -169,7 +174,12 @@ fun AIMessageCard(
                                             ),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text("\uD83D\uDC4D", style = MaterialTheme.typography.bodyMedium)
+                                        Icon(
+                                            imageVector = Icons.Default.ThumbUp,
+                                            contentDescription = stringResource(R.string.ai_bubble_cd_reaction_up),
+                                            tint = if (userReaction == "up") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(SizeTokens.iconMd),
+                                        )
                                     }
                                 }
                                 IconButton(onClick = {
@@ -186,7 +196,12 @@ fun AIMessageCard(
                                             ),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text("\uD83D\uDC4E", style = MaterialTheme.typography.bodyMedium)
+                                        Icon(
+                                            imageVector = Icons.Default.ThumbDown,
+                                            contentDescription = stringResource(R.string.ai_bubble_cd_reaction_down),
+                                            tint = if (userReaction == "down") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(SizeTokens.iconMd),
+                                        )
                                     }
                                 }
                                 IconButton(
@@ -196,7 +211,12 @@ fun AIMessageCard(
                                     },
                                     modifier = Modifier.size(SizeTokens.iconXl),
                                 ) {
-                                    Text("\uD83D\uDCCB", style = MaterialTheme.typography.bodyMedium)
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = stringResource(R.string.ai_bubble_cd_copy),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(SizeTokens.iconMd),
+                                    )
                                 }
                             }
                         }

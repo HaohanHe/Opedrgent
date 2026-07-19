@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.network
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -84,6 +85,8 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
                         cache[url] = System.currentTimeMillis() to result
                     }
                     return@withContext result
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     lastException = e
                     if (attempt < NetworkConfig.RETRY_COUNT && isRetryable(e)) {

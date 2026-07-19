@@ -34,6 +34,39 @@ object ShapeTokens {
     val tagShape = RoundedCornerShape(tag)
     val iconShape = RoundedCornerShape(icon)
     val pillShape = RoundedCornerShape(pill)
+
+    // 顶部圆角
+    val topSmallShape = RoundedCornerShape(topStart = small, topEnd = small)
+    val topLargeShape = RoundedCornerShape(topStart = large, topEnd = large)
+    val topExtraLargeShape = RoundedCornerShape(topStart = extraLarge, topEnd = extraLarge)
+
+    // 访谈气泡
+    val interviewInterviewerBubbleShape = RoundedCornerShape(
+        topStart = extraSmall,
+        topEnd = large,
+        bottomStart = large,
+        bottomEnd = large,
+    )
+    val interviewUserBubbleShape = RoundedCornerShape(
+        topStart = large,
+        topEnd = extraSmall,
+        bottomStart = large,
+        bottomEnd = large,
+    )
+
+    // 编辑团队气泡
+    val editorTeamUserBubbleShape = RoundedCornerShape(
+        topStart = large,
+        topEnd = large,
+        bottomEnd = extraSmall,
+        bottomStart = large,
+    )
+    val editorTeamAgentBubbleShape = RoundedCornerShape(
+        topStart = large,
+        topEnd = large,
+        bottomEnd = large,
+        bottomStart = extraSmall,
+    )
 }
 
 /**

@@ -35,14 +35,14 @@ import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 
-enum class InputMode(@androidx.annotation.StringRes val labelRes: Int, val icon: ImageVector) {
+enum class InputMode(@param:androidx.annotation.StringRes val labelRes: Int, val icon: ImageVector) {
     CHAT(R.string.input_mode_chat, Icons.Default.ChatBubble),
     DEEP_RESEARCH(R.string.input_mode_deep_research, Icons.Default.Search),
     VOICE(R.string.input_mode_voice, Icons.Default.Mic),
 }
 
 /** 搜索范围：控制 LLM 对话时的知识来源 */
-enum class SearchScope(@androidx.annotation.StringRes val labelRes: Int) {
+enum class SearchScope(@param:androidx.annotation.StringRes val labelRes: Int) {
     ALL(R.string.search_scope_all),           // 我的笔记 + 全网搜索
     MY_NOTES(R.string.search_scope_my_notes),  // 仅海马体索引（笔记/发芽/对话/录音）
     WEB_ONLY(R.string.search_scope_web_only),       // 仅搜索引擎，不注入本地记忆
