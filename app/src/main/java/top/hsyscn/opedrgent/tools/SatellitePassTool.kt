@@ -92,17 +92,22 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         val tleLine1 = tp.state.input["tle_line1"]?.trim()
         val tleLine2 = tp.state.input["tle_line2"]?.trim()
 
-        val result = when (action) {
-            "list" -> executeList()
-            "passes" -> executePasses(satelliteQuery, hours, tleLine1, tleLine2)
-            "search" -> {
-                if (satelliteQuery.isNullOrBlank()) {
-                    "[ERROR] action=search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
-                } else {
-                    executeSearch(satelliteQuery)
+        val result = try {
+            when (action) {
+                "list" -> executeList()
+                "passes" -> executePasses(satelliteQuery, hours, tleLine1, tleLine2)
+                "search" -> {
+                    if (satelliteQuery.isNullOrBlank()) {
+                        "[ERROR] action=search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
+                    } else {
+                        executeSearch(satelliteQuery)
+                    }
                 }
+                else -> "无效 action='$action'，仅支持 list、passes 或 search"
             }
-            else -> "无效 action='$action'，仅支持 list、passes 或 search"
+        } catch (e: Exception) {
+            DebugLog.w("SatellitePassTool: 执行失败: ${e.message}")
+            "[ERROR] 卫星过境工具执行失败: ${e.message}"
         }
 
         // 业务结果统一用 COMPLETED 状态返回（包括"数据库为空"/"无位置"/"TLE获取失败"等业务信息），
