@@ -58,8 +58,14 @@ data class HamContactLog(
             appendField("GRIDSQUARE", gridLocator)
             appendField("NORAD_ID", noradId)
             appendField("MAX_ELEV", maxElevation)
-            appendField("QSO_RESULT", normalizeResult(result))
-            appendField("NOTES", notes)
+            // QSO_RESULT 不是 ADIF 标准字段，把结果合并到 NOTES 中，保证导出的 ADI 能被 QRZ/LoTW 正常解析
+            val normalizedResult = normalizeResult(result)
+            val notesWithResult = when {
+                normalizedResult.isNotBlank() && notes.isNotBlank() -> "[$normalizedResult] $notes"
+                normalizedResult.isNotBlank() -> "[$normalizedResult]"
+                else -> notes
+            }
+            appendField("NOTES", notesWithResult)
             appendField("STATION_CALLSIGN", stationCallsign)
             appendField("MY_GRIDSQUARE", myGridsquare)
             append("<EOR>")
