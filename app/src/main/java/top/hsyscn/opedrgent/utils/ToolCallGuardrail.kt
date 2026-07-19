@@ -177,6 +177,25 @@ class ToolCallGuardrail(
     }
 
     /**
+     * 仅检测是否连续重复调用 web_search 达到 threshold 次。
+     *
+     * HAM 模式需要保留 satellite_pass 等可连续调用的工具，因此只对 web_search 做循环禁用，
+     * 避免模型在查询卫星过境时被误伤。
+     */
+    fun getConsecutiveWebSearchLoop(threshold: Int = 3): List<String> {
+        synchronized(history) {
+            if (history.isEmpty()) return emptyList()
+            val lastName = history.last().toolName
+            if (lastName != "web_search") return emptyList()
+            var consecutive = 0
+            for (i in history.size - 1 downTo 0) {
+                if (history[i].toolName == lastName) consecutive++ else break
+            }
+            return if (consecutive >= threshold) listOf(lastName) else emptyList()
+        }
+    }
+
+    /**
      * 导出当前 guardrail 状态快照，供 Agent 循环中断后恢复。
      */
     fun exportSnapshot(): top.hsyscn.opedrgent.model.GuardrailSnapshot {

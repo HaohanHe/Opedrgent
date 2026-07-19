@@ -647,7 +647,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val prompt = withContext(Dispatchers.IO) {
                     val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
                     preFilled = HamContactLog(
-                        date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
+                        date = recordingStartAtUtcMs?.let {
+                            java.time.LocalDateTime.ofInstant(
+                                java.time.Instant.ofEpochMilli(it),
+                                java.time.ZoneOffset.UTC,
+                            ).toLocalDate().toString()
+                        } ?: java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
                         timeOn = recordingStartAtUtcMs?.let { formatUtcTimeHHMMSS(it) } ?: "",
                         timeOff = "",
                         gridLocator = apiSettings.getMyGridsquare().ifBlank { with(HamContactLogHelper) { apiSettings.getLastGridLocator() } ?: "" },
@@ -3129,8 +3134,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         // 若已接近最大轮次，强制最终回答：不传入任何工具，避免模型继续调用工具导致硬截断
         val approachingMaxRounds = (state.maxRounds - state.roundsUsed) <= 2
-        // ★ 检测循环工具（"谁循环禁谁"而不是全禁）：某工具在最近 N 轮调用 >= 3 次 = 移出可用工具列表
-        val loopingTools = if (approachingMaxRounds) emptyList() else guardrail.getLoopingTools(recentWindow = 8, threshold = 3)
+        // ★ 仅对连续 web_search 做循环禁用（阈值 3 次），保留 satellite_pass 等 HAM 工具可被连续调用
+        val loopingTools = if (approachingMaxRounds) emptyList() else guardrail.getConsecutiveWebSearchLoop(threshold = 3)
         val effectiveTools = when {
             approachingMaxRounds -> {
                 DebugLog.w("executeOneRound: forcing final answer (max rounds) for ${ctx.config.model} at round ${state.roundsUsed}/${state.maxRounds}")
