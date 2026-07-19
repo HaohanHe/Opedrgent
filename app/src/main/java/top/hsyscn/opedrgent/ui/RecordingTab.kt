@@ -1380,7 +1380,8 @@ fun RecordingTab(
         val dateMissing = log.date.isBlank()
         val timeOnMissing = log.timeOn.isBlank()
         val requiredMissing = satMissing || dateMissing || timeOnMissing
-        val aiEmpty = log.satName.isBlank() && log.timeOn.isBlank() && log.callsign.isBlank() && log.frequency.isBlank()
+        // 录音开始时间会预填 timeOn，因此判断 AI 是否识别到关键信息时不再看 timeOn，而是看卫星/呼号/频率
+        val aiEmpty = log.satName.isBlank() && log.callsign.isBlank() && log.frequency.isBlank()
 
         val requiredLabel = stringResource(R.string.recording_required)
         val satelliteLabel = stringResource(R.string.recording_satellite_required)
