@@ -639,7 +639,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var preFilled: HamContactLog? = null
             try {
-                // 卫星匹配、预填充、会话创建等 IO 操作全部放在后台，避免阻塞主线程
+                // 卫星匹配、预填充等 IO 操作全部放在后台，避免阻塞主线程
                 val prompt = withContext(Dispatchers.IO) {
                     val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
                     preFilled = HamContactLog(
@@ -651,8 +651,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         noradId = if (satMatch != null) satMatch.noradId.toString() else "",
                     )
                     val filled = checkNotNull(preFilled)
-                    store.createSession(app.getString(R.string.ham_contact_log_session_title))
-                    refreshSessions()
                     buildString {
                         appendLine("分析业余卫星通联的录音转写文本，提取以下字段。")
                         appendLine()

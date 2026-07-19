@@ -1170,8 +1170,12 @@ fun RecordingTab(
                                         scope.launch { snackbar.showSnackbar(context.getString(R.string.msg_sent_to_ai)) }
                                     },
                                     onConvertToContactLog = {
-                                        vm.requestContactLog(result.fullText)
-                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log)) }
+                                        if (result.fullText.isBlank()) {
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_contact_log_empty_transcript)) }
+                                        } else {
+                                            vm.requestContactLog(result.fullText)
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_generating_contact_log)) }
+                                        }
                                     },
                                     onDiscardAutoSave = {
                                         scope.launch {
