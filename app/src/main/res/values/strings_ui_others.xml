@@ -75,6 +75,8 @@
     <string name="note_action_summary_copied">已复制总结到剪贴板</string>
     <string name="note_action_title">笔记操作</string>
     <string name="note_action_unpin">取消置顶</string>
+    <string name="note_delete_confirm_message">删除后无法恢复，确定要删除笔记“%1$s”吗？</string>
+    <string name="note_delete_confirm_title">确认删除笔记</string>
 
     <!-- SproutResultView -->
     <string name="quality_score_average">一般</string>

@@ -55,6 +55,32 @@ fun NoteActionBottomSheet(
     val scope = rememberCoroutineScope()
     val feedback = LocalFeedbackController.current
     var showExportSubmenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.note_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.note_delete_confirm_message, note.title.ifBlank { stringResource(R.string.note_editor_title_placeholder) })) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDismiss()
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text(stringResource(R.string.action_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -231,7 +257,7 @@ fun NoteActionBottomSheet(
                     leadingContent = {
                         Icon(Icons.Default.Delete, stringResource(R.string.cd_delete), modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
                     },
-                    modifier = Modifier.clickable { onDismiss(); onDelete() },
+                    modifier = Modifier.clickable { showDeleteConfirm = true },
                 )
                 Spacer(Modifier.height(SpacingTokens.lg))
             }
