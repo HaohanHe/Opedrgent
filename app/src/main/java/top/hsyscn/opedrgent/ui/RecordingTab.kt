@@ -1415,7 +1415,7 @@ fun RecordingTab(
                     OutlinedTextField(value = log.result, onValueChange = { editDraft = log.copy(result = it) }, label = { Text(resultLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.gridLocator, onValueChange = { editDraft = log.copy(gridLocator = it) }, label = { Text(gridLocatorLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                     OutlinedTextField(value = log.notes, onValueChange = { editDraft = log.copy(notes = it) }, label = { Text(notesLabel) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
-                    OutlinedTextField(value = log.noradId, onValueChange = { editDraft = log.copy(noradId = it) }, label = { Text("NORAD ID") }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
+                    OutlinedTextField(value = log.noradId, onValueChange = { editDraft = log.copy(noradId = it) }, label = { Text(stringResource(R.string.recording_norad_id)) }, modifier = Modifier.fillMaxWidth().padding(SpacingTokens.xs))
                 }
             },
             confirmButton = {
@@ -1439,7 +1439,7 @@ fun RecordingTab(
                             )
                         }
                     }) {
-                        Text("ADIF")
+                        Text(stringResource(R.string.recording_export_adif))
                     }
                     OutlinedButton(onClick = {
                         scope.launch {
@@ -1460,7 +1460,7 @@ fun RecordingTab(
                             )
                         }
                     }) {
-                        Text("CSV")
+                        Text(stringResource(R.string.recording_export_csv))
                     }
                     Button(
                         onClick = {

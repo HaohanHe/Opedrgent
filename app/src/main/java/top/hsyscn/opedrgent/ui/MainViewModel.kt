@@ -636,55 +636,57 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         contactLog = null
         onContactLogGenerated?.invoke(null)
 
-        // 先从卫星数据库找匹配卫星，预填充已知字段
-        val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
-        val preFilled = HamContactLog(
-            date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
-            gridLocator = apiSettings.getMyGridsquare().ifBlank { with(HamContactLogHelper) { apiSettings.getLastGridLocator() } ?: "" },
-            satName = satMatch?.name ?: "",
-            frequency = satMatch?.downlinkMHz ?: "",
-            mode = satMatch?.modulation ?: "",
-            noradId = if (satMatch != null) satMatch.noradId.toString() else "",
-        )
-
-        val contactLogPrompt = buildString {
-            appendLine("分析业余卫星通联的录音转写文本，提取以下字段。")
-            appendLine()
-            appendLine("已从卫星数据库自动预填充的字段，禁止修改或猜测：")
-            if (preFilled.satName.isNotBlank()) appendLine("  卫星名称: ${preFilled.satName}")
-            if (preFilled.frequency.isNotBlank()) appendLine("  下行频率: ${preFilled.frequency} MHz")
-            if (preFilled.mode.isNotBlank()) appendLine("  调制方式: ${preFilled.mode}")
-            if (preFilled.noradId.isNotBlank()) appendLine("  NORAD ID: ${preFilled.noradId}")
-            if (preFilled.gridLocator.isNotBlank()) appendLine("  QTH网格: ${preFilled.gridLocator}")
-            if (preFilled.date.isNotBlank()) appendLine("  日期: ${preFilled.date}")
-            appendLine()
-            appendLine("以下字段必须从转写文本中提取，找不到则留空：")
-            appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
-            appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
-            appendLine("  callsign: 对方呼号（地面通联时）")
-            appendLine("  rstSent: 发射信号报告 (如 59, 599)")
-            appendLine("  rstReceived: 接收信号报告")
-            appendLine("  maxElevation: 最高仰角度数")
-            appendLine("  notes: 通联备注")
-            appendLine("  result: 通联结果 (OK/PARTIAL/NO)")
-            appendLine()
-            if (conversationContext.isNotBlank()) {
-                appendLine("对话上下文参考（提及的频率/设备/卫星信息）：")
-                appendLine(conversationContext)
-                appendLine()
-            }
-            appendLine("只输出 JSON 对象。示例：")
-            appendLine("""{"timeOn":"203000","timeOff":"204500","callsign":"BG1ABC","rstSent":"59","rstReceived":"57","maxElevation":"45","notes":"信号良好","result":"OK"}""")
-            appendLine()
-            appendLine("转写文本：")
-            appendLine(transcript)
-        }
-
-        val session = store.createSession(app.getString(R.string.ham_contact_log_session_title))
-        refreshSessions()
-
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
+            var preFilled: HamContactLog? = null
             try {
+                // 卫星匹配、预填充、会话创建等 IO 操作全部放在后台，避免阻塞主线程
+                val prompt = withContext(Dispatchers.IO) {
+                    val satMatch = HamContactLogHelper.findSatelliteInText(transcript + "\n" + conversationContext, app, apiSettings)
+                    preFilled = HamContactLog(
+                        date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString(),
+                        gridLocator = apiSettings.getMyGridsquare().ifBlank { with(HamContactLogHelper) { apiSettings.getLastGridLocator() } ?: "" },
+                        satName = satMatch?.name ?: "",
+                        frequency = satMatch?.downlinkMHz ?: "",
+                        mode = satMatch?.modulation ?: "",
+                        noradId = if (satMatch != null) satMatch.noradId.toString() else "",
+                    )
+                    val filled = checkNotNull(preFilled)
+                    store.createSession(app.getString(R.string.ham_contact_log_session_title))
+                    refreshSessions()
+                    buildString {
+                        appendLine("分析业余卫星通联的录音转写文本，提取以下字段。")
+                        appendLine()
+                        appendLine("已从卫星数据库自动预填充的字段，禁止修改或猜测：")
+                        if (filled.satName.isNotBlank()) appendLine("  卫星名称: ${filled.satName}")
+                        if (filled.frequency.isNotBlank()) appendLine("  下行频率: ${filled.frequency} MHz")
+                        if (filled.mode.isNotBlank()) appendLine("  调制方式: ${filled.mode}")
+                        if (filled.noradId.isNotBlank()) appendLine("  NORAD ID: ${filled.noradId}")
+                        if (filled.gridLocator.isNotBlank()) appendLine("  QTH网格: ${filled.gridLocator}")
+                        if (filled.date.isNotBlank()) appendLine("  日期: ${filled.date}")
+                        appendLine()
+                        appendLine("以下字段必须从转写文本中提取，找不到则留空：")
+                        appendLine("  timeOn: 通联开始时间 HHMMSS (UTC)")
+                        appendLine("  timeOff: 通联结束时间 HHMMSS (UTC)")
+                        appendLine("  callsign: 对方呼号（地面通联时）")
+                        appendLine("  rstSent: 发射信号报告 (如 59, 599)")
+                        appendLine("  rstReceived: 接收信号报告")
+                        appendLine("  maxElevation: 最高仰角度数")
+                        appendLine("  notes: 通联备注")
+                        appendLine("  result: 通联结果 (OK/PARTIAL/NO)")
+                        appendLine()
+                        if (conversationContext.isNotBlank()) {
+                            appendLine("对话上下文参考（提及的频率/设备/卫星信息）：")
+                            appendLine(conversationContext)
+                            appendLine()
+                        }
+                        appendLine("只输出 JSON 对象。示例：")
+                        appendLine("""{"timeOn":"203000","timeOff":"204500","callsign":"BG1ABC","rstSent":"59","rstReceived":"57","maxElevation":"45","notes":"信号良好","result":"OK"}""")
+                        appendLine()
+                        appendLine("转写文本：")
+                        appendLine(transcript)
+                    }
+                }
+
                 val config = apiSettings.getApiConfig()
                 if (config == null) {
                     isGeneratingContactLog = false
@@ -695,12 +697,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         config = config,
                         system = "你是业余卫星通联日志助手。从通联录音转写文本中提取结构化信息。已有字段预填充，禁止修改预填充字段。",
                         messages = listOf(
-                            ChatMessage(role = Role.USER, content = contactLogPrompt, createdAt = System.currentTimeMillis()),
+                            ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis()),
                         ),
                     )
                 }
                 val aiLog = HamContactLogHelper.parseContactLogJson(result)
-                val merged = HamContactLogHelper.mergeContactLog(preFilled, aiLog)
+                val merged = HamContactLogHelper.mergeContactLog(preFilled!!, aiLog)
                 contactLog = merged
                 onContactLogGenerated?.invoke(merged)
             } catch (e: CancellationException) {
@@ -708,8 +710,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 DebugLog.w("requestContactLog: AI 提取失败: ${e.message}")
                 // AI 失败时仍展示预填充结果，不阻塞用户
-                contactLog = preFilled
-                onContactLogGenerated?.invoke(preFilled)
+                val fallback = preFilled ?: HamContactLog()
+                contactLog = fallback
+                onContactLogGenerated?.invoke(fallback)
             } finally {
                 isGeneratingContactLog = false
             }
@@ -2507,22 +2510,30 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         return listOf(
             top.hsyscn.opedrgent.network.ToolDefinition(
                 name = "satellite_pass",
-                description = """卫星过境预测工具（Ham 模式专用）。当用户询问业余卫星通联相关问题时必须调用此工具，包括但不限于：(1) 询问"能打什么卫星"/"哪些卫星过境"时；(2) 询问某颗卫星的"频率"/"调制方式"时（如"SO-50 的频率是多少"）；(3) 询问"什么时候能通联"/"过境时间"时；(4) 用户提到具体卫星名称（如 SO-50, ISS, AO-91）并询问通联信息时；(5) 询问设备匹配（如"IC-9700 能打什么卫星"）时。action=list 返回所有业余卫星列表；action=passes 根据用户位置计算过境窗口。参数：action(必填, "list"|"passes")、satellite(可选)、hours(可选, 默认24, 最大168)。注意：必须先获取用户经纬度，否则 passes 会失败。""",
+                description = """卫星过境预测工具（Ham 模式专用）。当用户询问业余卫星通联相关问题时必须调用此工具，包括但不限于：(1) 询问"能打什么卫星"/"哪些卫星过境"时；(2) 询问某颗卫星的"频率"/"调制方式"时（如"SO-50 的频率是多少"）；(3) 询问"什么时候能通联"/"过境时间"时；(4) 用户提到具体卫星名称（如 SO-50, ISS, AO-91）并询问通联信息时；(5) 询问设备匹配（如"IC-9700 能打什么卫星"）时；(6) 用户提到非预置卫星/立方星并需要搜索 TLE 时。action=list 返回所有业余卫星列表；action=search 从 Celestrak 搜索任意卫星的 TLE；action=passes 根据用户位置计算过境窗口。参数：action(必填, "list"|"search"|"passes")、satellite(可选，search/passes 使用)、hours(可选，默认24, 最大168)、tle_line1/tle_line2(可选，search 得到 TLE 后传给 passes)。注意：passes 需要先获取用户经纬度；使用 search 后必须将返回的 TLE_LINE1/TLE_LINE2 原样传入 passes 的 tle_line1/tle_line2。""",
                 parameters = org.json.JSONObject().apply {
                     put("type", "object")
                     put("properties", org.json.JSONObject().apply {
                         put("action", org.json.JSONObject().apply {
                             put("type", "string")
-                            put("description", "操作类型：list=列出业余卫星，passes=计算过境窗口")
-                            put("enum", org.json.JSONArray().apply { put("list"); put("passes") })
+                            put("description", "操作类型：list=列出业余卫星，search=从 Celestrak 搜索卫星 TLE，passes=计算过境窗口")
+                            put("enum", org.json.JSONArray().apply { put("list"); put("search"); put("passes") })
                         })
                         put("satellite", org.json.JSONObject().apply {
                             put("type", "string")
-                            put("description", "卫星名称或NORAD ID。为空时passes返回所有卫星的过境。")
+                            put("description", "卫星名称或NORAD ID。search 必填；passes 传名称走预置匹配，传 tle_line1/tle_line2 时作为显示名。")
                         })
                         put("hours", org.json.JSONObject().apply {
                             put("type", "integer")
-                            put("description", "预测时间范围（小时），默认24，最大168。")
+                            put("description", "预测时间范围（小时），默认24，最大168，仅 passes 使用。")
+                        })
+                        put("tle_line1", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "TLE 第一行，以 '1 ' 开头。通常来自 search 返回结果，与 tle_line2 配对传给 passes。")
+                        })
+                        put("tle_line2", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "TLE 第二行，以 '2 ' 开头。通常来自 search 返回结果，与 tle_line1 配对传给 passes。")
                         })
                     })
                     put("required", org.json.JSONArray().apply { put("action") })
