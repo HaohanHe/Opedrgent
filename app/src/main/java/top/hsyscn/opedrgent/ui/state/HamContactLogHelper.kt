@@ -77,7 +77,7 @@ object HamContactLogHelper {
         if (aiLog == null) return preFilled
         return HamContactLog(
             // 日期/时间优先采用 AI 从文本中提取的值；提取不到时再用录音开始时间兜底
-            date = aiLog.date.takeIf { it.isNotBlank() } ?: preFilled.date,
+            date = aiLog.date.takeIf { it.isNotBlank() }?.let { normalizeDate(it) } ?: preFilled.date,
             timeOn = aiLog.timeOn.takeIf { it.isNotBlank() }?.let { normalizeTime(it) } ?: preFilled.timeOn,
             timeOff = aiLog.timeOff.takeIf { it.isNotBlank() }?.let { normalizeTime(it) } ?: preFilled.timeOff,
             // 卫星、频率、调制、网格等可靠信息预填充优先，防止 AI 幻觉
@@ -115,6 +115,35 @@ object HamContactLogHelper {
         if (trimmed.isBlank()) return ""
         if (trimmed.toDoubleOrNull() != null) return trimmed
         return Regex("""\d+(\.\d+)?""").find(trimmed)?.value ?: trimmed
+    }
+
+    /**
+     * 日期归一化：把 AI 可能返回的 2025/7/19、2025年7月19日、2025-7-19 等转为 yyyy-MM-dd。
+     * 若只有月/日，则补当前年份。
+     */
+    private fun normalizeDate(raw: String): String {
+        val s = raw.trim()
+        // 已经是 yyyy-MM-dd
+        if (Regex("""\d{4}-\d{1,2}-\d{1,2}""").matches(s)) {
+            val parts = s.split("-")
+            return "${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}"
+        }
+        val nums = Regex("""\d+""").findAll(s).map { it.value }.toList()
+        return when {
+            nums.size >= 3 -> {
+                val year = nums[0].padStart(4, '0')
+                val month = nums[1].padStart(2, '0')
+                val day = nums[2].padStart(2, '0')
+                "$year-$month-$day"
+            }
+            nums.size == 2 -> {
+                val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString()
+                val month = nums[0].padStart(2, '0')
+                val day = nums[1].padStart(2, '0')
+                "$year-$month-$day"
+            }
+            else -> s
+        }
     }
 
     /**
