@@ -84,8 +84,27 @@ object ToolPrompts {
 - 内容为空 → 尝试用web_search找替代来源
 """.trimIndent()
 
+            "geocode" -> """
+## geocode - 地理编码（正向 + 反向）
+
+支持正向（地名→经纬度）和反向（经纬度→地址）两种模式。
+
+**使用场景：**
+- action=forward：用户提到远程地点（如"哈工大"/"马里兰大学"）需要查卫星过境时，先获取 lat/lon 传给 satellite_pass
+- action=reverse：用户提供经纬度需要转换成具体地址时
+
+**参数说明：**
+- `action` (必填): "forward" 或 "reverse"
+- forward 模式: `place` (必填): 地名或地址
+- reverse 模式: `lat` (必填): 纬度, `lon` (必填): 经度
+
+**卫星过境链路（强制）：**
+用户提到"非本地地点"的卫星过境时，必须先 action=forward 获取坐标，再调用 satellite_pass(lat=..., lon=...)
+典型流程: action=forward(place="哈工大") → 拿到 lat/lon → action=passes(satellite="ISS", lat=45.773, lon=126.693)
+""".trimIndent()
+
             "reverse_geocode" -> """
-## reverse_geocode - 经纬度转地址
+## reverse_geocode - 经纬度转地址（geocode 别名）
 
 将GPS经纬度坐标转换为人类可读的地名地址。
 
@@ -385,6 +404,7 @@ object ToolPrompts {
             "web_search" to getToolPrompt("web_search"),
             "deep_research" to getToolPrompt("deep_research"),
             "read_url" to getToolPrompt("read_url"),
+            "geocode" to getToolPrompt("geocode"),
             "reverse_geocode" to getToolPrompt("reverse_geocode"),
             "ask_question" to getToolPrompt("ask_question"),
             "ask_confirmation" to getToolPrompt("ask_confirmation"),

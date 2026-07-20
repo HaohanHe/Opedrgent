@@ -82,6 +82,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
     private val geocodeCache = mutableMapOf<String, Pair<String?, Long>>()
 
+    /** 正向地理编码缓存：地名 → (lat, lon) */
+    private val forwardGeocodeCache = mutableMapOf<String, Pair<Pair<Double, Double>?, Long>>()
+
     private fun buildClient(timeoutSec: Int = SearchConstants.SEARCH_TIMEOUT_SEC): OkHttpClient {
         return http.newBuilder()
             .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
@@ -1763,6 +1766,70 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             null
         } catch (e: Exception) {
             DebugLog.e("WebSearcher Nominatim error: ${e.javaClass.simpleName} - ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 正向地理编码：将地名/地址转换为经纬度坐标。
+     * 使用 OSM Nominatim search API，结果缓存 7 天。
+     * 返回 null 表示未找到或请求失败。
+     */
+    fun forwardGeocode(placeName: String): Pair<Double, Double>? {
+        val key = placeName.trim().lowercase()
+        if (key.isEmpty()) return null
+
+        forwardGeocodeCache[key]?.let { (result, timestamp) ->
+            if (System.currentTimeMillis() - timestamp < SearchConstants.GEOCACHE_TTL_MS) {
+                return result
+            }
+        }
+
+        val encoded = java.net.URLEncoder.encode(placeName.trim(), "UTF-8")
+        val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=$encoded"
+        DebugLog.i("WebSearcher forwardGeocode: $placeName")
+
+        val req = Request.Builder()
+            .url(url)
+            .get()
+            .header("User-Agent", "Opedrgent/1.0 (AI Research Assistant)")
+            .header("Accept", "application/json")
+            .build()
+
+        return try {
+            geocodingClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    DebugLog.w("WebSearcher forwardGeocode failed: HTTP ${resp.code}")
+                    null
+                } else {
+                    val body = resp.body?.string().orEmpty()
+                    if (body.isBlank()) null
+                    else {
+                        try {
+                            val arr = org.json.JSONArray(body)
+                            if (arr.length() == 0) {
+                                forwardGeocodeCache[key] = Pair(null, System.currentTimeMillis())
+                                null
+                            } else {
+                                val obj = arr.getJSONObject(0)
+                                val lat = obj.getDouble("lat")
+                                val lon = obj.getDouble("lon")
+                                val result = Pair(lat, lon)
+                                forwardGeocodeCache[key] = Pair(result, System.currentTimeMillis())
+                                result
+                            }
+                        } catch (e: Exception) {
+                            DebugLog.w("WebSearcher forwardGeocode parse error: ${e.message}")
+                            null
+                        }
+                    }
+                }
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            DebugLog.w("WebSearcher forwardGeocode timeout: ${e.message}")
+            null
+        } catch (e: Exception) {
+            DebugLog.e("WebSearcher forwardGeocode error: ${e.javaClass.simpleName} - ${e.message}")
             null
         }
     }

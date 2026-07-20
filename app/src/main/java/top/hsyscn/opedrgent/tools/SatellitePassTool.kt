@@ -56,25 +56,31 @@ class SatellitePassTool(
 
 1) action=list - 返回内置业余卫星列表（AO-7, SO-50, CAS-3H 等），每颗卫星同时返回 AMSAT 编号和 NORAD ID，以及频率/调制方式。
 2) action=search - 从 Celestrak 拉取全部活跃卫星 TLE，按名称或 NORAD ID 搜索。用于用户提到的非预置卫星（如学校参与的立方星、某次通联过的特殊卫星等预置列表里没有的）。
-3) action=passes - 根据用户缓存的经纬度 + TLE 计算过境窗口（AOS/LOS/最大仰角/方向/频率/制式）。
+3) action=passes - 根据经纬度 + TLE 计算过境窗口（AOS/LOS/最大仰角/方向/频率/制式）。
+   优先使用显式传入的 lat/lon 参数；未传入时使用用户缓存位置。
 
-*** 两条工作流 ***
+*** 远程地点工作流（强制）：用户提到"非本地地点"（如"哈工大"/"马里兰大学"）的卫星过境时，必须先调用 geocode(action=forward) 获取 lat/lon，再传给本工具的 lat/lon 参数 ***
+典型流程: geocode(action=forward, place="哈工大") → 拿到 lat/lon → satellite_pass(action=passes, satellite="ISS", lat=45.773, lon=126.693)
+
+*** 两条卫星匹配工作流 ***
 
 A) 预置卫星（list 能查到的，如 AO-7, SO-50, CAS-3H）：
-   action=list -> action=passes(satellite=名称或NORAD ID)
+   action=list -> action=passes(satellite=名称或NORAD ID, lat=..., lon=...)
 
 B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"北邮参与的那个卫星"/"跟日本学校通联过的"）：
-   action=search(satellite=用户提到的名称或NORAD ID) -> 从返回结果拿到 TLE_LINE1/TLE_LINE2 -> action=passes(satellite=名称, tle_line1=..., tle_line2=...)
+   action=search(satellite=用户提到的名称或 NORAD ID) -> 从返回结果拿到 TLE_LINE1/TLE_LINE2 -> action=passes(satellite=名称, tle_line1=..., tle_line2=..., lat=..., lon=...)
    注意：search 返回的 TLE 两行必须原样传给 passes 的 tle_line1/tle_line2 参数，不要截断或修改；若 search 返回多条匹配，让用户确认是哪一颗后再传 TLE。
 
 参数说明：
 - action(必填, "list"|"search"|"passes")
 - satellite(可选, 卫星名称或 NORAD ID；list 不需要；search 必填；passes 可选，传名称走预置匹配，传 tle_line1/tle_line2 时作为显示名)
 - hours(可选, 整数小时, 默认24, 最大168；仅 passes 用)
+- lat(可选, 纬度；仅 passes 用, 传入时覆盖用户缓存位置, 用于远程地点查询)
+- lon(可选, 经度；仅 passes 用, 传入时覆盖用户缓存位置, 用于远程地点查询)
 - tle_line1(可选, TLE 第一行, 以 '1 ' 开头；仅 passes 用, 与 tle_line2 配对, 通常来自 search 结果)
 - tle_line2(可选, TLE 第二行, 以 '2 ' 开头；仅 passes 用, 与 tle_line1 配对, 通常来自 search 结果)
 
-注意：passes 依赖用户位置缓存，需设置中开启位置权限。""",
+注意：passes 默认依赖用户位置缓存（需设置中开启位置权限）；若用户提到远程地点，必须先通过 geocode 获取 lat/lon 传入。""",
                 invoker = { tp, config, sp, ups -> executeSatellitePass(tp, config, sp, ups) },
             ),
         )
@@ -91,11 +97,15 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         val hours = (tp.state.input["hours"]?.toIntOrNull() ?: 24).coerceIn(1, 168)
         val tleLine1 = tp.state.input["tle_line1"]?.trim()
         val tleLine2 = tp.state.input["tle_line2"]?.trim()
+        // 显式经纬度：用户提到远程地点（如"哈工大"/"马里兰大学"）时，
+        // 由 LLM 先调用 geocode 工具获取坐标，再传入 satellite_pass，覆盖默认的用户缓存位置
+        val explicitLat = tp.state.input["lat"]?.toDoubleOrNull()
+        val explicitLon = tp.state.input["lon"]?.toDoubleOrNull()
 
         val result = try {
             when (action) {
                 "list" -> executeList()
-                "passes" -> executePasses(satelliteQuery, hours, tleLine1, tleLine2)
+                "passes" -> executePasses(satelliteQuery, hours, tleLine1, tleLine2, explicitLat, explicitLon)
                 "search" -> {
                     if (satelliteQuery.isNullOrBlank()) {
                         "[ERROR] action=search 需要提供 satellite 参数（卫星名称或 NORAD ID）。"
@@ -154,11 +164,14 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
         hours: Int,
         tleLine1: String?,
         tleLine2: String?,
+        explicitLat: Double? = null,
+        explicitLon: Double? = null,
     ): String = withContext(Dispatchers.IO) {
-        val lat = apiSettings.getLastLatitude()?.toDouble()
-        val lon = apiSettings.getLastLongitude()?.toDouble()
+        // 显式经纬度优先于用户缓存位置（用于远程地点查询，如"哈工大"/"马里兰大学"）
+        val lat = explicitLat ?: apiSettings.getLastLatitude()?.toDouble()
+        val lon = explicitLon ?: apiSettings.getLastLongitude()?.toDouble()
         if (lat == null || null == lon) {
-            return@withContext "[ERROR] 未获取到用户位置。请先在设置中开启位置权限并刷新位置。"
+            return@withContext "[ERROR] 未获取到观测位置。请先在设置中开启位置权限并刷新位置，或提供具体地点名称以便自动获取坐标。"
         }
 
         val now = System.currentTimeMillis()
