@@ -551,7 +551,13 @@ fun RecordingTab(
             withContext(Dispatchers.IO) {
                 val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 val buffer = ShortArray(bufferSize / 2)
+                // 预分配字节缓冲，避免每次 read 都分配新数组
+                val byteBuffer = ByteArray(buffer.size * 2)
+                // 预分配 ASR 用 float 缓冲
+                val floatBuffer = FloatArray(buffer.size)
                 FileOutputStream(tempFile).use { fos ->
+                    // 振幅 UI 状态更新节流：每 150ms 更新一次，避免高频 recomposition 导致卡顿
+                    var lastAmplitudeUpdate = 0L
                     // 使用 ViewModel 状态判断，避免 Composable 重建后闭包状态不一致
                     while (isActive && vm.recordingState != RecordingState.DONE && vm.recordingState != RecordingState.PROCESSING) {
                         if (vm.recordingState == RecordingState.PAUSED) {
@@ -560,21 +566,38 @@ fun RecordingTab(
                         }
                         val read = recorder.read(buffer, 0, buffer.size)
                         if (read > 0) {
-                            fos.write(buffer.toByteArray(), 0, read * 2)
+                            // 手动复制到预分配字节缓冲，避免 toByteArray() 每次分配新数组
+                            for (i in 0 until read) {
+                                val s = buffer[i]
+                                byteBuffer[i * 2] = (s.toInt() and 0xFF).toByte()
+                                byteBuffer[i * 2 + 1] = (s.toInt() shr 8 and 0xFF).toByte()
+                            }
+                            fos.write(byteBuffer, 0, read * 2)
+
+                            // 计算 RMS 振幅（用于 UI 波形显示）
                             var sum = 0L
                             for (i in 0 until read) {
                                 sum += buffer[i].toLong() * buffer[i].toLong()
                             }
                             val rms = kotlin.math.sqrt(sum.toDouble() / read).toFloat()
-                            vm.recordingAmplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
+                            val now = System.currentTimeMillis()
+                            // 节流：每 150ms 更新一次 UI 状态，避免高频 recomposition
+                            if (now - lastAmplitudeUpdate > 150) {
+                                vm.recordingAmplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
+                                lastAmplitudeUpdate = now
+                            }
 
                             if (vm.recordingIsStreamingActive) {
-                                val floats = FloatArray(read) { i -> buffer[i] / 32768.0f }
+                                for (i in 0 until read) {
+                                    floatBuffer[i] = buffer[i] / 32768.0f
+                                }
                                 // 语音识别统一使用 16kHz，必要时重采样
                                 val asrSamples = if (sampleRate == 16000) {
-                                    floats
+                                    floatBuffer.copyOfRange(0, read)
                                 } else {
-                                    top.hsyscn.opedrgent.stt.AudioProcessor.resample(floats, sampleRate, 16000)
+                                    top.hsyscn.opedrgent.stt.AudioProcessor.resample(
+                                        floatBuffer.copyOfRange(0, read), sampleRate, 16000
+                                    )
                                 }
                                 feedAudioToEngine(vm.asrManager.getCachedEngine(), asrSamples)
                             }
