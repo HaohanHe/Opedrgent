@@ -812,6 +812,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveMyGridsquare(grid: String) = apiSettings.saveMyGridsquare(grid)
     fun getLastLatitude(): Float? = apiSettings.getLastLatitude()
     fun getLastLongitude(): Float? = apiSettings.getLastLongitude()
+    fun getLastLocation(): String? = apiSettings.getLastLocation()
+    fun getLastLocationDetail(): String? = apiSettings.getLastLocationDetail()
 
     init {
         DebugLog.enabled = apiSettings.isDebugMode()
@@ -5046,7 +5048,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         apiSettings.saveFirecrawlApiKey(key)
     }
 
-    fun refreshLocation() {
+    /**
+     * 刷新当前位置并更新缓存。
+     * @return 是否成功获取到新位置
+     */
+    fun refreshLocation(onResult: ((success: Boolean, address: String?) -> Unit)? = null) {
         val app = getApplication<Application>()
         viewModelScope.launch {
             try {
@@ -5060,8 +5066,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     apiSettings.saveLastLatitude(loc.first)
                     apiSettings.saveLastLongitude(loc.second)
                     geo?.detail?.let { apiSettings.saveLastLocationDetail(it) }
+                    DebugLog.i("MainViewModel: 位置已刷新 -> $display")
+                    onResult?.invoke(true, display)
+                } else {
+                    DebugLog.w("MainViewModel: 刷新位置失败，未获取到位置")
+                    onResult?.invoke(false, null)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                DebugLog.w("MainViewModel: 刷新位置异常: ${e.message}")
+                onResult?.invoke(false, null)
+            }
         }
     }
 

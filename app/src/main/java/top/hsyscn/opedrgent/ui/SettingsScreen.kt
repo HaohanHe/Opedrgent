@@ -212,6 +212,7 @@ fun SettingsScreen(
     var ttsEngine by rememberSaveable { mutableStateOf(vm.getTtsEngine()) }
     var bgRunning by rememberSaveable { mutableStateOf(vm.isBackgroundRunning()) }
     var locationEnabled by rememberSaveable { mutableStateOf(vm.isLocationEnabled()) }
+    var locationRefreshing by rememberSaveable { mutableStateOf(false) }
     var hamModeEnabled by rememberSaveable { mutableStateOf(vm.isHamModeEnabled()) }
     var hamCallsign by rememberSaveable { mutableStateOf(vm.getStationCallsign()) }
     var hamCallsignError by rememberSaveable { mutableStateOf(false) }
@@ -1534,6 +1535,46 @@ fun SettingsScreen(
                             }
                         },
                     )
+                    AnimatedVisibility(visible = locationEnabled) {
+                        val lastLoc = vm.getLastLocation()
+                        val locSubtitle = when {
+                            locationRefreshing -> stringResource(R.string.settings_location_refreshing)
+                            lastLoc.isNullOrBlank() -> stringResource(R.string.settings_location_not_yet)
+                            else -> stringResource(R.string.settings_location_current, lastLoc)
+                        }
+                        SettingRow(
+                            title = stringResource(R.string.settings_location_refresh),
+                            subtitle = locSubtitle,
+                            icon = Icons.Default.Refresh,
+                            onClick = {
+                                if (locationRefreshing) return@SettingRow
+                                locationRefreshing = true
+                                vm.refreshLocation { success, address ->
+                                    locationRefreshing = false
+                                    if (success && address != null) {
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_location_updated, address)) }
+                                    } else {
+                                        scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_location_refresh_failed)) }
+                                    }
+                                }
+                            },
+                            trailing = {
+                                if (locationRefreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(SizeTokens.iconMd),
+                                        strokeWidth = SizeTokens.progressTrackHeight,
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = stringResource(R.string.settings_location_refresh),
+                                        tint = themeForegroundMuted(),
+                                        modifier = Modifier.size(SizeTokens.iconMd),
+                                    )
+                                }
+                            },
+                        )
+                    }
                     // ★ Ham 模式：业余卫星通联辅助（需要位置感知）
                     SettingSwitchRow(
                         title = stringResource(R.string.settings_ham_mo_shi_ye_yu_wei_xing),
