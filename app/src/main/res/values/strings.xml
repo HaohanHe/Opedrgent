@@ -370,6 +370,12 @@
     <string name="settings_location_env_section">位置与环境</string>
     <string name="settings_location">位置感知</string>
     <string name="settings_location_desc">AI 可感知你的位置，用于本地天气/新闻/餐厅等回答</string>
+    <string name="settings_location_refresh">刷新当前位置</string>
+    <string name="settings_location_refreshing">正在定位…</string>
+    <string name="settings_location_not_yet">尚未获取到位置，点击刷新</string>
+    <string name="settings_location_current">当前位置：%1$s</string>
+    <string name="settings_location_updated">位置已更新：%1$s</string>
+    <string name="settings_location_refresh_failed">位置刷新失败，请检查定位权限和 GPS 开关</string>
     <string name="settings_deep_thinking">深度思考</string>
     <string name="settings_deep_thinking_desc">启用后模型会展示推理思考过程（支持 thinking 的模型）</string>
     <string name="settings_debug_mode">Debug 模式</string>
