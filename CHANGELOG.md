@@ -4,10 +4,12 @@
 
 ### 修复 / Fixes
 
-- **位置缓存刷新**：`EnvironmentProvider.getCurrentLocation` 改为 suspend 函数，优先使用 5 分钟内新缓存位置；缓存过期时通过 `requestSingleUpdate` 请求一次实时定位（8 秒超时），失败后降级到任意最后已知位置。解决切换地点后应用仍显示旧位置的问题。  
-  **Location Cache Refresh**: `getCurrentLocation` now prefers fresh cached locations within 5 minutes, requests a single fresh fix with 8s timeout, and falls back to stale locations if needed.
+- **位置缓存刷新**：`EnvironmentProvider.getCurrentLocation` 改为 suspend 函数，优先使用 5 分钟内新缓存位置；API 30+ 使用 `LocationManager.getCurrentLocation`，低版本 fallback 到 `requestSingleUpdate`（8 秒超时），失败后降级到任意最后已知位置。解决切换地点后应用仍显示旧位置的问题。  
+  **Location Cache Refresh**: `getCurrentLocation` now prefers fresh cached locations within 5 minutes, uses `LocationManager.getCurrentLocation` on API 30+, falls back to `requestSingleUpdate` on older versions with an 8s timeout, and finally falls back to stale locations if needed.
 - **笔记操作表滚动**：`NoteActionBottomSheet` 内容区域增加 `verticalScroll`，修复屏幕较小时底部「删除」按钮被截断、无法滑动触达的问题。  
   **Note Action Sheet Scroll**: Added `verticalScroll` to `NoteActionBottomSheet` so the delete action remains reachable on small screens.
+- **Release 构建修复**：修正 `backup_rules.xml` 与 `data_extraction_rules.xml` 中 SharedPreferences 路径带 `.xml` 后缀、以及 `include` 与 `exclude` 冲突导致的 lint 致命错误，确保 `./gradlew assembleRelease` 通过。  
+  **Release Build Fix**: Fixed `backup_rules.xml` / `data_extraction_rules.xml` lint fatal errors caused by incorrect `.xml` suffixes and conflicting `include`/`exclude` rules.
 
 ### 其他 / Misc
 
@@ -115,4 +117,4 @@
 ---
 
 **版本号 / Version**: 1.2.1  
-**构建状态 / Build Status**: `./gradlew :app:compileDebugKotlin` 通过 / `BUILD SUCCESSFUL`
+**构建状态 / Build Status**: `./gradlew assembleRelease` 通过 / `BUILD SUCCESSFUL`
