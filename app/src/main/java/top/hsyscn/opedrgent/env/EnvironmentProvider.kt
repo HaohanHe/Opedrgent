@@ -2,14 +2,17 @@ package top.hsyscn.opedrgent.env
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.location.Criteria
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
+import android.os.CancellationSignal
 import android.os.Looper
 import android.provider.Settings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -138,57 +141,105 @@ object EnvironmentProvider {
         return best
     }
 
-    /** 通过 requestSingleUpdate 请求一次新位置，带超时 */
+    /**
+     * 请求一次新位置，带超时。
+     * API 30+ 使用 [LocationManager.getCurrentLocation]；低版本 fallback 到 [LocationManager.requestSingleUpdate]。
+     */
     @SuppressLint("MissingPermission")
     private suspend fun requestSingleFreshLocation(lm: LocationManager): Location? {
         return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                requestCurrentLocationApi30(lm)
+            } else {
+                requestSingleUpdateLegacy(lm)
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun requestCurrentLocationApi30(lm: LocationManager): Location? {
+        return withContext(Dispatchers.IO) {
             suspendCancellableCoroutine { cont ->
-                var listener: LocationListener? = null
+                val signal = CancellationSignal()
+                val executor = Dispatchers.IO.asExecutor()
                 var completed = false
 
                 val finishOnce: (Location?) -> Unit = { loc ->
                     if (!completed) {
                         completed = true
-                        listener?.let { lm.removeUpdates(it) }
+                        signal.cancel()
                         cont.resume(loc)
                     }
                 }
 
-                listener = object : LocationListener {
-                    override fun onLocationChanged(location: Location) {
-                        finishOnce(location)
-                    }
-
-                    override fun onProviderEnabled(provider: String) {}
-                    override fun onProviderDisabled(provider: String) {
-                        finishOnce(null)
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
-                }
-
                 try {
-                    val provider = lm.getBestProvider(Criteria().apply {
-                        accuracy = Criteria.ACCURACY_FINE
-                    }, true) ?: lm.getBestProvider(Criteria().apply {
-                        accuracy = Criteria.ACCURACY_COARSE
-                    }, true)
-
-                    if (provider == null) {
-                        finishOnce(null)
-                        return@suspendCancellableCoroutine
-                    }
-
-                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+                    lm.getCurrentLocation(
+                        LocationManager.GPS_PROVIDER,
+                        signal,
+                        executor,
+                        { location -> finishOnce(location) }
+                    )
                 } catch (e: Exception) {
-                    DebugLog.w("EnvironmentProvider: requestSingleUpdate 失败: ${e.message}")
+                    DebugLog.w("EnvironmentProvider: getCurrentLocation 失败: ${e.message}")
                     finishOnce(null)
                 }
 
                 cont.invokeOnCancellation {
                     finishOnce(null)
                 }
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    private suspend fun requestSingleUpdateLegacy(lm: LocationManager): Location? {
+        return suspendCancellableCoroutine { cont ->
+            var listener: LocationListener? = null
+            var completed = false
+
+            val finishOnce: (Location?) -> Unit = { loc ->
+                if (!completed) {
+                    completed = true
+                    listener?.let { lm.removeUpdates(it) }
+                    cont.resume(loc)
+                }
+            }
+
+            listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    finishOnce(location)
+                }
+
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {
+                    finishOnce(null)
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+            }
+
+            try {
+                val provider = when {
+                    lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+                    lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                    else -> null
+                }
+
+                if (provider == null) {
+                    finishOnce(null)
+                    return@suspendCancellableCoroutine
+                }
+
+                lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+            } catch (e: Exception) {
+                DebugLog.w("EnvironmentProvider: requestSingleUpdate 失败: ${e.message}")
+                finishOnce(null)
+            }
+
+            cont.invokeOnCancellation {
+                finishOnce(null)
             }
         }
     }

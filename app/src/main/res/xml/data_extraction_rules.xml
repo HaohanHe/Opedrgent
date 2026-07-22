@@ -6,56 +6,47 @@
    敏感设置（API Key 等）排除在外；会话数据包含在内。
 -->
 <data-extraction-rules>
-    <cloud-backup>
-        <!-- API Key、WebDAV 密码、MCP 认证头等敏感信息不参与云端备份 -->
-        <exclude domain="sharedpref" path="opedrgent_secure.xml" />
-        <exclude domain="sharedpref" path="opedrgent_webdav.xml" />
-        <exclude domain="sharedpref" path="mcp_servers.xml" />
+    <!--
+      规则：只显式 include 需要云端备份/设备间迁移的内容，未 include 的 SharedPreferences 和文件不会被备份。
+      不要对同一个 path 同时使用 include + exclude，lint 会报冲突。
+      敏感文件（opedrgent_secure、opedrgent_webdav、mcp_servers）因未被 include，自然不会被备份或迁移。
+    -->
 
+    <cloud-backup>
         <!-- 用户设置与数据需要备份：卸载重装后可恢复 -->
-        <include domain="sharedpref" path="opedrgent_settings.xml" />
-        <include domain="sharedpref" path="opedrgent_memory.xml" />
-        <include domain="sharedpref" path="opedrgent_skills.xml" />
-        <include domain="sharedpref" path="opedrgent_automations.xml" />
-        <include domain="sharedpref" path="opedrgent_todos.xml" />
-        <include domain="sharedpref" path="opedrgent_skill_loader.xml" />
-        <include domain="sharedpref" path="opedrgent_user.xml" />
-        <include domain="sharedpref" path="opedrgent_locale.xml" />
-        <include domain="sharedpref" path="note_search_history.xml" />
-        <include domain="sharedpref" path="voiceprint_prefs.xml" />
-        <include domain="sharedpref" path="vocabulary.xml" />
+        <include domain="sharedpref" path="opedrgent_settings" />
+        <include domain="sharedpref" path="opedrgent_memory" />
+        <include domain="sharedpref" path="opedrgent_skills" />
+        <include domain="sharedpref" path="opedrgent_automations" />
+        <include domain="sharedpref" path="opedrgent_todos" />
+        <include domain="sharedpref" path="opedrgent_skill_loader" />
+        <include domain="sharedpref" path="opedrgent_user" />
+        <include domain="sharedpref" path="opedrgent_locale" />
+        <include domain="sharedpref" path="note_search_history" />
+        <include domain="sharedpref" path="voiceprint_prefs" />
+        <include domain="sharedpref" path="vocabulary" />
 
         <!-- 会话数据需要备份：卸载重装后可恢复 -->
         <include domain="file" path="research_store.json" />
         <include domain="file" path="research_store.json.bak" />
-
-        <!-- 导出目录不参与备份 -->
-        <exclude domain="file" path="exports" />
     </cloud-backup>
-    <device-transfer>
-        <!-- API Key、WebDAV 密码、MCP 认证头等敏感信息不参与设备间迁移 -->
-        <exclude domain="sharedpref" path="opedrgent_secure.xml" />
-        <exclude domain="sharedpref" path="opedrgent_webdav.xml" />
-        <exclude domain="sharedpref" path="mcp_servers.xml" />
 
+    <device-transfer>
         <!-- 用户设置与数据需要备份：换机后可恢复 -->
-        <include domain="sharedpref" path="opedrgent_settings.xml" />
-        <include domain="sharedpref" path="opedrgent_memory.xml" />
-        <include domain="sharedpref" path="opedrgent_skills.xml" />
-        <include domain="sharedpref" path="opedrgent_automations.xml" />
-        <include domain="sharedpref" path="opedrgent_todos.xml" />
-        <include domain="sharedpref" path="opedrgent_skill_loader.xml" />
-        <include domain="sharedpref" path="opedrgent_user.xml" />
-        <include domain="sharedpref" path="opedrgent_locale.xml" />
-        <include domain="sharedpref" path="note_search_history.xml" />
-        <include domain="sharedpref" path="voiceprint_prefs.xml" />
-        <include domain="sharedpref" path="vocabulary.xml" />
+        <include domain="sharedpref" path="opedrgent_settings" />
+        <include domain="sharedpref" path="opedrgent_memory" />
+        <include domain="sharedpref" path="opedrgent_skills" />
+        <include domain="sharedpref" path="opedrgent_automations" />
+        <include domain="sharedpref" path="opedrgent_todos" />
+        <include domain="sharedpref" path="opedrgent_skill_loader" />
+        <include domain="sharedpref" path="opedrgent_user" />
+        <include domain="sharedpref" path="opedrgent_locale" />
+        <include domain="sharedpref" path="note_search_history" />
+        <include domain="sharedpref" path="voiceprint_prefs" />
+        <include domain="sharedpref" path="vocabulary" />
 
         <!-- 会话数据需要备份：换机后可恢复 -->
         <include domain="file" path="research_store.json" />
         <include domain="file" path="research_store.json.bak" />
-
-        <!-- 导出目录不参与备份 -->
-        <exclude domain="file" path="exports" />
     </device-transfer>
 </data-extraction-rules>
