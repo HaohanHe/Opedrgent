@@ -13,8 +13,8 @@ android {
         applicationId = "top.hsyscn.opedrgent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.1-live"
+        versionCode = 3
+        versionName = "1.2sat"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
