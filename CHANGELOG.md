@@ -1,5 +1,20 @@
 # Opedrgent 更新日志 / Release Notes
 
+## 1.2.1
+
+### 修复 / Fixes
+
+- **位置缓存刷新**：`EnvironmentProvider.getCurrentLocation` 改为 suspend 函数，优先使用 5 分钟内新缓存位置；缓存过期时通过 `requestSingleUpdate` 请求一次实时定位（8 秒超时），失败后降级到任意最后已知位置。解决切换地点后应用仍显示旧位置的问题。  
+  **Location Cache Refresh**: `getCurrentLocation` now prefers fresh cached locations within 5 minutes, requests a single fresh fix with 8s timeout, and falls back to stale locations if needed.
+- **笔记操作表滚动**：`NoteActionBottomSheet` 内容区域增加 `verticalScroll`，修复屏幕较小时底部「删除」按钮被截断、无法滑动触达的问题。  
+  **Note Action Sheet Scroll**: Added `verticalScroll` to `NoteActionBottomSheet` so the delete action remains reachable on small screens.
+
+### 其他 / Misc
+
+- 版本号：`versionCode 4` / `versionName "1.2.1"`
+
+---
+
 ## 1.2sat（演示准备版 / Presentation Ready）
 
 ### 架构 / Architecture
@@ -99,5 +114,5 @@
 
 ---
 
-**版本号 / Version**: 1.2sat  
-**构建状态 / Build Status**: `./gradlew assembleDebug` 通过 / `BUILD SUCCESSFUL`
+**版本号 / Version**: 1.2.1  
+**构建状态 / Build Status**: `./gradlew :app:compileDebugKotlin` 通过 / `BUILD SUCCESSFUL`
