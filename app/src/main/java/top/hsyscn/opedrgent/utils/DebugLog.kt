@@ -4,6 +4,7 @@ import android.util.Log
 
 object DebugLog {
     private const val TAG = "Opedrgent"
+    @Volatile
     var enabled: Boolean = false
 
     fun isEnabled(): Boolean = enabled

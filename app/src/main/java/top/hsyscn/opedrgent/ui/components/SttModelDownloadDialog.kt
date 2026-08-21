@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.ui.components
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +62,8 @@ fun SttModelDownloadDialog(
     onDismiss: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    var shuffledIndices by remember { mutableStateOf(DownloadQuotes.ALL_QUOTES.indices.shuffled()) }
+    val context = LocalContext.current
+    var shuffledIndices by remember { mutableStateOf(DownloadQuotes.getQuotes(context).indices.shuffled()) }
     var quotePointer by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -69,7 +71,7 @@ fun SttModelDownloadDialog(
             delay(10_000L)
             quotePointer++
             if (quotePointer >= shuffledIndices.size) {
-                shuffledIndices = DownloadQuotes.ALL_QUOTES.indices.shuffled()
+                shuffledIndices = DownloadQuotes.getQuotes(context).indices.shuffled()
                 quotePointer = 0
             }
         }
@@ -258,7 +260,8 @@ fun SttModelDownloadDialog(
 
 @Composable
 private fun SttQuoteCard(currentQuoteIndex: Int) {
-    val quote = DownloadQuotes.ALL_QUOTES[currentQuoteIndex]
+    val context = LocalContext.current
+    val quote = DownloadQuotes.getQuotes(context)[currentQuoteIndex]
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -353,3 +356,5 @@ private fun SttProgressSection(
         }
     }
 }
+
+

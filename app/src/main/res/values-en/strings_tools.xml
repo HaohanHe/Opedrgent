@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== OCR errors ========== -->
+    <string name="error_cannot_decode_image">Cannot decode image file</string>
+    <string name="error_cannot_open_uri_generic">Cannot open URI: %1$s</string>
+
+    <!-- ========== Agent status ========== -->
+    <string name="agent_phase_thinking">Thinking</string>
+    <string name="agent_phase_continue_thinking">Continuing to think</string>
+    <string name="agent_phase_executing">Executing: %1$s</string>
+    <string name="agent_phase_retry_failed">Request failed, retrying in %1$ds…(attempt %2$d)</string>
+    <string name="agent_phase_guardrail_duplicate_params">[Tool Guardrail] Repeating same parameters after reflection, automatically stopped</string>
+    <string name="agent_phase_guardrail_fatal">[Tool Guardrail] Critical issue detected, automatically stopped</string>
+    <string name="agent_phase_guardrail_no_adjust">[Tool Guardrail] Strategy still not adjusted after reflection, automatically stopped</string>
+    <string name="agent_phase_guardrail_reflecting">[Tool Guardrail] Repetitive pattern detected, reflecting…</string>
+    <string name="agent_error_guardrail_duplicate">Tool guardrail: repeating same parameters after reflection, session stopped</string>
+    <string name="agent_error_guardrail_fatal">Tool guardrail: critical issue detected, session stopped</string>
+    <string name="agent_error_guardrail_no_adjust">Tool guardrail: strategy still not adjusted after reflection, session stopped</string>
+    <string name="agent_error_reflection_failed">Reflection round failed: %1$s</string>
+    <string name="agent_error_guardrail_reflection_tool">Tool guardrail: model still attempted tool calls during reflection, session stopped</string>
+    <string name="agent_error_max_retries">Too many retries</string>
+    <string name="agent_status_partial_timeout">Partial timeout</string>
+    <string name="agent_status_timeout">Timeout/network unavailable</string>
+    <string name="agent_status_rate_limited">Rate limited or access restricted</string>
+    <string name="agent_error_tool_failed">Tool execution failed: %1$s</string>
+    <string name="agent_tool_temp_issue_hint">[System note: This tool call encountered %1$s, which is a temporary issue. If you think the existing information is sufficient, you can give a partial conclusion directly; if more is needed, try other keywords, tools, or URLs, and do not repeat the same failed parameters.]</string>
+    <string name="agent_error_session_not_found">Session not found: %1$s</string>
+    <string name="agent_error_request_failed">Request failed</string>
+    <string name="agent_checkpoint_guardrail">Tool guardrail triggered</string>
+    <string name="agent_checkpoint_max_rounds">Maximum rounds reached</string>
+    <string name="agent_checkpoint_max_rounds_or_error">Maximum rounds reached or interrupted by error</string>
+    <string name="agent_continuation_intro">This is a continuation of previous research. %1$d rounds completed, %2$d sources collected.</string>
+    <string name="agent_continuation_reason">The previous step was interrupted due to %1$s. Please continue based on existing information, or determine that the information is sufficient and output a conclusion.</string>
+    <string name="agent_continuation_sources">\n\nLatest tool result summaries:\n</string>
+
+    <!-- ========== Tool errors ========== -->
+    <string name="error_missing_search_keyword">Missing search keyword</string>
+    <string name="error_webview_no_results">WebView search found no relevant results, try different keywords or search methods.</string>
+    <string name="error_multimodal_click_failed">Multimodal virtual click failed</string>
+    <string name="error_provider_search_empty">Provider web search returned empty</string>
+    <string name="error_no_search_results">No search results found for \'%1$s\', try different keywords.</string>
+    <string name="error_cannot_fetch_url">Unable to fetch the specified URL content, tried Jina Reader and built-in browser.</string>
+    <string name="error_missing_url">Missing URL</string>
+    <string name="error_no_title">Untitled</string>
+    <string name="error_read_url_failed">Read failed: %1$s (%2$s, try other sources or search keywords)</string>
+    <string name="error_invalid_action">Invalid action=\'%1$s\', only forward or reverse supported</string>
+    <string name="error_forward_needs_place">Forward geocoding requires a place parameter (place name or address)</string>
+    <string name="error_geocode_not_found">Could not find coordinates for \'%1$s\', please verify the place name or try a more complete address.</string>
+    <string name="error_missing_lat_lon">Missing lat, lon parameters</string>
+    <string name="error_reverse_geocode_failed">%1$s, %2$s (reverse geocoding failed, this is raw GPS coordinates.)</string>
+    <string name="error_execution_timeout">Execution timeout (%1$dms)</string>
+
+    <!-- ========== Editor Team ========== -->
+    <string name="editor_platform_wechat">Official Account</string>
+    <string name="editor_platform_xiaohongshu">Xiaohongshu</string>
+    <string name="editor_platform_moments">Moments</string>
+    <string name="editor_platform_douyin">Douyin Post</string>
+    <string name="editor_platform_pdf">PDF Report</string>
+    <string name="editor_error_no_api_key">API Key not configured</string>
+    <string name="editor_error_user_cancelled">User cancelled</string>
+    <string name="editor_error_pipeline">Pipeline execution error</string>
+    <string name="editor_error_execution_interrupted">Execution interrupted: %1$s</string>
+
+    <!-- ========== MainViewModel streaming phases ========== -->
+    <string name="phase_error">Error</string>
+    <string name="phase_no_api_key_offline">API Key not configured, using offline mode…</string>
+    <string name="phase_network_error_offline">Network error, switching to offline mode…</string>
+    <string name="phase_token_decreasing_end">Token decrease detected, ending generation</string>
+    <string name="phase_generating_final">Generating final answer…</string>
+    <string name="phase_cached_answer">Answer (cached)</string>
+    <string name="phase_generating">Generating answer…</string>
+    <string name="phase_thinking">Thinking…</string>
+    <string name="phase_waiting_selection">Waiting for user selection…</string>
+    <string name="phase_waiting_confirm">Waiting for confirmation…(%1$ds timeout)</string>
+    <string name="phase_network_disconnected">Network disconnected, waiting for recovery…</string>
+    <string name="phase_compacting">Compacting context…</string>
+    <string name="phase_local_inferencing">Local model inferencing…</string>
+</resources>

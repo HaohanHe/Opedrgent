@@ -442,6 +442,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     // ★ AgentService：独立的 Agent 后台服务（渐进式迁移）
     private val agentService by lazy {
         top.hsyscn.opedrgent.agent.AgentService(
+            context = app,
             llmClient = llm,
             toolExecutor = toolExecutor,
             store = store,
@@ -723,7 +724,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 val aiLog = HamContactLogHelper.parseContactLogJson(result)
-                val merged = HamContactLogHelper.mergeContactLog(preFilled!!, aiLog)
+                val existing = preFilled
+                if (existing == null) {
+                    isGeneratingContactLog = false
+                    return@launch
+                }
+                val merged = HamContactLogHelper.mergeContactLog(existing, aiLog)
                 contactLog = merged
                 onContactLogGenerated?.invoke(merged)
             } catch (e: CancellationException) {
@@ -2080,7 +2086,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val recommendedNotes: StateFlow<List<Note>> = _recommendedNotes.asStateFlow()
 
     fun refreshRecommendations() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val notes = noteRepository.getRecentNotes(1)
             if (notes.isNotEmpty()) {
                 val latestNote = notes.first()
@@ -2102,7 +2108,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun runSkillByName(name: String) {
         val sessionId = _state.value.current?.id ?: return
         val skill = skillsStore.findByName(name) ?: run {
-            _state.value = _state.value.copy(error = "未找到技能：$name")
+            _state.value = _state.value.copy(error = app.getString(R.string.error_skill_not_found, name))
             return
         }
         store.addMessage(sessionId, Role.USER, skill.prompt.trim())
@@ -2116,7 +2122,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val normalizedName = name.trim()
         val normalizedPrompt = prompt.trim()
         if (normalizedName.isEmpty() || normalizedPrompt.isEmpty()) {
-            _state.value = _state.value.copy(error = "技能名称和内容不能为空")
+            _state.value = _state.value.copy(error = app.getString(R.string.error_skill_name_content_empty))
             return
         }
         val skill = if (id == null) {
@@ -2194,7 +2200,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun runGallerySkill(skill: top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition) {
         val sessionId = _state.value.current?.id ?: run {
-            _state.value = _state.value.copy(error = "请先打开或创建一个 AI 会话")
+            _state.value = _state.value.copy(error = app.getString(R.string.error_no_active_session))
             return
         }
         // 构建包含完整指令的用户消息，让 LLM 知道要使用该技能
@@ -2232,7 +2238,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     suspend fun deleteGallerySkill(skillName: String) {
         val success = skillLoader.deleteSkill(skillName)
         if (!success) {
-            _state.value = _state.value.copy(error = "无法删除技能 '$skillName'（可能为内置技能）")
+            _state.value = _state.value.copy(error = app.getString(R.string.error_cannot_delete_builtin_skill, skillName))
         }
     }
 
@@ -2647,7 +2653,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     _state.value = _state.value.copy(
                         streamingText = "[错误] 本地模型未就绪$errorDetail",
-                        streamingPhase = "错误",
+                        streamingPhase = app.getString(R.string.phase_error),
                     )
                     setLoading(false)
                     return@launch
@@ -2659,7 +2665,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     if (localEngine.isReady) {
                         DebugLog.i("runModel: 无 API Key，自动降级到本地模型")
                         _state.value = _state.value.copy(
-                            streamingPhase = "未配置 API Key，使用离线模式…",
+                            streamingPhase = app.getString(R.string.phase_no_api_key_offline),
                         )
                         runLocalModel(sessionId)
                         return@launch
@@ -2710,7 +2716,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     if (isNetworkError(lastError!!) && localEngine.isReady) {
                         DebugLog.i("runModel: API 网络错误，自动降级到本地模型 — $lastError")
                         _state.value = _state.value.copy(
-                            streamingPhase = "网络异常，自动切换到离线模式…",
+                            streamingPhase = app.getString(R.string.phase_network_error_offline),
                         )
                         runLocalModel(sessionId)
                         return@launch
@@ -2832,7 +2838,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     // ★ 修复：异常时保存已有的流式内容，避免用户看到的输出丢失
                     savePartialStreamingContent()
                     _state.value = _state.value.copy(
-                        error = e.message ?: "请求失败",
+                        error = e.message ?: app.getString(R.string.error_request_failed),
                         isStreaming = false,
                         streamingText = "",
                         streamingReasoning = "",
@@ -2911,7 +2917,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     is TokenBudgetMonitor.BudgetDecision.Stop -> {
                         DebugLog.i("runLoop: TokenBudgetMonitor 决定停止 — diminishing=${budgetDecision.diminishingReturns}, duration=${budgetDecision.durationMs}ms")
                         if (budgetDecision.diminishingReturns) {
-                            _state.value = _state.value.copy(streamingPhase = "检测到 token 递减，主动结束生成")
+                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_token_decreasing_end))
                         }
                         // 推进状态以便记录最终结果，然后跳出循环
                         budgetTracker.let { TokenBudgetMonitor.advanceState(it, currentTokens) }
@@ -2932,13 +2938,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         totalRetries++
                         if (totalRetries > maxTotalRetries) {
                             DebugLog.w("runLoop: total retries ($totalRetries) exceeded limit ($maxTotalRetries), stopping")
-                            lastError = "重试次数过多，已自动停止"
+                            lastError = app.getString(R.string.error_max_retries_exceeded)
                             break
                         }
                         loopState = LoopState.RETRYING
                         retryCount++
                         _state.value = _state.value.copy(
-                            streamingPhase = "请求失败，${outcome.delay / 1000}秒后重试…(第${retryCount}次)",
+                            streamingPhase = app.getString(R.string.agent_phase_retry_failed, outcome.delay / 1000, retryCount),
                         )
                         delay(outcome.delay)
                         loopState = LoopState.RUNNING
@@ -2962,10 +2968,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (ctx.finalContent.isBlank() && !cancelled.get() && effectiveFinalContent.isNotBlank()) {
             val isFatalError = lastError?.contains("API Key") == true ||
                     lastError?.contains("余额不足") == true ||
-                    lastError?.contains("访问被拒绝") == true
+                    lastError?.contains("insufficient", ignoreCase = true) == true ||
+                    lastError?.contains("访问被拒绝") == true ||
+                    lastError?.contains("access denied", ignoreCase = true) == true
             if (!isFatalError) {
                 DebugLog.i("runLoop: finalContent 为空，尝试无工具最终回答兜底")
-                _state.value = _state.value.copy(streamingPhase = "正在生成最终回答…")
+                _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_generating_final))
                 val finalAnswer = try {
                     attemptFinalAnswer(ctx)
                 } catch (e: Exception) {
@@ -3134,7 +3142,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 DebugLog.i("executeOneRound: 缓存命中，跳过 LLM 调用 — query=${lastUserQuery.take(50)}")
                 _state.value = _state.value.copy(
                     streamingText = (ctx.accumulatedText + "\n\n" + cached).trim(),
-                    streamingPhase = "回答（缓存）",
+                    streamingPhase = app.getString(R.string.phase_cached_answer),
                 )
                 return LoopOutcome.Break
             }
@@ -3198,7 +3206,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
             _state.value = _state.value.copy(
                 streamingText = ctx.accumulatedText,
-                streamingPhase = "生成回答…",
+                streamingPhase = app.getString(R.string.phase_generating),
             )
             // 可重试错误：返回 Retry 让 runLoop 处理
             if (RetryPolicy.isRetryableErrorType(classified.type)) {
@@ -3227,13 +3235,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             streamingText = ctx.accumulatedText,
             streamingReasoning = ctx.accumulatedReasoning,
-            streamingPhase = "生成回答…",
+            streamingPhase = app.getString(R.string.phase_generating),
         )
 
         if (result.toolCalls.isEmpty()) {
             DebugLog.i("executeOneRound: no tool_call in response, model is done at round ${state.roundsUsed}")
             state.recordNoToolCalls(result.content)
-            _state.value = _state.value.copy(streamingPhase = "生成回答…")
+            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_generating))
 
             // 缓存 LLM 响应（仅在首轮、无工具调用、内容有意义时）
             if (cacheEligible && result.content.isNotBlank() && result.content.length >= 20) {
@@ -3367,7 +3375,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                             agentUiState.setQuestionRequest(QuestionRequest(questions = questions))
 
-                            _state.value = _state.value.copy(streamingPhase = "等待用户选择…")
+                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_waiting_selection))
 
                             val answers = withTimeout(120_000L) {  // 2 分钟超时保护
                                 agentUiState.questionResponse.first()
@@ -3397,7 +3405,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             agentUiState.setQuestionRequest(null)
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
-                                error = "ask_question 处理失败: ${e.message}",
+                                error = app.getString(R.string.error_ask_question_failed, e.message ?: app.getString(R.string.error_unknown_error)),
                             ))
                             synchronized(ctx.allToolParts) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
@@ -3430,7 +3438,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 timeoutSeconds = timeoutSeconds,
                             ))
 
-                            _state.value = _state.value.copy(streamingPhase = "等待确认…(${timeoutSeconds}s超时)")
+                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_waiting_confirm, timeoutSeconds))
 
                             val selectedOption = withTimeout(120_000L) {  // 2 分钟超时保护
                                 agentUiState.confirmationResponse.first()
@@ -3468,7 +3476,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             agentUiState.setConfirmationRequest(null)
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
-                                error = "ask_confirmation 处理失败: ${e.message}",
+                                error = app.getString(R.string.error_ask_confirmation_failed, e.message ?: app.getString(R.string.error_unknown_error)),
                             ))
                             synchronized(ctx.allToolParts) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
@@ -3520,7 +3528,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             DebugLog.e("get_memory_detail error: ${e.message}", e)
                             val errorTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
-                                error = "查阅记忆失败: ${e.message}",
+                                error = app.getString(R.string.error_memory_lookup_failed, e.message ?: app.getString(R.string.error_unknown_error)),
                             ))
                             synchronized(ctx.allToolParts) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
@@ -3539,7 +3547,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             DebugLog.w("ToolCallGuardrail: 工具 '${tp.tool}' 连续失败 ${consecutiveFails} 次，跳过执行")
                             val blockedTp = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
-                                error = "工具调用保护: ${tp.tool} 连续失败过多，已自动跳过",
+                                error = app.getString(R.string.error_tool_protection_skipped, tp.tool),
                             ))
                             synchronized(ctx.allToolParts) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
@@ -3562,7 +3570,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.network.ToolResult(
                             toolPart = tp.copy(state = tp.state.copy(
                                 status = ToolStateType.ERROR,
-                                error = "工具执行超时（60秒），请尝试其他方式",
+                                error = app.getString(R.string.error_tool_timeout),
                                 endTime = System.currentTimeMillis(),
                             ))
                         )
@@ -3591,7 +3599,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.SESSION_HALT -> {
                             DebugLog.w("ToolCallGuardrail: SESSION_HALT — 严重问题，终止 Agent 循环")
                             guardrailHalted = true
-                            lastError = "工具调用保护: 检测到严重问题，已自动停止"
+                            lastError = app.getString(R.string.error_tool_protection_fatal)
                             _state.value = _state.value.copy(
                                 streamingText = _state.value.streamingText + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
                             )
@@ -3600,7 +3608,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.TOOL_BLOCK -> {
                             DebugLog.w("ToolCallGuardrail: ${action.name} — 工具调用无进展或doom loop")
                             guardrailHalted = true
-                            lastError = "工具调用保护: 工具调用无进展，已自动停止"
+                            lastError = app.getString(R.string.error_tool_protection_no_progress)
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.PARTIAL_ERROR -> {
                             DebugLog.w("ToolCallGuardrail: PARTIAL_ERROR — 部分工具失败，继续返回可用结果")
@@ -3844,7 +3852,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // ★ Network Disconnect 检测（Kilo 风格）
         if (top.hsyscn.opedrgent.agent.ConversationUtils.isNetworkDisconnect(e)) {
             DebugLog.w("handleRoundError: network disconnect detected: ${e.message}")
-            _state.value = _state.value.copy(streamingPhase = "网络断开，等待恢复中...")
+            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_network_disconnected))
             // 网络断开时使用更长的重试延迟
             val networkDelay = 10_000L * (retryCount + 1)
             return if (retryCount < RetryPolicy.MAX_RETRIES) {
@@ -4227,7 +4235,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         if (!completed) {
                             completed = true
                             buffer.cancel()
-                            continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                            continuation.resumeWith(Result.success(StreamResult(error = e.message ?: app.getString(R.string.error_connection_failed))))
                         }
                     }
                 }
@@ -4240,7 +4248,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (!completed) {
                     completed = true
                     buffer.cancel()
-                    continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                    continuation.resumeWith(Result.success(StreamResult(error = e.message ?: app.getString(R.string.error_connection_failed))))
                 }
             }
         }
@@ -4378,7 +4386,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         if (!completed) {
                             completed = true
                             buffer.cancel()
-                            continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                            continuation.resumeWith(Result.success(StreamResult(error = e.message ?: app.getString(R.string.error_connection_failed))))
                         }
                     }
                 }
@@ -4391,7 +4399,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (!completed) {
                     completed = true
                     buffer.cancel()
-                    continuation.resumeWith(Result.success(StreamResult(error = e.message ?: "连接失败")))
+                    continuation.resumeWith(Result.success(StreamResult(error = e.message ?: app.getString(R.string.error_connection_failed))))
                 }
             }
         }
@@ -4446,7 +4454,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             apiSettings.save(baseUrl = baseUrl, apiKey = key, model = model)
             true
         } catch (e: Exception) {
-            _state.value = _state.value.copy(error = e.message ?: "保存失败")
+            _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_save_failed))
             false
         }
     }
@@ -4524,8 +4532,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val preCheck = top.hsyscn.opedrgent.utils.ContextCompressor.compressWithChunkedFallback(allMessages, system, maxCtx, generateFn = null)
 
         if (preCheck.isCritical) {
-            DebugLog.w("runLocalModel: 上下文使用 ${String.format("%.0f%%", preCheck.usageRatio * 100)} ≥ 95%，强制压缩")
-            _state.value = _state.value.copy(streamingPhase = "压缩上下文中…")
+            DebugLog.w("runLocalModel: 上下文使用 ${String.format(java.util.Locale.US, "%.0f%%", preCheck.usageRatio * 100)} ≥ 95%，强制压缩")
+            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_compacting))
         }
 
         val compressed = if (preCheck.isCritical || preCheck.needsCompression) {
@@ -4556,7 +4564,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         _state.value = _state.value.copy(
-            streamingPhase = "本地模型推理中…",
+            streamingPhase = app.getString(R.string.phase_local_inferencing),
             contextTokenCount = compressed.tokenCount,
         )
 
@@ -4595,7 +4603,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 _state.value = _state.value.copy(
                     streamingText = accumulatedText,
                     streamingReasoning = accumulatedReasoning,
-                    streamingPhase = "生成回答…",
+                    streamingPhase = app.getString(R.string.phase_generating),
                 )
             },
             onThinkingDelta = if (enableThinking) {{ thinking ->
@@ -4603,11 +4611,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 _state.value = _state.value.copy(
                     streamingText = accumulatedText,
                     streamingReasoning = accumulatedReasoning,
-                    streamingPhase = "思考中…",
+                    streamingPhase = app.getString(R.string.phase_thinking),
                 )
             }} else null,
             onComplete = {
-                DebugLog.i("runLocalModel: completed, text=${accumulatedText.length}, reasoning=${accumulatedReasoning.length}, ctx=${String.format("%.0f%%", compressed.usageRatio * 100)}")
+                DebugLog.i("runLocalModel: completed, text=${accumulatedText.length}, reasoning=${accumulatedReasoning.length}, ctx=${String.format(java.util.Locale.US, "%.0f%%", compressed.usageRatio * 100)}")
 
                 val localParts = buildList {
                     if (accumulatedReasoning.isNotBlank()) {
@@ -4628,7 +4636,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 if (compressed.needsCompression && !preCheck.isCritical) {
-                    DebugLog.i("runLocalModel: 上下文使用 ${String.format("%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
+                    DebugLog.i("runLocalModel: 上下文使用 ${String.format(java.util.Locale.US, "%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
                     _state.value = _state.value.copy(contextCompressionEnabled = true)
                 }
 
@@ -4638,7 +4646,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 DebugLog.e("runLocalModel: error=$error")
                 _state.value = _state.value.copy(
                     streamingText = if (accumulatedText.isNotBlank()) accumulatedText else "[本地模型错误] $error",
-                    streamingPhase = "错误",
+                    streamingPhase = app.getString(R.string.phase_error),
                 )
                 if (accumulatedText.isNotBlank()) {
                     val errorParts = buildList {
@@ -5141,7 +5149,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val parsed = parseEvolutionSuggestion(assistant)
                 _state.value = _state.value.copy(evolutionSuggestion = parsed, error = null)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "进化失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_evolution_failed))
             } finally {
                 setLoading(false)
             }
@@ -5172,7 +5180,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "整理失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_organize_failed))
             } finally {
                 setLoading(false)
             }
@@ -5236,7 +5244,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val parsed = parseAutomationSuggestion(assistant)
                 _state.value = _state.value.copy(automationSuggestion = parsed, error = null)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "自动化建议失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_automation_suggestion_failed))
             } finally {
                 setLoading(false)
             }
@@ -5261,7 +5269,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             AutomationKind.RUN_PROMPT -> {
                 val p = s.prompt?.trim().orEmpty()
                 if (p.isBlank()) {
-                    _state.value = _state.value.copy(error = "自动化提示词为空")
+                    _state.value = _state.value.copy(error = app.getString(R.string.error_automation_prompt_empty))
                     return
                 }
                 automationStore.createPrompt(
@@ -5326,12 +5334,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 val events = parseCalendarEvents(assistant)
                 if (events.isEmpty()) {
-                    _state.value = _state.value.copy(error = "未提取到明确时间的日程", calendarSuggestion = null)
+                    _state.value = _state.value.copy(error = app.getString(R.string.error_no_clear_schedule_time), calendarSuggestion = null)
                 } else {
                     _state.value = _state.value.copy(calendarSuggestion = CalendarSuggestion(events = events, raw = assistant), error = null)
                 }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "日程建议失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_calendar_suggestion_failed))
             } finally {
                 setLoading(false)
             }
@@ -5867,7 +5875,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 if (outcome.fetched.isEmpty()) {
-                    _state.value = _state.value.copy(error = (outcome.warnings + "没有抓取到内容").joinToString("\n"))
+                    _state.value = _state.value.copy(error = (outcome.warnings + app.getString(R.string.error_no_content_fetched)).joinToString("\n"))
                     return@launch
                 }
                 outcome.fetched.forEach { fetched ->
@@ -5906,7 +5914,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "联网查询失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_web_search_failed))
             } finally {
                 setLoading(false)
             }
@@ -5946,11 +5954,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 val name = resolveDisplayName(uri) ?: "PDF"
                 val bitmaps = PdfProcessor.renderPages(getApplication(), uri, maxPages = 6, scale = 2f)
-                val text = PdfProcessor.ocr(bitmaps)
+                val text = try {
+                    PdfProcessor.ocr(bitmaps)
+                } finally {
+                    bitmaps.forEach { if (!it.isRecycled) it.recycle() }
+                }
                 if (text.isBlank()) throw IllegalStateException("OCR 结果为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "PDF OCR 失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_pdf_ocr_failed))
             } finally {
                 setLoading(false)
             }
@@ -5966,7 +5978,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val name = resolveDisplayName(uri) ?: "PDF"
                 val bitmaps = PdfProcessor.renderPages(getApplication(), uri, maxPages = 6, scale = 2f)
                 if (bitmaps.isEmpty()) throw IllegalStateException("PDF 无页")
-                val pages = bitmaps.map { PdfProcessor.toBase64Png(it) }
+                val pages = try {
+                    bitmaps.map { PdfProcessor.toBase64Png(it) }
+                } finally {
+                    bitmaps.forEach { if (!it.isRecycled) it.recycle() }
+                }
                 val session = store.getSession(sessionId) ?: throw IllegalStateException("会话不存在")
                 val system = buildSystemPrompt(session)
                 val prompt = "请阅读这份 PDF（图片形式，最多前 6 页），提取要点摘要，并在结论中标注引用页码（例如 P1、P2）。文件：$name"
@@ -5980,7 +5996,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(error = null)
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "PDF 多模态失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_pdf_multimodal_failed))
             } finally {
                 setLoading(false)
             }
@@ -6010,7 +6026,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (text.isBlank()) throw IllegalStateException("Word 文档内容为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "Word 文档读取失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_docx_read_failed))
             } finally {
                 setLoading(false)
             }
@@ -6030,7 +6046,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (text.isBlank()) throw IllegalStateException("文件内容为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: "文件读取失败")
+                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_file_read_failed))
             } finally {
                 setLoading(false)
             }
@@ -6388,3 +6404,4 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 }
+

@@ -652,4 +652,6 @@
     <!-- Theme preview (developer-only but localized for consistency) -->
     <string name="theme_preview_title">Opedrgent 主题色板</string>
     <string name="theme_preview_semantic_colors">业务语义颜色</string>
+
+    <!-- Onboarding -->
 </resources>

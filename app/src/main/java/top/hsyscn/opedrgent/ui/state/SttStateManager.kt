@@ -102,14 +102,16 @@ class SttStateManager(
                 _sttUiState.value = SttUiState.Validating(uri.toString())
                 _sttProgress.value = SttProgressState.IDLE
 
-                val (isValid, errorMsg) = withContext(Dispatchers.IO) {
+                val validation = withContext(Dispatchers.IO) {
                     AudioProcessor.validateAudioFile(app, uri)
                 }
-                if (!isValid) {
-                    val errorCode = when {
-                        errorMsg?.contains("不支持", ignoreCase = true) == true -> ERROR_UNSUPPORTED_FORMAT
-                        errorMsg?.contains("文件", ignoreCase = true) == true -> ERROR_FILE_NOT_FOUND
-                        errorMsg?.contains("权限", ignoreCase = true) == true -> ERROR_PERMISSION_DENIED
+                if (!validation.isValid) {
+                    val errorCode = when (validation.errorCode) {
+                        AudioProcessor.ValidationErrorCode.UNSUPPORTED_FORMAT -> ERROR_UNSUPPORTED_FORMAT
+                        AudioProcessor.ValidationErrorCode.ZERO_DURATION,
+                        AudioProcessor.ValidationErrorCode.TOO_LONG,
+                        AudioProcessor.ValidationErrorCode.BAD_SAMPLE_RATE -> ERROR_FILE_NOT_FOUND
+                        AudioProcessor.ValidationErrorCode.PERMISSION_DENIED -> ERROR_PERMISSION_DENIED
                         else -> ERROR_VALIDATION_FAILED
                     }
                     val suggestion = when (errorCode) {
@@ -118,12 +120,12 @@ class SttStateManager(
                         ERROR_FILE_NOT_FOUND -> app.getString(R.string.stt_error_suggestion_file_not_found)
                         else -> app.getString(R.string.stt_error_suggestion_validation_failed)
                     }
-                    val message = errorMsg ?: app.getString(R.string.stt_error_validation_failed)
+                    val message = validation.errorMessage ?: app.getString(R.string.stt_error_validation_failed)
                     _sttUiState.value = SttUiState.Error(message, errorCode, suggestion)
                     _sttProgress.value = SttProgressState.ERROR
                     _sttError.value = message
                     lastFailedUri = uri
-                    _sttEventBus.emit(errorMsg ?: app.getString(R.string.stt_event_validation_failed))
+                    _sttEventBus.emit(validation.errorMessage ?: app.getString(R.string.stt_event_validation_failed))
                     return@launch
                 }
 
@@ -453,7 +455,7 @@ class SttStateManager(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _asrEvent.trySend(AsrUiEvent.Error("语音识别失败: ${e.message}"))
+                _asrEvent.trySend(AsrUiEvent.Error(app.getString(R.string.error_stt_failed, e.message ?: app.getString(R.string.error_unknown_error))))
                 _asrListening.value = false
             } finally {
                 _asrListening.value = false

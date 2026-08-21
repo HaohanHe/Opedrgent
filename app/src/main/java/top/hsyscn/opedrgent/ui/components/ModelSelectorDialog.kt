@@ -506,6 +506,6 @@ private fun formatSpeed(bytesPerSec: Long): String {
     return when {
         bytesPerSec < 1024 -> "$bytesPerSec B/s"
         bytesPerSec < 1024 * 1024 -> "${bytesPerSec / 1024} KB/s"
-        else -> String.format("%.1f MB/s", bytesPerSec / (1024.0 * 1024.0))
+        else -> String.format(java.util.Locale.US, "%.1f MB/s", bytesPerSec / (1024.0 * 1024.0))
     }
 }

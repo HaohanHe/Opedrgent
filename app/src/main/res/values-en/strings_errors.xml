@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Common errors ========== -->
+    <string name="error_request_failed">Request failed</string>
+    <string name="error_connection_failed">Connection failed</string>
+    <string name="error_save_failed">Save failed</string>
+    <string name="error_file_read_failed">File read failed</string>
+    <string name="error_unknown_error">Unknown error</string>
+
+    <!-- ========== Skill errors ========== -->
+    <string name="error_skill_not_found">Skill not found: %1$s</string>
+    <string name="error_skill_name_content_empty">Skill name and content cannot be empty</string>
+    <string name="error_no_active_session">Please open or create an AI session first</string>
+    <string name="error_cannot_delete_builtin_skill">Cannot delete skill \'%1$s\' (it may be a built-in skill)</string>
+
+    <!-- ========== Tool execution errors ========== -->
+    <string name="error_max_retries_exceeded">Too many retries, automatically stopped</string>
+    <string name="error_tool_protection_skipped">Tool protection: %1$s failed too many times consecutively, automatically skipped</string>
+    <string name="error_tool_timeout">Tool execution timed out (60s), try another approach</string>
+    <string name="error_tool_protection_fatal">Tool protection: critical issue detected, automatically stopped</string>
+    <string name="error_tool_protection_no_progress">Tool protection: no progress, automatically stopped</string>
+    <string name="error_web_search_disabled">Web search is disabled. Answering based on local knowledge and existing notes only.</string>
+    <string name="error_tool_execution_timeout">Tool \'%1$s\' timed out (%2$d s), partial/empty result returned. This failure does not affect other tools.</string>
+    <string name="error_tool_execution_failed">Tool \'%1$s\' execution failed: %2$s</string>
+    <string name="error_no_skill_name">Error: no skill name specified</string>
+    <string name="error_skill_system_not_init">Error: skill system not initialized</string>
+    <string name="error_skill_not_found_or_disabled">Error: skill \'%1$s\' not found or disabled</string>
+    <string name="error_tool_no_output">Tool completed but produced no output</string>
+    <string name="error_tool_security_error">Tool execution failed: security permission error (%1$s)</string>
+    <string name="error_tool_generic_failed">Tool execution failed: %1$s</string>
+    <string name="error_tool_partial_timeout">Tool partially timed out</string>
+    <string name="error_tool_abnormal_end">Tool did not end normally</string>
+    <string name="error_resource_unavailable">Resource unavailable</string>
+    <string name="error_tool_timeout_or_network">Tool timed out or network unavailable: %1$s</string>
+    <string name="error_tool_rate_limited">Tool rate-limited or access restricted: %1$s</string>
+    <string name="error_unknown_tool">Unknown tool: %1$s</string>
+
+    <!-- ========== Interview errors ========== -->
+    <string name="interview_category_followup">Follow-up</string>
+    <string name="interview_category_end">End</string>
+    <string name="error_interview_start_failed">Failed to start interview: %1$s</string>
+    <string name="error_interview_processing_failed">Processing failed: %1$s</string>
+    <string name="error_interview_report_failed">Report generation failed: %1$s</string>
+
+    <!-- ========== Agent tool handler errors ========== -->
+    <string name="error_ask_question_failed">ask_question processing failed: %1$s</string>
+    <string name="error_ask_confirmation_failed">ask_confirmation processing failed: %1$s</string>
+    <string name="error_memory_lookup_failed">Memory lookup failed: %1$s</string>
+
+    <!-- ========== Feature-specific errors ========== -->
+    <string name="error_evolution_failed">Evolution failed</string>
+    <string name="error_organize_failed">Organization failed</string>
+    <string name="error_automation_suggestion_failed">Automation suggestion failed</string>
+    <string name="error_automation_prompt_empty">Automation prompt is empty</string>
+    <string name="error_no_clear_schedule_time">No schedule with clear time extracted</string>
+    <string name="error_calendar_suggestion_failed">Calendar suggestion failed</string>
+    <string name="error_no_content_fetched">No content fetched</string>
+    <string name="error_web_search_failed">Web search failed</string>
+    <string name="error_pdf_ocr_failed">PDF OCR failed</string>
+    <string name="error_pdf_multimodal_failed">PDF multimodal failed</string>
+    <string name="error_docx_read_failed">Word document read failed</string>
+
+    <!-- ========== STT errors ========== -->
+    <string name="error_stt_failed">Speech recognition failed: %1$s</string>
+
+    <!-- ========== STT engine errors ========== -->
+    <string name="error_stepaudio_not_initialized">StepAudio ASR not initialized</string>
+    <string name="error_file_empty_or_unreadable">File is empty or unreadable</string>
+    <string name="error_cannot_open_uri">Cannot open URI: %1$s</string>
+    <string name="error_transcription_exception">Transcription exception: %1$s</string>
+    <string name="error_file_not_exists">File does not exist: %1$s</string>
+    <string name="error_stepaudio_file_only">StepAudio ASR supports file transcription only. For real-time speech, please use StepRealtimeClient in Interview Mode.</string>
+    <string name="error_api_call_exception">API call exception: %1$s</string>
+    <string name="error_diarizer_not_initialized">Not initialized or API unavailable</string>
+    <string name="error_empty_audio_data">Empty audio data</string>
+    <string name="error_diarizer_instance_not_init">Diarizer instance not initialized</string>
+    <string name="error_diarize_null">diarize returned null</string>
+    <string name="error_audio_decode_empty">Audio decode is empty</string>
+    <string name="error_audio_decode_failed">Audio decode failed</string>
+    <string name="error_streaming_session_active">A streaming session is already in progress</string>
+    <string name="error_streaming_recognition_error">Streaming recognition error: %1$s</string>
+    <string name="error_choices_empty">choices is empty</string>
+    <string name="error_parse_response_failed">Failed to parse response: %1$s</string>
+    <string name="error_mimo_not_initialized">MimoAsrEngine not initialized, please call initialize() first</string>
+    <string name="error_asr_init_failed">ASR engine initialization failed</string>
+    <string name="error_transcription_failed">Transcription failed: %1$s</string>
+    <string name="error_asr_not_initialized">ASR engine not initialized</string>
+    <string name="error_diarizer_model_not_found">Speaker diarization model file not found: %1$s</string>
+    <string name="error_meeting_transcriber_not_init">MeetingTranscriber not initialized</string>
+    <string name="error_download_switching_source">Primary source failed, switching to backup…</string>
+    <string name="error_download_retrying">Network fluctuation, retrying (%1$d/%2$d)</string>
+    <string name="error_user_cancelled">User cancelled</string>
+
+    <!-- ========== Audio validation errors ========== -->
+    <string name="error_audio_unsupported_format">Cannot read audio file or unsupported format. Supports MP3/AAC/WAV/M4A/OGG and audio tracks in common video containers.</string>
+    <string name="error_audio_zero_duration">Audio file duration is 0 or cannot be determined, the file may be corrupted.</string>
+    <string name="error_audio_too_long">Audio exceeds the 4-hour limit (%1$s seconds). Please trim before processing.</string>
+    <string name="error_audio_bad_sample_rate">Abnormal sample rate (%1$dHz), the file may be corrupted.</string>
+    <string name="error_audio_permission_denied">No permission to access this file, please check storage permission settings.</string>
+    <string name="error_audio_validation_failed">Validation failed: %1$s</string>
+    <string name="error_insufficient_storage">Insufficient storage: %1$dMB available, %2$dMB required</string>
+</resources>

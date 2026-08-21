@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+﻿@file:OptIn(ExperimentalMaterial3Api::class)
 
 package top.hsyscn.opedrgent.ui
 
@@ -1024,7 +1024,7 @@ private fun CoachFeedbackCard(feedback: CoachFeedback) {
 private fun ScoreBadge(label: String, score: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "%.1f".format(score),
+            text = String.format(java.util.Locale.US, "%.1f", score),
             style = MaterialTheme.typography.titleMedium,
             color = if (score >= 7f) themeSuccess() else if (score >= 5f) themePrimary() else themeWarning(),
         )
@@ -1897,3 +1897,4 @@ private fun TranscriptViewer(transcript: List<DialogueTurn>) {
         }
     }
 }
+

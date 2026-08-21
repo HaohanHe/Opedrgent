@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Notification Channels ========== -->
+    <string name="notif_channel_sprout_name">Sprout Reports</string>
+    <string name="notif_channel_sprout_desc">Notify when a sprout report is generated</string>
+    <string name="notif_channel_digest_name">Daily Digest</string>
+    <string name="notif_channel_digest_desc">Daily content review and harvest summary</string>
+    <string name="notif_channel_feedback_name">Feedback</string>
+    <string name="notif_channel_feedback_desc">Warm AI feedback on your notes</string>
+    <string name="notif_channel_autosave_name">Auto Save</string>
+    <string name="notif_channel_autosave_desc">Note auto-save confirmation</string>
+    <string name="notif_channel_model_download_name">Model Download</string>
+    <string name="notif_channel_model_download_desc">Shows model download progress</string>
+    <string name="notif_channel_stt_download_name">Speech Model Download</string>
+    <string name="notif_channel_stt_download_desc">Shows speech recognition model download progress</string>
+    <string name="notif_channel_keepalive_name">Background Running</string>
+    <string name="notif_channel_keepalive_desc">Keeps Opedrgent running in the background (works with screen off)</string>
+    <string name="notif_channel_recording_name">Recording Service</string>
+    <string name="notif_channel_recording_desc">Recording in progress, continues when screen is off</string>
+    <string name="notif_channel_media_projection_name">Screen Recording</string>
+    <string name="notif_channel_media_projection_desc">Foreground service required for system audio recording</string>
+    <string name="notif_channel_floating_name">Recording Floating Window</string>
+    <string name="notif_channel_floating_desc">Floating window notification for internal recording control</string>
+
+    <!-- ========== NotificationHelper ========== -->
+    <string name="notif_sprout_complete_title">Sprout Report Ready</string>
+    <string name="notif_sprout_tap_to_view">%1$s…Tap to view full report</string>
+    <string name="notif_sprout_tap_to_view_short">%1$s -- Tap to view full report</string>
+    <string name="notif_digest_title">Today\'s Harvest</string>
+    <string name="notif_digest_content">Recorded %1$d items yesterday. %2$s…%3$s</string>
+    <string name="notif_digest_new_sprouts"> %1$d new sprout reports</string>
+    <string name="notif_digest_anniversary">\n---\nOn this day %1$d days ago: %2$s</string>
+    <string name="notif_feedback_title">AI Feedback</string>
+    <string name="notif_autosave_title">Auto Saved</string>
+    <string name="notif_autosave_content">%1$s -- %2$s…</string>
+
+    <!-- ========== ModelDownloadService ========== -->
+    <string name="notif_model_download_title">Opedrgent Model Download</string>
+    <string name="notif_model_download_preparing">Preparing download…</string>
+    <string name="notif_model_download_app_title">Opedrgent</string>
+    <string name="notif_model_downloading_named">Downloading: %1$s</string>
+    <string name="notif_model_downloading">Downloading…</string>
+    <string name="notif_action_pause">Pause</string>
+    <string name="notif_action_cancel">Cancel</string>
+    <string name="notif_action_resume">Resume</string>
+    <string name="notif_action_stop">Stop</string>
+    <string name="notif_model_download_paused">Paused</string>
+    <string name="notif_model_download_progress">Downloading: %1$s\n%2$s  %3$s</string>
+    <string name="notif_model_download_complete_title">Model Download Complete</string>
+    <string name="notif_model_download_complete_text">%1$s downloaded (%2$s)</string>
+    <string name="notif_model_download_complete_big">%1$s downloaded\nSize: %2$s</string>
+    <string name="notif_model_download_failed_title">Model Download Failed</string>
+    <string name="notif_model_download_failed_text">%1$s download failed: %2$s</string>
+    <string name="notif_model_download_failed_big">%1$s download failed\nReason: %2$s</string>
+    <string name="notif_model_download_cancelled_title">Model Download Cancelled</string>
+    <string name="notif_model_download_cancelled_text">Download was cancelled by the user</string>
+    <string name="notif_unknown_error">Unknown error</string>
+
+    <!-- ========== SttDownloadService ========== -->
+    <string name="notif_stt_downloading_named">Downloading speech model: %1$s</string>
+    <string name="notif_stt_download_progress">Downloading: %1$s</string>
+    <string name="notif_stt_download_progress_size">Downloading: %1$s\n%2$dMB / %3$dMB</string>
+    <string name="notif_stt_download_complete_title">Speech Model Download Complete</string>
+    <string name="notif_stt_download_complete_text">%1$s downloaded</string>
+    <string name="notif_stt_download_failed_title">Speech Model Download Failed</string>
+    <string name="notif_stt_download_failed_text">%1$s download failed: %2$s</string>
+    <string name="notif_stt_download_failed_big">%1$s download failed\nReason: %2$s</string>
+
+    <!-- ========== KeepAliveService ========== -->
+    <string name="notif_keepalive_title">Opedrgent Running in Background</string>
+    <string name="notif_keepalive_text">Tool call loops and streaming conversations will continue after the screen turns off</string>
+
+    <!-- ========== RecordingForegroundService ========== -->
+    <string name="notif_recording_default_mode">Recording</string>
+    <string name="notif_recording_active_title">%1$s</string>
+    <string name="notif_recording_active_text">Recording %1$s | Tap to return to app</string>
+    <string name="notif_recording_start_failed">Failed to start recording, please restart recording from within the app</string>
+    <string name="notif_recording_error_title">Recording Service Error</string>
+
+    <!-- ========== MediaProjectionService ========== -->
+    <string name="notif_media_projection_title">Opedrgent Recording</string>
+    <string name="notif_media_projection_text">Recording system audio</string>
+    <string name="notif_media_projection_error_no_data">Recording authorization data missing</string>
+    <string name="notif_media_projection_error_no_permission">Unable to obtain screen recording permission</string>
+    <string name="notif_media_projection_error_failed">Failed to obtain recording permission: %1$s</string>
+
+    <!-- ========== FloatingWindowService ========== -->
+    <string name="notif_floating_title">Opedrgent Recording</string>
+    <string name="notif_floating_text">Tap to return to app</string>
+    <string name="notif_floating_stop_recording">Stop recording</string>
+</resources>

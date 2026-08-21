@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.llm
 
 import android.content.Context
+import top.hsyscn.opedrgent.R
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.OkHttpClient
@@ -96,7 +97,7 @@ class ModelDownloadManager(private val context: Context) {
                         emitProgress(flow, modelInfo.id, DownloadProgress(
                             modelId = modelInfo.id,
                             status = DownloadStatus.DOWNLOADING,
-                            error = "主源失败，正在切换备用源..."
+                            error = context.getString(R.string.error_download_switching_source)
                         ))
                         // 不主动删除临时文件，交给 doDownload 根据响应码决定：
                         // 若 fallback 支持 206 断点续传则追加；返回 200 则自动清空重下
@@ -109,7 +110,7 @@ class ModelDownloadManager(private val context: Context) {
                             emitProgress(flow, modelInfo.id, DownloadProgress(
                                 modelId = modelInfo.id,
                                 status = DownloadStatus.DOWNLOADING,
-                                error = "网络波动，正在重试 (${attempt + 1}/$MAX_DOWNLOAD_RETRIES)"
+                                error = context.getString(R.string.error_download_retrying, attempt + 1, MAX_DOWNLOAD_RETRIES)
                             ))
                             delay((attempt * 2000L).coerceAtMost(5000L))
                         }
@@ -138,13 +139,13 @@ class ModelDownloadManager(private val context: Context) {
                     emitProgress(flow, modelInfo.id, DownloadProgress(
                         modelId = modelInfo.id,
                         status = DownloadStatus.CANCELLED,
-                        error = "用户取消"
+                        error = context.getString(R.string.error_user_cancelled)
                     ))
                 } else {
                     emitProgress(flow, modelInfo.id, DownloadProgress(
                         modelId = modelInfo.id,
                         status = DownloadStatus.FAILED,
-                        error = e.message ?: "未知错误"
+                        error = e.message ?: context.getString(R.string.error_unknown_error)
                     ))
                     DebugLog.e("ModelDownloadManager", "Download failed: ${modelInfo.id} - ${e.message}")
                 }
@@ -235,6 +236,18 @@ class ModelDownloadManager(private val context: Context) {
                 filePath = outputFile.absolutePath,
             ))
             return
+        }
+
+        val requiredBytes = modelInfo.sizeMb * 1024L * 1024L
+        val availableBytes = modelDir.freeSpace
+        if (availableBytes < requiredBytes) {
+            throw IOException(
+                context.getString(
+                    R.string.error_insufficient_storage,
+                    availableBytes / (1024 * 1024),
+                    requiredBytes / (1024 * 1024)
+                )
+            )
         }
 
         val existingLength = if (tempFile.exists()) tempFile.length() else 0L
@@ -336,7 +349,13 @@ class ModelDownloadManager(private val context: Context) {
             }
 
             if (outputFile.exists()) outputFile.delete()
-            tempFile.renameTo(outputFile)
+            if (!tempFile.renameTo(outputFile)) {
+                throw IOException("Failed to rename temp file to ${outputFile.absolutePath}")
+            }
+
+            if (!outputFile.exists() || outputFile.length() < modelInfo.sizeMb * 1024 * 1024 * 0.9) {
+                throw IOException("Downloaded file size mismatch: ${outputFile.length()} bytes")
+            }
 
             emitProgress(flow, modelInfo.id, DownloadProgress(
                 modelId = modelInfo.id,
@@ -366,3 +385,4 @@ class ModelDownloadManager(private val context: Context) {
         return tempFile.exists() && tempFile.length() > 0
     }
 }
+

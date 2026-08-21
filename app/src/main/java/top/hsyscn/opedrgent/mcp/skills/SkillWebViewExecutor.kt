@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.mcp.skills
 
+import top.hsyscn.opedrgent.R
+
 import android.content.Context
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
@@ -217,7 +219,7 @@ class SkillWebViewExecutor(private val context: Context) {
                 DebugLog.w("SkillWebViewExecutor: timeout after ${config.timeoutMs}ms")
                 cont.resume(ExecutionResult(
                     success = false,
-                    error = "执行超时 (${config.timeoutMs}ms)",
+                    error = context.getString(R.string.error_execution_timeout, config.timeoutMs.toInt()),
                     executionMs = config.timeoutMs,
                     consoleLogs = consoleLogs.toList(),
                 ))
@@ -292,3 +294,4 @@ class SkillWebViewExecutor(private val context: Context) {
         return true
     }
 }
+

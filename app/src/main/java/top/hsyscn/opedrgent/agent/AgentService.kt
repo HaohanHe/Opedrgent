@@ -1,5 +1,8 @@
 package top.hsyscn.opedrgent.agent
 
+import android.content.Context
+import top.hsyscn.opedrgent.R
+
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.json.JSONObject
@@ -26,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference
  * - UI 通过 SharedFlow 发送用户交互结果
  */
 class AgentService(
+    private val context: Context,
     private val llmClient: LlmClient,
     private val toolExecutor: ToolExecutor,
     private val store: ResearchStore,
@@ -104,7 +108,7 @@ class AgentService(
                     streamingText = "",
                     streamingReasoning = "",
                     streamingToolParts = emptyList(),
-                    streamingPhase = "思考中",
+                    streamingPhase = context.getString(R.string.agent_phase_thinking),
                     error = null,
                 )
 
@@ -144,7 +148,7 @@ class AgentService(
             } catch (e: Exception) {
                 DebugLog.e("AgentService error: ${e.message}", e)
                 _state.value = _state.value.copy(
-                    error = e.message ?: "请求失败",
+                    error = e.message ?: context.getString(R.string.agent_error_request_failed),
                     isRunning = false,
                     isStreaming = false,
                     streamingText = "",
@@ -241,7 +245,7 @@ class AgentService(
             while (roundsThisRun < maxRounds) {
                 if (cancelled.get()) {
                     DebugLog.i("runLoop cancelled at round ${ctx.round}")
-                    saveCheckpoint(ctx, guardrail, "用户取消")
+                    saveCheckpoint(ctx, guardrail, context.getString(R.string.error_user_cancelled))
                     return null
                 }
 
@@ -253,7 +257,7 @@ class AgentService(
                     throw e
                 } catch (e: Exception) {
                     DebugLog.e("executeOneRound error: ${e.message}", e)
-                    LoopOutcome.Error(e.message ?: "未知错误")
+                    LoopOutcome.Error(e.message ?: context.getString(R.string.error_unknown_error))
                 }
 
                 when (outcome) {
@@ -266,8 +270,8 @@ class AgentService(
                     is LoopOutcome.Break -> {
                         when (outcome.reason) {
                             BreakReason.NORMAL -> store.deleteCheckpoint(ctx.sessionId)
-                            BreakReason.GUARDRAIL -> saveCheckpoint(ctx, guardrail, "工具调用保护触发")
-                            BreakReason.CANCELLED -> saveCheckpoint(ctx, guardrail, "用户取消")
+                            BreakReason.GUARDRAIL -> saveCheckpoint(ctx, guardrail, context.getString(R.string.agent_checkpoint_guardrail))
+                            BreakReason.CANCELLED -> saveCheckpoint(ctx, guardrail, context.getString(R.string.error_user_cancelled))
                         }
                         break
                     }
@@ -275,12 +279,12 @@ class AgentService(
                         loopState = LoopState.RETRYING
                         retryCount++
                         if (retryCount > MAX_RETRIES) {
-                            _state.value = _state.value.copy(error = "重试次数过多")
-                            saveCheckpoint(ctx, guardrail, "重试次数过多")
+                            _state.value = _state.value.copy(error = context.getString(R.string.agent_error_max_retries))
+                            saveCheckpoint(ctx, guardrail, context.getString(R.string.agent_error_max_retries))
                             break
                         }
                         _state.value = _state.value.copy(
-                            streamingPhase = "请求失败，${outcome.delay / 1000}秒后重试…(第${retryCount}次)",
+                            streamingPhase = context.getString(R.string.agent_phase_retry_failed, outcome.delay / 1000, retryCount),
                         )
                         delay(outcome.delay)
                         loopState = LoopState.RUNNING
@@ -294,7 +298,7 @@ class AgentService(
             }
 
             if (roundsThisRun >= maxRounds) {
-                saveCheckpoint(ctx, guardrail, "达到最大轮数")
+                saveCheckpoint(ctx, guardrail, context.getString(R.string.agent_checkpoint_max_rounds))
             }
         } finally {
             loopState = LoopState.IDLE
@@ -309,7 +313,7 @@ class AgentService(
 
     private suspend fun executeOneRound(ctx: LoopContext, guardrail: top.hsyscn.opedrgent.utils.ToolCallGuardrail): LoopOutcome {
         val session = store.getSession(ctx.sessionId)
-            ?: throw IllegalStateException("会话不存在: ${ctx.sessionId}")
+            ?: throw IllegalStateException(context.getString(R.string.agent_error_session_not_found, ctx.sessionId))
 
         val system = ctx.systemPromptBuilder(session)
 
@@ -331,7 +335,7 @@ class AgentService(
         DebugLog.d("executeOneRound: round=${ctx.round}, messages=${messages.size}, tokens=${compressed.tokenCount}")
 
         _state.value = _state.value.copy(
-            streamingPhase = if (ctx.round == 0) "思考中" else "继续思考",
+            streamingPhase = if (ctx.round == 0) context.getString(R.string.agent_phase_thinking) else context.getString(R.string.agent_phase_continue_thinking),
         )
 
         // 流式 LLM 调用
@@ -384,16 +388,16 @@ class AgentService(
                 if (ctx.reflectionAttempts >= 1) {
                     DebugLog.w("AgentService: peek AGENT_HALT after reflection, escalate to SESSION_HALT")
                     _state.value = _state.value.copy(
-                        streamingPhase = "[工具调用保护] 反思后仍重复相同参数，已自动停止",
+                        streamingPhase = context.getString(R.string.agent_phase_guardrail_duplicate_params),
                     )
-                    return LoopOutcome.Error("工具调用保护: 反思后仍重复相同参数，会话停止")
+                    return LoopOutcome.Error(context.getString(R.string.agent_error_guardrail_duplicate))
                 }
                 DebugLog.w("AgentService: peek AGENT_HALT, trigger reflection round for ${tc.name}")
                 return runReflectionRound(ctx, ctx.round, compressedSystem, messages, guardrail)
             }
 
             DebugLog.d("执行工具: ${tc.name} args=${tc.arguments}")
-            _state.value = _state.value.copy(streamingPhase = "执行: ${tc.name}")
+            _state.value = _state.value.copy(streamingPhase = context.getString(R.string.agent_phase_executing, tc.name))
 
             val toolPart = ToolPart(
                 tool = tc.name,
@@ -445,7 +449,7 @@ class AgentService(
             } catch (e: Exception) {
                 ToolExecutionResult(
                     status = ToolExecutionStatus.FATAL_ERROR,
-                    content = "工具执行失败: ${e.message}",
+                    content = context.getString(R.string.agent_error_tool_failed, e.message ?: ""),
                     errorDetail = e.message,
                 )
             }
@@ -456,15 +460,13 @@ class AgentService(
                 ToolExecutionStatus.TIMEOUT,
                 ToolExecutionStatus.RATE_LIMIT -> {
                     val statusLabel = when (result.status) {
-                        ToolExecutionStatus.PARTIAL_TIMEOUT -> "部分超时"
-                        ToolExecutionStatus.TIMEOUT -> "超时/网络暂不可用"
-                        ToolExecutionStatus.RATE_LIMIT -> "限流或访问限制"
+                        ToolExecutionStatus.PARTIAL_TIMEOUT -> context.getString(R.string.agent_status_partial_timeout)
+                        ToolExecutionStatus.TIMEOUT -> context.getString(R.string.agent_status_timeout)
+                        ToolExecutionStatus.RATE_LIMIT -> context.getString(R.string.agent_status_rate_limited)
                     }
                     buildString {
                         append(result.content)
-                        append("\n\n[系统提示：该工具调用出现")
-                        append(statusLabel)
-                        append("，这是暂时性问题。如果你认为已有信息足够，可以直接给出阶段性结论；如果还需要补充，请尝试其他关键词、其他工具或其他URL，不要重复调用同一个失败参数。]")
+                        append(context.getString(R.string.agent_tool_temp_issue_hint, statusLabel))
                     }
                 }
                 ToolExecutionStatus.FATAL_ERROR -> result.content
@@ -489,17 +491,17 @@ class AgentService(
                 top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.SESSION_HALT -> {
                     DebugLog.w("AgentService: guardrail SESSION_HALT, tool=${tc.name}")
                     _state.value = _state.value.copy(
-                        streamingPhase = "[工具调用保护] 检测到严重问题，已自动停止",
+                        streamingPhase = context.getString(R.string.agent_phase_guardrail_fatal),
                     )
-                    return LoopOutcome.Error("工具调用保护: 检测到严重问题，会话停止")
+                    return LoopOutcome.Error(context.getString(R.string.agent_error_guardrail_fatal))
                 }
                 top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.AGENT_HALT -> {
                     if (ctx.reflectionAttempts >= 1) {
                         DebugLog.w("AgentService: guardrail AGENT_HALT after reflection, escalate to SESSION_HALT")
                         _state.value = _state.value.copy(
-                            streamingPhase = "[工具调用保护] 反思后策略仍未调整，已自动停止",
+                            streamingPhase = context.getString(R.string.agent_phase_guardrail_no_adjust),
                         )
-                        return LoopOutcome.Error("工具调用保护: 反思后策略仍未调整，会话停止")
+                        return LoopOutcome.Error(context.getString(R.string.agent_error_guardrail_no_adjust))
                     }
                     DebugLog.w("AgentService: guardrail AGENT_HALT, trigger reflection round")
                     return runReflectionRound(ctx, ctx.round, compressedSystem, messages, guardrail)
@@ -539,7 +541,7 @@ class AgentService(
         ctx.reflectionPending = true
         ctx.reflectionAttempts++
 
-        _state.value = _state.value.copy(streamingPhase = "[工具调用保护] 检测到重复模式，正在反思...")
+        _state.value = _state.value.copy(streamingPhase = context.getString(R.string.agent_phase_guardrail_reflecting))
 
         val reflectionPrompt = top.hsyscn.opedrgent.utils.PromptBuilder.buildReflectionPrompt()
         val reflectionUserMsg = ChatMessage(
@@ -566,12 +568,12 @@ class AgentService(
         if (cancelled.get()) return LoopOutcome.Break(BreakReason.CANCELLED)
 
         if (reflectionStreamResult.error != null) {
-            return LoopOutcome.Error("反思轮调用失败: ${reflectionStreamResult.error}")
+            return LoopOutcome.Error(context.getString(R.string.agent_error_reflection_failed, reflectionStreamResult.error ?: ""))
         }
 
         if (reflectionStreamResult.toolCalls.isNotEmpty()) {
             DebugLog.w("AgentService: LLM emitted tool calls during reflection despite tool_choice=none")
-            return LoopOutcome.Error("工具调用保护: 反思轮中模型仍尝试调用工具，会话停止")
+            return LoopOutcome.Error(context.getString(R.string.agent_error_guardrail_reflection_tool))
         }
 
         if (reflectionStreamResult.content.isNotBlank()) {
@@ -615,12 +617,12 @@ class AgentService(
 
     private fun buildContinuationPrompt(checkpoint: ResearchCheckpoint): String {
         return buildString {
-            append("这是之前研究的续作。已进行 ${checkpoint.round} 轮，已收集 ${checkpoint.sources.size} 个来源。")
+            append(context.getString(R.string.agent_continuation_intro, checkpoint.round, checkpoint.sources.size))
             append("\n\n")
-            val reason = checkpoint.haltReason ?: "达到最大轮数或异常中断"
-            append("上一步因为 $reason 中断。请基于已有信息继续，或判断已有信息足够并输出结论。")
+            val reason = checkpoint.haltReason ?: context.getString(R.string.agent_checkpoint_max_rounds_or_error)
+            append(context.getString(R.string.agent_continuation_reason, reason))
             if (checkpoint.toolMessages.isNotEmpty()) {
-                append("\n\n以下是最新工具结果摘要：\n")
+                append(context.getString(R.string.agent_continuation_sources))
                 checkpoint.toolMessages.takeLast(4).forEach { msg ->
                     append("- [${msg.role}] ${msg.content.take(200)}\n")
                 }
@@ -716,3 +718,4 @@ class AgentService(
         }
     }
 }
+

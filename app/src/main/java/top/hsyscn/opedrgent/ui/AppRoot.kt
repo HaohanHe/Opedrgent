@@ -117,7 +117,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,6 +126,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.model.Role
@@ -318,7 +318,7 @@ fun AppRoot(
     }
 
     // 首次使用引导：初始值为 null 表示正在加载，避免首次启动时闪烁主界面
-    val onboardingCompleted by OnboardingDataStore.isCompleted(context).collectAsState(initial = null)
+    val onboardingCompleted by OnboardingDataStore.isCompleted(context).collectAsStateWithLifecycle(initialValue = null)
     val shouldShowOnboarding = onboardingCompleted == false
     val isOnboardingLoading = onboardingCompleted == null
 
@@ -770,8 +770,8 @@ fun AppRoot(
                             val noteIdStr = (subScreen ?: "").removePrefix("noteShare_")
                             val noteId = noteIdStr.toLongOrNull()
                             if (noteId != null) {
-                                val aiConvertedContent by vm.aiConvertedContent.collectAsState()
-                                val isConverting by vm.isConverting.collectAsState()
+                                val aiConvertedContent by vm.aiConvertedContent.collectAsStateWithLifecycle()
+                                val isConverting by vm.isConverting.collectAsStateWithLifecycle()
                                 NoteShareScreen(
                                     repository = vm.noteRepository,
                                     noteId = noteId,

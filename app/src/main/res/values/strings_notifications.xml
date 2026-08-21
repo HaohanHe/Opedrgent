@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Notification Channels ========== -->
+    <!-- Sprout -->
+    <string name="notif_channel_sprout_name">发芽报告</string>
+    <string name="notif_channel_sprout_desc">发芽报告生成完成时提醒</string>
+    <!-- Daily Digest -->
+    <string name="notif_channel_digest_name">每日收获</string>
+    <string name="notif_channel_digest_desc">每日内容回顾与收获摘要</string>
+    <!-- Warm Feedback -->
+    <string name="notif_channel_feedback_name">点评</string>
+    <string name="notif_channel_feedback_desc">AI 对你的笔记进行温暖点评</string>
+    <!-- Auto Save -->
+    <string name="notif_channel_autosave_name">自动保存</string>
+    <string name="notif_channel_autosave_desc">笔记自动保存成功提示</string>
+    <!-- Model Download -->
+    <string name="notif_channel_model_download_name">模型下载</string>
+    <string name="notif_channel_model_download_desc">显示模型下载进度</string>
+    <!-- STT Model Download -->
+    <string name="notif_channel_stt_download_name">语音模型下载</string>
+    <string name="notif_channel_stt_download_desc">显示语音识别模型下载进度</string>
+    <!-- Background KeepAlive -->
+    <string name="notif_channel_keepalive_name">后台运行</string>
+    <string name="notif_channel_keepalive_desc">保持 Opedrgent 在后台运行（息屏可用）</string>
+    <!-- Recording -->
+    <string name="notif_channel_recording_name">录音服务</string>
+    <string name="notif_channel_recording_desc">录音进行中，息屏后继续录制</string>
+    <!-- Media Projection -->
+    <string name="notif_channel_media_projection_name">屏幕录制</string>
+    <string name="notif_channel_media_projection_desc">系统音频录制需要的前台服务</string>
+    <!-- Floating Window -->
+    <string name="notif_channel_floating_name">录制悬浮窗</string>
+    <string name="notif_channel_floating_desc">内录控制悬浮窗通知</string>
+
+    <!-- ========== NotificationHelper ========== -->
+    <string name="notif_sprout_complete_title">发芽报告已生成</string>
+    <string name="notif_sprout_tap_to_view">%1$s…点击查看完整报告</string>
+    <string name="notif_sprout_tap_to_view_short">%1$s -- 点击查看完整报告</string>
+    <string name="notif_digest_title">今日收获</string>
+    <string name="notif_digest_content">昨天记录了 %1$d 条内容。%2$s…%3$s</string>
+    <string name="notif_digest_new_sprouts"> 有 %1$d 份新发芽报告</string>
+    <string name="notif_digest_anniversary">\n---\n%1$d天前的今天：%2$s</string>
+    <string name="notif_feedback_title">AI 点评</string>
+    <string name="notif_autosave_title">已自动保存</string>
+    <string name="notif_autosave_content">%1$s -- %2$s…</string>
+
+    <!-- ========== ModelDownloadService ========== -->
+    <string name="notif_model_download_title">Opedrgent 模型下载</string>
+    <string name="notif_model_download_preparing">准备下载…</string>
+    <string name="notif_model_download_app_title">Opedrgent</string>
+    <string name="notif_model_downloading_named">正在下载: %1$s</string>
+    <string name="notif_model_downloading">正在下载…</string>
+    <string name="notif_action_pause">暂停</string>
+    <string name="notif_action_cancel">取消</string>
+    <string name="notif_action_resume">继续</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="notif_model_download_paused">已暂停</string>
+    <string name="notif_model_download_progress">正在下载: %1$s\n%2$s  %3$s</string>
+    <string name="notif_model_download_complete_title">模型下载完成</string>
+    <string name="notif_model_download_complete_text">%1$s 已下载完成 (%2$s)</string>
+    <string name="notif_model_download_complete_big">%1$s 已下载完成\n大小: %2$s</string>
+    <string name="notif_model_download_failed_title">模型下载失败</string>
+    <string name="notif_model_download_failed_text">%1$s 下载失败: %2$s</string>
+    <string name="notif_model_download_failed_big">%1$s 下载失败\n原因: %2$s</string>
+    <string name="notif_model_download_cancelled_title">模型下载已取消</string>
+    <string name="notif_model_download_cancelled_text">下载已被用户取消</string>
+    <string name="notif_unknown_error">未知错误</string>
+
+    <!-- ========== SttDownloadService ========== -->
+    <string name="notif_stt_downloading_named">正在下载语音模型: %1$s</string>
+    <string name="notif_stt_download_progress">正在下载: %1$s</string>
+    <string name="notif_stt_download_progress_size">正在下载: %1$s\n%2$dMB / %3$dMB</string>
+    <string name="notif_stt_download_complete_title">语音模型下载完成</string>
+    <string name="notif_stt_download_complete_text">%1$s 已下载完成</string>
+    <string name="notif_stt_download_failed_title">语音模型下载失败</string>
+    <string name="notif_stt_download_failed_text">%1$s 下载失败: %2$s</string>
+    <string name="notif_stt_download_failed_big">%1$s 下载失败\n原因: %2$s</string>
+
+    <!-- ========== KeepAliveService ========== -->
+    <string name="notif_keepalive_title">Opedrgent 后台运行中</string>
+    <string name="notif_keepalive_text">工具调用循环和流式对话将在息屏后继续运行</string>
+
+    <!-- ========== RecordingForegroundService ========== -->
+    <string name="notif_recording_default_mode">录音</string>
+    <string name="notif_recording_active_title">%1$s中</string>
+    <string name="notif_recording_active_text">正在录制 %1$s | 点击返回应用</string>
+    <string name="notif_recording_start_failed">录音启动失败，请从应用内重新开始录音</string>
+    <string name="notif_recording_error_title">录音服务异常</string>
+
+    <!-- ========== MediaProjectionService ========== -->
+    <string name="notif_media_projection_title">Opedrgent 录制中</string>
+    <string name="notif_media_projection_text">正在录制系统音频</string>
+    <string name="notif_media_projection_error_no_data">录制授权数据缺失</string>
+    <string name="notif_media_projection_error_no_permission">无法获取屏幕录制权限</string>
+    <string name="notif_media_projection_error_failed">获取录制权限失败: %1$s</string>
+
+    <!-- ========== FloatingWindowService ========== -->
+    <string name="notif_floating_title">Opedrgent 录制中</string>
+    <string name="notif_floating_text">点击返回应用</string>
+    <string name="notif_floating_stop_recording">结束录音</string>
+</resources>

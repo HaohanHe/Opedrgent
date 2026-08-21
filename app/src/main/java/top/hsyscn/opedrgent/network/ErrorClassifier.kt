@@ -241,7 +241,7 @@ object ErrorClassifier {
                         shouldTriggerCircuitBreaker = true,
                         description = "CAPTCHA/challenge detected in exception message"
                     )
-                } else if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("超时")) {
+                } else if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("超时") || msg.contains("タイムアウト")) {
                     ClassifiedError(
                         type = ClassifiedErrorType.TIMEOUT,
                         action = RecommendedAction.RETRY,

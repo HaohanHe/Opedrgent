@@ -1,5 +1,9 @@
 package top.hsyscn.opedrgent.ui.components
 
+import android.content.Context
+import top.hsyscn.opedrgent.R
+import java.util.Locale
+
 data class DownloadQuote(
     val text: String,
     val author: String,
@@ -234,4 +238,98 @@ object DownloadQuotes {
         ALL_QUOTES[index.coerceIn(0, ALL_QUOTES.size - 1)]
 
     val size: Int get() = ALL_QUOTES.size
+
+    private val ENGLISH_QUOTES = listOf(
+        DownloadQuote("The only way to do great work is to love what you do.", "Steve Jobs"),
+        DownloadQuote("In the middle of difficulty lies opportunity.", "Albert Einstein"),
+        DownloadQuote("It does not matter how slowly you go as long as you do not stop.", "Confucius"),
+        DownloadQuote("The future belongs to those who believe in the beauty of their dreams.", "Eleanor Roosevelt"),
+        DownloadQuote("It always seems impossible until it is done.", "Nelson Mandela"),
+        DownloadQuote("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
+        DownloadQuote("The best time to plant a tree was 20 years ago. The second best time is now.", "Chinese Proverb"),
+        DownloadQuote("Your time is limited, do not waste it living someone else's life.", "Steve Jobs"),
+        DownloadQuote("The only limit to our realization of tomorrow is our doubts of today.", "Franklin D. Roosevelt"),
+        DownloadQuote("Do what you can, with what you have, where you are.", "Theodore Roosevelt"),
+        DownloadQuote("Knowledge is power.", "Francis Bacon"),
+        DownloadQuote("A journey of a thousand miles begins with a single step.", "Lao Tzu"),
+        DownloadQuote("Where there is a will, there is a way.", "English Proverb"),
+        DownloadQuote("The mind is everything. What you think you become.", "Buddha"),
+        DownloadQuote("Strive not to be a success, but rather to be of value.", "Albert Einstein"),
+        DownloadQuote("I have not failed. I have just found 10,000 ways that will not work.", "Thomas Edison"),
+        DownloadQuote("If you are going through hell, keep going.", "Winston Churchill"),
+        DownloadQuote("What lies behind us and what lies before us are tiny matters compared to what lies within us.", "Ralph Waldo Emerson"),
+        DownloadQuote("The greatest glory in living lies not in never falling, but in rising every time we fall.", "Nelson Mandela"),
+        DownloadQuote("Life is what happens when you are busy making other plans.", "John Lennon"),
+        DownloadQuote("The way to get started is to quit talking and begin doing.", "Walt Disney"),
+        DownloadQuote("Do not watch the clock; do what it does. Keep going.", "Sam Levenson"),
+        DownloadQuote("Keep your face always toward the sunshine, and shadows will fall behind you.", "Walt Whitman"),
+        DownloadQuote("It is during our darkest moments that we must focus to see the light.", "Aristotle"),
+        DownloadQuote("The secret of getting ahead is getting started.", "Mark Twain"),
+        DownloadQuote("Believe you can and you are halfway there.", "Theodore Roosevelt"),
+        DownloadQuote("Whether you think you can or you think you cannot, you are right.", "Henry Ford"),
+        DownloadQuote("The best revenge is massive success.", "Frank Sinatra"),
+        DownloadQuote("There is no substitute for hard work.", "Thomas Edison"),
+        DownloadQuote("Dream big and dare to fail.", "Norman Vaughan"),
+        DownloadQuote("You miss 100% of the shots you do not take.", "Wayne Gretzky"),
+        DownloadQuote("Hardships often prepare ordinary people for an extraordinary destiny.", "C.S. Lewis"),
+        DownloadQuote("Do not let what you cannot do interfere with what you can do.", "John Wooden"),
+        DownloadQuote("Perseverance is not a long race; it is many short races one after the other.", "Walter Elliot"),
+        DownloadQuote("Patience and perseverance have a magical effect before which difficulties disappear and obstacles vanish.", "John Quincy Adams"),
+        DownloadQuote("The only person you are destined to become is the person you decide to be.", "Ralph Waldo Emerson"),
+        DownloadQuote("Start where you are. Use what you have. Do what you can.", "Arthur Ashe"),
+        DownloadQuote("Fall seven times, stand up eight.", "Japanese Proverb"),
+        DownloadQuote("Nothing is impossible, the word itself says 'I am possible'!", "Audrey Hepburn"),
+        DownloadQuote("Courage is resistance to fear, mastery of fear, not absence of fear.", "Mark Twain"),
+    )
+
+    private val JAPANESE_QUOTES = listOf(
+        DownloadQuote("継続は力なり。", "日本のことわざ"),
+        DownloadQuote("七転び八起き。", "日本のことわざ"),
+        DownloadQuote("塵も積もれば山となる。", "日本のことわざ"),
+        DownloadQuote("急がば回れ。", "日本のことわざ"),
+        DownloadQuote("明日は明日の風が吹く。", "日本のことわざ"),
+        DownloadQuote("果報は寝て待て。", "日本のことわざ"),
+        DownloadQuote("石の上にも三年。", "日本のことわざ"),
+        DownloadQuote("失敗は成功のもと。", "日本のことわざ"),
+        DownloadQuote("初心忘るべからず。", "世阿弥"),
+        DownloadQuote("天は自ら助くる者を助く。", "サミュエル・スマイルズ"),
+        DownloadQuote("為せば成る、為さねば成らぬ何事も。", "上杉鷹山"),
+        DownloadQuote("人間は、希望がある限り幸せである。", "徳川家康"),
+        DownloadQuote("明日できることを今日するな。", "日本のことわざ"),
+        DownloadQuote("千里の道も一歩から。", "老子"),
+        DownloadQuote("学ぶために生きるか、生きるために学べ。", "ソクラテス"),
+        DownloadQuote("知識は力なり。", "フランシス・ベーコン"),
+        DownloadQuote("考えるな、感じろ。", "ブルース・リー"),
+        DownloadQuote("行動は必ずしも幸福をもたらさないが、行動のないところに幸福はない。", "ベンジャミン・ディズレーリ"),
+        DownloadQuote("最も暗い夜も、いつかは明ける。", "ハリエット・ビーチャー・ストー"),
+        DownloadQuote("道を選ぶということは、同時に何かを捨てることだ。", "村上春樹"),
+        DownloadQuote("努力する人は希望を語り、怠ける人は不満を語る。", "井上靖"),
+        DownloadQuote("今日という日は、残りの人生の最初の日である。", "チャールズ・ディードリッヒ"),
+        DownloadQuote("夢を見ることができれば、それは実現できる。", "ウォルト・ディズニー"),
+        DownloadQuote("一歩一歩、這い上がればいい。", "本田圭佑"),
+        DownloadQuote("自分を信じることだ。さもないと神様も自分を助けられない。", "松下幸之助"),
+        DownloadQuote("悩むな、なるようになる。", "中村天風"),
+        DownloadQuote("人は人、自分は自分。", "日本のことわざ"),
+        DownloadQuote("笑う門には福来たる。", "日本のことわざ"),
+        DownloadQuote("明日やろうは馬鹿野郎。", "日本のことわざ"),
+        DownloadQuote("雲外蒼天。", "日本の四字熟語"),
+        DownloadQuote("質実剛健。", "日本の四字熟語"),
+        DownloadQuote("一意専心。", "日本の四字熟語"),
+        DownloadQuote("不撓不屈。", "日本の四字熟語"),
+        DownloadQuote("有言実行。", "日本の四字熟語"),
+        DownloadQuote("日進月歩。", "日本の四字熟語"),
+        DownloadQuote("切磋琢磨。", "日本の四字熟語"),
+        DownloadQuote("一生懸命。", "日本の四字熟語"),
+        DownloadQuote("前進あるのみ。", "日本のことわざ"),
+        DownloadQuote("道は開ける。", "デール・カーネギー"),
+        DownloadQuote("君が生まれたとき、君は泣いて周りは笑っていた。君が死ぬときは、君が笑って周りが泣くような人生を送りなさい。", "ネイティブアメリカンの言い伝え"),
+    )
+
+    fun getQuotes(context: Context): List<DownloadQuote> {
+        return when (context.resources.configuration.locales[0].language) {
+            Locale.ENGLISH.language -> ENGLISH_QUOTES
+            Locale.JAPANESE.language -> JAPANESE_QUOTES
+            else -> ALL_QUOTES
+        }
+    }
 }

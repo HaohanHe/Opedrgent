@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.ui.components
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -69,8 +70,9 @@ fun ModelDownloadDialog(
     onCancel: () -> Unit,
     onConfirmCancel: () -> Unit,
 ) {
+    val context = LocalContext.current
     var showCancelConfirm by remember { mutableStateOf(false) }
-    var shuffledIndices by remember { mutableStateOf(DownloadQuotes.ALL_QUOTES.indices.shuffled()) }
+    var shuffledIndices by remember { mutableStateOf(DownloadQuotes.getQuotes(context).indices.shuffled()) }
     var quotePointer by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -78,7 +80,7 @@ fun ModelDownloadDialog(
             delay(10_000L)
             quotePointer++
             if (quotePointer >= shuffledIndices.size) {
-                shuffledIndices = DownloadQuotes.ALL_QUOTES.indices.shuffled()
+                shuffledIndices = DownloadQuotes.getQuotes(context).indices.shuffled()
                 quotePointer = 0
             }
         }
@@ -374,7 +376,8 @@ private fun IdleSection(totalMb: Long) {
 
 @Composable
 private fun QuoteCard(currentQuoteIndex: Int) {
-    val quote = DownloadQuotes.ALL_QUOTES[currentQuoteIndex]
+    val context = LocalContext.current
+    val quote = DownloadQuotes.getQuotes(context)[currentQuoteIndex]
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -500,6 +503,8 @@ private fun formatSpeed(bytesPerSec: Long): String {
     return when {
         bytesPerSec < 1024 -> "$bytesPerSec B/s"
         bytesPerSec < 1024 * 1024 -> "${bytesPerSec / 1024} KB/s"
-        else -> String.format("%.1f MB/s", bytesPerSec / (1024.0 * 1024.0))
+        else -> String.format(java.util.Locale.US, "%.1f MB/s", bytesPerSec / (1024.0 * 1024.0))
     }
 }
+
+

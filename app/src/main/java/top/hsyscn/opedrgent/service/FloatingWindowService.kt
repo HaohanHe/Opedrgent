@@ -192,7 +192,7 @@ class FloatingWindowService : Service() {
             setImageResource(R.drawable.ic_stop_square)
             setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
             setColorFilter(0xFFE53935.toInt())
-            contentDescription = "结束录音"
+            contentDescription = getString(R.string.notif_floating_stop_recording)
             setOnClickListener {
                 onStop?.invoke()
             }
@@ -251,10 +251,10 @@ class FloatingWindowService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "录制悬浮窗",
+                getString(R.string.notif_channel_floating_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "内录控制悬浮窗通知"
+                description = getString(R.string.notif_channel_floating_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -270,8 +270,8 @@ class FloatingWindowService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("Opedrgent 录制中")
-            .setContentText("点击返回应用")
+            .setContentTitle(getString(R.string.notif_floating_title))
+            .setContentText(getString(R.string.notif_floating_text))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

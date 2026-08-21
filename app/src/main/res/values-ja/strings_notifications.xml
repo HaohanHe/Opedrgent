@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Notification Channels ========== -->
+    <string name="notif_channel_sprout_name">発芽レポート</string>
+    <string name="notif_channel_sprout_desc">発芽レポートの生成完了時に通知</string>
+    <string name="notif_channel_digest_name">デイリーサマリー</string>
+    <string name="notif_channel_digest_desc">毎日のコンテンツ振り返りと収穫サマリー</string>
+    <string name="notif_channel_feedback_name">フィードバック</string>
+    <string name="notif_channel_feedback_desc">AI によるノートへの温かいコメント</string>
+    <string name="notif_channel_autosave_name">自動保存</string>
+    <string name="notif_channel_autosave_desc">ノートの自動保存完了通知</string>
+    <string name="notif_channel_model_download_name">モデルダウンロード</string>
+    <string name="notif_channel_model_download_desc">モデルのダウンロード進捗を表示</string>
+    <string name="notif_channel_stt_download_name">音声モデルダウンロード</string>
+    <string name="notif_channel_stt_download_desc">音声認識モデルのダウンロード進捗を表示</string>
+    <string name="notif_channel_keepalive_name">バックグラウンド実行</string>
+    <string name="notif_channel_keepalive_desc">Opedrgent をバックグラウンドで実行し続けます（画面オフ時も動作）</string>
+    <string name="notif_channel_recording_name">録音サービス</string>
+    <string name="notif_channel_recording_desc">録音中、画面オフ後も録音を継続</string>
+    <string name="notif_channel_media_projection_name">画面録画</string>
+    <string name="notif_channel_media_projection_desc">システム音声録音に必要なフォアグラウンドサービス</string>
+    <string name="notif_channel_floating_name">録音フローティング</string>
+    <string name="notif_channel_floating_desc">内部録音コントロール用フローティングウィンドウ通知</string>
+
+    <!-- ========== NotificationHelper ========== -->
+    <string name="notif_sprout_complete_title">発芽レポートが生成されました</string>
+    <string name="notif_sprout_tap_to_view">%1$s…タップして完全なレポートを表示</string>
+    <string name="notif_sprout_tap_to_view_short">%1$s -- タップして完全なレポートを表示</string>
+    <string name="notif_digest_title">今日の収穫</string>
+    <string name="notif_digest_content">昨日は %1$d 件記録しました。%2$s…%3$s</string>
+    <string name="notif_digest_new_sprouts"> %1$d 件の新しい発芽レポート</string>
+    <string name="notif_digest_anniversary">\n---\n%1$d日前の今日：%2$s</string>
+    <string name="notif_feedback_title">AI コメント</string>
+    <string name="notif_autosave_title">自動保存しました</string>
+    <string name="notif_autosave_content">%1$s -- %2$s…</string>
+
+    <!-- ========== ModelDownloadService ========== -->
+    <string name="notif_model_download_title">Opedrgent モデルダウンロード</string>
+    <string name="notif_model_download_preparing">ダウンロードを準備中…</string>
+    <string name="notif_model_download_app_title">Opedrgent</string>
+    <string name="notif_model_downloading_named">ダウンロード中: %1$s</string>
+    <string name="notif_model_downloading">ダウンロード中…</string>
+    <string name="notif_action_pause">一時停止</string>
+    <string name="notif_action_cancel">キャンセル</string>
+    <string name="notif_action_resume">再開</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="notif_model_download_paused">一時停止中</string>
+    <string name="notif_model_download_progress">ダウンロード中: %1$s\n%2$s  %3$s</string>
+    <string name="notif_model_download_complete_title">モデルのダウンロードが完了しました</string>
+    <string name="notif_model_download_complete_text">%1$s のダウンロードが完了しました (%2$s)</string>
+    <string name="notif_model_download_complete_big">%1$s のダウンロードが完了しました\nサイズ: %2$s</string>
+    <string name="notif_model_download_failed_title">モデルのダウンロードに失敗しました</string>
+    <string name="notif_model_download_failed_text">%1$s のダウンロードに失敗: %2$s</string>
+    <string name="notif_model_download_failed_big">%1$s のダウンロードに失敗\n理由: %2$s</string>
+    <string name="notif_model_download_cancelled_title">モデルのダウンロードがキャンセルされました</string>
+    <string name="notif_model_download_cancelled_text">ダウンロードはユーザーによりキャンセルされました</string>
+    <string name="notif_unknown_error">不明なエラー</string>
+
+    <!-- ========== SttDownloadService ========== -->
+    <string name="notif_stt_downloading_named">音声モデルをダウンロード中: %1$s</string>
+    <string name="notif_stt_download_progress">ダウンロード中: %1$s</string>
+    <string name="notif_stt_download_progress_size">ダウンロード中: %1$s\n%2$dMB / %3$dMB</string>
+    <string name="notif_stt_download_complete_title">音声モデルのダウンロードが完了しました</string>
+    <string name="notif_stt_download_complete_text">%1$s のダウンロードが完了しました</string>
+    <string name="notif_stt_download_failed_title">音声モデルのダウンロードに失敗しました</string>
+    <string name="notif_stt_download_failed_text">%1$s のダウンロードに失敗: %2$s</string>
+    <string name="notif_stt_download_failed_big">%1$s のダウンロードに失敗\n理由: %2$s</string>
+
+    <!-- ========== KeepAliveService ========== -->
+    <string name="notif_keepalive_title">Opedrgent がバックグラウンドで実行中</string>
+    <string name="notif_keepalive_text">ツール呼び出しループとストリーミング会話は画面オフ後も継続します</string>
+
+    <!-- ========== RecordingForegroundService ========== -->
+    <string name="notif_recording_default_mode">録音</string>
+    <string name="notif_recording_active_title">%1$s中</string>
+    <string name="notif_recording_active_text">%1$s を録音中 | タップしてアプリに戻る</string>
+    <string name="notif_recording_start_failed">録音の開始に失敗しました。アプリ内から録音を再開してください</string>
+    <string name="notif_recording_error_title">録音サービスエラー</string>
+
+    <!-- ========== MediaProjectionService ========== -->
+    <string name="notif_media_projection_title">Opedrgent 録画中</string>
+    <string name="notif_media_projection_text">システム音声を録音中</string>
+    <string name="notif_media_projection_error_no_data">録画認可データがありません</string>
+    <string name="notif_media_projection_error_no_permission">画面録画権限を取得できません</string>
+    <string name="notif_media_projection_error_failed">録画権限の取得に失敗: %1$s</string>
+
+    <!-- ========== FloatingWindowService ========== -->
+    <string name="notif_floating_title">Opedrgent 録画中</string>
+    <string name="notif_floating_text">タップしてアプリに戻る</string>
+    <string name="notif_floating_stop_recording">録音を終了</string>
+</resources>

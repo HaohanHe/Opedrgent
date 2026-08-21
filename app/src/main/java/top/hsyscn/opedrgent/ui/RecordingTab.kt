@@ -110,7 +110,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -261,8 +261,8 @@ fun RecordingTab(
     }
 
     // STT 进度状态（导入音视频转录）
-    val sttProgress by vm.sttProgress.collectAsState()
-    val sttUiState by vm.sttUiState.collectAsState()
+    val sttProgress by vm.sttProgress.collectAsStateWithLifecycle()
+    val sttUiState by vm.sttUiState.collectAsStateWithLifecycle()
     var isImportingAudio by remember { mutableStateOf(false) }
 
     // 导入音视频文件选择器
@@ -382,7 +382,7 @@ fun RecordingTab(
 
     // 读取无感伙伴设置中的自动保存开关
     val autoSaveKey = androidx.datastore.preferences.core.booleanPreferencesKey("key_auto_save")
-    val partnerPrefs = context.invisiblePartnerDataStore.data.collectAsState(initial = null).value
+    val partnerPrefs = context.invisiblePartnerDataStore.data.collectAsStateWithLifecycle(initialValue = null).value
     val autoSaveEnabled = partnerPrefs?.get(autoSaveKey) ?: true
 
     // 录音核心对象托管到 ViewModel，切 Tab 不销毁
@@ -1837,7 +1837,7 @@ private fun RecordingScreen(
     val timeText = remember(elapsedSeconds) {
         val m = elapsedSeconds / 60
         val s = elapsedSeconds % 60
-        String.format("%02d:%02d", m, s)
+        String.format(java.util.Locale.US, "%02d:%02d", m, s)
     }
 
     val landscape = isLandscape()
@@ -2822,3 +2822,4 @@ private suspend fun transcribeWithAsrManager(
         MeetingTranscriptResult(error = context.getString(R.string.recording_transcription_failed, e.message))
     }
 }
+

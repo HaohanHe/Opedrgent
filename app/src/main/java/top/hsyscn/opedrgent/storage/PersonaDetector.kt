@@ -140,10 +140,11 @@ object PersonaDetector {
                     null,
                 )
 
-                if (cursor != null && cursor.count > 0) {
-                    reasons.add("即将有日程安排")
+                cursor?.use {
+                    if (it.count > 0) {
+                        reasons.add("即将有日程安排")
+                    }
                 }
-                cursor?.close()
             }
         } catch (_: Exception) {
             // 日历查询失败不影响其他信号
@@ -256,16 +257,13 @@ object PersonaDetector {
             val now = System.currentTimeMillis()
             val twoHoursLater = now + 2 * 60 * 60 * 1000L
 
-            val cursor = context.contentResolver.query(
+            val eventCount = context.contentResolver.query(
                 CalendarContract.Events.CONTENT_URI,
                 arrayOf(CalendarContract.Events.TITLE),
                 "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?",
                 arrayOf(now.toString(), twoHoursLater.toString()),
                 null,
-            ) ?: return
-
-            val eventCount = cursor.count
-            cursor.close()
+            )?.use { it.count } ?: 0
 
             if (eventCount > 0) {
                 scores[PartnerPersona.WORK] = (scores[PartnerPersona.WORK] ?: 0f) + 30f

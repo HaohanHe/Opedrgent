@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- EditorAdditionalNotesTab -->
+    <string name="note_editor_additional_notes_hint">ここにノート内容への補足や注釈を追加してください</string>
+    <string name="note_editor_add_note">ノートを追加</string>
+    <string name="note_editor_append_note_hint">ノートを追加…</string>
+    <string name="note_editor_cd_add_note">ノートを追加</string>
+    <string name="note_editor_edit_note">ノートを編集</string>
+    <string name="note_editor_new_note">新規ノート</string>
+    <string name="note_editor_no_additional_notes">追加ノートはまだありません</string>
+    <string name="note_editor_note_placeholder">あなたの考えを記録…</string>
+
+    <!-- EditorNoteItemCard -->
+    <string name="note_editor_delete_this_note_confirm">このノートを削除しますか？</string>
+
+    <!-- EditorUtils -->
+    <string name="editor_gang_gang">たった今</string>
+
+    <!-- EditorUtils.heuristicComplete (Chinese writing patterns - kept as-is for Chinese text completion) -->
+    <string name="editor_complete_dan_shi">、しかし</string>
+    <string name="editor_complete_dou_hao">、</string>
+    <string name="editor_complete_er_qie">、そして</string>
+    <string name="editor_complete_jie">結</string>
+    <string name="editor_complete_ling_yi_fang_mian">、他方では</string>
+    <string name="editor_complete_mao_hao">：</string>
+    <string name="editor_complete_qi_ci">、次に</string>
+    <string name="editor_complete_suo_yi">、だから</string>
+    <string name="editor_complete_ti_lai_shuo">体的に言えば</string>
+    <string name="editor_complete_zai_ci">、再び</string>
+    <string name="editor_complete_zui_hou">、最後に</string>
+
+    <!-- MarkdownFormatToolbar -->
+    <string name="editor_cd_biao_ti_1">見出し1</string>
+    <string name="editor_cd_biao_ti_2">見出し2</string>
+    <string name="editor_cd_biao_ti_3">見出し3</string>
+    <string name="editor_cd_dai_ma">コード</string>
+    <string name="editor_cd_jia_cu">太字</string>
+    <string name="editor_cd_lian_jie">リンク</string>
+    <string name="editor_cd_tu_pian">画像</string>
+    <string name="editor_cd_wu_xu_lie_biao">箇条書き</string>
+    <string name="editor_cd_xie_ti">斜体</string>
+    <string name="editor_cd_yin_yong">引用</string>
+    <string name="editor_cd_you_xu_lie_biao">番号付きリスト</string>
+
+    <!-- NoteActionBottomSheet -->
+    <string name="note_action_add_tag">タグを追加</string>
+    <string name="note_action_add_to_kb">ナレッジベースに追加</string>
+    <string name="note_action_append">ノートを追加</string>
+    <string name="note_action_choose_export_format">エクスポート形式を選択</string>
+    <string name="note_action_copy_full_text">全文をコピー</string>
+    <string name="note_action_copy_summary">要約をコピー</string>
+    <string name="note_action_correct">訂正</string>
+    <string name="note_action_cd_add_tag">タグを追加</string>
+    <string name="note_action_cd_add_to_kb">ナレッジベースに追加</string>
+    <string name="note_action_cd_append">ノートを追加</string>
+    <string name="note_action_cd_copy_full_text">全文をコピー</string>
+    <string name="note_action_cd_copy_summary">要約をコピー</string>
+    <string name="note_action_cd_correct">訂正</string>
+    <string name="note_action_cd_discuss_in_chat">対話で議論</string>
+    <string name="note_action_cd_enter_export_submenu">エクスポートサブメニューに入る</string>
+    <string name="note_action_cd_export">エクスポート</string>
+    <string name="note_action_cd_export_markdown">Markdown でエクスポート</string>
+    <string name="note_action_cd_export_txt">TXT でエクスポート</string>
+    <string name="note_action_cd_pin">ピン留め</string>
+    <string name="note_action_cd_sprout">ノート発芽</string>
+    <string name="note_action_cd_unpin">ピン留め解除</string>
+    <string name="note_action_discuss_in_chat">対話で議論</string>
+    <string name="note_action_export_failed">エクスポート失敗: %1$s</string>
+    <string name="note_action_export_markdown">Markdown でエクスポート</string>
+    <string name="note_action_export_txt">TXT でエクスポート</string>
+    <string name="note_action_full_text_copied">全文をクリップボードにコピーしました</string>
+    <string name="note_action_pin">ピン留め</string>
+    <string name="note_action_share_note_title">ノートを共有</string>
+    <string name="note_action_sprout">ノート発芽</string>
+    <string name="note_action_summary_copied">要約をクリップボードにコピーしました</string>
+    <string name="note_action_title">ノート操作</string>
+    <string name="note_action_unpin">ピン留め解除</string>
+    <string name="note_delete_confirm_message">削除すると元に戻せません。ノート「%1$s」を削除しますか？</string>
+    <string name="note_delete_confirm_title">ノートの削除を確認</string>
+
+    <!-- SproutResultView -->
+    <string name="quality_score_average">普通</string>
+    <string name="quality_score_description">品質スコア %1$d 点、%2$s</string>
+    <string name="quality_score_excellent">優秀</string>
+    <string name="quality_score_good">良好</string>
+    <string name="quality_score_needs_improvement">改善が必要</string>
+    <string name="sprout_action_continue_chat">さらに質問</string>
+    <string name="sprout_action_copy_full">全文をコピー</string>
+    <string name="sprout_action_copied">コピーしました</string>
+    <string name="sprout_action_restart">最初からやり直す</string>
+    <string name="sprout_cd_cancelled">発芽をキャンセルしました</string>
+    <string name="sprout_cd_close_report">発芽レポートを閉じる</string>
+    <string name="sprout_cd_error">発芽処理エラー</string>
+    <string name="sprout_cd_report_content">発芽レポート内容、計 %1$d 文字</string>
+    <string name="sprout_cd_report_view">発芽レポートビュー</string>
+    <string name="sprout_error_desc">発芽処理中にエラーが発生しました</string>
+    <string name="sprout_error_hint">ネットワーク接続を確認するか、後でもう一度お試しください</string>
+    <string name="sprout_phase_connection_progress">知識のつながりを構築中…</string>
+    <string name="sprout_phase_insight_progress">洞察を生成中…</string>
+    <string name="sprout_phase_quote_progress">金言を抽出中…</string>
+    <string name="sprout_phase_seed_progress">重要な情報を抽出中…</string>
+    <string name="sprout_report_title">発芽レポート</string>
+    <string name="sprout_status_done">発芽完了</string>
+    <string name="sprout_status_failed">発芽失敗</string>
+    <string name="sprout_status_processing">処理中…</string>
+    <string name="sprout_time_cost">所要時間 %1$s</string>
+    <string name="sprout_title">知識発芽</string>
+    <string name="sprout_title_cancelled">キャンセル済み</string>
+    <string name="sprout_title_error">エラー</string>
+
+    <!-- StreamingComponents -->
+    <string name="question_tool_answer_prefix">回答：%1$s</string>
+    <string name="question_tool_default_prompt">選択してください：</string>
+    <string name="question_tool_multi_select_hint">（複数選択可）</string>
+    <string name="streaming_action_hide_thinking">思考プロセスを折りたたむ</string>
+    <string name="streaming_action_show_thinking">思考プロセスを見る</string>
+    <string name="streaming_cd_sources">参照元</string>
+    <string name="streaming_cd_thinking">思考</string>
+    <string name="streaming_label_assistant">アシスタント</string>
+    <string name="streaming_sources_count">%1$d 件の参照元</string>
+    <string name="streaming_thinking_default">考え中</string>
+    <string name="tool_name_knowledge_base">ナレッジベース</string>
+    <string name="tool_name_read_url">読み取り</string>
+    <string name="tool_name_speech_to_text">音声テキスト変換</string>
+    <string name="tool_name_web_search">検索</string>
+    <string name="tool_state_cd">ツール状態</string>
+    <string name="tool_state_completed">完了</string>
+    <string name="tool_state_error_prefix">エラー：%1$s</string>
+    <string name="tool_state_error_with_message">エラー：%1$s</string>
+    <string name="tool_state_parameters_prefix">パラメータ：%1$s</string>
+    <string name="tool_state_partial_timeout_with_message">一部タイムアウト：%1$s</string>
+    <string name="tool_state_pending">実行待ち…</string>
+    <string name="tool_state_read_completed">読み取り完了</string>
+    <string name="tool_state_reading_url">読み取り中：%1$s</string>
+    <string name="tool_state_running">実行中…</string>
+    <string name="tool_state_search_completed">検索完了</string>
+    <string name="tool_state_searched_query">検索済み：%1$s</string>
+    <string name="tool_state_searching_with_query">検索中：%1$s</string>
+    <string name="tool_state_source_added">参照元を追加</string>
+    <string name="tool_state_timeout">取得タイムアウト</string>
+    <string name="tool_state_unknown">不明</string>
+    <string name="action_skip">スキップ</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_skip">スキップ</string>
+    <string name="onboarding_next">次へ</string>
+    <string name="onboarding_prev">前へ</string>
+    <string name="onboarding_get_started">Opedrgent を始める</string>
+    <string name="onboarding_page_welcome_title">Opedrgent へようこそ</string>
+    <string name="onboarding_page_welcome_subtitle">ローカル優先で拡張可能な AI アシスタント。対話、ノート、ナレッジグラフ、全二重音声、動的スキルが共に成長し、AI をあなたの外脳にします。</string>
+    <string name="onboarding_page_chat_title">いつでも対話</string>
+    <string name="onboarding_page_chat_subtitle">複数回対話、ツール呼び出し、ウェブ検索、深掘り調査に対応。必要に応じて AI が能動的に確認し、センシティブな操作を勝手に実行することはありません。</string>
+    <string name="onboarding_page_notes_title">ノートとナレッジグラフ</string>
+    <string name="onboarding_page_notes_subtitle">インスピレーション、会議、画像、リンクを記録。保存すると自動的にナレッジグラフが構築され、ノート間の隠れたつながりを見つけられます。</string>
+    <string name="onboarding_page_sprout_title">思考空間の発芽</string>
+    <string name="onboarding_page_sprout_subtitle">任意のノートで発芽をトリガーすると、AI が多角的に深く分析し、インスピレーションのつながり、洞察、行動提案を生成します。結果をシードとして再度発芽することもできます。</string>
+    <string name="onboarding_page_interview_title">全二重音声インタビュー</string>
+    <string name="onboarding_page_interview_subtitle">リアルタイム全二重音声対話、ハードウェア AEC エコーキャンセル、VAD 音声検出、スマートバージインに対応。模擬面接、スピーキング練習、ディープインタビューに最適です。</string>
+    <string name="onboarding_page_offline_title">ローカル優先、プライバシー管理</string>
+    <string name="onboarding_page_offline_subtitle">データはデフォルトでデバイスにローカル保存されます。Gemma 4 などのローカルモデルを読み込めば完全オフラインで動作し、必要に応じてクラウド API も設定できます。</string>
+
+    <!-- MainViewModel / AppRoot UI messages -->
+    <string name="error_api_key_required">先に設定で API Key を入力してください</string>
+    <string name="msg_confirm_execute_default">実行を確認しますか？</string>
+    <string name="confirm_options_default">確認,キャンセル</string>
+    <string name="streaming_phase_waiting_choice">ユーザーの選択を待っています...</string>
+    <string name="streaming_phase_waiting_confirm">確認を待っています...</string>
+    <string name="msg_fetch_empty_body">取得失敗：本文が空です</string>
+    <string name="msg_fetch_failed">取得に失敗しました</string>
+    <string name="msg_deep_research_status">深掘り調査モード%1$s。有効にすると複雑な質問はマルチエージェントが協調して処理します。</string>
+    <string name="state_enabled">オン</string>
+    <string name="state_disabled">オフ</string>
+    <string name="msg_export_success">セッションをエクスポート: %1$s\nパス: %2$s</string>
+    <string name="msg_export_failed_no_active_session">エクスポート失敗：アクティブなセッションがありません</string>
+    <string name="msg_tts_speak">TTS 読み上げ: %1$s</string>
+    <string name="msg_interview_shortcut_hint">「面接」タブで面接パラメータを設定してから開始してください。ショートカット /interview はナビゲーション案内のみです。</string>
+    <string name="msg_image_load_failed">画像の読み込みに失敗しました</string>
+    <string name="msg_starting_multi_agent">マルチエージェント協調を起動中...</string>
+    <string name="msg_multi_agent_details_header">\n\n---\n**マルチエージェント協調の詳細** (%1$dエージェント、%2$dms)</string>
+    <string name="msg_multi_agent_failed">マルチエージェント実行失敗: %1$s</string>
+    <string name="msg_voice_message_with_transcript">[ボイスメッセージ] %1$s</string>
+    <string name="msg_voice_message">[ボイスメッセージ]</string>
+    <string name="msg_import_success_name">インポート成功：%1$s</string>
+    <string name="msg_import_failed_reason">インポート失敗：%1$s</string>
+
+    <!-- Preview samples -->
+    <string name="sample_transcript">こんにちは、これは音声転写のサンプルテキストです。</string>
+    <string name="sample_user_message_preview">こんにちは、これはユーザーメッセージのプレビューです。</string>
+</resources>

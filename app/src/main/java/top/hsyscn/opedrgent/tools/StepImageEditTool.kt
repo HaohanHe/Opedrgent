@@ -377,7 +377,11 @@ class StepImageEditTool(
             if (!file.exists()) null
             else {
                 val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
-                bitmapToBase64(bitmap, "png")
+                try {
+                    bitmapToBase64(bitmap, "png")
+                } finally {
+                    bitmap.recycle()
+                }
             }
         } catch (_: Exception) { null }
     }

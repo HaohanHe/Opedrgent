@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import top.hsyscn.opedrgent.MainActivity
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -88,7 +89,7 @@ class MediaProjectionService : Service() {
 
         if (data == null) {
             DebugLog.e(TAG, "onStartCommand: result data is null")
-            onError?.invoke("录制授权数据缺失")
+            onError?.invoke(getString(R.string.notif_media_projection_error_no_data))
             stopSelf()
             return START_NOT_STICKY
         }
@@ -102,12 +103,12 @@ class MediaProjectionService : Service() {
                 onReady?.invoke(projection)
             } else {
                 DebugLog.e(TAG, "getMediaProjection returned null")
-                onError?.invoke("无法获取屏幕录制权限")
+                onError?.invoke(getString(R.string.notif_media_projection_error_no_permission))
                 stopSelf()
             }
         } catch (e: Exception) {
             DebugLog.e(TAG, "getMediaProjection failed: ${e.message}", e)
-            onError?.invoke("获取录制权限失败: ${e.message}")
+            onError?.invoke(getString(R.string.notif_media_projection_error_failed, e.message ?: ""))
             stopSelf()
         }
 
@@ -129,10 +130,10 @@ class MediaProjectionService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "屏幕录制",
+                getString(R.string.notif_channel_media_projection_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "系统音频录制需要的前台服务"
+                description = getString(R.string.notif_channel_media_projection_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -149,8 +150,8 @@ class MediaProjectionService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("Opedrgent 录制中")
-            .setContentText("正在录制系统音频")
+            .setContentTitle(getString(R.string.notif_media_projection_title))
+            .setContentText(getString(R.string.notif_media_projection_text))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

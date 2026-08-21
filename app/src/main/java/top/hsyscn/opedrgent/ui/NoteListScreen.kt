@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -126,8 +128,8 @@ fun NoteListScreen(
     var latestNoteTitle by remember { mutableStateOf("") }
 
     // 文件夹数据
-    val folders by folderRepository.getByParent(currentFolderId).collectAsState(initial = emptyList())
-    val allFolders by folderRepository.getAllFolders().collectAsState(initial = emptyList())
+    val folders by folderRepository.getByParent(currentFolderId).collectAsStateWithLifecycle(initialValue = emptyList())
+    val allFolders by folderRepository.getAllFolders().collectAsStateWithLifecycle(initialValue = emptyList())
 
     // 笔记数据
     val notesFlow = remember(searchQuery, selectedType, selectedTag, currentFolderId, isAiSearchActive) {
@@ -143,12 +145,12 @@ fun NoteListScreen(
             repository.getByFolder(currentFolderId)
         }
     }
-    val notes by notesFlow.collectAsState(initial = emptyList())
+    val notes by notesFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val displayNotes = remember(isAiSearchActive, aiSearchResults, notes) {
         if (isAiSearchActive) aiSearchResults.map { it.note } else notes
     }
-    val noteCount by repository.countAll().collectAsState(initial = 0L)
-    val allTags by repository.getAllTags().collectAsState(initial = emptyList())
+    val noteCount by repository.countAll().collectAsStateWithLifecycle(initialValue = 0L)
+    val allTags by repository.getAllTags().collectAsStateWithLifecycle(initialValue = emptyList())
 
     val pinnedNotes by remember(displayNotes) {
         derivedStateOf { displayNotes.filter { it.isPinned } }
@@ -168,7 +170,7 @@ fun NoteListScreen(
         if (displayNotes.isNotEmpty() && !isAiSearchActive) {
             val latest = displayNotes.first()
             latestNoteTitle = latest.title.ifBlank { context.getString(R.string.note_editor_title_placeholder) }
-            recommendedNotes = repository.getLinkedNotesWithTitles(latest.id)
+            recommendedNotes = withContext(Dispatchers.IO) { repository.getLinkedNotesWithTitles(latest.id) }
         } else {
             recommendedNotes = emptyList()
             latestNoteTitle = ""
@@ -797,7 +799,7 @@ private fun FolderNavigation(
                 horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm),
                 verticalArrangement = Arrangement.spacedBy(SpacingTokens.xs),
             ) {
-                gridItems(folders) { folder ->
+                gridItems(folders, key = { it.id }) { folder ->
                     FolderItem(
                         folder = folder,
                         onClick = { onFolderClick(folder.id) },
@@ -939,8 +941,11 @@ private fun NotePreviewPanel(
                     .padding(horizontal = SpacingTokens.sm, vertical = SpacingTokens.xs),
             )
             Spacer(Modifier.width(SpacingTokens.sm))
+            val dateText = remember(note.updatedAt) {
+                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(note.updatedAt))
+            }
             Text(
-                text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
+                text = dateText,
                 style = MaterialTheme.typography.labelSmall,
                 color = themeForegroundMuted(),
             )
@@ -1389,7 +1394,7 @@ private fun noteMetaText(note: Note): String {
             val count = if (note.wordCount > 0) note.wordCount else note.content.length
             when {
                 count >= 10000 -> stringResource(R.string.note_list_count_10000_zi, count / 10000, (count % 10000) / 1000)
-                count >= 1000 -> stringResource(R.string.note_list_count_1000_zi, count / 1000, String.format("%03d", count % 1000))
+                count >= 1000 -> stringResource(R.string.note_list_count_1000_zi, count / 1000, String.format(java.util.Locale.US, "%03d", count % 1000))
                 else -> stringResource(R.string.note_list_count_zi, count)
             }
         }

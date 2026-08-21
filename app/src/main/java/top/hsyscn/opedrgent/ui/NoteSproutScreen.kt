@@ -750,6 +750,7 @@ private fun ConceptsSection(concepts: List<String>) {
 
 @Composable
 private fun SproutLoadingView() {
+    val context = LocalContext.current
     val infiniteTransition = rememberInfiniteTransition(label = "sprout_loading")
     val sproutProgress by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -856,19 +857,19 @@ private fun SproutLoadingView() {
         Spacer(Modifier.height(SpacingTokens.xl))
 
         // 名言轮播 — 跟下载弹窗一样的逻辑
-        var shuffledIndices by remember { mutableStateOf(DownloadQuotes.ALL_QUOTES.indices.shuffled()) }
+        var shuffledIndices by remember { mutableStateOf(DownloadQuotes.getQuotes(context).indices.shuffled()) }
         var quotePointer by remember { mutableIntStateOf(0) }
         LaunchedEffect(Unit) {
             while (true) {
                 kotlinx.coroutines.delay(10_000L)
                 quotePointer++
                 if (quotePointer >= shuffledIndices.size) {
-                    shuffledIndices = DownloadQuotes.ALL_QUOTES.indices.shuffled()
+                    shuffledIndices = DownloadQuotes.getQuotes(context).indices.shuffled()
                     quotePointer = 0
                 }
             }
         }
-        val currentQuote = DownloadQuotes.ALL_QUOTES[shuffledIndices[quotePointer]]
+        val currentQuote = DownloadQuotes.getQuotes(context)[shuffledIndices[quotePointer]]
         Card(
             modifier = Modifier.fillMaxWidth().padding(horizontal = SpacingTokens.xl),
             shape = ShapeTokens.mediumShape,
@@ -1067,3 +1068,4 @@ private fun SproutArticle.toShareText(context: Context): String = buildString {
 
 /** 将 SproutArticle 转为完整 Markdown 文本（用于复制/导出） */
 private fun SproutArticle.toMarkdownText(context: Context): String = toMarkdown(context)
+

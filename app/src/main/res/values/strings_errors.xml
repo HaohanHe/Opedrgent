@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Common errors ========== -->
+    <string name="error_request_failed">请求失败</string>
+    <string name="error_connection_failed">连接失败</string>
+    <string name="error_save_failed">保存失败</string>
+    <string name="error_file_read_failed">文件读取失败</string>
+    <string name="error_unknown_error">未知错误</string>
+
+    <!-- ========== Skill errors ========== -->
+    <string name="error_skill_not_found">未找到技能：%1$s</string>
+    <string name="error_skill_name_content_empty">技能名称和内容不能为空</string>
+    <string name="error_no_active_session">请先打开或创建一个 AI 会话</string>
+    <string name="error_cannot_delete_builtin_skill">无法删除技能 \'%1$s\'（可能为内置技能）</string>
+
+    <!-- ========== Tool execution errors ========== -->
+    <string name="error_max_retries_exceeded">重试次数过多，已自动停止</string>
+    <string name="error_tool_protection_skipped">工具调用保护: %1$s 连续失败过多，已自动跳过</string>
+    <string name="error_tool_timeout">工具执行超时（60秒），请尝试其他方式</string>
+    <string name="error_tool_protection_fatal">工具调用保护: 检测到严重问题，已自动停止</string>
+    <string name="error_tool_protection_no_progress">工具调用保护: 工具调用无进展，已自动停止</string>
+    <string name="error_web_search_disabled">联网查询功能已关闭。当前仅基于本地知识和已有笔记回答问题。</string>
+    <string name="error_tool_execution_timeout">工具 \'%1$s\' 执行超时（%2$d 秒），已返回部分/空结果。该失败不影响其他工具。</string>
+    <string name="error_tool_execution_failed">工具 \'%1$s\' 执行失败: %2$s</string>
+    <string name="error_no_skill_name">错误: 未指定技能名称</string>
+    <string name="error_skill_system_not_init">错误: 技能系统未初始化</string>
+    <string name="error_skill_not_found_or_disabled">错误: 未找到名为 \'%1$s\' 的技能，或该技能已禁用</string>
+    <string name="error_tool_no_output">工具执行完成但无输出</string>
+    <string name="error_tool_security_error">工具执行失败: 安全权限错误 (%1$s)</string>
+    <string name="error_tool_generic_failed">工具执行失败: %1$s</string>
+    <string name="error_tool_partial_timeout">工具执行部分超时</string>
+    <string name="error_tool_abnormal_end">工具未正常结束</string>
+    <string name="error_resource_unavailable">该资源不可用</string>
+    <string name="error_tool_timeout_or_network">工具执行超时或网络暂不可用: %1$s</string>
+    <string name="error_tool_rate_limited">工具执行遇到限流或访问限制: %1$s</string>
+    <string name="error_unknown_tool">未知工具：%1$s</string>
+
+    <!-- ========== Interview errors ========== -->
+    <string name="interview_category_followup">追问</string>
+    <string name="interview_category_end">结束</string>
+    <string name="error_interview_start_failed">启动面试失败: %1$s</string>
+    <string name="error_interview_processing_failed">处理失败: %1$s</string>
+    <string name="error_interview_report_failed">报告生成失败: %1$s</string>
+
+    <!-- ========== Agent tool handler errors ========== -->
+    <string name="error_ask_question_failed">ask_question 处理失败: %1$s</string>
+    <string name="error_ask_confirmation_failed">ask_confirmation 处理失败: %1$s</string>
+    <string name="error_memory_lookup_failed">查阅记忆失败: %1$s</string>
+
+    <!-- ========== Feature-specific errors ========== -->
+    <string name="error_evolution_failed">进化失败</string>
+    <string name="error_organize_failed">整理失败</string>
+    <string name="error_automation_suggestion_failed">自动化建议失败</string>
+    <string name="error_automation_prompt_empty">自动化提示词为空</string>
+    <string name="error_no_clear_schedule_time">未提取到明确时间的日程</string>
+    <string name="error_calendar_suggestion_failed">日程建议失败</string>
+    <string name="error_no_content_fetched">没有抓取到内容</string>
+    <string name="error_web_search_failed">联网查询失败</string>
+    <string name="error_pdf_ocr_failed">PDF OCR 失败</string>
+    <string name="error_pdf_multimodal_failed">PDF 多模态失败</string>
+    <string name="error_docx_read_failed">Word 文档读取失败</string>
+
+    <!-- ========== STT errors ========== -->
+    <string name="error_stt_failed">语音识别失败: %1$s</string>
+
+    <!-- ========== STT engine errors ========== -->
+    <string name="error_stepaudio_not_initialized">StepAudio ASR 未初始化</string>
+    <string name="error_file_empty_or_unreadable">文件为空或无法读取</string>
+    <string name="error_cannot_open_uri">无法打开 URI: %1$s</string>
+    <string name="error_transcription_exception">转录异常: %1$s</string>
+    <string name="error_file_not_exists">文件不存在: %1$s</string>
+    <string name="error_stepaudio_file_only">StepAudio ASR 仅支持文件转录。实时语音请使用「面试模式」的 StepRealtimeClient。</string>
+    <string name="error_api_call_exception">API 调用异常: %1$s</string>
+    <string name="error_diarizer_not_initialized">未初始化或API不可用</string>
+    <string name="error_empty_audio_data">空音频数据</string>
+    <string name="error_diarizer_instance_not_init">diarizer 实例未初始化</string>
+    <string name="error_diarize_null">diarize 返回 null</string>
+    <string name="error_audio_decode_empty">音频解码为空</string>
+    <string name="error_audio_decode_failed">音频解码失败</string>
+    <string name="error_streaming_session_active">已有流式会话在进行中</string>
+    <string name="error_streaming_recognition_error">流式识别错误: %1$s</string>
+    <string name="error_choices_empty">choices为空</string>
+    <string name="error_parse_response_failed">解析响应失败: %1$s</string>
+    <string name="error_mimo_not_initialized">MimoAsrEngine 未初始化，请先调用 initialize()</string>
+    <string name="error_asr_init_failed">ASR 引擎初始化失败</string>
+    <string name="error_transcription_failed">转录失败: %1$s</string>
+    <string name="error_asr_not_initialized">ASR 引擎未初始化</string>
+    <string name="error_diarizer_model_not_found">未找到说话人分离模型文件: %1$s</string>
+    <string name="error_meeting_transcriber_not_init">MeetingTranscriber 未初始化</string>
+    <string name="error_download_switching_source">主源失败，正在切换备用源…</string>
+    <string name="error_download_retrying">网络波动，正在重试 (%1$d/%2$d)</string>
+    <string name="error_user_cancelled">用户取消</string>
+
+    <!-- ========== Audio validation errors ========== -->
+    <string name="error_audio_unsupported_format">无法读取音频文件或格式不支持。支持 MP3/AAC/WAV/M4A/OGG 及常见视频封装中的音频轨道。</string>
+    <string name="error_audio_zero_duration">音频文件时长为 0 或无法获取时长，文件可能损坏。</string>
+    <string name="error_audio_too_long">音频时长超过 4 小时限制 (%1$s秒)。建议先裁剪再处理。</string>
+    <string name="error_audio_bad_sample_rate">采样率异常 (%1$dHz)，文件可能损坏。</string>
+    <string name="error_audio_permission_denied">无权访问该文件，请检查存储权限设置。</string>
+    <string name="error_audio_validation_failed">验证失败: %1$s</string>
+    <string name="error_insufficient_storage">存储空间不足：可用 %1$dMB，需要 %2$dMB</string>
+</resources>

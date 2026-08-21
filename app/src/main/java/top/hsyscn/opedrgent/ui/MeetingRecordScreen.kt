@@ -881,7 +881,7 @@ private fun TranscriptTextContent(
         verticalArrangement = Arrangement.spacedBy(SpacingTokens.none),
         modifier = Modifier.fillMaxSize(),
     ) {
-        itemsIndexed(segments, key = { index, _ -> index }) { index, segment ->
+        itemsIndexed(segments, key = { _, seg -> seg.startTimeMs }) { index, segment ->
             SentenceItem(
                 segment = segment,
                 isPlaying = (index == currentPlayingIndex),
@@ -1500,8 +1500,10 @@ private fun NoteInputArea(
 }
 
 /** 格式化笔记创建时间为 "HH:mm" */
+private val noteTimeFormat = ThreadLocal<java.text.SimpleDateFormat>()
+
 private fun formatNoteTimestamp(timestampMs: Long): String {
-    val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+    val fmt = noteTimeFormat.get() ?: java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).also { noteTimeFormat.set(it) }
     return fmt.format(java.util.Date(timestampMs))
 }
 

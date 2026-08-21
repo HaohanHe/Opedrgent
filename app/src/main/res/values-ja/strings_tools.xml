@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== OCR errors ========== -->
+    <string name="error_cannot_decode_image">画像ファイルをデコードできません</string>
+    <string name="error_cannot_open_uri_generic">URI を開けません: %1$s</string>
+
+    <!-- ========== Agent status ========== -->
+    <string name="agent_phase_thinking">考え中</string>
+    <string name="agent_phase_continue_thinking">考え続けています</string>
+    <string name="agent_phase_executing">実行中: %1$s</string>
+    <string name="agent_phase_retry_failed">リクエスト失敗、%1$d秒後に再試行…(%2$d回目)</string>
+    <string name="agent_phase_guardrail_duplicate_params">[ツールガードレール] 反省後も同じパラメータを繰り返したため、自動停止しました</string>
+    <string name="agent_phase_guardrail_fatal">[ツールガードレール] 重大な問題を検出したため、自動停止しました</string>
+    <string name="agent_phase_guardrail_no_adjust">[ツールガードレール] 反省後も戦略が調整されないため、自動停止しました</string>
+    <string name="agent_phase_guardrail_reflecting">[ツールガードレール] 繰り返しパターンを検出、反省中…</string>
+    <string name="agent_error_guardrail_duplicate">ツールガードレール: 反省後も同じパラメータを繰り返したため、セッションを停止しました</string>
+    <string name="agent_error_guardrail_fatal">ツールガードレール: 重大な問題を検出したため、セッションを停止しました</string>
+    <string name="agent_error_guardrail_no_adjust">ツールガードレール: 反省後も戦略が調整されないため、セッションを停止しました</string>
+    <string name="agent_error_reflection_failed">反省ラウンド失敗: %1$s</string>
+    <string name="agent_error_guardrail_reflection_tool">ツールガードレール: 反省ラウンドでモデルがツール呼び出しを試みたため、セッションを停止しました</string>
+    <string name="agent_error_max_retries">再試行回数が多すぎます</string>
+    <string name="agent_status_partial_timeout">部分タイムアウト</string>
+    <string name="agent_status_timeout">タイムアウト/ネットワーク利用不可</string>
+    <string name="agent_status_rate_limited">レート制限またはアクセス制限</string>
+    <string name="agent_error_tool_failed">ツール実行失敗: %1$s</string>
+    <string name="agent_tool_temp_issue_hint">[システムヒント: このツール呼び出しで%1$sが発生しました。これは一時的な問題です。既存の情報で十分だと思われる場合は段階的な結論を直接示してください。さらに情報が必要な場合は、他のキーワード、ツール、URLを試し、同じ失敗パラメータで繰り返し呼び出さないでください。]</string>
+    <string name="agent_error_session_not_found">セッションが見つかりません: %1$s</string>
+    <string name="agent_error_request_failed">リクエスト失敗</string>
+    <string name="agent_checkpoint_guardrail">ツールガードレールが発動しました</string>
+    <string name="agent_checkpoint_max_rounds">最大ラウンド数に達しました</string>
+    <string name="agent_checkpoint_max_rounds_or_error">最大ラウンド数に達したかエラーで中断しました</string>
+    <string name="agent_continuation_intro">これは以前の研究の続きです。%1$dラウンド実施し、%2$d件の情報源を収集しました。</string>
+    <string name="agent_continuation_reason">前回は%1$sにより中断しました。既存の情報に基づいて続行するか、情報が十分であると判断して結論を出力してください。</string>
+    <string name="agent_continuation_sources">\n\n最新のツール結果の要約:\n</string>
+
+    <!-- ========== Tool errors ========== -->
+    <string name="error_missing_search_keyword">検索キーワードがありません</string>
+    <string name="error_webview_no_results">WebView 検索で関連結果が見つかりませんでした。別のキーワードや検索方法をお試しください。</string>
+    <string name="error_multimodal_click_failed">マルチモーダル仮想クリックに失敗しました</string>
+    <string name="error_provider_search_empty">プロバイダー検索が空を返しました</string>
+    <string name="error_no_search_results">\'%1$s\' に関連する検索結果が見つかりません。別のキーワードをお試しください。</string>
+    <string name="error_cannot_fetch_url">指定された URL のコンテンツを取得できません。Jina Reader と内蔵ブラウザの両方を試しました。</string>
+    <string name="error_missing_url">URL がありません</string>
+    <string name="error_no_title">無題</string>
+    <string name="error_read_url_failed">読み取り失敗: %1$s (%2$s、別のソースや検索キーワードをお試しください)</string>
+    <string name="error_invalid_action">無効な action=\'%1$s\'、forward または reverse のみ対応</string>
+    <string name="error_forward_needs_place"> forward ジオコーディングには place パラメータ（地名または住所）が必要です</string>
+    <string name="error_geocode_not_found">\'%1$s\' の座標が見つかりません。地名を確認するか、より完全な住所をお試しください。</string>
+    <string name="error_missing_lat_lon">緯度経度パラメータ lat, lon がありません</string>
+    <string name="error_reverse_geocode_failed">%1$s, %2$s（逆ジオコーディング失敗、GPS 生座標です）</string>
+    <string name="error_execution_timeout">実行タイムアウト (%1$dms)</string>
+
+    <!-- ========== Editor Team ========== -->
+    <string name="editor_platform_wechat">公式アカウント</string>
+    <string name="editor_platform_xiaohongshu">小紅書</string>
+    <string name="editor_platform_moments">モーメンツ</string>
+    <string name="editor_platform_douyin">Douyin 投稿</string>
+    <string name="editor_platform_pdf">PDFレポート</string>
+    <string name="editor_error_no_api_key">API Key が未設定です</string>
+    <string name="editor_error_user_cancelled">ユーザーによりキャンセルされました</string>
+    <string name="editor_error_pipeline">パイプライン実行エラー</string>
+    <string name="editor_error_execution_interrupted">実行が中断されました: %1$s</string>
+
+    <!-- ========== MainViewModel streaming phases ========== -->
+    <string name="phase_error">エラー</string>
+    <string name="phase_no_api_key_offline">API Key が未設定のため、オフラインモードを使用します…</string>
+    <string name="phase_network_error_offline">ネットワークエラー、オフラインモードに切り替え中…</string>
+    <string name="phase_token_decreasing_end">トークンの減少を検出したため、生成を終了します</string>
+    <string name="phase_generating_final">最終回答を生成中…</string>
+    <string name="phase_cached_answer">回答（キャッシュ）</string>
+    <string name="phase_generating">回答を生成中…</string>
+    <string name="phase_thinking">考え中…</string>
+    <string name="phase_waiting_selection">ユーザーの選択を待っています…</string>
+    <string name="phase_waiting_confirm">確認待ち…(%1$dsでタイムアウト)</string>
+    <string name="phase_network_disconnected">ネットワークが切断されました。復旧を待っています…</string>
+    <string name="phase_compacting">コンテキストを圧縮中…</string>
+    <string name="phase_local_inferencing">ローカルモデルで推論中…</string>
+</resources>

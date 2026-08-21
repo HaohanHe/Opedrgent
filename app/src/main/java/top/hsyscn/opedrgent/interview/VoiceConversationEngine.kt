@@ -6,6 +6,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -330,7 +331,7 @@ class VoiceConversationEngine(
             val sid = currentSessionId
             val cfg = currentInterviewConfig
             if (sid != null && cfg != null) {
-                CoroutineScope(Dispatchers.IO).launch {
+                engineScope.launch(Dispatchers.IO + NonCancellable) {
                     try {
                         val snapshot = h.exportSessionSnapshot()
                         if (snapshot != null) {

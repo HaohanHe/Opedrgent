@@ -16,7 +16,9 @@ import android.util.Base64
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
@@ -150,14 +152,14 @@ class ScreenCaptureManager(private val context: Context) {
             suspendCancellableCoroutine<Image?> { cont ->
                 val listener = ImageReader.OnImageAvailableListener { readerRef ->
                     val img = readerRef.acquireLatestImage()
-                    if (img != null) {
+                    if (img != null && !cont.isCompleted) {
                         cont.resume(img)
                     }
                 }
                 reader.setOnImageAvailableListener(listener, null)
 
-                Thread {
-                    Thread.sleep(500)
+                val timeoutJob = CoroutineScope(cont.context).launch {
+                    delay(500)
                     val img = reader.acquireLatestImage()
                     if (img != null && !cont.isCompleted) {
                         cont.resume(img)
@@ -165,7 +167,12 @@ class ScreenCaptureManager(private val context: Context) {
                         reader.setOnImageAvailableListener(null, null)
                         cont.resume(null)
                     }
-                }.start()
+                }
+
+                cont.invokeOnCancellation {
+                    timeoutJob.cancel()
+                    reader.setOnImageAvailableListener(null, null)
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -191,7 +198,7 @@ class ScreenCaptureManager(private val context: Context) {
         }
 
         return try {
-            val base64 = bitmapToBase64(bitmap!!)
+            val base64 = bitmapToBase64(bitmap)
             DebugLog.i(TAG, "截图成功: ${bitmap.width}x${bitmap.height}, base64长度=${base64.length}")
             base64
         } catch (e: Exception) {

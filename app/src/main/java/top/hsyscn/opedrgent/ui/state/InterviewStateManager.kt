@@ -141,7 +141,7 @@ class InterviewStateManager(
 
                 engine.startFullDuplex(
                     onAiSpeak = { text ->
-                        val turn = DialogueTurn(role = "interviewer", content = text, questionCategory = "追问")
+                        val turn = DialogueTurn(role = "interviewer", content = text, questionCategory = app.getString(R.string.interview_category_followup))
                         interviewTranscript.add(turn)
                         currentQuestionIdx++
                         _interviewState.value = _interviewState.value.copy(
@@ -206,7 +206,7 @@ class InterviewStateManager(
             } catch (e: Exception) {
                 DebugLog.e("Interview", "启动面试失败: ${e.message}", e)
                 _interviewState.value = _interviewState.value.copy(
-                    error = "启动面试失败: ${e.message}",
+                    error = app.getString(R.string.error_interview_start_failed, e.message ?: app.getString(R.string.error_unknown_error)),
                 )
             }
         }
@@ -260,7 +260,7 @@ class InterviewStateManager(
                         val followUpTurn = DialogueTurn(
                             role = "interviewer",
                             content = nextAction.question,
-                            questionCategory = "追问",
+                            questionCategory = app.getString(R.string.interview_category_followup),
                             followUpDepth = lastInterviewerMessage.followUpDepth + 1,
                         )
                         interviewTranscript.add(followUpTurn)
@@ -279,7 +279,7 @@ class InterviewStateManager(
                         val endTurn = DialogueTurn(
                             role = "interviewer",
                             content = nextAction.reason,
-                            questionCategory = "结束",
+                            questionCategory = app.getString(R.string.interview_category_end),
                         )
                         interviewTranscript.add(endTurn)
 
@@ -314,7 +314,7 @@ class InterviewStateManager(
                 DebugLog.e("Interview", "处理回答失败: ${e.message}", e)
                 _interviewState.value = _interviewState.value.copy(
                     phase = InterviewPhase.IN_PROGRESS,
-                    error = "处理失败: ${e.message}",
+                    error = app.getString(R.string.error_interview_processing_failed, e.message ?: app.getString(R.string.error_unknown_error)),
                 )
             }
         }
@@ -361,7 +361,7 @@ class InterviewStateManager(
             DebugLog.e("Interview", "生成报告失败: ${e.message}", e)
             _interviewState.value = _interviewState.value.copy(
                 phase = InterviewPhase.COMPLETED,
-                error = "报告生成失败: ${e.message}",
+                error = app.getString(R.string.error_interview_report_failed, e.message ?: app.getString(R.string.error_unknown_error)),
             )
         } finally {
             voiceEngine?.stopFullDuplex()

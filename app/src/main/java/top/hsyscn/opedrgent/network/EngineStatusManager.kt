@@ -85,6 +85,7 @@ object EngineStatusManager {
     private val responseTimeAccumulators = ConcurrentHashMap<String, AtomicLong>()
     
     // 健康检查协程
+    @Volatile
     private var healthCheckJob: Job? = null
     
     /**

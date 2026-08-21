@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -99,7 +101,7 @@ fun NoteGraphScreen(
     var stats by remember { mutableStateOf(KnowledgeGraph.GraphStats(0, 0, 0, 0f)) }
     var edgeDetails by remember { mutableStateOf<List<KnowledgeGraph.GraphEdgeDetail>>(emptyList()) }
     var linkCounts by remember { mutableStateOf<Map<Long, Int>>(emptyMap()) }
-    val allNotes by repository.getAllNotes().collectAsState(initial = emptyList())
+    val allNotes by repository.getAllNotes().collectAsStateWithLifecycle(initialValue = emptyList())
 
     LaunchedEffect(refreshTrigger, allNotes) {
         val newStats = withContext(Dispatchers.IO) { repository.getKnowledgeStats() }

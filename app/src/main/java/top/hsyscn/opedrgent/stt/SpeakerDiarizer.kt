@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.stt
 
 import android.content.Context
+import top.hsyscn.opedrgent.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -152,18 +153,18 @@ class SpeakerDiarizer(private val context: Context) {
         sampleRate: Int = SAMPLE_RATE,
     ): DiarizationResult = withContext(Dispatchers.Default) {
         if (!_isInitialized || diarizerInstance == null) {
-            return@withContext DiarizationResult(emptyList(), error = "未初始化或API不可用")
+            return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_diarizer_not_initialized))
         }
         if (samples.isEmpty()) {
-            return@withContext DiarizationResult(emptyList(), error = "空音频数据")
+            return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_empty_audio_data))
         }
 
         try {
             // 反射调用 diarizer.process(samples, sampleRate)
             val instance = diarizerInstance
-                ?: return@withContext DiarizationResult(emptyList(), error = "diarizer 实例未初始化")
+                ?: return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_diarizer_instance_not_init))
             val resultObj = invokeDiarize(instance, samples, sampleRate)
-                ?: return@withContext DiarizationResult(emptyList(), error = "diarize 返回 null")
+                ?: return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_diarize_null))
 
             parseDiarizationResult(resultObj)
         } catch (e: Exception) {
@@ -180,11 +181,11 @@ class SpeakerDiarizer(private val context: Context) {
             try {
                 val file = File(filePath)
                 if (!file.exists()) {
-                    return@withContext DiarizationResult(emptyList(), error = "文件不存在: $filePath")
+                    return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_file_not_exists, filePath))
                 }
                 val samples = decodeWavToFloat(file)
                 if (samples.isEmpty()) {
-                    return@withContext DiarizationResult(emptyList(), error = "音频解码为空")
+                    return@withContext DiarizationResult(emptyList(), error = context.getString(R.string.error_audio_decode_empty))
                 }
                 diarize(samples)
             } catch (e: Exception) {
@@ -459,3 +460,4 @@ class SpeakerDiarizer(private val context: Context) {
         val text: String = "",
     )
 }
+

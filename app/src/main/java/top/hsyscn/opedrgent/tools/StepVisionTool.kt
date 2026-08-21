@@ -354,7 +354,11 @@ class StepVisionTool(
         val path = args.optString("image_path", "").ifBlank { null } ?: return null
         return try {
             val bitmap = android.graphics.BitmapFactory.decodeFile(path) ?: return null
-            bitmapToBase64(bitmap)
+            try {
+                bitmapToBase64(bitmap)
+            } finally {
+                bitmap.recycle()
+            }
         } catch (_: Exception) { null }
     }
 

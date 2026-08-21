@@ -164,9 +164,9 @@ class SpeechToTextTool(
                 if (mediaType == MediaType.AUDIO) {
                     updateProgress(ProcessingPhase.DECODING, 8, "验证音频文件...")
 
-                    val (isValid, validationError) = AudioProcessor.validateAudioFile(context, uri)
-                    if (!isValid) {
-                        return@withContext emptyResult(tp, buildValidationError(validationError))
+                    val validation = AudioProcessor.validateAudioFile(context, uri)
+                    if (!validation.isValid) {
+                        return@withContext emptyResult(tp, buildValidationError(validation.errorCode, validation.errorMessage))
                     }
                 }
 
@@ -350,7 +350,10 @@ class SpeechToTextTool(
             }
             is IllegalStateException -> {
                 DebugLog.e(TAG, "状态异常: ${e.message}", e)
-                if (e.message?.contains("未初始化") == true || e.message?.contains("initialize") == true) {
+                if (e.message?.contains("未初始化") == true ||
+                    e.message?.contains("not initialized", ignoreCase = true) == true ||
+                    e.message?.contains("初期化されていません") == true ||
+                    e.message?.contains("initialize") == true) {
                     emptyResult(tp, buildModelNotDownloadedError())
                 } else {
                     emptyResult(tp, buildRecognitionError(e.message))
@@ -391,10 +394,10 @@ class SpeechToTextTool(
 请确认路径正确且文件存在。"""
     }
 
-    private fun buildValidationError(validationError: String?): String {
+    private fun buildValidationError(errorCode: Int, validationError: String?): String {
         val detail = validationError ?: "未知验证错误"
-        return when {
-            detail.contains("超过") || detail.contains("30 分钟") || detail.contains("1800") ->
+        return when (errorCode) {
+            AudioProcessor.ValidationErrorCode.TOO_LONG ->
                 """⏰ 文件时长超限
 
 $detail
@@ -403,9 +406,10 @@ $detail
 - 使用音频编辑软件截取前 30 分钟
 - 分段处理后合并结果
 - 对于会议录音，建议按议题拆分"""
-            detail.contains("权限") || detail.contains("访问") ->
+            AudioProcessor.ValidationErrorCode.PERMISSION_DENIED ->
                 buildPermissionError(null)
-            detail.contains("损坏") || detail.contains("时长为 0") ->
+            AudioProcessor.ValidationErrorCode.ZERO_DURATION,
+            AudioProcessor.ValidationErrorCode.BAD_SAMPLE_RATE ->
                 """🔧 文件可能损坏
 
 $detail
@@ -414,7 +418,7 @@ $detail
 - 确认文件可以正常播放
 - 尝试使用其他播放器打开
 - 重新录制或转换格式"""
-            detail.contains("采样率") || detail.contains("异常") ->
+            AudioProcessor.ValidationErrorCode.UNSUPPORTED_FORMAT ->
                 """🔍 文件格式异常
 
 $detail

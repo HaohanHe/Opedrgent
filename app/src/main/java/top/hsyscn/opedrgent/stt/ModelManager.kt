@@ -195,7 +195,7 @@ object ModelManager {
     }
 
     /** 缓存的推荐模型（RAM 不会变，只查一次） */
-    private var cachedRecommendedModel: ModelType? = null
+    @Volatile private var cachedRecommendedModel: ModelType? = null
 
     fun getRecommendedModel(context: Context): ModelType {
         cachedRecommendedModel?.let { return it }

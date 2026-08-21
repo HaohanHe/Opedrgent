@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== Common errors ========== -->
+    <string name="error_request_failed">リクエストに失敗しました</string>
+    <string name="error_connection_failed">接続に失敗しました</string>
+    <string name="error_save_failed">保存に失敗しました</string>
+    <string name="error_file_read_failed">ファイルの読み取りに失敗しました</string>
+    <string name="error_unknown_error">不明なエラー</string>
+
+    <!-- ========== Skill errors ========== -->
+    <string name="error_skill_not_found">スキルが見つかりません：%1$s</string>
+    <string name="error_skill_name_content_empty">スキル名と内容は空にできません</string>
+    <string name="error_no_active_session">先に AI セッションを開くか作成してください</string>
+    <string name="error_cannot_delete_builtin_skill">スキル \'%1$s\' を削除できません（ビルトインスキルの可能性があります）</string>
+
+    <!-- ========== Tool execution errors ========== -->
+    <string name="error_max_retries_exceeded">再試行回数が多すぎるため、自動的に停止しました</string>
+    <string name="error_tool_protection_skipped">ツール保護: %1$s が連続して失敗したため、自動的にスキップしました</string>
+    <string name="error_tool_timeout">ツールの実行がタイムアウトしました（60秒）。別の方法をお試しください</string>
+    <string name="error_tool_protection_fatal">ツール保護: 重大な問題を検出したため、自動的に停止しました</string>
+    <string name="error_tool_protection_no_progress">ツール保護: 進捗がないため、自動的に停止しました</string>
+    <string name="error_web_search_disabled">Web検索は無効です。現在はローカルの知識と既存のノートのみに基づいて回答します。</string>
+    <string name="error_tool_execution_timeout">ツール \'%1$s\' がタイムアウトしました（%2$d 秒）。一部/空の結果を返しました。この失敗は他のツールに影響しません。</string>
+    <string name="error_tool_execution_failed">ツール \'%1$s\' の実行に失敗: %2$s</string>
+    <string name="error_no_skill_name">エラー: スキル名が指定されていません</string>
+    <string name="error_skill_system_not_init">エラー: スキルシステムが初期化されていません</string>
+    <string name="error_skill_not_found_or_disabled">エラー: スキル \'%1$s\' が見つからないか、無効になっています</string>
+    <string name="error_tool_no_output">ツールは完了しましたが出力がありません</string>
+    <string name="error_tool_security_error">ツール実行失敗: セキュリティ権限エラー (%1$s)</string>
+    <string name="error_tool_generic_failed">ツール実行失敗: %1$s</string>
+    <string name="error_tool_partial_timeout">ツールが部分的にタイムアウトしました</string>
+    <string name="error_tool_abnormal_end">ツールが正常に終了しませんでした</string>
+    <string name="error_resource_unavailable">リソースは利用できません</string>
+    <string name="error_tool_timeout_or_network">ツールがタイムアウトしたかネットワークが一時的に利用不可: %1$s</string>
+    <string name="error_tool_rate_limited">ツールがレート制限またはアクセス制限に遭遇: %1$s</string>
+    <string name="error_unknown_tool">不明なツール：%1$s</string>
+
+    <!-- ========== Interview errors ========== -->
+    <string name="interview_category_followup">追加質問</string>
+    <string name="interview_category_end">終了</string>
+    <string name="error_interview_start_failed">面接の開始に失敗: %1$s</string>
+    <string name="error_interview_processing_failed">処理に失敗: %1$s</string>
+    <string name="error_interview_report_failed">レポート生成に失敗: %1$s</string>
+
+    <!-- ========== Agent tool handler errors ========== -->
+    <string name="error_ask_question_failed">ask_question 処理失敗: %1$s</string>
+    <string name="error_ask_confirmation_failed">ask_confirmation 処理失敗: %1$s</string>
+    <string name="error_memory_lookup_failed">記憶の参照に失敗: %1$s</string>
+
+    <!-- ========== Feature-specific errors ========== -->
+    <string name="error_evolution_failed">進化に失敗しました</string>
+    <string name="error_organize_failed">整理に失敗しました</string>
+    <string name="error_automation_suggestion_failed">自動化提案に失敗しました</string>
+    <string name="error_automation_prompt_empty">自動化プロンプトが空です</string>
+    <string name="error_no_clear_schedule_time">明確な時間の日程が抽出されませんでした</string>
+    <string name="error_calendar_suggestion_failed">カレンダー提案に失敗しました</string>
+    <string name="error_no_content_fetched">コンテンツを取得できませんでした</string>
+    <string name="error_web_search_failed">Web検索に失敗しました</string>
+    <string name="error_pdf_ocr_failed">PDF OCR に失敗しました</string>
+    <string name="error_pdf_multimodal_failed">PDF マルチモーダル処理に失敗しました</string>
+    <string name="error_docx_read_failed">Word 文書の読み取りに失敗しました</string>
+
+    <!-- ========== STT errors ========== -->
+    <string name="error_stt_failed">音声認識に失敗: %1$s</string>
+
+    <!-- ========== STT engine errors ========== -->
+    <string name="error_stepaudio_not_initialized">StepAudio ASR が初期化されていません</string>
+    <string name="error_file_empty_or_unreadable">ファイルが空か読み取れません</string>
+    <string name="error_cannot_open_uri">URI を開けません: %1$s</string>
+    <string name="error_transcription_exception">転写例外: %1$s</string>
+    <string name="error_file_not_exists">ファイルが存在しません: %1$s</string>
+    <string name="error_stepaudio_file_only">StepAudio ASR はファイル転写のみ対応しています。リアルタイム音声には面接モードの StepRealtimeClient を使用してください。</string>
+    <string name="error_api_call_exception">API 呼び出し例外: %1$s</string>
+    <string name="error_diarizer_not_initialized">初期化されていないか API が利用できません</string>
+    <string name="error_empty_audio_data">空の音声データ</string>
+    <string name="error_diarizer_instance_not_init">diarizer インスタンスが初期化されていません</string>
+    <string name="error_diarize_null">diarize が null を返しました</string>
+    <string name="error_audio_decode_empty">音声デコードが空です</string>
+    <string name="error_audio_decode_failed">音声デコードに失敗しました</string>
+    <string name="error_streaming_session_active">既にストリーミングセッションが進行中です</string>
+    <string name="error_streaming_recognition_error">ストリーミング認識エラー: %1$s</string>
+    <string name="error_choices_empty">choices が空です</string>
+    <string name="error_parse_response_failed">レスポンスの解析に失敗: %1$s</string>
+    <string name="error_mimo_not_initialized">MimoAsrEngine が初期化されていません。先に initialize() を呼び出してください</string>
+    <string name="error_asr_init_failed">ASR エンジンの初期化に失敗しました</string>
+    <string name="error_transcription_failed">転写に失敗: %1$s</string>
+    <string name="error_asr_not_initialized">ASR エンジンが初期化されていません</string>
+    <string name="error_diarizer_model_not_found">話者分離モデルファイルが見つかりません: %1$s</string>
+    <string name="error_meeting_transcriber_not_init">MeetingTranscriber が初期化されていません</string>
+    <string name="error_download_switching_source">プライマリソースが失敗しました。バックアップに切り替え中…</string>
+    <string name="error_download_retrying">ネットワーク不安定、再試行中 (%1$d/%2$d)</string>
+    <string name="error_user_cancelled">ユーザーによりキャンセルされました</string>
+
+    <!-- ========== Audio validation errors ========== -->
+    <string name="error_audio_unsupported_format">音声ファイルを読み取れないか、未対応の形式です。MP3/AAC/WAV/M4A/OGG および一般的な動画コンテナ内の音声トラックに対応しています。</string>
+    <string name="error_audio_zero_duration">音声ファイルの長さが 0 または取得できません。ファイルが破損している可能性があります。</string>
+    <string name="error_audio_too_long">音声が4時間の制限を超えています（%1$s秒）。先にトリミングしてから処理してください。</string>
+    <string name="error_audio_bad_sample_rate">サンプルレートが異常です（%1$dHz）。ファイルが破損している可能性があります。</string>
+    <string name="error_audio_permission_denied">このファイルにアクセスする権限がありません。ストレージ権限設定を確認してください。</string>
+    <string name="error_audio_validation_failed">検証失敗: %1$s</string>
+    <string name="error_insufficient_storage">ストレージ容量不足：空き %1$dMB、必要 %2$dMB</string>
+</resources>

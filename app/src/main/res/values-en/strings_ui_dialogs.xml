@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ConfirmationDialog -->
+    <string name="confirm_dialog_cd_cancel">Cancel</string>
+    <string name="confirm_dialog_cd_confirm">Confirm</string>
+
+    <!-- ModelSelectorDialog -->
+    <string name="model_selector_cd_download_model">Download Model</string>
+    <string name="model_selector_cd_model_size">Model Size</string>
+    <string name="model_selector_cd_retry">Retry</string>
+    <string name="model_selector_desc">Select a Gemma 4 local model to download and use. The model runs fully offline on your device.</string>
+    <string name="model_selector_storage_info">Space used: %1$d MB | Data stored in app private directory</string>
+    <string name="model_selector_title">Local Model Management</string>
+    <string name="model_status_cancelled">Cancelled</string>
+    <string name="model_status_downloaded">Downloaded</string>
+    <string name="model_status_downloading">Downloading</string>
+    <string name="model_status_failed">Failed</string>
+    <string name="model_status_in_use">In Use</string>
+    <string name="model_status_cd_in_use">Currently in use</string>
+    <string name="model_status_paused">Paused</string>
+    <string name="model_status_queued">Queued</string>
+    <string name="model_status_running">Running</string>
+
+    <!-- AudioPickerDialog -->
+    <string name="audio_picker_cd_close_dialog">Close input method selection dialog</string>
+    <string name="audio_picker_cd_dialog">Select audio input method dialog</string>
+    <string name="audio_picker_cd_record">Record</string>
+    <string name="audio_picker_cd_record_realtime">Use microphone for real-time speech-to-text</string>
+    <string name="audio_picker_cd_upload">Upload File</string>
+    <string name="audio_picker_cd_upload_file">Upload audio/video files, supports MP3, WAV, M4A, MP4 and other formats</string>
+    <string name="audio_picker_local_process_hint">Tip: Uploaded files are processed locally and will not be uploaded to servers</string>
+    <string name="audio_picker_realtime_desc">Real-time recognition using microphone</string>
+    <string name="audio_picker_realtime_record">Real-time speech-to-text</string>
+    <string name="audio_picker_supported_formats">MP3, WAV, M4A, MP4 and other formats</string>
+    <string name="audio_picker_title">Select Input Method</string>
+    <string name="audio_picker_upload_file">Upload audio/video file</string>
+
+    <!-- SttProgressDialog -->
+    <string name="stt_progress_cd_cancel_processing">Cancel processing</string>
+    <string name="stt_progress_cd_close_error">Close error message</string>
+    <string name="stt_progress_cd_dialog">Speech processing progress dialog</string>
+    <string name="stt_progress_cd_download_model">Download Model</string>
+    <string name="stt_progress_cd_error">Error</string>
+    <string name="stt_progress_cd_extract_audio">Extract Audio</string>
+    <string name="stt_progress_cd_recognizing">Speech Recognition</string>
+    <string name="stt_progress_downloading_model">Downloading speech recognition model... (%1$d%%)</string>
+    <string name="stt_progress_error_desc">Please check the file format or network connection and try again</string>
+    <string name="stt_progress_error_title">An error occurred during processing</string>
+    <string name="stt_progress_extracting_audio">Extracting audio track...</string>
+    <string name="stt_progress_model_size_hint">Model size is about 200MB, download required on first use</string>
+    <string name="stt_progress_ok">OK</string>
+    <string name="stt_progress_recognizing">Performing speech recognition...</string>
+    <string name="stt_progress_view_help">View Help</string>
+
+    <!-- PlaybackSpeedSheet -->
+    <string name="playback_speed_cd_selected">This speed is selected</string>
+    <string name="playback_speed_title">Playback Speed</string>
+
+    <!-- RecordingCard -->
+    <string name="recording_card_cd_cancel">Cancel recording</string>
+    <string name="recording_card_cd_recording">Recording</string>
+    <string name="recording_card_state_recording">● Recording...</string>
+
+    <!-- SttResultCard -->
+    <string name="stt_result_cd_card">Speech transcription result card</string>
+    <string name="stt_result_cd_close">Close transcription result</string>
+    <string name="stt_result_cd_copy">Copy transcribed text</string>
+    <string name="stt_result_cd_error">Error</string>
+    <string name="stt_result_cd_failed">Transcription failed</string>
+    <string name="stt_result_cd_segment_confidence">Segment %1$d, confidence %2$d%%</string>
+    <string name="stt_result_cd_send_ai">Send to AI</string>
+    <string name="stt_result_cd_send_to_ai">Send to AI for analysis</string>
+    <string name="stt_result_cd_stats_collapsed">Stats: %1$s. Tap to expand details</string>
+    <string name="stt_result_cd_stats_expanded">Stats: %1$s. Expanded</string>
+    <string name="stt_result_cd_success">Transcription successful</string>
+    <string name="stt_result_cd_text_word_count">Transcribed text, %1$d characters</string>
+    <string name="stt_result_empty">[Empty result]</string>
+    <string name="stt_result_error_possible_causes">Possible causes: unsupported file format, corrupted file, or empty audio content</string>
+    <string name="stt_result_failed_title">Transcription failed</string>
+    <string name="stt_result_send_to_ai">Send to AI for analysis</string>
+    <string name="stt_result_title">Transcription Result</string>
+    <string name="stt_result_word_count">%1$d characters</string>
+    <string name="stt_result_duration_label">Duration</string>
+    <string name="stt_result_char_count_unit">chars</string>
+
+    <!-- MessageBodyError -->
+    <string name="msg_body_cd_error">Error</string>
+    <string name="msg_body_copied_error">Error message copied</string>
+    <string name="msg_body_view_all">View All</string>
+
+    <!-- MessageBodyInfo -->
+    <string name="msg_body_cd_info">Info</string>
+
+    <!-- MessageBodyConfigUpdate -->
+    <string name="msg_body_cd_config_update">Configuration Updated</string>
+    <string name="msg_body_config_from"> from </string>
+    <string name="msg_body_config_to"> to </string>
+
+    <!-- ModelDownloadDialog -->
+    <string name="download_action_cancel">Cancel Download</string>
+    <string name="download_action_confirm_cancel">Confirm Cancel</string>
+    <string name="download_action_continue">Continue Download</string>
+    <string name="download_cd_download_model">Download Model</string>
+    <string name="download_cd_failed">Download Failed</string>
+    <string name="download_confirm_cancel_desc">The model file is large; re-downloading will take a long time.\nThe downloaded portion will be kept for resume next time.</string>
+    <string name="download_confirm_cancel_title">Are you sure you want to cancel the download?</string>
+    <string name="download_downloading_title">Downloading %1$s</string>
+    <string name="download_encouragement">Good things are coming...</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_preparing_with_size">Preparing download (%1$d MB)</string>
+    <string name="download_status_queued">Queued...</string>
+    <string name="download_unknown_error">Unknown error</string>
+
+    <!-- SttModelDownloadDialog -->
+    <string name="download_cd_download_stt_model">Download Speech Model</string>
+    <string name="download_preparing">Preparing...</string>
+    <string name="download_status_extracting">Extracting...</string>
+    <string name="download_status_source_switch">Switching download source...</string>
+
+    <!-- CodeBlock -->
+    <string name="code_block_cd_copy_code">Copy Code</string>
+
+    <!-- ThinkingCard -->
+    <string name="thinking_card_title">Thinking Process</string>
+
+    <!-- AiBubble.kt / UserBubble.kt -->
+    <string name="ai_bubble_preview_message">Hello, I\'m Opedrgent. I can help answer questions, dispatch tools, and maintain long-term memory.</string>
+    <string name="bubble_action_undo">Undo</string>
+
+    <!-- ChatTab.kt -->
+    <string name="chat_empty_state_action">New Session</string>
+    <string name="chat_empty_state_subtitle">Tap the button below to start a new conversation with Opedrgent</string>
+    <string name="chat_empty_state_title">Start a New Conversation</string>
+    <string name="chat_new_session_title">New Chat</string>
+    <string name="chat_session_empty_subtitle">Send your first message in the input box below to start the conversation</string>
+    <string name="chat_session_empty_title">No messages yet</string>
+
+    <!-- EmptyStateView.kt -->
+    <string name="empty_state_action">Create Now</string>
+    <string name="empty_state_subtitle">View and manage your notes, documents, and conversation history here</string>
+    <string name="empty_state_title">No Content Yet</string>
+
+    <!-- InputModeBar.kt -->
+    <string name="input_mode_chat">Chat</string>
+    <string name="input_mode_deep_research">Deep Research</string>
+    <string name="input_mode_voice">Voice</string>
+    <string name="search_scope_all">All</string>
+    <string name="search_scope_my_notes">My Notes</string>
+    <string name="search_scope_web_only">Web</string>
+
+    <!-- MarkdownRenderer.kt -->
+    <string name="markdown_truncated_hint">... (Content too long, truncated for display)</string>
+
+    <!-- QuestionDock.kt -->
+    <string name="question_confirm_submit">Confirm Submit</string>
+    <string name="question_count_label">Multiple Choice (%1$d)</string>
+    <string name="question_custom_prefix">[Custom] %1$s</string>
+    <string name="question_custom_answer_placeholder">Enter custom answer...</string>
+    <string name="question_multi_select_hint">(Multiple selection allowed)</string>
+    <string name="question_next">Next</string>
+    <string name="question_previous">Previous</string>
+    <string name="question_progress_label">Question %1$d/%2$d</string>
+    <string name="question_submit_cd">Submit</string>
+    <string name="question_submitting">Submitting...</string>
+
+    <!-- TextAndVoiceInput.kt -->
+    <string name="input_go_settings">Go to Settings</string>
+    <string name="input_mic_permission_desc">Microphone permission is required to enable voice input. Please enable it in Settings.</string>
+    <string name="input_mic_permission_title">Microphone Permission Required</string>
+
+    <!-- RecordingTab -->
+    <string name="recording_intent_empty">Recording Intent data is empty</string>
+    <string name="recording_no_permission">Recording permission not granted</string>
+    <string name="recording_import_transcript_title">Audio/Video Transcription %1$s</string>
+    <string name="recording_saved_as_note_word_count">Saved as note (%1$d chars)</string>
+    <string name="recording_view">View</string>
+    <string name="recording_transcript_saved_failed">Transcription complete, but save failed</string>
+    <string name="recording_transcript_empty">Transcription complete, but content is empty</string>
+    <string name="recording_transcript_failed">Transcription failed</string>
+    <string name="recording_online_recognizer_unavailable">OnlineRecognizer unavailable, downgraded to pseudo-streaming mode</string>
+    <string name="recording_device_init_failed">Unable to initialize recording device</string>
+    <string name="recording_system_audio_init_failed">Unable to initialize system audio recording</string>
+    <string name="recording_file_not_found">Recording file does not exist</string>
+    <string name="recording_no_content">(No content)</string>
+    <string name="recording_processing_failed">Recording processing failed: %1$s</string>
+    <string name="recording_note_title_date">Recording Note %1$s</string>
+    <string name="recording_overlay_permission_title">Overlay Permission Required</string>
+    <string name="recording_overlay_permission_desc">Internal recording mode requires overlay permission to show the recording control panel, so you can control recording when switching to other apps.\n\nGo to Settings to enable?</string>
+    <string name="recording_go_to_settings">Go to Settings</string>
+    <string name="recording_processing_failed_generic">Processing failed: %1$s</string>
+    <string name="recording_generating_contact_log">Generating contact log...</string>
+    <string name="recording_need_android_10">Android 10+ required</string>
+    <string name="recording_play_media_hint">Please play the video or audio you want to record; the system will record automatically</string>
+    <string name="recording_enable_stt_first">Please enable speech-to-text in Settings first</string>
+    <string name="recording_import_audio_video_title">Import Audio/Video</string>
+    <string name="recording_transcribing_wait">Transcribing, please wait...</string>
+    <string name="recording_validating_file">Validating file...</string>
+    <string name="recording_decoding_audio">Decoding audio...</string>
+    <string name="recording_recognizing_speech_progress">Recognizing speech... %1$d/%2$d</string>
+    <string name="recording_recognizing_speech">Recognizing speech...</string>
+    <string name="recording_contact_log_generation_failed">Failed to generate contact log, please try again</string>
+    <string name="recording_contact_log_draft">Contact Log Draft (%1$s)</string>
+    <string name="recording_unnamed">Unnamed</string>
+    <string name="recording_view_edit">View/Edit</string>
+    <string name="recording_contact_log_title">Contact Log</string>
+    <string name="recording_satellite_required">Satellite *</string>
+    <string name="recording_required">Required</string>
+    <string name="recording_date_required">Date * (YYYY-MM-DD, UTC)</string>
+    <string name="recording_time_on">Time On (HHMMSS, UTC)</string>
+    <string name="recording_time_off">Time Off (HHMMSS, UTC)</string>
+    <string name="recording_callsign">Callsign</string>
+    <string name="recording_frequency_mhz">Frequency MHz</string>
+    <string name="recording_mode_label">Mode</string>
+    <string name="recording_rst_sent">RST Sent</string>
+    <string name="recording_rst_received">RST Received</string>
+    <string name="recording_max_elevation">Max Elevation</string>
+    <string name="recording_result">Result (OK/PARTIAL/NO)</string>
+    <string name="recording_grid_locator">QTH Grid</string>
+    <string name="recording_notes">Notes</string>
+    <string name="recording_adif_exported">ADIF exported</string>
+    <string name="recording_adif_export_failed">ADIF export failed: %1$s</string>
+    <string name="recording_csv_exported">CSV exported</string>
+    <string name="recording_csv_export_failed">CSV export failed: %1$s</string>
+    <string name="recording_save_failed">Save failed: %1$s</string>
+    <string name="recording_unknown_error">Unknown error</string>
+    <string name="recording_norad_id">NORAD ID</string>
+    <string name="recording_export_adif">ADIF</string>
+    <string name="recording_export_csv">CSV</string>
+    <string name="recording_contact_log_note_title">Contact Log %1$s %2$s</string>
+    <string name="recording_contact_log_ai_empty_hint">AI did not detect valid contact information. Please manually fill in required fields such as satellite, date, and time on.</string>
+    <string name="recording_contact_log_empty_transcript">Transcript is empty, cannot generate contact log</string>
+    <string name="recording_station_info_missing_title">Station Information Missing</string>
+    <string name="recording_station_info_missing_message">Before exporting ADIF, please fill in your station callsign (STATION_CALLSIGN) and grid locator (MY_GRIDSQUARE) in Settings, otherwise uploads to QRZ/LoTW may be rejected due to missing required fields.</string>
+    <string name="recording_station_info_missing_confirm">Got it</string>
+    <string name="recording_contact_log_header">## Contact Log</string>
+    <string name="recording_contact_log_satellite">- Satellite: %1$s</string>
+    <string name="recording_contact_log_date">- Date: %1$s</string>
+    <string name="recording_contact_log_time_on">- Time On: %1$s</string>
+    <string name="recording_contact_log_time_off">- Time Off: %1$s</string>
+    <string name="recording_contact_log_callsign">- Callsign: %1$s</string>
+    <string name="recording_contact_log_frequency">- Frequency: %1$s MHz</string>
+    <string name="recording_contact_log_mode">- Mode: %1$s</string>
+    <string name="recording_contact_log_rst_sent">- RST Sent: %1$s</string>
+    <string name="recording_contact_log_rst_received">- RST Received: %1$s</string>
+    <string name="recording_contact_log_max_elevation">- Max Elevation: %1$s°</string>
+    <string name="recording_contact_log_result">- Result: %1$s</string>
+    <string name="recording_contact_log_grid_locator">- QTH Grid: %1$s</string>
+    <string name="recording_contact_log_notes">- Notes: %1$s</string>
+    <string name="recording_hours_format">%1$d hours</string>
+    <string name="recording_segments_count">%1$d segments</string>
+    <string name="recording_speaker">Speaker: %1$s</string>
+    <string name="recording_copied">Copied</string>
+    <string name="recording_convert_to_contact_log">Convert to Contact Log</string>
+    <string name="recording_duration_label">Duration: %1$s</string>
+    <string name="recording_participant_count">%1$d participants</string>
+    <string name="recording_photo_content_desc">Photo</string>
+    <string name="recording_photo_taken_at">Taken at %1$02d:%2$02d</string>
+    <string name="recording_photos_taken">Photos Taken (%1$d)</string>
+    <string name="recording_transcription_failed">Transcription failed: %1$s</string>
+
+    <!-- NoteEditor hardcoded text / symbols -->
+    <string name="note_editor_quote_prefix">"</string>
+    <string name="note_editor_checkbox_empty">☐</string>
+    <string name="note_editor_action_item_format">%1$d.</string>
+    <string name="note_editor_section_title_format">%1$02d. %2$s</string>
+
+    <!-- NoteList hardcoded text / symbols -->
+    <string name="note_list_folder_separator"> &gt; </string>
+    <string name="note_list_tag_prefix">#%1$s</string>
+    <string name="note_list_more_tags">+%1$d</string>
+    <string name="note_list_meta_separator">·</string>
+    <string name="note_list_link_count_format">%1$d</string>
+
+    <!-- AiBubble reaction content descriptions -->
+    <string name="ai_bubble_cd_reaction_up">Upvote</string>
+    <string name="ai_bubble_cd_reaction_down">Downvote</string>
+    <string name="ai_bubble_cd_copy">Copy</string>
+</resources>

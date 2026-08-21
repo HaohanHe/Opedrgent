@@ -16,19 +16,19 @@ object RateLimiter {
     // ---------- 可配置参数 ----------
 
     /** 短时突发窗口时长（毫秒），默认 20_000 */
-    var burstWindowMs: Long = 20_000L
+    @Volatile var burstWindowMs: Long = 20_000L
 
     /** 短时突发窗口最大请求数，默认 3 */
-    var burstMaxRequests: Int = 3
+    @Volatile var burstMaxRequests: Int = 3
 
     /** 长时总量窗口时长（毫秒），默认 600_000（10 分钟） */
-    var longWindowMs: Long = 600_000L
+    @Volatile var longWindowMs: Long = 600_000L
 
     /** 长时总量窗口最大请求数，默认 15 */
-    var longMaxRequests: Int = 15
+    @Volatile var longMaxRequests: Int = 15
 
     /** 旧记录清理阈值（毫秒），默认 600_000（10 分钟，必须 >= longWindowMs 否则长窗口限流失效） */
-    var cleanupThresholdMs: Long = 600_000L
+    @Volatile var cleanupThresholdMs: Long = 600_000L
 
     // ---------- 内部存储 ----------
 

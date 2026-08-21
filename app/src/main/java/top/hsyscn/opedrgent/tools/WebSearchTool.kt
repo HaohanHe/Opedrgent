@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
+import top.hsyscn.opedrgent.R
+
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -108,7 +110,7 @@ class WebSearchTool(
             top.hsyscn.opedrgent.utils.ModelLimits.inferMaxContextTokens(config.model)
         )
         val maxSnippetChars = (maxContentChars * 0.4).toInt() // 摘要取正文的 40%
-        var query = tp.state.input["query"] ?: tp.state.input["keyword"] ?: return emptyResult(tp, "缺少搜索关键词")
+        var query = tp.state.input["query"] ?: tp.state.input["keyword"] ?: return emptyResult(tp, context.getString(R.string.error_missing_search_keyword))
 
         // ★ Bugfix: LLM 有时将查询词包装为 JSON 字符串 {"query": "..."}，需要解包提取真实内容
         val trimmed = query.trim()
@@ -181,7 +183,7 @@ class WebSearchTool(
             // ★ BUG-03 修复：无结果时使用 ERROR 状态
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(
                 status = ToolStateType.ERROR,
-                error = "WebView 搜索未找到相关结果，请尝试其他关键词或搜索方式。",
+                error = context.getString(R.string.error_webview_no_results),
                 endTime = System.currentTimeMillis())))
         }
 
@@ -275,7 +277,7 @@ class WebSearchTool(
     private suspend fun multimodalSearch(tp: ToolPart, query: String, config: ApiConfig, systemPrompt: String): ToolResult {
         val url = tp.state.input["url"] ?: "https://www.bing.com"
         val log = runCatching { getWebViewAgent().multimodalClick(query, url, llm, config, systemPrompt, maxRounds = 3) }.getOrNull()
-            ?: "多模态虚拟点击执行失败"
+            ?: context.getString(R.string.error_multimodal_click_failed)
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = log, endTime = System.currentTimeMillis())))
     }
@@ -300,7 +302,7 @@ class WebSearchTool(
                 ToolResult(
                     toolPart = tp.copy(state = tp.state.copy(
                         status = ToolStateType.COMPLETED,
-                        output = output.ifBlank { "供应商联网查询返回为空" },
+                        output = output.ifBlank { context.getString(R.string.error_provider_search_empty) },
                         endTime = System.currentTimeMillis(),
                     )),
                     addedSources = citations.map { it.url },
@@ -371,7 +373,7 @@ class WebSearchTool(
             return ToolResult(
                 toolPart = tp.copy(state = tp.state.copy(
                     status = ToolStateType.COMPLETED,
-                    output = "未找到与 '$query' 相关的搜索结果，请尝试更换关键词。",
+                    output = context.getString(R.string.error_no_search_results, query),
                     endTime = System.currentTimeMillis(),
                 )),
             )
@@ -440,7 +442,7 @@ class WebSearchTool(
             return ToolResult(
                 toolPart = tp.copy(state = tp.state.copy(
                     status = ToolStateType.ERROR,
-                    error = "无法获取指定网页内容，已尝试 Jina Reader 和内置浏览器抓取。",
+                    error = context.getString(R.string.error_cannot_fetch_url),
                     endTime = System.currentTimeMillis(),
                 )),
             )

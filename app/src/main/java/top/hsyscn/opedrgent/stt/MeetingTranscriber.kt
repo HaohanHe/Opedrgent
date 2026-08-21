@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.stt
 
 import android.content.Context
+import top.hsyscn.opedrgent.R
 import com.k2fsa.sherpa.onnx.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,7 +69,7 @@ class MeetingTranscriber(
                 // 1. 初始化 ASR 引擎
                 asrEngine = SherpaOnnxEngine(context, config).also { engine ->
                     if (!engine.initialize(modelDir)) {
-                        throw Exception("ASR 引擎初始化失败")
+                        throw Exception(context.getString(R.string.error_asr_init_failed))
                     }
                 }
 
@@ -123,7 +124,7 @@ class MeetingTranscriber(
                     fullText = "",
                     durationMs = 0,
                     hasDiarization = false,
-                    error = "转录失败: ${e.message}",
+                    error = context.getString(R.string.error_transcription_failed, e.message ?: ""),
                 )
             }
         }
@@ -167,7 +168,7 @@ class MeetingTranscriber(
      */
     private suspend fun transcribeWithSimpleDiarization(audioFile: File): TranscriptionResult {
         val asr = asrEngine ?: return TranscriptionResult(
-            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = "ASR 引擎未初始化"
+            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = context.getString(R.string.error_asr_not_initialized)
         )
 
         // 直接用文件识别获取分段结果
@@ -528,7 +529,7 @@ class MeetingTranscriber(
      */
     private suspend fun transcribeAsrOnly(audioFile: File): TranscriptionResult {
         val asr = asrEngine ?: return TranscriptionResult(
-            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = "ASR 引擎未初始化"
+            segments = emptyList(), fullText = "", durationMs = 0, hasDiarization = false, error = context.getString(R.string.error_asr_not_initialized)
         )
         val result = asr.recognizeFile(audioFile.absolutePath)
 
@@ -557,12 +558,12 @@ class MeetingTranscriber(
             val f = File(dir, name)
             if (f.exists()) return f.absolutePath
         }
-        throw IllegalArgumentException("未找到说话人分离模型文件: ${candidates.joinToString("/")}")
+        throw IllegalArgumentException(context.getString(R.string.error_diarizer_model_not_found, candidates.joinToString("/")))
     }
 
     private fun ensureInitialized() {
         if (!_isInitialized.get()) {
-            throw IllegalStateException("MeetingTranscriber 未初始化")
+            throw IllegalStateException(context.getString(R.string.error_meeting_transcriber_not_init))
         }
     }
 
@@ -594,3 +595,4 @@ class MeetingTranscriber(
         val error: String? = null,
     )
 }
+

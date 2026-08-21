@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.llm
 
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
 import com.google.ai.edge.litertlm.Backend
@@ -20,11 +21,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.cancellation.CancellationException as KtCancellationException
 
@@ -57,14 +60,14 @@ data class LlmInferenceConfig(
 
 class LocalLlmEngine private constructor(private val context: Context) {
 
-    var state: LocalLlmState = LocalLlmState.Uninitialized
+    @Volatile var state: LocalLlmState = LocalLlmState.Uninitialized
         private set
 
-    private var engine: Engine? = null
-    private var conversation: Any? = null
-    private var lastSessionId: String? = null
-    private var cachedConfig: ConversationConfig? = null
-    var currentConfig: LlmInferenceConfig? = null
+    @Volatile private var engine: Engine? = null
+    @Volatile private var conversation: Any? = null
+    @Volatile private var lastSessionId: String? = null
+    @Volatile private var cachedConfig: ConversationConfig? = null
+    @Volatile var currentConfig: LlmInferenceConfig? = null
         private set
 
     val isReady: Boolean get() = state is LocalLlmState.Ready && conversation != null
@@ -90,30 +93,33 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 }
                 val fileSizeMb = file.length() / (1024.0 * 1024.0)
                 val expectedMb = modelInfo.sizeMb.toDouble()
-                DebugLog.i(TAG, "Model file size: ${String.format("%.1f", fileSizeMb)}MB, expected: ${expectedMb}MB")
+                DebugLog.i(TAG, String.format(Locale.US, "Model file size: %.1fMB, expected: %.1fMB", fileSizeMb, expectedMb))
 
                 if (file.length() < modelInfo.sizeMb * 1024 * 1024 * 0.9) {
                     throw IllegalArgumentException(
-                        "Model file incomplete: expected ~${modelInfo.sizeMb}MB, actual ${String.format("%.1f", fileSizeMb)}MB"
+                        String.format(Locale.US, "Model file incomplete: expected ~%dMB, actual %.1fMB", modelInfo.sizeMb, fileSizeMb)
                     )
                 }
 
-                val runtime = Runtime.getRuntime()
-                val freeMemMb = runtime.freeMemory() / (1024.0 * 1024.0)
                 val requiredMb = modelInfo.minMemoryMb.takeIf { it > 0 } ?: (modelInfo.sizeMb * 0.8).toLong()
-                DebugLog.i(TAG, "Memory check: ${String.format("%.0f", freeMemMb)}MB available, ${requiredMb}MB required for ${modelInfo.displayName}")
 
-                if (freeMemMb < requiredMb) {
+                val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                val memInfo = ActivityManager.MemoryInfo()
+                actManager?.getMemoryInfo(memInfo)
+                val availMemMb = if (actManager != null) memInfo.availMem / (1024 * 1024) else {
+                    Runtime.getRuntime().freeMemory() / (1024 * 1024)
+                }
+                DebugLog.i(TAG, String.format(Locale.US, "Memory check: %dMB available, %dMB required for %s", availMemMb, requiredMb, modelInfo.displayName))
+
+                if (availMemMb < requiredMb) {
                     throw IllegalArgumentException(
-                        "Insufficient memory: ${String.format("%.0f", freeMemMb)}MB available, " +
-                        "~${requiredMb}MB required for ${modelInfo.displayName}. " +
-                        "Close other apps or use a smaller model."
+                        String.format(
+                            Locale.US,
+                            "Insufficient memory: %dMB available, ~%dMB required for %s. Close other apps or use a smaller model.",
+                            availMemMb, requiredMb, modelInfo.displayName
+                        )
                     )
                 }
-
-                val maxMemMb = runtime.maxMemory() / (1024.0 * 1024.0)
-                val totalMemMb = runtime.totalMemory() / (1024.0 * 1024.0)
-                DebugLog.i(TAG, "Memory: free=${String.format("%.0f", freeMemMb)}MB, max=${String.format("%.0f", maxMemMb)}MB, total=${String.format("%.0f", totalMemMb)}MB")
 
                 unload()
 
@@ -203,7 +209,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 )
                 currentConfig = config
 
-                DebugLog.i(TAG, "Model loaded successfully: ${modelInfo.displayName} (${String.format("%.1f", fileSizeMb)}MB)")
+                DebugLog.i(TAG, String.format(Locale.US, "Model loaded successfully: %s (%.1fMB)", modelInfo.displayName, fileSizeMb))
                 true
             }
         } catch (e: CancellationException) {
@@ -255,6 +261,13 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 val extraContext = if (enableThinking) mapOf("enable_thinking" to "true") else emptyMap()
 
                 suspendCancellableCoroutine { continuation ->
+                    continuation.invokeOnCancellation {
+                        try {
+                            conv.cancelProcess()
+                        } catch (e: Exception) {
+                            DebugLog.w(TAG, "Error cancelling inference: ${e.message}")
+                        }
+                    }
                     conv.sendMessageAsync(
                         contents,
                         object : MessageCallback {
@@ -373,7 +386,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
             DebugLog.e(TAG, "StreamFlow error: ${e.message}", e)
             emit("[Error] ${e.message}")
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     private fun buildContents(
         prompt: String,
@@ -462,7 +475,12 @@ class LocalLlmEngine private constructor(private val context: Context) {
             val files = oldDir.listFiles()
             if (files == null || files.isEmpty()) return
 
-            val newDir = File(context.getExternalFilesDir(null), "local_models")
+            val externalDir = context.getExternalFilesDir(null)
+            if (externalDir == null) {
+                DebugLog.w(TAG, "Migration skipped: external storage not available")
+                return
+            }
+            val newDir = File(externalDir, "local_models")
             if (!newDir.exists()) newDir.mkdirs()
 
             var migratedCount = 0

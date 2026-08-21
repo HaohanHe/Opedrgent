@@ -9,6 +9,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -102,7 +103,7 @@ class ToolExecutor(
         register(ReadUrlTool(context, fetcher))
         register(GenerateReportTool(llm))
         register(MimoTtsTool(apiSettings))
-        register(ReverseGeocodeTool(searcher))
+        register(ReverseGeocodeTool(context, searcher))
         // 注册 SpeechToTextTool（通过 AsrManager 使用统一 ASR 引擎）
         if (asrManager != null) {
             register(SpeechToTextTool(context, asrManager))
@@ -203,7 +204,7 @@ class ToolExecutor(
                 toolPart = started.copy(
                     state = started.state.copy(
                         status = ToolStateType.COMPLETED,
-                        output = "联网查询功能已关闭。当前仅基于本地知识和已有笔记回答问题。",
+                        output = context.getString(R.string.error_web_search_disabled),
                         endTime = System.currentTimeMillis(),
                     ),
                 ),
@@ -241,13 +242,15 @@ class ToolExecutor(
         // ★ load_skill 工具：按需加载 Skill 完整内容
         if (started.tool == "load_skill") {
             val skillName = started.state.input["name"] ?: ""
-            val result = executeLoadSkill(skillName)
+            val loadResult = executeLoadSkill(skillName)
+            val isError = loadResult.isError
+            val resultText = loadResult.message
             return ToolResult(
                 toolPart = started.copy(
                     state = started.state.copy(
-                        status = if (result.startsWith("错误")) ToolStateType.ERROR else ToolStateType.COMPLETED,
-                        output = result,
-                        error = if (result.startsWith("错误")) result else null,
+                        status = if (isError) ToolStateType.ERROR else ToolStateType.COMPLETED,
+                        output = resultText,
+                        error = if (isError) resultText else null,
                         endTime = System.currentTimeMillis(),
                     ),
                 ),
@@ -269,7 +272,7 @@ class ToolExecutor(
             toolPart = started.copy(
                 state = started.state.copy(
                     status = ToolStateType.PARTIAL_TIMEOUT,
-                    error = "${ToolConfig.ERROR_PREFIX_TIMEOUT} 工具 '${started.tool}' 执行超时（${ToolConfig.DEFAULT_TOOL_TIMEOUT_MS / 1000} 秒），已返回部分/空结果。该失败不影响其他工具。",
+                    error = "${ToolConfig.ERROR_PREFIX_TIMEOUT} " + context.getString(R.string.error_tool_execution_timeout, started.tool, ToolConfig.DEFAULT_TOOL_TIMEOUT_MS / 1000),
                     endTime = System.currentTimeMillis(),
                 ),
             ),
@@ -281,7 +284,7 @@ class ToolExecutor(
             toolPart = started.copy(
                 state = started.state.copy(
                     status = ToolStateType.ERROR,
-                    error = "${ToolConfig.ERROR_PREFIX_TOOL_ERROR} 工具 '${started.tool}' 执行失败: ${e.message ?: "未知错误"}",
+                    error = "${ToolConfig.ERROR_PREFIX_TOOL_ERROR} " + context.getString(R.string.error_tool_execution_failed, started.tool, e.message ?: context.getString(R.string.error_unknown_error)),
                     endTime = System.currentTimeMillis(),
                 ),
             ),
@@ -395,12 +398,14 @@ class ToolExecutor(
     /**
      * 执行 load_skill 工具：查找并返回 Skill 的完整指令内容
      */
-    private suspend fun executeLoadSkill(skillName: String): String {
-        if (skillName.isBlank()) return "错误: 未指定技能名称"
-        val loader = skillLoader ?: return "错误: 技能系统未初始化"
+    private data class LoadSkillResult(val isError: Boolean, val message: String)
+
+    private suspend fun executeLoadSkill(skillName: String): LoadSkillResult {
+        if (skillName.isBlank()) return LoadSkillResult(true, context.getString(R.string.error_no_skill_name))
+        val loader = skillLoader ?: return LoadSkillResult(true, context.getString(R.string.error_skill_system_not_init))
 
         val skill = loader.getEnabledSkills().find { it.metadata.name == skillName }
-            ?: return "错误: 未找到名为 '$skillName' 的技能，或该技能已禁用"
+            ?: return LoadSkillResult(true, context.getString(R.string.error_skill_not_found_or_disabled, skillName))
 
         val sb = StringBuilder()
         sb.appendLine("<skill_content name=\"$skillName\">")
@@ -411,7 +416,7 @@ class ToolExecutor(
             sb.appendLine("脚本路径: ${skill.localScriptsPath}")
         }
         sb.appendLine("</skill_content>")
-        return sb.toString().trim()
+        return LoadSkillResult(false, sb.toString().trim())
     }
 
     /**
@@ -437,7 +442,7 @@ class ToolExecutor(
         val result = execute(invocationPart, config, systemPrompt)
         return result.toolPart.state.output
             ?: result.toolPart.state.error
-            ?: "工具执行完成但无输出"
+            ?: context.getString(R.string.error_tool_no_output)
     }
 
     /**
@@ -469,13 +474,13 @@ class ToolExecutor(
         } catch (e: SecurityException) {
             ToolExecutionResult(
                 status = ToolExecutionStatus.FATAL_ERROR,
-                content = "工具执行失败: 安全权限错误 (${e.message})",
+                content = context.getString(R.string.error_tool_security_error, e.message ?: context.getString(R.string.error_unknown_error)),
                 errorDetail = e.message,
             )
         } catch (e: Exception) {
             ToolExecutionResult(
                 status = ToolExecutionStatus.FATAL_ERROR,
-                content = "工具执行失败: ${e.message}",
+                content = context.getString(R.string.error_tool_generic_failed, e.message ?: context.getString(R.string.error_unknown_error)),
                 errorDetail = e.message,
             )
         }
@@ -500,7 +505,7 @@ class ToolExecutor(
                         if (output.isNotBlank()) append("\n\n")
                         append("[部分超时: $error]")
                     }
-                }.ifBlank { "工具执行部分超时" }
+                }.ifBlank { context.getString(R.string.error_tool_partial_timeout) }
                 ToolExecutionResult(
                     status = ToolExecutionStatus.PARTIAL_TIMEOUT,
                     content = content,
@@ -511,7 +516,7 @@ class ToolExecutor(
             ToolStateType.RUNNING, ToolStateType.PENDING -> {
                 ToolExecutionResult(
                     status = ToolExecutionStatus.FATAL_ERROR,
-                    content = "工具未正常结束",
+                    content = context.getString(R.string.error_tool_abnormal_end),
                     errorDetail = error,
                 )
             }
@@ -528,7 +533,7 @@ class ToolExecutor(
         if (httpCode == 404 || lower.contains("not found") || lower.contains("找不到")) {
             return ToolExecutionResult(
                 status = ToolExecutionStatus.SUCCESS,
-                content = "该资源不可用",
+                content = context.getString(R.string.error_resource_unavailable),
                 errorDetail = errorText,
             )
         }
@@ -550,7 +555,7 @@ class ToolExecutor(
         ) {
             return ToolExecutionResult(
                 status = ToolExecutionStatus.FATAL_ERROR,
-                content = "工具执行失败: $errorText",
+                content = context.getString(R.string.error_tool_generic_failed, errorText),
                 errorDetail = errorText,
             )
         }
@@ -567,7 +572,7 @@ class ToolExecutor(
             ClassifiedErrorType.SERVER_ERROR,
             ClassifiedErrorType.DNS_ERROR -> ToolExecutionResult(
                 status = ToolExecutionStatus.TIMEOUT,
-                content = "工具执行超时或网络暂不可用: $errorText",
+                content = context.getString(R.string.error_tool_timeout_or_network, errorText),
                 errorDetail = errorText,
             )
             ClassifiedErrorType.RATE_LIMIT,
@@ -575,12 +580,12 @@ class ToolExecutor(
             ClassifiedErrorType.FORBIDDEN,
             ClassifiedErrorType.AUTH_ERROR -> ToolExecutionResult(
                 status = ToolExecutionStatus.RATE_LIMIT,
-                content = "工具执行遇到限流或访问限制: $errorText",
+                content = context.getString(R.string.error_tool_rate_limited, errorText),
                 errorDetail = errorText,
             )
             else -> ToolExecutionResult(
                 status = ToolExecutionStatus.FATAL_ERROR,
-                content = "工具执行失败: $errorText",
+                content = context.getString(R.string.error_tool_generic_failed, errorText),
                 errorDetail = errorText,
             )
         }
@@ -595,6 +600,6 @@ class ToolExecutor(
     /** Fallback：未注册工具的错误响应。仍在 [executeBody] 末尾作为兜底使用，非废弃方法。 */
     private fun unknownTool(tp: ToolPart): ToolResult {
         DebugLog.w("Unknown tool: ${tp.tool}")
-        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "未知工具：${tp.tool}", endTime = System.currentTimeMillis())))
+        return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = context.getString(R.string.error_unknown_tool, tp.tool), endTime = System.currentTimeMillis())))
     }
 }

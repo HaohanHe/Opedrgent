@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import top.hsyscn.opedrgent.MainActivity
+import top.hsyscn.opedrgent.R
 
 /**
  * 统一通知工具类 -- 负责创建通知渠道和发送各类业务通知。
@@ -40,34 +41,34 @@ object NotificationHelper {
         val channels = listOf(
             NotificationChannel(
                 CHANNEL_ID_SPROUT_COMPLETE,
-                "发芽报告",
+                context.getString(R.string.notif_channel_sprout_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "发芽报告生成完成时提醒"
+                description = context.getString(R.string.notif_channel_sprout_desc)
                 setShowBadge(true)
             },
             NotificationChannel(
                 CHANNEL_ID_DAILY_DIGEST,
-                "每日收获",
+                context.getString(R.string.notif_channel_digest_name),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
-                description = "每日内容回顾与收获摘要"
+                description = context.getString(R.string.notif_channel_digest_desc)
                 setShowBadge(true)
             },
             NotificationChannel(
                 CHANNEL_ID_WARM_FEEDBACK,
-                "点评",
+                context.getString(R.string.notif_channel_feedback_name),
                 NotificationManager.IMPORTANCE_MIN,
             ).apply {
-                description = "AI 对你的笔记进行温暖点评"
+                description = context.getString(R.string.notif_channel_feedback_desc)
                 setShowBadge(false)
             },
             NotificationChannel(
                 CHANNEL_ID_AUTO_SAVE,
-                "自动保存",
+                context.getString(R.string.notif_channel_autosave_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "笔记自动保存成功提示"
+                description = context.getString(R.string.notif_channel_autosave_desc)
                 setShowBadge(false)
             },
         )
@@ -90,16 +91,16 @@ object NotificationHelper {
 
         val summaryPreview = report.summary.take(50)
         val contentText = if (report.summary.length > 50) {
-            "$summaryPreview...点击查看完整报告"
+            context.getString(R.string.notif_sprout_tap_to_view, summaryPreview)
         } else {
-            "$summaryPreview -- 点击查看完整报告"
+            context.getString(R.string.notif_sprout_tap_to_view_short, summaryPreview)
         }
 
         val pendingIntent = buildLaunchPendingIntent(context)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_SPROUT_COMPLETE)
             .setSmallIcon(resolveSmallIcon(context))
-            .setContentTitle("发芽报告已生成")
+            .setContentTitle(context.getString(R.string.notif_sprout_complete_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent)
@@ -128,19 +129,19 @@ object NotificationHelper {
         createAllChannels(context)
 
         val snippetPart = topSnippet.take(30)
-        val sproutPart = if (sproutCount > 0) " 有 $sproutCount 份新发芽报告" else ""
-        var contentText = "昨天记录了 $noteCount 条内容。$snippetPart...$sproutPart"
+        val sproutPart = if (sproutCount > 0) context.getString(R.string.notif_digest_new_sprouts, sproutCount) else ""
+        var contentText = context.getString(R.string.notif_digest_content, noteCount, snippetPart, sproutPart)
 
         // 追加周年回顾信息
         if (anniversarySnippet != null && anniversaryDaysAgo != null) {
-            contentText += "\n---\n${anniversaryDaysAgo}天前的今天：$anniversarySnippet"
+            contentText += context.getString(R.string.notif_digest_anniversary, anniversaryDaysAgo, anniversarySnippet)
         }
 
         val pendingIntent = buildLaunchPendingIntent(context)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_DAILY_DIGEST)
             .setSmallIcon(resolveSmallIcon(context))
-            .setContentTitle("今日收获")
+            .setContentTitle(context.getString(R.string.notif_digest_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent)
@@ -163,7 +164,7 @@ object NotificationHelper {
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_WARM_FEEDBACK)
             .setSmallIcon(resolveSmallIcon(context))
-            .setContentTitle("AI 点评")
+            .setContentTitle(context.getString(R.string.notif_feedback_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(feedback))
             .setAutoCancel(true)
@@ -184,7 +185,7 @@ object NotificationHelper {
         createAllChannels(context)
 
         val previewPart = preview.take(30)
-        val contentText = "$title -- ${previewPart}..."
+        val contentText = context.getString(R.string.notif_autosave_content, title, previewPart)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             putExtra("open_note_id", noteId)
@@ -199,7 +200,7 @@ object NotificationHelper {
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_AUTO_SAVE)
             .setSmallIcon(resolveSmallIcon(context))
-            .setContentTitle("已自动保存")
+            .setContentTitle(context.getString(R.string.notif_autosave_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent)

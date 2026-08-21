@@ -463,7 +463,7 @@ fun InvisiblePartnerSettingsScreen(
                                 modifier = Modifier.clickable { showSproutHourPicker = true },
                             ) {
                                 Text(
-                                    text = String.format("%02d:00", sproutHour),
+                                    text = String.format(java.util.Locale.US, "%02d:00", sproutHour),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
@@ -475,7 +475,7 @@ fun InvisiblePartnerSettingsScreen(
                             ) {
                                 (0..23).forEach { h ->
                                     DropdownMenuItem(
-                                        text = { Text(String.format("%02d:00", h)) },
+                                        text = { Text(String.format(java.util.Locale.US, "%02d:00", h)) },
                                         onClick = {
                                             onSproutHourChanged(h)
                                             showSproutHourPicker = false
@@ -519,7 +519,7 @@ fun InvisiblePartnerSettingsScreen(
                                 modifier = Modifier.clickable { showDigestHourPicker = true },
                             ) {
                                 Text(
-                                    text = String.format("%02d:00", digestHour),
+                                    text = String.format(java.util.Locale.US, "%02d:00", digestHour),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
@@ -531,7 +531,7 @@ fun InvisiblePartnerSettingsScreen(
                             ) {
                                 (0..23).forEach { h ->
                                     DropdownMenuItem(
-                                        text = { Text(String.format("%02d:00", h)) },
+                                        text = { Text(String.format(java.util.Locale.US, "%02d:00", h)) },
                                         onClick = {
                                             onDigestHourChanged(h)
                                             showDigestHourPicker = false
@@ -624,3 +624,4 @@ fun InvisiblePartnerSettingsScreen(
         }
     }
 }
+

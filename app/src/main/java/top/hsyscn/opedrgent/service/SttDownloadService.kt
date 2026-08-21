@@ -104,7 +104,7 @@ class SttDownloadService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_FAIL -> {
-                val error = intent.getStringExtra("error") ?: "未知错误"
+                val error = intent.getStringExtra("error") ?: getString(R.string.notif_unknown_error)
                 showFailedNotification(error)
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -132,10 +132,10 @@ class SttDownloadService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "语音模型下载",
+                getString(R.string.notif_channel_stt_download_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "显示语音识别模型下载进度"
+                description = getString(R.string.notif_channel_stt_download_desc)
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
@@ -159,11 +159,11 @@ class SttDownloadService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-            .setContentTitle("Opedrgent")
-            .setContentText("正在下载语音模型: $modelName")
+            .setContentTitle(getString(R.string.notif_model_download_app_title))
+            .setContentText(getString(R.string.notif_stt_downloading_named, modelName))
             .setContentIntent(pendingIntent())
             .setProgress(0, 0, true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "取消", cancelPendingIntent())
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_cancel), cancelPendingIntent())
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
@@ -177,7 +177,7 @@ class SttDownloadService : Service() {
         } else ""
 
         val contentText = buildString {
-            append("正在下载: $modelName")
+            append(getString(R.string.notif_stt_download_progress, modelName))
             if (totalMb > 0) append("\n${downloadedMb}MB / ${totalMb}MB")
             if (speedText.isNotEmpty()) append("  $speedText")
         }
@@ -185,12 +185,12 @@ class SttDownloadService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-            .setContentTitle("Opedrgent")
+            .setContentTitle(getString(R.string.notif_model_download_app_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent())
             .setProgress(100, percent, false)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "取消", cancelPendingIntent())
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_cancel), cancelPendingIntent())
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
@@ -203,8 +203,8 @@ class SttDownloadService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-            .setContentTitle("语音模型下载完成")
-            .setContentText("$modelName 已下载完成")
+            .setContentTitle(getString(R.string.notif_stt_download_complete_title))
+            .setContentText(getString(R.string.notif_stt_download_complete_text, modelName))
             .setContentIntent(pendingIntent())
             .setProgress(0, 0, false)
             .setAutoCancel(true)
@@ -220,9 +220,9 @@ class SttDownloadService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-            .setContentTitle("语音模型下载失败")
-            .setContentText("$modelName 下载失败: $error")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$modelName 下载失败\n原因: $error"))
+            .setContentTitle(getString(R.string.notif_stt_download_failed_title))
+            .setContentText(getString(R.string.notif_stt_download_failed_text, modelName, error))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.notif_stt_download_failed_big, modelName, error)))
             .setContentIntent(pendingIntent())
             .setProgress(0, 0, false)
             .setAutoCancel(true)

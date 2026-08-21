@@ -281,7 +281,7 @@ fun ImportFileScreen(
                         ) {
                             Text(stringResource(R.string.msg_import_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(SpacingTokens.sm))
-                            Text(importError!!, style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
+                            Text(importError.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
                         }
                     }
                 }

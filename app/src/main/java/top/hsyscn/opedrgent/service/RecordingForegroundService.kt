@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import top.hsyscn.opedrgent.MainActivity
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -38,7 +39,7 @@ class RecordingForegroundService : Service() {
 
         private var wakeLock: PowerManager.WakeLock? = null
 
-        fun start(context: Context, mode: String = "录音") {
+        fun start(context: Context, mode: String = context.getString(R.string.notif_recording_default_mode)) {
             val intent = Intent(context, RecordingForegroundService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_MODE, mode)
@@ -108,7 +109,7 @@ class RecordingForegroundService : Service() {
     }
 
     private var currentTimerText = "00:00"
-    private var currentMode = "录音"
+    private var currentMode: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -132,7 +133,7 @@ class RecordingForegroundService : Service() {
             }
         }
 
-        currentMode = intent?.getStringExtra(EXTRA_MODE) ?: "录音"
+        currentMode = intent?.getStringExtra(EXTRA_MODE) ?: getString(R.string.notif_recording_default_mode)
         acquireWakeLock(this)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -146,7 +147,7 @@ class RecordingForegroundService : Service() {
             }
         } catch (e: SecurityException) {
             DebugLog.e(TAG, "Failed to start foreground recording service", e)
-            showErrorNotification("录音启动失败，请从应用内重新开始录音")
+            showErrorNotification(getString(R.string.notif_recording_start_failed))
             releaseWakeLock()
             stopSelf()
             return START_NOT_STICKY
@@ -167,10 +168,10 @@ class RecordingForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "录音服务",
+                getString(R.string.notif_channel_recording_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "录音进行中，息屏后继续录制"
+                description = getString(R.string.notif_channel_recording_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -193,11 +194,11 @@ class RecordingForegroundService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("${currentMode}中")
-            .setContentText("正在录制 $currentTimerText | 点击返回应用")
+            .setContentTitle(getString(R.string.notif_recording_active_title, currentMode))
+            .setContentText(getString(R.string.notif_recording_active_text, currentTimerText))
             .setSubText("Opedrgent")
             .setContentIntent(pendingIntent)
-            .addAction(android.R.drawable.ic_media_pause, "停止", stopIntent)
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_action_stop), stopIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -213,7 +214,7 @@ class RecordingForegroundService : Service() {
         )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("录音服务异常")
+            .setContentTitle(getString(R.string.notif_recording_error_title))
             .setContentText(message)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

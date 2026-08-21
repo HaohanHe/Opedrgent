@@ -83,7 +83,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -251,8 +251,8 @@ fun SessionScreen(
         }
     }
 
-    val questionRequest by vm.questionRequest.collectAsState()
-    val confirmationRequest by vm.confirmationRequest.collectAsState()
+    val questionRequest by vm.questionRequest.collectAsStateWithLifecycle()
+    val confirmationRequest by vm.confirmationRequest.collectAsStateWithLifecycle()
 
     val session = state.current
 
@@ -1036,10 +1036,10 @@ fun SessionScreen(
         }
 
         // STT Progress Dialog
-        val sttProgress by vm.sttProgress.collectAsState()
-        val sttUiState by vm.sttUiState.collectAsState()
-        val sttResult by vm.sttResult.collectAsState()
-        val sttError by vm.sttError.collectAsState()
+        val sttProgress by vm.sttProgress.collectAsStateWithLifecycle()
+        val sttUiState by vm.sttUiState.collectAsStateWithLifecycle()
+        val sttResult by vm.sttResult.collectAsStateWithLifecycle()
+        val sttError by vm.sttError.collectAsStateWithLifecycle()
 
         LaunchedEffect(sttError) {
             val e = sttError

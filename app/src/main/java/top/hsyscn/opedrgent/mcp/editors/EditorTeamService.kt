@@ -1,4 +1,6 @@
-package top.hsyscn.opedrgent.mcp.editors
+﻿package top.hsyscn.opedrgent.mcp.editors
+
+import top.hsyscn.opedrgent.R
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -80,10 +82,10 @@ enum class OutputPlatform(
 class EditorTeamService(
     private val apiSettings: ApiSettings,
     private val llmClient: LlmClient = LlmClient(),
-    context: Context? = null,
+    private val context: Context,
 ) {
 
-    private val skillAdapter: EditorTeamSkillAdapter? = context?.let { EditorTeamSkillAdapter(it) }
+    private val skillAdapter: EditorTeamSkillAdapter? = context.let { EditorTeamSkillAdapter(it) }
 
     private val isCancelled = AtomicBoolean(false)
 
@@ -149,7 +151,7 @@ class EditorTeamService(
 
         // Step 1: LLM 规划（总编分析任务）
         val plan = if (isCancelled.get()) {
-            ExecutionPlan(emptyList(), "用户取消")
+            ExecutionPlan(emptyList(), this@EditorTeamService.context.getString(R.string.editor_error_user_cancelled))
         } else {
             planPipeline(userInput, targetPlatform, styleReference)
         }
@@ -757,7 +759,7 @@ ${condition.description.ifBlank { condition.expression }}
     ): ExecutionPlan {
         val config = apiSettings.getApiConfig()
         if (config == null) {
-            return ExecutionPlan(emptyList(), reasoning = "未配置 API Key")
+            return ExecutionPlan(emptyList(), reasoning = this@EditorTeamService.context.getString(R.string.editor_error_no_api_key))
         }
 
         val skillRoles = skillAdapter?.getSkillBasedRoles().orEmpty()
@@ -928,14 +930,14 @@ $styleHint
                     val config = apiSettings.getApiConfig()
                     if (config == null) {
                         return@withContext EditorResult(
-                            role = role, output = "", error = "未配置 API Key",
+                            role = role, output = "", error = this@EditorTeamService.context.getString(R.string.editor_error_no_api_key),
                             durationMs = System.currentTimeMillis() - startTime,
                         )
                     }
 
                     if (isCancelled.get()) {
                         return@withContext EditorResult(
-                            role = role, output = "", error = "用户取消操作",
+                            role = role, output = "", error = this@EditorTeamService.context.getString(R.string.editor_error_user_cancelled),
                             durationMs = System.currentTimeMillis() - startTime,
                         )
                     }
@@ -963,7 +965,7 @@ $styleHint
                         EditorResult(role = role, output = response.trim(), tokensUsed = estimatedTokens, durationMs = duration)
                     } catch (e: Exception) {
                         DebugLog.e("EditorTeamService.executeStep error: ${e.message}", e)
-                        EditorResult(role = role, output = "", error = e.message ?: "未知错误",
+                        EditorResult(role = role, output = "", error = e.message ?: this@EditorTeamService.context.getString(R.string.error_unknown_error),
                             durationMs = System.currentTimeMillis() - startTime)
                     }
                 }
@@ -971,11 +973,11 @@ $styleHint
         } catch (e: Exception) {
             // Pipeline 中止异常（如审批拒绝）
             if (e is top.hsyscn.opedrgent.intelligence.PipelineAbortedException) {
-                EditorResult(role = role, output = "", error = "执行被中断: ${e.featureName}",
+                EditorResult(role = role, output = "", error = this@EditorTeamService.context.getString(R.string.editor_error_execution_interrupted, e.featureName),
                     durationMs = System.currentTimeMillis() - startTime)
             } else {
                 DebugLog.e("EditorTeamService.pipeline execute error: ${e.message}", e)
-                EditorResult(role = role, output = "", error = e.message ?: "流水线执行错误",
+                EditorResult(role = role, output = "", error = e.message ?: this@EditorTeamService.context.getString(R.string.editor_error_pipeline),
                     durationMs = System.currentTimeMillis() - startTime)
             }
         }
@@ -988,8 +990,8 @@ $styleHint
         onChunk: (String) -> Unit,
     ): String {
         val config = apiSettings.getApiConfig()
-            ?: throw RuntimeException("未配置 API Key")
-        if (isCancelled.get()) throw RuntimeException("用户取消操作")
+            ?: throw RuntimeException(this@EditorTeamService.context.getString(R.string.editor_error_no_api_key))
+        if (isCancelled.get()) throw RuntimeException(this@EditorTeamService.context.getString(R.string.editor_error_user_cancelled))
 
         val systemPrompt = buildSystemPrompt(role, extraInstructions)
         val accumulated = StringBuilder()
@@ -1085,3 +1087,5 @@ $userInput"""
         private const val RECENT_FULL_COUNT = 3
     }
 }
+
+

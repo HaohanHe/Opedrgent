@@ -1,5 +1,8 @@
 package top.hsyscn.opedrgent.tools
 
+import android.content.Context
+import top.hsyscn.opedrgent.R
+
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
@@ -14,6 +17,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
  * 先调用本工具获取经纬度，再传给 satellite_pass 工具的 lat/lon 参数。
  */
 class ReverseGeocodeTool(
+    private val context: Context,
     private val searcher: WebSearcher,
 ) : ToolSet {
 
@@ -31,7 +35,7 @@ class ReverseGeocodeTool(
             "reverse" -> executeReverseGeocode(tp)
             else -> ToolResult(toolPart = tp.copy(state = tp.state.copy(
                 status = ToolStateType.ERROR,
-                error = "无效 action='$action'，仅支持 forward 或 reverse",
+                error = context.getString(R.string.error_invalid_action, action),
                 endTime = System.currentTimeMillis(),
             )))
         }
@@ -42,7 +46,7 @@ class ReverseGeocodeTool(
         if (place.isNullOrBlank()) {
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(
                 status = ToolStateType.ERROR,
-                error = "正向地理编码需要提供 place 参数（地名或地址）",
+                error = context.getString(R.string.error_forward_needs_place),
                 endTime = System.currentTimeMillis(),
             )))
         }
@@ -59,7 +63,7 @@ class ReverseGeocodeTool(
         } else {
             ToolResult(toolPart = tp.copy(state = tp.state.copy(
                 status = ToolStateType.COMPLETED,
-                output = "未能找到 '$place' 的坐标，请确认地名是否正确，或尝试更完整的地址（如'哈尔滨工业大学'而非'哈工大'）。",
+                output = context.getString(R.string.error_geocode_not_found, place),
                 endTime = System.currentTimeMillis(),
             )))
         }
@@ -69,7 +73,7 @@ class ReverseGeocodeTool(
         val lat = tp.state.input["lat"]?.toDoubleOrNull()
         val lon = tp.state.input["lon"]?.toDoubleOrNull()
         if (lat == null || lon == null) {
-            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = "缺少经纬度参数 lat, lon", endTime = System.currentTimeMillis())))
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = context.getString(R.string.error_missing_lat_lon), endTime = System.currentTimeMillis())))
         }
 
         DebugLog.i("geocode reverse: $lat, $lon")
@@ -93,7 +97,7 @@ class ReverseGeocodeTool(
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(
             status = ToolStateType.COMPLETED,
-            output = "${lat}, ${lon}（反向地理编码失败，这是 GPS 原始坐标。）",
+            output = context.getString(R.string.error_reverse_geocode_failed, lat.toString(), lon.toString()),
             endTime = System.currentTimeMillis(),
         )))
     }

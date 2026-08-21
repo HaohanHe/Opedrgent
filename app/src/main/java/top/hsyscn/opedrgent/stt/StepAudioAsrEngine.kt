@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.BufferedReader
@@ -86,7 +87,7 @@ class StepAudioAsrEngine(
     override suspend fun recognizeFile(uri: Uri): SttResult = withContext(Dispatchers.IO) {
         if (!isAvailable) {
             return@withContext SttResult(
-                text = "", error = "StepAudio ASR 未初始化", engineType = engineType
+                text = "", error = context.getString(R.string.error_stepaudio_not_initialized), engineType = engineType
             )
         }
 
@@ -96,7 +97,7 @@ class StepAudioAsrEngine(
                 val audioBytes = inputStream.readBytes()
                 if (audioBytes.isEmpty()) {
                     return@withContext SttResult(
-                        text = "", error = "文件为空或无法读取", engineType = engineType
+                        text = "", error = context.getString(R.string.error_file_empty_or_unreadable), engineType = engineType
                     )
                 }
 
@@ -107,10 +108,10 @@ class StepAudioAsrEngine(
                     processingTimeMs = processingTimeMs,
                     modelUsed = "stepaudio-2.5-asr",
                 )
-            } ?: SttResult(text = "", error = "无法打开 URI: $uri", engineType = engineType)
+            } ?: SttResult(text = "", error = context.getString(R.string.error_cannot_open_uri, uri.toString()), engineType = engineType)
         } catch (e: Exception) {
             DebugLog.e(TAG, "recognizeFile(uri) 异常: ${e.message}", e)
-            SttResult(text = "", error = "转录异常: ${e.message}", engineType = engineType)
+            SttResult(text = "", error = context.getString(R.string.error_transcription_exception, e.message ?: ""), engineType = engineType)
         }
     }
 
@@ -120,7 +121,7 @@ class StepAudioAsrEngine(
     override suspend fun recognizeFile(filePath: String): SttResult = withContext(Dispatchers.IO) {
         if (!isAvailable) {
             return@withContext SttResult(
-                text = "", error = "StepAudio ASR 未初始化", engineType = engineType
+                text = "", error = context.getString(R.string.error_stepaudio_not_initialized), engineType = engineType
             )
         }
 
@@ -128,7 +129,7 @@ class StepAudioAsrEngine(
             val startTimeMs = System.currentTimeMillis()
             val file = java.io.File(filePath)
             if (!file.exists()) {
-                return@withContext SttResult(text = "", error = "文件不存在: $filePath", engineType = engineType)
+                return@withContext SttResult(text = "", error = context.getString(R.string.error_file_not_exists, filePath), engineType = engineType)
             }
 
             val audioBytes = file.readBytes()
@@ -148,7 +149,7 @@ class StepAudioAsrEngine(
             )
         } catch (e: Exception) {
             DebugLog.e(TAG, "recognizeFile(path) 异常: ${e.message}", e)
-            SttResult(text = "", error = "转录异常: ${e.message}", engineType = engineType)
+            SttResult(text = "", error = context.getString(R.string.error_transcription_exception, e.message ?: ""), engineType = engineType)
         }
     }
 
@@ -165,7 +166,7 @@ class StepAudioAsrEngine(
         // 这里返回空流，实际录音场景应使用 StepRealtimeClient
         DebugLog.w(TAG, "startStreaming: StepAudio ASR 不支持实时麦克风流式，请使用 Realtime WebSocket")
         emit(StreamingRecognitionState.Error(
-            "StepAudio ASR 仅支持文件转录。实时语音请使用「面试模式」的 StepRealtimeClient。"
+            context.getString(R.string.error_stepaudio_file_only)
         ))
     }
 
@@ -243,7 +244,7 @@ class StepAudioAsrEngine(
 
             } catch (e: Exception) {
                 DebugLog.e(TAG, "callAsrApi 异常: ${e.message}", e)
-                SttResult(text = "", error = "API 调用异常: ${e.message}", engineType = engineType)
+                SttResult(text = "", error = context.getString(R.string.error_api_call_exception, e.message ?: ""), engineType = engineType)
             }
         }
 

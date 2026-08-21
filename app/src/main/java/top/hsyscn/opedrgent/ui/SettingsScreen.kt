@@ -112,7 +112,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -636,7 +636,7 @@ fun SettingsScreen(
                                     steps = 39,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTemp)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Text("${String.format(java.util.Locale.US, "%.2f", localTemp)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(stringResource(R.string.settings_top_p), style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
@@ -647,7 +647,7 @@ fun SettingsScreen(
                                     steps = 17,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text("${String.format("%.2f", localTopP)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
+                                Text("${String.format(java.util.Locale.US, "%.2f", localTopP)}", style = MaterialTheme.typography.labelSmall, color = themeTextGrey())
                             }
                         }
 
@@ -1880,7 +1880,7 @@ fun SettingsScreen(
                                                 }
                                                 is top.hsyscn.opedrgent.ocr.OcrDownloadProgress.Error -> {
                                                     ocrDownloading.value = false
-                                                    ocrStatusText.value = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message ?: "")
+                                                    ocrStatusText.value = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message)
                                                 }
                                             }
                                         }
@@ -1927,8 +1927,8 @@ fun SettingsScreen(
                     var syncUsername by rememberSaveable { mutableStateOf(vm.getSyncConfig().username) }
                     var syncPassword by rememberSaveable { mutableStateOf(vm.getSyncConfig().password) }
                     var syncRemotePath by rememberSaveable { mutableStateOf(vm.getSyncConfig().remotePath) }
-                    val isSyncing by vm.isSyncing.collectAsState()
-                    val syncResult by vm.syncState.collectAsState()
+                    val isSyncing by vm.isSyncing.collectAsStateWithLifecycle()
+                    val syncResult by vm.syncState.collectAsStateWithLifecycle()
 
                     Text(stringResource(R.string.settings_yun_tong_bu_webdav), style = MaterialTheme.typography.titleSmall)
                     Text(
@@ -2297,7 +2297,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showMemoryWarning = null },
             title = { Text(stringResource(R.string.msg_memory_insufficient)) },
-            text = { Text(msg ?: stringResource(R.string.msg_memory_insufficient_desc)) },
+            text = { Text(msg) },
             confirmButton = {
                 Button(onClick = {
                     showMemoryWarning = null
@@ -2485,3 +2485,4 @@ private fun SettingSwitchRow(
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
+

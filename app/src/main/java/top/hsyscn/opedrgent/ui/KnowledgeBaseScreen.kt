@@ -213,8 +213,9 @@ fun KnowledgeBaseScreen(
 
     // 当选中知识库变化时，刷新文档列表
     LaunchedEffect(selectedKbId) {
-        if (selectedKbId != null) {
-            refreshDocuments(knowledgeBase, selectedKbId!!) { documents = it }
+        val kbId = selectedKbId
+        if (kbId != null) {
+            refreshDocuments(knowledgeBase, kbId) { documents = it }
         }
     }
 
@@ -397,7 +398,10 @@ fun KnowledgeBaseScreen(
                 onDelete = { docId ->
                     scope.launch {
                         knowledgeBase.deleteDocument(docId)
-                        refreshDocuments(knowledgeBase, selectedKbId!!) { documents = it }
+                        val kbId = selectedKbId
+                        if (kbId != null) {
+                            refreshDocuments(knowledgeBase, kbId) { documents = it }
+                        }
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
                     }
                 },
@@ -498,8 +502,9 @@ fun KnowledgeBaseScreen(
     // ================================================================
     // 弹窗：编辑知识库
     // ================================================================
-    if (showEditKbDialog && editingKb != null) {
-        val kb = editingKb!!
+    val editingKbSnapshot = editingKb
+    if (showEditKbDialog && editingKbSnapshot != null) {
+        val kb = editingKbSnapshot
         var editName by remember(kb.id) { mutableStateOf(kb.name) }
         var editDesc by remember(kb.id) { mutableStateOf(kb.description) }
         var editVis by remember(kb.id) { mutableStateOf(kb.visibility) }
@@ -538,16 +543,16 @@ fun KnowledgeBaseScreen(
     // ================================================================
     // 弹窗：删除确认
     // ================================================================
-    if (showDeleteKbConfirm && kbToDelete != null) {
+    val kbToDeleteSnapshot = kbToDelete
+    if (showDeleteKbConfirm && kbToDeleteSnapshot != null) {
         AlertDialog(
             onDismissRequest = { showDeleteKbConfirm = false; kbToDelete = null },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val kb = kbToDelete!!
-                        knowledgeBase.deleteKnowledgeBase(kb.id)
+                        knowledgeBase.deleteKnowledgeBase(kbToDeleteSnapshot.id)
                         refreshKnowledgeBases(knowledgeBase) { knowledgeBases = it }
-                        snackbar.showSnackbar(context.getString(R.string.kb_yi_shan_chu_1, kb.name))
+                        snackbar.showSnackbar(context.getString(R.string.kb_yi_shan_chu_1, kbToDeleteSnapshot.name))
                         showDeleteKbConfirm = false
                         kbToDelete = null
                     }
@@ -557,7 +562,7 @@ fun KnowledgeBaseScreen(
                 TextButton(onClick = { showDeleteKbConfirm = false; kbToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
             },
             title = { Text(stringResource(R.string.kb_delete_title)) },
-            text = { Text(stringResource(R.string.kb_que_ding_yao_shan_chu_1_ma_qi, kbToDelete!!.name)) },
+            text = { Text(stringResource(R.string.kb_que_ding_yao_shan_chu_1_ma_qi, kbToDeleteSnapshot.name)) },
         )
     }
 

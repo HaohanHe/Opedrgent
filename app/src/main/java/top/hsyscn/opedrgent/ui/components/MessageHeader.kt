@@ -71,5 +71,9 @@ fun MessageHeader(
 }
 
 /** 将消息时间戳（毫秒）格式化为 HH:mm。 */
-fun formatMessageTime(ms: Long): String =
-    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
+private val messageTimeFormat = ThreadLocal<SimpleDateFormat>()
+
+fun formatMessageTime(ms: Long): String {
+    val fmt = messageTimeFormat.get() ?: SimpleDateFormat("HH:mm", Locale.getDefault()).also { messageTimeFormat.set(it) }
+    return fmt.format(Date(ms))
+}

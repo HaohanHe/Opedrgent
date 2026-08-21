@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.pdf
 
+import top.hsyscn.opedrgent.R
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
@@ -99,7 +101,11 @@ class OcrEngine(private val context: Context) {
                 DebugLog.i(TAG, "使用 PP-OCRv6 引擎: ${bitmap.width}x${bitmap.height}")
 
                 val scaledBitmap = scaleBitmapIfNeeded(bitmap)
-                val text = paddleEngine.recognize(scaledBitmap)
+                val text = try {
+                    paddleEngine.recognize(scaledBitmap)
+                } finally {
+                    if (scaledBitmap !== bitmap) scaledBitmap.recycle()
+                }
 
                 val processingTimeMs = System.currentTimeMillis() - startTime
                 DebugLog.i(TAG, "PP-OCRv6 完成: ${text.length}字, 耗时=${processingTimeMs}ms")
@@ -129,6 +135,7 @@ class OcrEngine(private val context: Context) {
 
                 val recognizer = if (preferChinese) chineseRecognizer else defaultRecognizer
                 val result = recognizer.process(image).await()
+                if (scaledBitmap !== bitmap) scaledBitmap.recycle()
 
                 val textBlocks = result.textBlocks
                 val fullText = StringBuilder()
@@ -184,9 +191,13 @@ class OcrEngine(private val context: Context) {
             try {
                 val bitmap = android.graphics.BitmapFactory.decodeFile(File(filePath).absolutePath)
                 if (bitmap == null) {
-                    OcrResult(text = "", lines = emptyList(), error = "无法解码图片文件")
+                    OcrResult(text = "", lines = emptyList(), error = context.getString(R.string.error_cannot_decode_image))
                 } else {
-                    recognizeFromBitmap(bitmap, preferChinese)
+                    try {
+                        recognizeFromBitmap(bitmap, preferChinese)
+                    } finally {
+                        bitmap.recycle()
+                    }
                 }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "文件OCR识别失败: ${e.message}", e)
@@ -202,7 +213,7 @@ class OcrEngine(private val context: Context) {
         return withContext(Dispatchers.IO) {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: throw IOException("无法打开Uri: $uri")
+                    ?: throw IOException(context.getString(R.string.error_cannot_open_uri_generic, uri.toString()))
 
                 val tempFile = File(context.cacheDir, "ocr_temp_${System.currentTimeMillis()}.jpg")
                 try {
@@ -274,3 +285,4 @@ data class BoundingBox(
     val right: Float,
     val bottom: Float,
 )
+

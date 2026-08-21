@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== OCR errors ========== -->
+    <string name="error_cannot_decode_image">无法解码图片文件</string>
+    <string name="error_cannot_open_uri_generic">无法打开 URI: %1$s</string>
+
+    <!-- ========== Agent status ========== -->
+    <string name="agent_phase_thinking">思考中</string>
+    <string name="agent_phase_continue_thinking">继续思考</string>
+    <string name="agent_phase_executing">执行: %1$s</string>
+    <string name="agent_phase_retry_failed">请求失败，%1$d秒后重试…(第%2$d次)</string>
+    <string name="agent_phase_guardrail_duplicate_params">[工具调用保护] 反思后仍重复相同参数，已自动停止</string>
+    <string name="agent_phase_guardrail_fatal">[工具调用保护] 检测到严重问题，已自动停止</string>
+    <string name="agent_phase_guardrail_no_adjust">[工具调用保护] 反思后策略仍未调整，已自动停止</string>
+    <string name="agent_phase_guardrail_reflecting">[工具调用保护] 检测到重复模式，正在反思…</string>
+    <string name="agent_error_guardrail_duplicate">工具调用保护: 反思后仍重复相同参数，会话停止</string>
+    <string name="agent_error_guardrail_fatal">工具调用保护: 检测到严重问题，会话停止</string>
+    <string name="agent_error_guardrail_no_adjust">工具调用保护: 反思后策略仍未调整，会话停止</string>
+    <string name="agent_error_reflection_failed">反思轮调用失败: %1$s</string>
+    <string name="agent_error_guardrail_reflection_tool">工具调用保护: 反思轮中模型仍尝试调用工具，会话停止</string>
+    <string name="agent_error_max_retries">重试次数过多</string>
+    <string name="agent_status_partial_timeout">部分超时</string>
+    <string name="agent_status_timeout">超时/网络暂不可用</string>
+    <string name="agent_status_rate_limited">限流或访问限制</string>
+    <string name="agent_error_tool_failed">工具执行失败: %1$s</string>
+    <string name="agent_tool_temp_issue_hint">[系统提示：该工具调用出现%1$s，这是暂时性问题。如果你认为已有信息足够，可以直接给出阶段性结论；如果还需要补充，请尝试其他关键词、其他工具或其他URL，不要重复调用同一个失败参数。]</string>
+    <string name="agent_error_session_not_found">会话不存在: %1$s</string>
+    <string name="agent_error_request_failed">请求失败</string>
+    <string name="agent_checkpoint_guardrail">工具调用保护触发</string>
+    <string name="agent_checkpoint_max_rounds">达到最大轮数</string>
+    <string name="agent_checkpoint_max_rounds_or_error">达到最大轮数或异常中断</string>
+    <string name="agent_continuation_intro">这是之前研究的续作。已进行 %1$d 轮，已收集 %2$d 个来源。</string>
+    <string name="agent_continuation_reason">上一步因为 %1$s 中断。请基于已有信息继续，或判断已有信息足够并输出结论。</string>
+    <string name="agent_continuation_sources">\n\n以下是最新工具结果摘要：\n</string>
+
+    <!-- ========== Tool errors ========== -->
+    <string name="error_missing_search_keyword">缺少搜索关键词</string>
+    <string name="error_webview_no_results">WebView 搜索未找到相关结果，请尝试其他关键词或搜索方式。</string>
+    <string name="error_multimodal_click_failed">多模态虚拟点击执行失败</string>
+    <string name="error_provider_search_empty">供应商联网查询返回为空</string>
+    <string name="error_no_search_results">未找到与 \'%1$s\' 相关的搜索结果，请尝试更换关键词。</string>
+    <string name="error_cannot_fetch_url">无法获取指定网页内容，已尝试 Jina Reader 和内置浏览器抓取。</string>
+    <string name="error_missing_url">缺少 URL</string>
+    <string name="error_no_title">无标题</string>
+    <string name="error_read_url_failed">读取失败：%1$s（%2$s，请尝试其他来源或搜索关键词）</string>
+    <string name="error_invalid_action">无效 action=\'%1$s\'，仅支持 forward 或 reverse</string>
+    <string name="error_forward_needs_place">正向地理编码需要提供 place 参数（地名或地址）</string>
+    <string name="error_geocode_not_found">未能找到 \'%1$s\' 的坐标，请确认地名是否正确，或尝试更完整的地址（如\'哈尔滨工业大学\'而非\'哈工大\'）。</string>
+    <string name="error_missing_lat_lon">缺少经纬度参数 lat, lon</string>
+    <string name="error_reverse_geocode_failed">%1$s, %2$s（反向地理编码失败，这是 GPS 原始坐标。）</string>
+    <string name="error_execution_timeout">执行超时 (%1$dms)</string>
+
+    <!-- ========== Editor Team ========== -->
+    <string name="editor_platform_wechat">公众号</string>
+    <string name="editor_platform_xiaohongshu">小红书</string>
+    <string name="editor_platform_moments">朋友圈</string>
+    <string name="editor_platform_douyin">抖音图文</string>
+    <string name="editor_platform_pdf">PDF报告</string>
+    <string name="editor_error_no_api_key">未配置 API Key</string>
+    <string name="editor_error_user_cancelled">用户取消操作</string>
+    <string name="editor_error_pipeline">流水线执行错误</string>
+    <string name="editor_error_execution_interrupted">执行被中断: %1$s</string>
+
+    <!-- ========== MainViewModel streaming phases ========== -->
+    <string name="phase_error">错误</string>
+    <string name="phase_no_api_key_offline">未配置 API Key，使用离线模式…</string>
+    <string name="phase_network_error_offline">网络异常，自动切换到离线模式…</string>
+    <string name="phase_token_decreasing_end">检测到 token 递减，主动结束生成</string>
+    <string name="phase_generating_final">正在生成最终回答…</string>
+    <string name="phase_cached_answer">回答（缓存）</string>
+    <string name="phase_generating">生成回答…</string>
+    <string name="phase_thinking">思考中…</string>
+    <string name="phase_waiting_selection">等待用户选择…</string>
+    <string name="phase_waiting_confirm">等待确认…(%1$ds超时)</string>
+    <string name="phase_network_disconnected">网络断开，等待恢复中…</string>
+    <string name="phase_compacting">压缩上下文中…</string>
+    <string name="phase_local_inferencing">本地模型推理中…</string>
+</resources>

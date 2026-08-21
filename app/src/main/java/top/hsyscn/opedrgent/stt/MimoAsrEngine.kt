@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.stt
 
 import android.content.Context
+import top.hsyscn.opedrgent.R
 import android.net.Uri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -144,7 +145,7 @@ class MimoAsrEngine(
                         outFile
                     } else {
                         DebugLog.e(TAG, "MediaCodec 解码失败，返回空结果")
-                        return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = "音频解码失败")
+                        return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = context.getString(R.string.error_audio_decode_failed))
                     }
                 }
                 try {
@@ -180,7 +181,7 @@ class MimoAsrEngine(
                     outFile
                 } else {
                     DebugLog.e(TAG, "MediaCodec 解码失败 (filePath), 返回空结果")
-                    return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = "音频解码失败")
+                    return@withContext SttResult("", 0f, emptyList(), 0, System.currentTimeMillis() - startTimeMs, EngineType.MIMO_ASR, MODEL_ID, error = context.getString(R.string.error_audio_decode_failed))
                 }
             }
             try {
@@ -218,7 +219,7 @@ class MimoAsrEngine(
             ensureInitialized()
 
             if (!streamingActive.compareAndSet(false, true)) {
-                trySend(StreamingRecognitionState.Error("已有流式会话在进行中"))
+                trySend(StreamingRecognitionState.Error(context.getString(R.string.error_streaming_session_active)))
                 close()
                 return@callbackFlow
             }
@@ -285,7 +286,7 @@ class MimoAsrEngine(
                 }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "流式识别异常: ${e.message}", e)
-                trySend(StreamingRecognitionState.Error("流式识别错误: ${e.message}"))
+                trySend(StreamingRecognitionState.Error(context.getString(R.string.error_streaming_recognition_error, e.message ?: "")))
             } finally {
                 streamingActive.set(false)
                 audioBufferCount.set(0)
@@ -628,11 +629,11 @@ class MimoAsrEngine(
                         DebugLog.w(TAG, "choices[0] 中没有 message 对象")
                     }
                 } else {
-                    errorMsg = json.optString("error", json.optString("message", "choices为空"))
+                    errorMsg = json.optString("error", json.optString("message", context.getString(R.string.error_choices_empty)))
                     DebugLog.w(TAG, "MiMO ASR 异常响应: $errorMsg, 完整响应: ${body.take(500)}")
                 }
             } catch (e: Exception) {
-                errorMsg = "解析响应失败: ${e.message}"
+                errorMsg = context.getString(R.string.error_parse_response_failed, e.message ?: "")
                 DebugLog.e(TAG, "$errorMsg\n原始响应: ${body.take(1000)}", e)
             }
         }
@@ -807,7 +808,7 @@ class MimoAsrEngine(
 
     private suspend fun copyUriToTempFile(uri: Uri): File = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalStateException("无法打开 URI: $uri")
+            ?: throw IllegalStateException(context.getString(R.string.error_cannot_open_uri, uri.toString()))
         // Infer the correct file extension from the URI's MIME type
         // so that isWavFile() and downstream format detection work correctly.
         val ext = inferExtensionFromUri(uri)
@@ -851,6 +852,7 @@ class MimoAsrEngine(
     }
 
     private fun ensureInitialized() {
-        if (!_isInitialized) throw IllegalStateException("MimoAsrEngine 未初始化，请先调用 initialize()")
+        if (!_isInitialized) throw IllegalStateException(context.getString(R.string.error_mimo_not_initialized))
     }
 }
+

@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ConfirmationDialog -->
+    <string name="confirm_dialog_cd_cancel">キャンセル</string>
+    <string name="confirm_dialog_cd_confirm">確認</string>
+
+    <!-- ModelSelectorDialog -->
+    <string name="model_selector_cd_download_model">モデルをダウンロード</string>
+    <string name="model_selector_cd_model_size">モデルサイズ</string>
+    <string name="model_selector_cd_retry">再試行</string>
+    <string name="model_selector_desc">ダウンロードして使用する Gemma 4 ローカルモデルを選択してください。モデルはデバイス上で完全にオフラインで実行されます。</string>
+    <string name="model_selector_storage_info">使用容量: %1$d MB | データはアプリのプライベートディレクトリに保存されます</string>
+    <string name="model_selector_title">ローカルモデル管理</string>
+    <string name="model_status_cancelled">キャンセル済み</string>
+    <string name="model_status_downloaded">ダウンロード済み</string>
+    <string name="model_status_downloading">ダウンロード中</string>
+    <string name="model_status_failed">失敗</string>
+    <string name="model_status_in_use">使用中</string>
+    <string name="model_status_cd_in_use">現在使用中</string>
+    <string name="model_status_paused">一時停止</string>
+    <string name="model_status_queued">待機中</string>
+    <string name="model_status_running">実行中</string>
+
+    <!-- AudioPickerDialog -->
+    <string name="audio_picker_cd_close_dialog">入力方法選択ダイアログを閉じる</string>
+    <string name="audio_picker_cd_dialog">音声入力方法選択ダイアログ</string>
+    <string name="audio_picker_cd_record">録音</string>
+    <string name="audio_picker_cd_record_realtime">マイクを使用してリアルタイムで音声をテキストに変換</string>
+    <string name="audio_picker_cd_upload">ファイルをアップロード</string>
+    <string name="audio_picker_cd_upload_file">音声/動画ファイルをアップロード、MP3、WAV、M4A、MP4などの形式に対応</string>
+    <string name="audio_picker_local_process_hint">ヒント：アップロードされたファイルはローカルで処理され、サーバーにアップロードされません</string>
+    <string name="audio_picker_realtime_desc">マイクを使用したリアルタイム認識</string>
+    <string name="audio_picker_realtime_record">リアルタイム音声テキスト変換</string>
+    <string name="audio_picker_supported_formats">MP3、WAV、M4A、MP4などの形式</string>
+    <string name="audio_picker_title">入力方法を選択</string>
+    <string name="audio_picker_upload_file">音声/動画ファイルをアップロード</string>
+
+    <!-- SttProgressDialog -->
+    <string name="stt_progress_cd_cancel_processing">処理をキャンセル</string>
+    <string name="stt_progress_cd_close_error">エラーメッセージを閉じる</string>
+    <string name="stt_progress_cd_dialog">音声処理進捗ダイアログ</string>
+    <string name="stt_progress_cd_download_model">モデルをダウンロード</string>
+    <string name="stt_progress_cd_error">エラー</string>
+    <string name="stt_progress_cd_extract_audio">音声を抽出</string>
+    <string name="stt_progress_cd_recognizing">音声認識</string>
+    <string name="stt_progress_downloading_model">音声認識モデルをダウンロード中... (%1$d%%)</string>
+    <string name="stt_progress_error_desc">ファイル形式またはネットワーク接続を確認して再試行してください</string>
+    <string name="stt_progress_error_title">処理中にエラーが発生しました</string>
+    <string name="stt_progress_extracting_audio">音声トラックを抽出中...</string>
+    <string name="stt_progress_model_size_hint">モデルサイズは約200MB、初回使用時にダウンロードが必要です</string>
+    <string name="stt_progress_ok">OK</string>
+    <string name="stt_progress_recognizing">音声認識を実行中...</string>
+    <string name="stt_progress_view_help">ヘルプを見る</string>
+
+    <!-- PlaybackSpeedSheet -->
+    <string name="playback_speed_cd_selected">この速度が選択されています</string>
+    <string name="playback_speed_title">再生速度</string>
+
+    <!-- RecordingCard -->
+    <string name="recording_card_cd_cancel">録音をキャンセル</string>
+    <string name="recording_card_cd_recording">録音</string>
+    <string name="recording_card_state_recording">● 録音中...</string>
+
+    <!-- SttResultCard -->
+    <string name="stt_result_cd_card">音声転写結果カード</string>
+    <string name="stt_result_cd_close">転写結果を閉じる</string>
+    <string name="stt_result_cd_copy">転写テキストをコピー</string>
+    <string name="stt_result_cd_error">エラー</string>
+    <string name="stt_result_cd_failed">転写失敗</string>
+    <string name="stt_result_cd_segment_confidence">セグメント %1$d、信頼度 %2$d%%</string>
+    <string name="stt_result_cd_send_ai">AIに送信</string>
+    <string name="stt_result_cd_send_to_ai">AIに送信して分析</string>
+    <string name="stt_result_cd_stats_collapsed">統計：%1$s。タップして詳細を展開</string>
+    <string name="stt_result_cd_stats_expanded">統計：%1$s。展開済み</string>
+    <string name="stt_result_cd_success">転写成功</string>
+    <string name="stt_result_cd_text_word_count">転写テキスト、%1$d 文字</string>
+    <string name="stt_result_empty">[空の結果]</string>
+    <string name="stt_result_error_possible_causes">考えられる原因：サポートされていないファイル形式、破損したファイル、または空の音声コンテンツ</string>
+    <string name="stt_result_failed_title">転写失敗</string>
+    <string name="stt_result_send_to_ai">AIに送信して分析</string>
+    <string name="stt_result_title">転写結果</string>
+    <string name="stt_result_word_count">%1$d 文字</string>
+    <string name="stt_result_duration_label">再生時間</string>
+    <string name="stt_result_char_count_unit">文字</string>
+
+    <!-- MessageBodyError -->
+    <string name="msg_body_cd_error">エラー</string>
+    <string name="msg_body_copied_error">エラーメッセージをコピーしました</string>
+    <string name="msg_body_view_all">すべて表示</string>
+
+    <!-- MessageBodyInfo -->
+    <string name="msg_body_cd_info">情報</string>
+
+    <!-- MessageBodyConfigUpdate -->
+    <string name="msg_body_cd_config_update">設定を更新</string>
+    <string name="msg_body_config_from"> から </string>
+    <string name="msg_body_config_to"> に変更 </string>
+
+    <!-- ModelDownloadDialog -->
+    <string name="download_action_cancel">ダウンロードをキャンセル</string>
+    <string name="download_action_confirm_cancel">キャンセルを確認</string>
+    <string name="download_action_continue">ダウンロードを続行</string>
+    <string name="download_cd_download_model">モデルをダウンロード</string>
+    <string name="download_cd_failed">ダウンロード失敗</string>
+    <string name="download_confirm_cancel_desc">モデルファイルは大きいため、再ダウンロードには時間がかかります。\nダウンロード済みの部分は保持され、次回レジュームできます。</string>
+    <string name="download_confirm_cancel_title">ダウンロードをキャンセルしますか？</string>
+    <string name="download_downloading_title">%1$s をダウンロード中</string>
+    <string name="download_encouragement">良いものが、もうすぐ届きます...</string>
+    <string name="download_failed">ダウンロードに失敗しました</string>
+    <string name="download_preparing_with_size">ダウンロードを準備中 (%1$d MB)</string>
+    <string name="download_status_queued">待機中...</string>
+    <string name="download_unknown_error">不明なエラー</string>
+
+    <!-- SttModelDownloadDialog -->
+    <string name="download_cd_download_stt_model">音声モデルをダウンロード</string>
+    <string name="download_preparing">準備中...</string>
+    <string name="download_status_extracting">解凍中...</string>
+    <string name="download_status_source_switch">ダウンロード元を切り替え中...</string>
+
+    <!-- CodeBlock -->
+    <string name="code_block_cd_copy_code">コードをコピー</string>
+
+    <!-- ThinkingCard -->
+    <string name="thinking_card_title">思考プロセス</string>
+
+    <!-- AiBubble.kt / UserBubble.kt -->
+    <string name="ai_bubble_preview_message">こんにちは、Opedrgent です。質問への回答、ツールの呼び出し、長期記憶の管理をお手伝いします。</string>
+    <string name="bubble_action_undo">取り消す</string>
+
+    <!-- ChatTab.kt -->
+    <string name="chat_empty_state_action">新規セッション</string>
+    <string name="chat_empty_state_subtitle">下のボタンをタップして、Opedrgent と新しい会話を始めましょう</string>
+    <string name="chat_empty_state_title">新しい会話を始める</string>
+    <string name="chat_new_session_title">新しいチャット</string>
+    <string name="chat_session_empty_subtitle">下の入力ボックスに最初のメッセージを送信して会話を始めましょう</string>
+    <string name="chat_session_empty_title">メッセージはまだありません</string>
+
+    <!-- EmptyStateView.kt -->
+    <string name="empty_state_action">今すぐ作成</string>
+    <string name="empty_state_subtitle">ここでノート、ドキュメント、会話履歴を表示・管理できます</string>
+    <string name="empty_state_title">コンテンツがありません</string>
+
+    <!-- InputModeBar.kt -->
+    <string name="input_mode_chat">対話</string>
+    <string name="input_mode_deep_research">深掘り調査</string>
+    <string name="input_mode_voice">音声</string>
+    <string name="search_scope_all">すべて</string>
+    <string name="search_scope_my_notes">マイノート</string>
+    <string name="search_scope_web_only">ウェブ</string>
+
+    <!-- MarkdownRenderer.kt -->
+    <string name="markdown_truncated_hint">... (コンテンツが長いため、表示を切り詰めました)</string>
+
+    <!-- QuestionDock.kt -->
+    <string name="question_confirm_submit">送信を確認</string>
+    <string name="question_count_label">選択問題 (%1$d)</string>
+    <string name="question_custom_prefix">[カスタム] %1$s</string>
+    <string name="question_custom_answer_placeholder">カスタム回答を入力...</string>
+    <string name="question_multi_select_hint">（複数選択可）</string>
+    <string name="question_next">次へ</string>
+    <string name="question_previous">前へ</string>
+    <string name="question_progress_label">質問 %1$d/%2$d</string>
+    <string name="question_submit_cd">送信</string>
+    <string name="question_submitting">送信中...</string>
+
+    <!-- TextAndVoiceInput.kt -->
+    <string name="input_go_settings">設定へ</string>
+    <string name="input_mic_permission_desc">音声入力機能を有効にするにはマイク権限が必要です。設定で権限を許可してください。</string>
+    <string name="input_mic_permission_title">マイク権限が必要です</string>
+
+    <!-- RecordingTab -->
+    <string name="recording_intent_empty">録音 Intent データが空です</string>
+    <string name="recording_no_permission">録音権限がありません</string>
+    <string name="recording_import_transcript_title">音声/動画転写 %1$s</string>
+    <string name="recording_saved_as_note_word_count">ノートとして保存しました（%1$d文字）</string>
+    <string name="recording_view">表示</string>
+    <string name="recording_transcript_saved_failed">転写は完了しましたが、保存に失敗しました</string>
+    <string name="recording_transcript_empty">転写は完了しましたが、内容が空です</string>
+    <string name="recording_transcript_failed">転写に失敗しました</string>
+    <string name="recording_online_recognizer_unavailable">OnlineRecognizer が利用できないため、擬似ストリーミングモードに切り替えました</string>
+    <string name="recording_device_init_failed">録音デバイスを初期化できません</string>
+    <string name="recording_system_audio_init_failed">システム音声録音を初期化できません</string>
+    <string name="recording_file_not_found">録音ファイルが存在しません</string>
+    <string name="recording_no_content">（内容なし）</string>
+    <string name="recording_processing_failed">録音処理に失敗しました: %1$s</string>
+    <string name="recording_note_title_date">録音ノート %1$s</string>
+    <string name="recording_overlay_permission_title">オーバーレイ権限が必要です</string>
+    <string name="recording_overlay_permission_desc">内部録音モードでは、他のアプリに切り替えた際に録音を制御するためのコントロールパネルを表示するためにオーバーレイ権限が必要です。\n\n設定に移動して有効にしますか？</string>
+    <string name="recording_go_to_settings">設定へ移動</string>
+    <string name="recording_processing_failed_generic">処理に失敗しました: %1$s</string>
+    <string name="recording_generating_contact_log">交信ログを生成中...</string>
+    <string name="recording_need_android_10">Android 10以上が必要です</string>
+    <string name="recording_play_media_hint">記録したい動画や音声を再生してください。システムが自動的に録音します</string>
+    <string name="recording_enable_stt_first">先に設定で音声テキスト変換を有効にしてください</string>
+    <string name="recording_import_audio_video_title">音声/動画をインポート</string>
+    <string name="recording_transcribing_wait">転写中です。しばらくお待ちください...</string>
+    <string name="recording_validating_file">ファイルを検証中...</string>
+    <string name="recording_decoding_audio">音声をデコード中...</string>
+    <string name="recording_recognizing_speech_progress">音声を認識中... %1$d/%2$d</string>
+    <string name="recording_recognizing_speech">音声を認識中...</string>
+    <string name="recording_contact_log_generation_failed">交信ログの生成に失敗しました。再試行してください</string>
+    <string name="recording_contact_log_draft">交信ログ下書き（%1$s）</string>
+    <string name="recording_unnamed">無名</string>
+    <string name="recording_view_edit">表示/編集</string>
+    <string name="recording_contact_log_title">交信ログ</string>
+    <string name="recording_satellite_required">衛星 *</string>
+    <string name="recording_required">必須</string>
+    <string name="recording_date_required">日付 * (YYYY-MM-DD, UTC)</string>
+    <string name="recording_time_on">開始時刻 (HHMMSS, UTC)</string>
+    <string name="recording_time_off">終了時刻 (HHMMSS, UTC)</string>
+    <string name="recording_callsign">コールサイン</string>
+    <string name="recording_frequency_mhz">周波数 MHz</string>
+    <string name="recording_mode_label">モード</string>
+    <string name="recording_rst_sent">RST 送信</string>
+    <string name="recording_rst_received">RST 受信</string>
+    <string name="recording_max_elevation">最大仰角</string>
+    <string name="recording_result">結果 (OK/PARTIAL/NO)</string>
+    <string name="recording_grid_locator">QTH グリッド</string>
+    <string name="recording_notes">メモ</string>
+    <string name="recording_adif_exported">ADIF をエクスポートしました</string>
+    <string name="recording_adif_export_failed">ADIF エクスポートに失敗しました: %1$s</string>
+    <string name="recording_csv_exported">CSV をエクスポートしました</string>
+    <string name="recording_csv_export_failed">CSV エクスポートに失敗しました: %1$s</string>
+    <string name="recording_save_failed">保存に失敗しました: %1$s</string>
+    <string name="recording_unknown_error">不明なエラー</string>
+    <string name="recording_norad_id">NORAD ID</string>
+    <string name="recording_export_adif">ADIF</string>
+    <string name="recording_export_csv">CSV</string>
+    <string name="recording_contact_log_note_title">交信ログ %1$s %2$s</string>
+    <string name="recording_contact_log_ai_empty_hint">AI が有効な交信情報を検出できませんでした。衛星、日付、開始時刻などの必須フィールドを手動で入力してください。</string>
+    <string name="recording_contact_log_empty_transcript">転写テキストが空のため、交信ログを生成できません</string>
+    <string name="recording_station_info_missing_title">局舎情報が不足しています</string>
+    <string name="recording_station_info_missing_message">ADIF をエクスポートする前に、設定で自局のコールサイン（STATION_CALLSIGN）とグリッドロケーター（MY_GRIDSQUARE）を入力してください。入力しない場合、QRZ/LoTW へのアップロード時に必須フィールド不足で拒否される可能性があります。</string>
+    <string name="recording_station_info_missing_confirm">了解</string>
+    <string name="recording_contact_log_header">## 交信ログ</string>
+    <string name="recording_contact_log_satellite">- 衛星: %1$s</string>
+    <string name="recording_contact_log_date">- 日付: %1$s</string>
+    <string name="recording_contact_log_time_on">- 開始: %1$s</string>
+    <string name="recording_contact_log_time_off">- 終了: %1$s</string>
+    <string name="recording_contact_log_callsign">- コールサイン: %1$s</string>
+    <string name="recording_contact_log_frequency">- 周波数: %1$s MHz</string>
+    <string name="recording_contact_log_mode">- モード: %1$s</string>
+    <string name="recording_contact_log_rst_sent">- RST 送信: %1$s</string>
+    <string name="recording_contact_log_rst_received">- RST 受信: %1$s</string>
+    <string name="recording_contact_log_max_elevation">- 最大仰角: %1$s°</string>
+    <string name="recording_contact_log_result">- 結果: %1$s</string>
+    <string name="recording_contact_log_grid_locator">- QTH グリッド: %1$s</string>
+    <string name="recording_contact_log_notes">- メモ: %1$s</string>
+    <string name="recording_hours_format">%1$d時間</string>
+    <string name="recording_segments_count">%1$d セグメント</string>
+    <string name="recording_speaker">話者: %1$s</string>
+    <string name="recording_copied">コピーしました</string>
+    <string name="recording_convert_to_contact_log">交信ログに変換</string>
+    <string name="recording_duration_label">再生時間: %1$s</string>
+    <string name="recording_participant_count">%1$d人</string>
+    <string name="recording_photo_content_desc">写真</string>
+    <string name="recording_photo_taken_at">%1$02d:%2$02d に撮影</string>
+    <string name="recording_photos_taken">撮影した写真 (%1$d枚)</string>
+    <string name="recording_transcription_failed">転写に失敗しました: %1$s</string>
+
+    <!-- NoteEditor hardcoded text / symbols -->
+    <string name="note_editor_quote_prefix">"</string>
+    <string name="note_editor_checkbox_empty">☐</string>
+    <string name="note_editor_action_item_format">%1$d.</string>
+    <string name="note_editor_section_title_format">%1$02d. %2$s</string>
+
+    <!-- NoteList hardcoded text / symbols -->
+    <string name="note_list_folder_separator"> &gt; </string>
+    <string name="note_list_tag_prefix">#%1$s</string>
+    <string name="note_list_more_tags">+%1$d</string>
+    <string name="note_list_meta_separator">·</string>
+    <string name="note_list_link_count_format">%1$d</string>
+
+    <!-- AiBubble reaction content descriptions -->
+    <string name="ai_bubble_cd_reaction_up">賛同</string>
+    <string name="ai_bubble_cd_reaction_down">不賛同</string>
+    <string name="ai_bubble_cd_copy">コピー</string>
+</resources>

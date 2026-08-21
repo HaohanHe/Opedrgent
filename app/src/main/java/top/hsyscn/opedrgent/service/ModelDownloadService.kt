@@ -146,10 +146,10 @@ class ModelDownloadService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "模型下载",
+                getString(R.string.notif_channel_model_download_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "显示模型下载进度"
+                description = getString(R.string.notif_channel_model_download_desc)
                 setShowBadge(true)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -193,8 +193,8 @@ class ModelDownloadService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Opedrgent 模型下载")
-            .setContentText("准备下载...")
+            .setContentTitle(getString(R.string.notif_model_download_title))
+            .setContentText(getString(R.string.notif_model_download_preparing))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -218,12 +218,12 @@ class ModelDownloadService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(largeIcon)
-            .setContentTitle("Opedrgent")
-            .setContentText(if (modelName.isNotEmpty()) "正在下载: $modelName" else "正在下载...")
+            .setContentTitle(getString(R.string.notif_model_download_app_title))
+            .setContentText(if (modelName.isNotEmpty()) getString(R.string.notif_model_downloading_named, modelName) else getString(R.string.notif_model_downloading))
             .setContentIntent(pendingIntent)
             .setProgress(0, 0, true)
-            .addAction(android.R.drawable.ic_media_pause, "暂停", pauseIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "取消", cancelIntent)
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_action_pause), pauseIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_cancel), cancelIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
@@ -241,15 +241,12 @@ class ModelDownloadService : Service() {
         val percent = progress.progressPercent.toInt()
         val speedText = formatSpeed(progress.speedBytesPerSec)
         val sizeText = "${formatSize(progress.downloadedBytes)} / ${formatSize(progress.totalBytes)}"
-        val contentText = buildString {
-            append("正在下载: $displayName\n")
-            append("$sizeText  $speedText")
-        }
+        val contentText = getString(R.string.notif_model_download_progress, displayName, sizeText, speedText)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(largeIcon)
-            .setContentTitle("Opedrgent")
+            .setContentTitle(getString(R.string.notif_model_download_app_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent)
@@ -266,9 +263,9 @@ class ModelDownloadService : Service() {
                 this, 2, Intent(this, ModelDownloadService::class.java).apply { action = ACTION_CANCEL },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(android.R.drawable.ic_media_play, "继续", resumeIntent)
-            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "取消", cancelIntent)
-            builder.setSubText("已暂停")
+            builder.addAction(android.R.drawable.ic_media_play, getString(R.string.notif_action_resume), resumeIntent)
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_cancel), cancelIntent)
+            builder.setSubText(getString(R.string.notif_model_download_paused))
         } else {
             val pauseIntent = PendingIntent.getService(
                 this, 1, Intent(this, ModelDownloadService::class.java).apply { action = ACTION_PAUSE },
@@ -278,8 +275,8 @@ class ModelDownloadService : Service() {
                 this, 2, Intent(this, ModelDownloadService::class.java).apply { action = ACTION_CANCEL },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(android.R.drawable.ic_media_pause, "暂停", pauseIntent)
-            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "取消", cancelIntent)
+            builder.addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_action_pause), pauseIntent)
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_cancel), cancelIntent)
         }
 
         builder.setOngoing(true)
@@ -296,9 +293,9 @@ class ModelDownloadService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(largeIcon)
-            .setContentTitle("模型下载完成")
-            .setContentText("$displayName 已下载完成 (${formatSize(progress.downloadedBytes)})")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$displayName 已下载完成\n大小: ${formatSize(progress.downloadedBytes)}"))
+            .setContentTitle(getString(R.string.notif_model_download_complete_title))
+            .setContentText(getString(R.string.notif_model_download_complete_text, displayName, formatSize(progress.downloadedBytes)))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.notif_model_download_complete_big, displayName, formatSize(progress.downloadedBytes))))
             .setContentIntent(pendingIntent)
             .setProgress(0, 0, false)
             .setAutoCancel(true)
@@ -315,13 +312,13 @@ class ModelDownloadService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val largeIcon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
-        val errorMsg = progress.error ?: "未知错误"
+        val errorMsg = progress.error ?: getString(R.string.notif_unknown_error)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(largeIcon)
-            .setContentTitle("模型下载失败")
-            .setContentText("$displayName 下载失败: $errorMsg")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$displayName 下载失败\n原因: $errorMsg"))
+            .setContentTitle(getString(R.string.notif_model_download_failed_title))
+            .setContentText(getString(R.string.notif_model_download_failed_text, displayName, errorMsg))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.notif_model_download_failed_big, displayName, errorMsg)))
             .setContentIntent(pendingIntent)
             .setProgress(0, 0, false)
             .setAutoCancel(true)
@@ -340,8 +337,8 @@ class ModelDownloadService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(largeIcon)
-            .setContentTitle("模型下载已取消")
-            .setContentText("下载已被用户取消")
+            .setContentTitle(getString(R.string.notif_model_download_cancelled_title))
+            .setContentText(getString(R.string.notif_model_download_cancelled_text))
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setOngoing(false)

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- EditorAdditionalNotesTab -->
+    <string name="note_editor_additional_notes_hint">Add supplementary notes and annotations here</string>
+    <string name="note_editor_add_note">Add Note</string>
+    <string name="note_editor_append_note_hint">Append note…</string>
+    <string name="note_editor_cd_add_note">Add note</string>
+    <string name="note_editor_edit_note">Edit Note</string>
+    <string name="note_editor_new_note">New Note</string>
+    <string name="note_editor_no_additional_notes">No additional notes yet</string>
+    <string name="note_editor_note_placeholder">Record your thoughts…</string>
+
+    <!-- EditorNoteItemCard -->
+    <string name="note_editor_delete_this_note_confirm">Delete this note?</string>
+
+    <!-- EditorUtils -->
+    <string name="editor_gang_gang">Just now</string>
+
+    <!-- EditorUtils.heuristicComplete (Chinese writing patterns - kept as-is for Chinese text completion) -->
+    <string name="editor_complete_dan_shi">, but</string>
+    <string name="editor_complete_dou_hao">,</string>
+    <string name="editor_complete_er_qie">, and</string>
+    <string name="editor_complete_jie">conclusion</string>
+    <string name="editor_complete_ling_yi_fang_mian">, on the other hand</string>
+    <string name="editor_complete_mao_hao">:</string>
+    <string name="editor_complete_qi_ci">, next</string>
+    <string name="editor_complete_suo_yi">, so</string>
+    <string name="editor_complete_ti_lai_shuo">erally</string>
+    <string name="editor_complete_zai_ci">, again</string>
+    <string name="editor_complete_zui_hou">, finally</string>
+
+    <!-- MarkdownFormatToolbar -->
+    <string name="editor_cd_biao_ti_1">Heading 1</string>
+    <string name="editor_cd_biao_ti_2">Heading 2</string>
+    <string name="editor_cd_biao_ti_3">Heading 3</string>
+    <string name="editor_cd_dai_ma">Code</string>
+    <string name="editor_cd_jia_cu">Bold</string>
+    <string name="editor_cd_lian_jie">Link</string>
+    <string name="editor_cd_tu_pian">Image</string>
+    <string name="editor_cd_wu_xu_lie_biao">Unordered List</string>
+    <string name="editor_cd_xie_ti">Italic</string>
+    <string name="editor_cd_yin_yong">Quote</string>
+    <string name="editor_cd_you_xu_lie_biao">Ordered List</string>
+
+    <!-- NoteActionBottomSheet -->
+    <string name="note_action_add_tag">Add Tag</string>
+    <string name="note_action_add_to_kb">Add to Knowledge Base</string>
+    <string name="note_action_append">Append Note</string>
+    <string name="note_action_choose_export_format">Choose Export Format</string>
+    <string name="note_action_copy_full_text">Copy Full Text</string>
+    <string name="note_action_copy_summary">Copy Summary</string>
+    <string name="note_action_correct">Correct</string>
+    <string name="note_action_cd_add_tag">Add tag</string>
+    <string name="note_action_cd_add_to_kb">Add to knowledge base</string>
+    <string name="note_action_cd_append">Append note</string>
+    <string name="note_action_cd_copy_full_text">Copy full text</string>
+    <string name="note_action_cd_copy_summary">Copy summary</string>
+    <string name="note_action_cd_correct">Correct</string>
+    <string name="note_action_cd_discuss_in_chat">Discuss in Chat</string>
+    <string name="note_action_cd_enter_export_submenu">Enter export submenu</string>
+    <string name="note_action_cd_export">Export</string>
+    <string name="note_action_cd_export_markdown">Export as Markdown</string>
+    <string name="note_action_cd_export_txt">Export as TXT</string>
+    <string name="note_action_cd_pin">Pin</string>
+    <string name="note_action_cd_sprout">Sprout Note</string>
+    <string name="note_action_cd_unpin">Unpin</string>
+    <string name="note_action_discuss_in_chat">Discuss in Chat</string>
+    <string name="note_action_export_failed">Export failed: %1$s</string>
+    <string name="note_action_export_markdown">Export as Markdown</string>
+    <string name="note_action_export_txt">Export as TXT</string>
+    <string name="note_action_full_text_copied">Full text copied to clipboard</string>
+    <string name="note_action_pin">Pin</string>
+    <string name="note_action_share_note_title">Share Note</string>
+    <string name="note_action_sprout">Sprout Note</string>
+    <string name="note_action_summary_copied">Summary copied to clipboard</string>
+    <string name="note_action_title">Note Actions</string>
+    <string name="note_action_unpin">Unpin</string>
+    <string name="note_delete_confirm_message">This cannot be undone. Are you sure you want to delete the note \"%1$s\"?</string>
+    <string name="note_delete_confirm_title">Confirm Delete Note</string>
+
+    <!-- SproutResultView -->
+    <string name="quality_score_average">Average</string>
+    <string name="quality_score_description">Quality score %1$d, %2$s</string>
+    <string name="quality_score_excellent">Excellent</string>
+    <string name="quality_score_good">Good</string>
+    <string name="quality_score_needs_improvement">Needs Improvement</string>
+    <string name="sprout_action_continue_chat">Continue Asking</string>
+    <string name="sprout_action_copy_full">Copy Full Text</string>
+    <string name="sprout_action_copied">Copied</string>
+    <string name="sprout_action_restart">Start Over</string>
+    <string name="sprout_cd_cancelled">Sprout cancelled</string>
+    <string name="sprout_cd_close_report">Close sprout report</string>
+    <string name="sprout_cd_error">Sprout processing error</string>
+    <string name="sprout_cd_report_content">Sprout report content, %1$d characters total</string>
+    <string name="sprout_cd_report_view">Sprout report view</string>
+    <string name="sprout_error_desc">An error occurred during sprouting</string>
+    <string name="sprout_error_hint">Please check your network connection or try again later</string>
+    <string name="sprout_phase_connection_progress">Building knowledge connections…</string>
+    <string name="sprout_phase_insight_progress">Generating insights…</string>
+    <string name="sprout_phase_quote_progress">Distilling golden quotes…</string>
+    <string name="sprout_phase_seed_progress">Extracting key information…</string>
+    <string name="sprout_report_title">Sprout Report</string>
+    <string name="sprout_status_done">Sprout Complete</string>
+    <string name="sprout_status_failed">Sprout Failed</string>
+    <string name="sprout_status_processing">Processing…</string>
+    <string name="sprout_time_cost">Took %1$s</string>
+    <string name="sprout_title">Knowledge Sprout</string>
+    <string name="sprout_title_cancelled">Cancelled</string>
+    <string name="sprout_title_error">Error</string>
+
+    <!-- StreamingComponents -->
+    <string name="question_tool_answer_prefix">Answer: %1$s</string>
+    <string name="question_tool_default_prompt">Please select:</string>
+    <string name="question_tool_multi_select_hint">(Multiple selection)</string>
+    <string name="streaming_action_hide_thinking">Hide Thinking Process</string>
+    <string name="streaming_action_show_thinking">View Thinking Process</string>
+    <string name="streaming_cd_sources">Reference Sources</string>
+    <string name="streaming_cd_thinking">Thinking</string>
+    <string name="streaming_label_assistant">Assistant</string>
+    <string name="streaming_sources_count">%1$d reference sources</string>
+    <string name="streaming_thinking_default">Thinking</string>
+    <string name="tool_name_knowledge_base">Knowledge Base</string>
+    <string name="tool_name_read_url">Read</string>
+    <string name="tool_name_speech_to_text">Speech to Text</string>
+    <string name="tool_name_web_search">Search</string>
+    <string name="tool_state_cd">Tool Status</string>
+    <string name="tool_state_completed">Completed</string>
+    <string name="tool_state_error_prefix">Error: %1$s</string>
+    <string name="tool_state_error_with_message">Error: %1$s</string>
+    <string name="tool_state_parameters_prefix">Parameters: %1$s</string>
+    <string name="tool_state_partial_timeout_with_message">Partial timeout: %1$s</string>
+    <string name="tool_state_pending">Waiting to execute…</string>
+    <string name="tool_state_read_completed">Read complete</string>
+    <string name="tool_state_reading_url">Reading: %1$s</string>
+    <string name="tool_state_running">Executing…</string>
+    <string name="tool_state_search_completed">Search complete</string>
+    <string name="tool_state_searched_query">Searched: %1$s</string>
+    <string name="tool_state_searching_with_query">Searching: %1$s</string>
+    <string name="tool_state_source_added">Source added</string>
+    <string name="tool_state_timeout">Fetch timed out</string>
+    <string name="tool_state_unknown">Unknown</string>
+    <string name="action_skip">Skip</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_prev">Previous</string>
+    <string name="onboarding_get_started">Enter Opedrgent</string>
+    <string name="onboarding_page_welcome_title">Welcome to Opedrgent</string>
+    <string name="onboarding_page_welcome_subtitle">Your local-first, extensible AI assistant. Chat, notes, knowledge graph, full-duplex voice, and dynamic skills grow together — making AI your external brain.</string>
+    <string name="onboarding_page_chat_title">Chat Anytime</string>
+    <string name="onboarding_page_chat_subtitle">Supports multi-turn conversation, tool invocation, web search, and deep research. When needed, the AI will proactively confirm and will not perform sensitive operations without permission.</string>
+    <string name="onboarding_page_notes_title">Notes &amp; Knowledge Graph</string>
+    <string name="onboarding_page_notes_subtitle">Capture inspirations, meetings, images, and links. After saving, the system automatically builds a knowledge graph to help you discover hidden connections between notes.</string>
+    <string name="onboarding_page_sprout_title">Thought Space Sprout</string>
+    <string name="onboarding_page_sprout_subtitle">Trigger a sprout on any note, and the AI will deeply analyze from multiple perspectives, generating inspiration connections, insights, and action suggestions. You can re-sprout using results as seeds.</string>
+    <string name="onboarding_page_interview_title">Full-Duplex Voice Interview</string>
+    <string name="onboarding_page_interview_subtitle">Supports real-time full-duplex voice conversation with hardware AEC echo cancellation, VAD voice detection, and smart barge-in. Ideal for mock interviews, speaking practice, and in-depth conversations.</string>
+    <string name="onboarding_page_offline_title">Local First, Privacy Controllable</string>
+    <string name="onboarding_page_offline_subtitle">Data is stored on-device by default. Load local models such as Gemma 4 for fully offline operation, or configure cloud APIs on demand.</string>
+
+    <!-- MainViewModel / AppRoot UI messages -->
+    <string name="error_api_key_required">Please fill in the API Key in Settings first</string>
+    <string name="msg_confirm_execute_default">Confirm execution?</string>
+    <string name="confirm_options_default">Confirm,Cancel</string>
+    <string name="streaming_phase_waiting_choice">Waiting for user selection...</string>
+    <string name="streaming_phase_waiting_confirm">Waiting for confirmation...</string>
+    <string name="msg_fetch_empty_body">Fetch failed: empty body</string>
+    <string name="msg_fetch_failed">Fetch failed</string>
+    <string name="msg_deep_research_status">Deep research mode%1$s. When enabled, complex questions will be handled by multi-agent collaboration.</string>
+    <string name="state_enabled">Enabled</string>
+    <string name="state_disabled">Disabled</string>
+    <string name="msg_export_success">Session exported: %1$s\nPath: %2$s</string>
+    <string name="msg_export_failed_no_active_session">Export failed: no active session</string>
+    <string name="msg_tts_speak">TTS speaking: %1$s</string>
+    <string name="msg_interview_shortcut_hint">Please configure interview parameters in the Interview tab before starting. The /interview shortcut is for navigation only.</string>
+    <string name="msg_image_load_failed">Failed to load image</string>
+    <string name="msg_starting_multi_agent">Starting multi-agent collaboration...</string>
+    <string name="msg_multi_agent_details_header">\n\n---\n**Multi-Agent Collaboration Details** (%1$d agents, %2$dms elapsed)</string>
+    <string name="msg_multi_agent_failed">Multi-agent execution failed: %1$s</string>
+    <string name="msg_voice_message_with_transcript">[Voice message] %1$s</string>
+    <string name="msg_voice_message">[Voice message]</string>
+    <string name="msg_import_success_name">Imported successfully: %1$s</string>
+    <string name="msg_import_failed_reason">Import failed: %1$s</string>
+
+    <!-- Preview samples -->
+    <string name="sample_transcript">Hello, this is a sample voice transcription text.</string>
+    <string name="sample_user_message_preview">Hello, this is a user message preview.</string>
+</resources>

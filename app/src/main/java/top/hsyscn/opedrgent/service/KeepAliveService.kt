@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import top.hsyscn.opedrgent.MainActivity
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 
 class KeepAliveService : Service() {
@@ -95,10 +96,10 @@ class KeepAliveService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "后台运行",
+                getString(R.string.notif_channel_keepalive_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "保持 Opedrgent 在后台运行（息屏可用）"
+                description = getString(R.string.notif_channel_keepalive_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -121,10 +122,10 @@ class KeepAliveService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("Opedrgent 后台运行中")
-            .setContentText("工具调用循环和流式对话将在息屏后继续运行")
+            .setContentTitle(getString(R.string.notif_keepalive_title))
+            .setContentText(getString(R.string.notif_keepalive_text))
             .setContentIntent(pendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止", stopIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notif_action_stop), stopIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)

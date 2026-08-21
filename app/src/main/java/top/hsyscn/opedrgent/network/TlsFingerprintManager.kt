@@ -64,9 +64,9 @@ enum class TlsProfile(
  */
 object TlsFingerprintManager {
     
-    private var currentProfile: TlsProfile = TlsProfile.CHROME_MODERN
-    private var sessionStartTime = 0L
-    private var requestCount = 0
+    @Volatile private var currentProfile: TlsProfile = TlsProfile.CHROME_MODERN
+    @Volatile private var sessionStartTime = 0L
+    @Volatile private var requestCount = 0
     
     // 缓存已创建的客户端，避免重复创建
     private val clientCache = ConcurrentHashMap<String, OkHttpClient>()

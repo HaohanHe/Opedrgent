@@ -5,6 +5,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -655,21 +656,44 @@ object AudioProcessor {
 
     // ==================== 验证与工具方法（保留原有签名）====================
 
-    fun validateAudioFile(context: Context, uri: Uri): Pair<Boolean, String?> {
+    /** Audio validation error codes (locale-independent). */
+    object ValidationErrorCode {
+        const val NONE = 0
+        const val UNSUPPORTED_FORMAT = 1
+        const val ZERO_DURATION = 2
+        const val TOO_LONG = 3
+        const val BAD_SAMPLE_RATE = 4
+        const val PERMISSION_DENIED = 5
+        const val VALIDATION_FAILED = 6
+    }
+
+    data class ValidationResult(
+        val isValid: Boolean,
+        val errorCode: Int = ValidationErrorCode.NONE,
+        val errorMessage: String? = null,
+    )
+
+    fun validateAudioFile(context: Context, uri: Uri): ValidationResult {
         return try {
             val metadata = getAudioMetadata(context, uri)
             when {
-                metadata == null -> Pair(false, "无法读取音频文件或格式不支持。支持 MP3/AAC/WAV/M4A/OGG 及常见视频封装中的音频轨道。")
-                metadata.durationMs == 0L -> Pair(false, "音频文件时长为 0 或无法获取时长，文件可能损坏。")
-                metadata.durationMs > 14_400_000L -> Pair(false, "音频时长超过 4 小时限制 (${String.format(Locale.US, "%.1f", metadata.durationMs / 1000.0)}秒)。建议先裁剪再处理。")
-                metadata.sampleRate < 8000 || metadata.sampleRate > 192000 -> Pair(false, "采样率异常 (${metadata.sampleRate}Hz)，文件可能损坏。")
-                else -> Pair(true, null)
+                metadata == null -> ValidationResult(false, ValidationErrorCode.UNSUPPORTED_FORMAT,
+                    context.getString(R.string.error_audio_unsupported_format))
+                metadata.durationMs == 0L -> ValidationResult(false, ValidationErrorCode.ZERO_DURATION,
+                    context.getString(R.string.error_audio_zero_duration))
+                metadata.durationMs > 14_400_000L -> ValidationResult(false, ValidationErrorCode.TOO_LONG,
+                    context.getString(R.string.error_audio_too_long, String.format(java.util.Locale.US, "%.1f", metadata.durationMs / 1000.0)))
+                metadata.sampleRate < 8000 || metadata.sampleRate > 192000 -> ValidationResult(false, ValidationErrorCode.BAD_SAMPLE_RATE,
+                    context.getString(R.string.error_audio_bad_sample_rate, metadata.sampleRate))
+                else -> ValidationResult(true)
             }
         } catch (e: SecurityException) {
-            Pair(false, "无权访问该文件，请检查存储权限设置。")
+            ValidationResult(false, ValidationErrorCode.PERMISSION_DENIED,
+                context.getString(R.string.error_audio_permission_denied))
         } catch (e: Exception) {
             DebugLog.e(TAG, "验证音频文件失败: ${e.message}")
-            Pair(false, "验证失败: ${e.message}")
+            ValidationResult(false, ValidationErrorCode.VALIDATION_FAILED,
+                context.getString(R.string.error_audio_validation_failed, e.message ?: ""))
         }
     }
 

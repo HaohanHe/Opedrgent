@@ -1,5 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
+import top.hsyscn.opedrgent.R
+
 import android.content.Context
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -58,7 +60,7 @@ class ReadUrlTool(
         systemPrompt: String,
         useProviderSearch: Boolean,
     ): ToolResult {
-        val url = tp.state.input["url"] ?: return emptyResult(tp, "缺少 URL")
+        val url = tp.state.input["url"] ?: return emptyResult(tp, context.getString(R.string.error_missing_url))
         DebugLog.i("read_url: $url")
         // 弹性截断：根据模型上下文窗口按比例计算
         val maxChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
@@ -78,7 +80,7 @@ class ReadUrlTool(
         }
         if (fetched != null) {
             val sanitized = PromptSafety.sanitizeForPrompt(fetched.text, sourceLabel = url)
-            val title = fetched.title?.takeIf { it.isNotBlank() } ?: "无标题"
+            val title = fetched.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.error_no_title)
             val output = buildString {
                 appendLine("页面标题：$title")
                 appendLine("URL：${fetched.url}")
@@ -114,7 +116,7 @@ class ReadUrlTool(
         val reason = sourceError ?: "SourceFetcher 和 WebView 均失败"
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(
             status = ToolStateType.ERROR,
-            error = "读取失败：$url（$reason，请尝试其他来源或搜索关键词）",
+            error = context.getString(R.string.error_read_url_failed, url, reason),
             endTime = System.currentTimeMillis())))
     }
 

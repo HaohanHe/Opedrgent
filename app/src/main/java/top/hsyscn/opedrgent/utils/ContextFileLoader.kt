@@ -5,7 +5,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 
 object ContextFileLoader {
 
-    private val contextCache = mutableMapOf<String, ContextFileEntry>()
+    private val contextCache = java.util.concurrent.ConcurrentHashMap<String, ContextFileEntry>()
     private const val CACHE_TTL_MS = 5 * 60 * 1000L
     private const val MAX_CONTENT_CHARS = 20_000
 
