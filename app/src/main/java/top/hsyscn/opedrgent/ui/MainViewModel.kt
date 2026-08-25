@@ -130,6 +130,7 @@ import top.hsyscn.opedrgent.interview.InterviewConfig
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine
 import java.io.File
 import java.util.Collections
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONObject
 import org.json.JSONArray
@@ -2568,7 +2569,47 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     put("required", org.json.JSONArray().apply { put("query") })
                 }
             ),
-        ) + hamModeTools()
+        ) + hamModeTools() + healthTools()
+
+    /** 运动健康工具：仅在用户开启健康数据开关时暴露给 LLM */
+    private fun healthTools(): List<top.hsyscn.opedrgent.network.ToolDefinition> {
+        if (!apiSettings.isHealthEnabled()) return emptyList()
+        return listOf(
+            top.hsyscn.opedrgent.network.ToolDefinition(
+                name = "health_read",
+                description = """读取用户的运动健康数据（步数、心率、睡眠、卡路里、距离）。
+
+【使用场景】：
+- 用户询问"我今天走了多少步"/"今日运动数据"时
+- 用户询问"我昨晚睡得怎么样"/"睡眠数据"时
+- 用户询问"我的心率"/"消耗了多少卡路里"时
+- 用户要求查看运动健康摘要时
+
+【参数】：
+- query_type: "summary"（今日摘要，默认）、"steps"（最近步数）、"sleep"（最近睡眠）
+- days: 查询天数（仅 steps 模式有效，默认7天）""",
+                parameters = org.json.JSONObject().apply {
+                    put("type", "object")
+                    put("properties", org.json.JSONObject().apply {
+                        put("query_type", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "查询类型: summary(今日摘要), steps(最近步数), sleep(最近睡眠)")
+                            put("enum", org.json.JSONArray().apply {
+                                put("summary")
+                                put("steps")
+                                put("sleep")
+                            })
+                        })
+                        put("days", org.json.JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "查询天数（仅 steps 模式有效，默认7天）")
+                        })
+                    })
+                    put("required", org.json.JSONArray().apply { put("query_type") })
+                },
+            ),
+        )
+    }
 
     /** Ham 模式下额外暴露的工具（业余卫星过境预测） */
     private fun hamModeTools(): List<top.hsyscn.opedrgent.network.ToolDefinition> {
@@ -5069,7 +5110,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     val geo = withContext(Dispatchers.IO) {
                         EnvironmentProvider.reverseGeocode(loc.first, loc.second)
                     }
-                    val display = geo?.displayName ?: "${loc.first}, ${loc.second}"
+                    val display = geo?.displayName ?: String.format(Locale.US, "%.6f, %.6f", loc.first, loc.second)
                     apiSettings.saveLastLocation(display)
                     apiSettings.saveLastLatitude(loc.first)
                     apiSettings.saveLastLongitude(loc.second)
@@ -5645,7 +5686,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) { null }
             if (!healthSummary.isNullOrBlank()) {
-                return "$system\n\n# 用户运动健康数据\n$healthSummary\n\n当用户询问运动、健康相关问题时，可基于以上数据回答，或调用 health_read 工具获取更详细数据。"
+                val useLocal = apiSettings.isLocalModelEnabled() && localEngine.isReady
+                val toolHint = if (useLocal) {
+                    "当用户询问运动、健康相关问题时，直接基于以上数据回答。"
+                } else {
+                    "当用户询问运动、健康相关问题时，可基于以上数据回答，或调用 health_read 工具获取更详细数据。"
+                }
+                return "$system\n\n# 用户运动健康数据\n$healthSummary\n\n$toolHint"
             }
         }
 

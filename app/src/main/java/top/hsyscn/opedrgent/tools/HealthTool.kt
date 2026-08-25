@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.tools
 import android.content.Context
 import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.health.HealthConnectHelper
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -17,6 +18,11 @@ import top.hsyscn.opedrgent.utils.DebugLog
  * 需要用户在设置中开启"运动健康"并授权 Health Connect 权限。
  */
 class HealthTool(private val context: Context) : ToolSet {
+
+    companion object {
+        private const val MAX_DAYS = 30
+        private const val DEFAULT_DAYS = 7
+    }
 
     override fun getTools(): Map<String, ToolBinding> {
         return mapOf(
@@ -37,7 +43,7 @@ class HealthTool(private val context: Context) : ToolSet {
                         })
                         put("days", JSONObject().apply {
                             put("type", "integer")
-                            put("description", "查询天数（仅 steps 模式有效，默认7天）")
+                            put("description", "查询天数（仅 steps 模式有效，默认7天，最大30天）")
                         })
                     })
                     put("required", org.json.JSONArray().apply { put("query_type") })
@@ -51,43 +57,49 @@ class HealthTool(private val context: Context) : ToolSet {
         tp: ToolPart,
         config: ApiConfig,
         systemPrompt: String,
-        cancelled: Boolean,
+        useProviderSearch: Boolean,
     ): ToolResult {
         val queryType = tp.state.input["query_type"] ?: "summary"
 
         return try {
             val availability = HealthConnectHelper.getAvailability(context)
             if (availability != top.hsyscn.opedrgent.health.HealthConnectAvailability.Available) {
-                return errorResult(tp, "Health Connect 不可用，请先在系统设置中安装并授权 Health Connect 应用")
+                return errorResult(tp, context.getString(R.string.health_unavailable))
+            }
+
+            // 检查权限是否仍然有效（用户可能在系统设置中撤销了权限）
+            if (!HealthConnectHelper.hasAllPermissions(context)) {
+                return errorResult(tp, context.getString(R.string.health_permission_revoked))
             }
 
             val result = when (queryType) {
                 "summary" -> {
                     HealthConnectHelper.getTodaySummary(context)
-                        ?: "今日暂无运动数据"
+                        ?: context.getString(R.string.health_no_today_data)
                 }
                 "steps" -> {
-                    val days = tp.state.input["days"]?.toIntOrNull() ?: 7
+                    val rawDays = tp.state.input["days"]?.toIntOrNull() ?: DEFAULT_DAYS
+                    val days = rawDays.coerceIn(1, MAX_DAYS)
                     HealthConnectHelper.getRecentSteps(context, days)
-                        ?: "暂无步数数据，请检查 Health Connect 权限"
+                        ?: context.getString(R.string.health_no_steps_data)
                 }
                 "sleep" -> {
                     HealthConnectHelper.getRecentSleep(context)
-                        ?: "暂无睡眠数据"
+                        ?: context.getString(R.string.health_no_sleep_data)
                 }
-                else -> "未知查询类型: $queryType，支持 summary/steps/sleep"
+                else -> context.getString(R.string.health_unknown_query, queryType)
             }
 
             DebugLog.d("HealthTool: query=$queryType, result=${result.take(100)}")
             successResult(tp, result)
         } catch (e: SecurityException) {
             DebugLog.e("HealthTool: permission denied: ${e.message}")
-            errorResult(tp, "Health Connect 权限未授予，请在设置中开启运动健康并授权")
+            errorResult(tp, context.getString(R.string.health_permission_denied))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             DebugLog.e("HealthTool: error: ${e.message}")
-            errorResult(tp, "读取健康数据失败: ${e.message}")
+            errorResult(tp, context.getString(R.string.health_read_failed, e.message ?: ""))
         }
     }
 

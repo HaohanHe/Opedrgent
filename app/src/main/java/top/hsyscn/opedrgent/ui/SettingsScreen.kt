@@ -294,6 +294,7 @@ fun SettingsScreen(
             if (granted.containsAll(top.hsyscn.opedrgent.health.HealthConnectHelper.PERMISSIONS)) {
                 healthEnabled = true
                 vm.saveHealthEnabled(true)
+                top.hsyscn.opedrgent.health.HealthConnectHelper.invalidateCache()
             } else {
                 healthEnabled = false
                 vm.saveHealthEnabled(false)
@@ -311,6 +312,28 @@ fun SettingsScreen(
             vm.saveHealthEnabled(false)
             scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_wei_shou_yu_huo_dong_shi_bie)) }
         }
+    }
+
+    // 进入设置页或从外部返回时重新校验 Health Connect 权限
+    // （用户可能在 Health Connect 应用或系统设置中撤销了权限）
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && healthEnabled) {
+                scope.launch {
+                    val hasPerm = try {
+                        top.hsyscn.opedrgent.health.HealthConnectHelper.hasAllPermissions(context)
+                    } catch (_: Exception) { false }
+                    if (!hasPerm) {
+                        healthEnabled = false
+                        vm.saveHealthEnabled(false)
+                        top.hsyscn.opedrgent.health.HealthConnectHelper.invalidateCache()
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -1695,6 +1718,7 @@ fun SettingsScreen(
                             } else {
                                 healthEnabled = false
                                 vm.saveHealthEnabled(false)
+                                top.hsyscn.opedrgent.health.HealthConnectHelper.invalidateCache()
                             }
                         },
                         showDivider = false,

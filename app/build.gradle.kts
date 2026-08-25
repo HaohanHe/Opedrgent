@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "top.hsyscn.opedrgent"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "top.hsyscn.opedrgent"

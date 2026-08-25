@@ -9,6 +9,7 @@ import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.WebSearcher
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.Locale
 
 /**
  * 地理编码工具：正向（地名→经纬度）+ 反向（经纬度→地址）
@@ -97,7 +98,7 @@ class ReverseGeocodeTool(
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(
             status = ToolStateType.COMPLETED,
-            output = context.getString(R.string.error_reverse_geocode_failed, lat.toString(), lon.toString()),
+            output = context.getString(R.string.error_reverse_geocode_failed, String.format(Locale.US, "%.6f", lat), String.format(Locale.US, "%.6f", lon)),
             endTime = System.currentTimeMillis(),
         )))
     }

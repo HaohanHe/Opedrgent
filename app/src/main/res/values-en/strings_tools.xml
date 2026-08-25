@@ -50,6 +50,17 @@
     <string name="error_reverse_geocode_failed">%1$s, %2$s (reverse geocoding failed, this is raw GPS coordinates.)</string>
     <string name="error_execution_timeout">Execution timeout (%1$dms)</string>
 
+    <!-- ========== Health Connect ========== -->
+    <string name="health_unavailable">Health Connect is unavailable. Please install and authorize Health Connect in system settings.</string>
+    <string name="health_permission_revoked">Health Connect permissions have been revoked. Please re-enable health tracking in settings and grant permissions.</string>
+    <string name="health_permission_denied">Health Connect permission not granted. Please enable health tracking in settings and authorize.</string>
+    <string name="health_read_failed">Failed to read health data: %1$s</string>
+    <string name="health_no_today_data">No activity data for today</string>
+    <string name="health_no_steps_data">No step data available. Please check Health Connect permissions.</string>
+    <string name="health_no_sleep_data">No sleep data available</string>
+    <string name="health_unknown_query">Unknown query type: %1$s. Supported: summary/steps/sleep</string>
+    <string name="health_disabled_guard">Health tracking is disabled. Please enable it in settings and grant Health Connect permissions.</string>
+
     <!-- ========== Editor Team ========== -->
     <string name="editor_platform_wechat">Official Account</string>
     <string name="editor_platform_xiaohongshu">Xiaohongshu</string>

@@ -211,6 +211,20 @@ class ToolExecutor(
             )
         }
 
+        // 运动健康守卫：未开启时 health_read 直接返回
+        if (!apiSettings.isHealthEnabled() && started.tool == "health_read") {
+            DebugLog.i("ToolExecutor: health_read blocked by healthEnabled=false")
+            return ToolResult(
+                toolPart = started.copy(
+                    state = started.state.copy(
+                        status = ToolStateType.COMPLETED,
+                        output = context.getString(R.string.health_disabled_guard),
+                        endTime = System.currentTimeMillis(),
+                    ),
+                ),
+            )
+        }
+
         // 来源选择：根据设置决定使用自有引擎还是厂商内置搜索
         val effectiveUseProvider = if (started.tool == "web_search") {
             when (apiSettings.getWebSearchSource()) {

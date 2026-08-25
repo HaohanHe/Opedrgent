@@ -1197,7 +1197,7 @@ fun NoteEditorScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 )
             },
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
         ) { padding ->
         val contentMaxWidth = when {
             isExpandedWidth() -> SizeTokens.noteEditorMaxWidthExpanded
@@ -1219,7 +1219,6 @@ fun NoteEditorScreen(
                     }
                 )
                 .padding(padding)
-                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // 标题输入
@@ -1482,7 +1481,7 @@ fun NoteEditorScreen(
             }
 
             Surface(
-                modifier = Modifier.navigationBarsPadding(),
+                modifier = Modifier,
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 tonalElevation = ElevationTokens.md,
             ) {

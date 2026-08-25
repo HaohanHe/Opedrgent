@@ -50,6 +50,17 @@
     <string name="error_reverse_geocode_failed">%1$s, %2$s（反向地理编码失败，这是 GPS 原始坐标。）</string>
     <string name="error_execution_timeout">执行超时 (%1$dms)</string>
 
+    <!-- ========== Health Connect ========== -->
+    <string name="health_unavailable">Health Connect 不可用，请先在系统设置中安装并授权 Health Connect 应用</string>
+    <string name="health_permission_revoked">Health Connect 权限已被撤销，请在设置中重新开启运动健康并授权</string>
+    <string name="health_permission_denied">Health Connect 权限未授予，请在设置中开启运动健康并授权</string>
+    <string name="health_read_failed">读取健康数据失败: %1$s</string>
+    <string name="health_no_today_data">今日暂无运动数据</string>
+    <string name="health_no_steps_data">暂无步数数据，请检查 Health Connect 权限</string>
+    <string name="health_no_sleep_data">暂无睡眠数据</string>
+    <string name="health_unknown_query">未知查询类型: %1$s，支持 summary/steps/sleep</string>
+    <string name="health_disabled_guard">运动健康功能未开启，请在设置中开启并授权 Health Connect 权限</string>
+
     <!-- ========== Editor Team ========== -->
     <string name="editor_platform_wechat">公众号</string>
     <string name="editor_platform_xiaohongshu">小红书</string>
