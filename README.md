@@ -36,7 +36,7 @@ Opedrgent 是一个跑在 Android 手机本地的 AI Agent 应用，用 Kotlin +
 **Ham 模式（业余卫星通联）**
 - 卫星过境预测：SGP4/SDP4 完整轨道传播（J2/J3/J4 摄动、BSTAR 大气阻力、GMST 修正、深空 SDP4），粗扫+精扫两阶段。
 - 多源 TLE：Celestrak → AMSAT → 旧 URL 三级级联，24 小时本地缓存。
-- 内置 16 颗业余星数据库（ISS、SO-50、AO-91/92、FO-29、CAS-3H、RS-44 等），含上下行频率、调制方式、最低仰角。
+- 内置 15 颗业余星数据库（ISS、SO-50、AO-91/92、FO-29、CAS-3H、RS-44 等），含上下行频率、调制方式、最低仰角。
 - 智能通联日志：转写后从星表自动预填，AI 只补 RST/呼号/结果，导出 ADIF 3.1.4 / CSV，兼容 QRZLOG、LoTW、ClubLog。
 
 **Skill 系统（V2）**
@@ -66,7 +66,7 @@ Opedrgent 是一个跑在 Android 手机本地的 AI Agent 应用，用 Kotlin +
 | 语言 | Kotlin（JVM Toolchain 21） |
 | minSdk / targetSdk | 26（Android 8.0）/ 35 |
 | 网络 | OkHttp + Jsoup |
-| 本地存储 | DataStore Preferences + Room + SQLite + EncryptedSecurity |
+| 本地存储 | DataStore Preferences + SQLite + EncryptedSecurity |
 | OCR | Google ML Kit（中文+英文） |
 | 语音识别 | Sherpa-ONNX + MiMO ASR + Android SpeechRecognizer |
 | 端侧 LLM | LiteRT-LM（v0.12.0+）+ TFLite + GPU/NPU |
@@ -109,8 +109,8 @@ app/src/main/java/top/hsyscn/opedrgent/
 |------|------|
 | JDK | Java 21（必须用 Android Studio 自带 JBR） |
 | Gradle | 8.x（Wrapper 管理） |
-| SDK | compileSdk 35 / minSdk 26 / targetSdk 35 |
-| NDK | arm64-v8a + armeabi-v7a |
+| SDK | compileSdk 36 / minSdk 26 / targetSdk 35 |
+| NDK | arm64-v8a |
 | IDE | 推荐最新稳定版 Android Studio |
 
 ### 构建
@@ -170,7 +170,7 @@ Opedrgent は Android スマホ上でローカルに動く AI エージェント
 **Ham モード（アマチュア衛星通信）**
 - 衛星通過予測：SGP4/SDP4 完全軌道伝播（J2/J3/J4 摂動、BSTAR 大気抵抗、GMST 補正、深宇宙 SDP4）、粗掃引 + 精査引の 2 段階アルゴリズム。
 - マルチソース TLE：Celestrak → AMSAT → 旧 URL の 3 段カスケード、24 時間ローカルキャッシュ。
-- 16 基のアマチュア衛星データベース内蔵（ISS、SO-50、AO-91/92、FO-29、CAS-3H、RS-44 など）、アップリンク/ダウンリンク周波数、変調、最低仰角を含む。
+- 15 基のアマチュア衛星データベース内蔵（ISS、SO-50、AO-91/92、FO-29、CAS-3H、RS-44 など）、アップリンク/ダウンリンク周波数、変調、最低仰角を含む。
 - 通信ログ自動記入：転写後に衛星データベースから自動プリフィルし、AI は RST/コールサイン/結果だけを補完。ADIF 3.1.4 / CSV エクスポート対応、QRZLOG、LoTW、ClubLog 互換。
 
 **Skill システム（V2）**
@@ -200,7 +200,7 @@ Opedrgent は Android スマホ上でローカルに動く AI エージェント
 | 言語 | Kotlin（JVM Toolchain 21） |
 | minSdk / targetSdk | 26（Android 8.0）/ 35 |
 | ネットワーク | OkHttp + Jsoup |
-| ローカル保存 | DataStore Preferences + Room + SQLite + EncryptedSecurity |
+| ローカル保存 | DataStore Preferences + SQLite + EncryptedSecurity |
 | OCR | Google ML Kit（中国語+英語） |
 | 音声認識 | Sherpa-ONNX + MiMO ASR + Android SpeechRecognizer |
 | 端末内 LLM | LiteRT-LM（v0.12.0+）+ TFLite + GPU/NPU |
@@ -243,8 +243,8 @@ app/src/main/java/top/hsyscn/opedrgent/
 |------|------|
 | JDK | Java 21（Android Studio 同梱 JBR 必須） |
 | Gradle | 8.x（Wrapper 管理） |
-| SDK | compileSdk 35 / minSdk 26 / targetSdk 35 |
-| NDK | arm64-v8a + armeabi-v7a |
+| SDK | compileSdk 36 / minSdk 26 / targetSdk 35 |
+| NDK | arm64-v8a |
 | IDE | 最新安定版 Android Studio 推奨 |
 
 ### ビルド
@@ -304,7 +304,7 @@ Opedrgent is an on-device AI agent app for Android, written in Kotlin and Jetpac
 **Ham mode (amateur satellite)**
 - Pass prediction with full SGP4/SDP4 propagation (J2/J3/J4 perturbations, BSTAR drag, GMST correction, deep-space SDP4), using a coarse-scan plus fine-scan two-stage algorithm.
 - Multi-source TLE fetching: Celestrak, then AMSAT, then a legacy URL, with 24-hour local caching.
-- A built-in database of 16 amateur satellites (ISS, SO-50, AO-91/92, FO-29, CAS-3H, RS-44, and others), including uplink/downlink frequencies, modulation, and minimum elevation.
+- A built-in database of 15 amateur satellites (ISS, SO-50, AO-91/92, FO-29, CAS-3H, RS-44, and others), including uplink/downlink frequencies, modulation, and minimum elevation.
 - Smart contact log: after transcription the satellite DB pre-fills name, frequency, and modulation; AI only fills gaps like RST, callsign, and result. Exports ADIF 3.1.4 and CSV, compatible with QRZLOG, LoTW, and ClubLog.
 
 **Skill system (V2)**
@@ -334,7 +334,7 @@ Opedrgent is an on-device AI agent app for Android, written in Kotlin and Jetpac
 | Language | Kotlin (JVM Toolchain 21) |
 | minSdk / targetSdk | 26 (Android 8.0) / 35 |
 | Network | OkHttp + Jsoup |
-| Local storage | DataStore Preferences + Room + SQLite + EncryptedSecurity |
+| Local storage | DataStore Preferences + SQLite + EncryptedSecurity |
 | OCR | Google ML Kit (Chinese + English) |
 | Speech recognition | Sherpa-ONNX + MiMO ASR + Android SpeechRecognizer |
 | On-device LLM | LiteRT-LM (v0.12.0+) + TFLite + GPU/NPU |
@@ -377,8 +377,8 @@ app/src/main/java/top/hsyscn/opedrgent/
 |------|-------------|
 | JDK | Java 21 (must use the Android Studio bundled JBR) |
 | Gradle | 8.x (managed via Wrapper) |
-| SDK | compileSdk 35 / minSdk 26 / targetSdk 35 |
-| NDK | arm64-v8a + armeabi-v7a |
+| SDK | compileSdk 36 / minSdk 26 / targetSdk 35 |
+| NDK | arm64-v8a |
 | IDE | Latest stable Android Studio recommended |
 
 ### Build
