@@ -90,7 +90,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── intelligence/                # 向量记忆、记忆桥、推荐、token 预算监控
 ├── mcp/                         # Skill 系统 V2、编辑组、动态工具注册
 ├── agent/                       # 多智能体编排
-├── note/                        # 笔记与知识图谱（Room DAO）
+├── note/                        # 笔记与知识图谱（SQLite 存储）
 ├── storage/                     # 知识库、海马索引、报告/研究/Skill 存储
 ├── llm/                         # 端侧 LLM 引擎、模型下载管理
 ├── tts/                         # TTS 播放与 MiMO 客户端
@@ -224,7 +224,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── intelligence/                # ベクトルメモリ、メモリブリッジ、推薦、トークン予算監視
 ├── mcp/                         # Skill V2、編集チーム、動的ツール登録
 ├── agent/                       # マルチエージェントオーケストレーション
-├── note/                        # ノートと知識グラフ（Room DAO）
+├── note/                        # ノートと知識グラフ（SQLite 保存）
 ├── storage/                     # KB、海馬インデックス、レポート/研究/Skill ストア
 ├── llm/                         # 端末内 LLM エンジン、モデルダウンロード管理
 ├── tts/                         # TTS プレイヤーと MiMO クライアント
@@ -358,7 +358,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── intelligence/                # Vector memory, memory bridge, recommendations, token budget monitor
 ├── mcp/                         # Skill V2, editor team, dynamic tool registration
 ├── agent/                       # Multi-agent orchestration
-├── note/                        # Notes and knowledge graph (Room DAO)
+├── note/                        # Notes and knowledge graph (SQLite storage)
 ├── storage/                     # KB, hippocampus index, report/research/skill stores
 ├── llm/                         # On-device LLM engine, model download manager
 ├── tts/                         # TTS player and MiMO client
