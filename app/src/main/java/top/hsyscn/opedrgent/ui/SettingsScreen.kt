@@ -529,6 +529,23 @@ fun SettingsScreen(
                             },
                         )
 
+                        // 仅根据密钥字段本身的前缀判断是否显示小米 Token Plan 使用提醒
+                        if (apiKey.startsWith("tp-") || apiKey.startsWith("ttp-")) {
+                            Spacer(Modifier.height(SpacingTokens.xs))
+                            Text(
+                                text = "当前密钥为小米 Token Plan 订阅密钥（tp- 为个人版，ttp- 为团队版）。按其服务条款，Token Plan 仅限 AI 编程工具使用，不建议在本 App 这类自建客户端中使用，否则可能导致订阅被终止。如需在本 App 使用云端能力，建议改用按量付费的 sk- 密钥。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+
+                        Spacer(Modifier.height(SpacingTokens.xs))
+                        Text(
+                            text = "云端能力默认关闭。配置密钥并实际使用云端后，你的对话内容将发送至你所选的第三方端点处理，详见隐私政策。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeTextGrey(),
+                        )
+
                         OutlinedTextField(
                             value = jinaApiKey,
                             onValueChange = { jinaApiKey = it },

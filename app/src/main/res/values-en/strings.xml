@@ -511,7 +511,6 @@
     <string name="note_editor_saved">Note saved</string>
     <string name="note_editor_saved_with_links">Saved and found %1$d relations</string>
     <string name="note_editor_seed_prefix">Key point: %1$s</string>
-    <string name="note_editor_core_insight">Core Insights</string>
     <string name="note_editor_start_writing">Start writing…</string>
     <string name="recording_stop_confirm_desc">Stop recording and go back? The current recording will not be saved.</string>
     <string name="recording_stop_confirm_title">Recording</string>

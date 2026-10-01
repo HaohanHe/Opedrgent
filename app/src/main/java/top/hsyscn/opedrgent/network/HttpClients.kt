@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.network
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import top.hsyscn.opedrgent.cloud.CloudRateLimitInterceptor
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
 
@@ -63,6 +64,9 @@ object HttpClients {
             // Cookie管理（可选）
             // .cookieJar(CookieManager())
             
+            // 429 限流退避重试（所有派生客户端自动继承）
+            .addInterceptor(CloudRateLimitInterceptor())
+
             // 拦截器（日志、缓存等）
             .addInterceptor(RequestLoggingInterceptor())
             

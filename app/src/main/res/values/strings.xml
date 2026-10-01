@@ -589,7 +589,6 @@
 
     <!-- Note editor (reader mode + sprout) -->
     <string name="note_editor_seed_prefix">要点：%1$s</string>
-    <string name="note_editor_core_insight">核心洞察</string>
     <string name="note_editor_legacy_sprout">旧版洞察报告</string>
     <string name="note_editor_legacy_detected">检测到旧版洞察报告</string>
     <string name="note_editor_legacy_desc">当前显示的是旧版摘要格式，重新洞察可获取完整的叙事式分析报告。</string>

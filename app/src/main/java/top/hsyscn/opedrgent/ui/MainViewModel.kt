@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import okhttp3.Call
+import top.hsyscn.opedrgent.cloud.CloudFallbackPolicy
 import top.hsyscn.opedrgent.agent.ResearchPhase
 import top.hsyscn.opedrgent.agent.ResearchState
 import top.hsyscn.opedrgent.agent.AgentStorage
@@ -2703,7 +2704,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 val config = apiSettings.getApiConfig()
                 if (config == null) {
-                    // 无 API Key 时，如果本地模型可用则自动降级
+                    // 无 API Key：属于用户尚未配置云端的前置状态（非云端失败），
+                    // 不受 CloudFallbackPolicy 的 AUTH 判定约束；本地模型可用时维持自动降级
                     if (localEngine.isReady) {
                         DebugLog.i("runModel: 无 API Key，自动降级到本地模型")
                         _state.value = _state.value.copy(
@@ -2754,8 +2756,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // ★ BUG-10 修复：错误退出时通知用户，而非显示空白消息
                 if (lastError != null && loopResult.finalContent.isBlank()) {
-                    // ★ 离线模式降级：API 网络错误时自动切换到本地模型
-                    if (isNetworkError(lastError!!) && localEngine.isReady) {
+                    // ★ 离线模式降级：经 CloudFallbackPolicy 判定，
+                    //    仅 NETWORK/TIMEOUT/SERVER/RATE_LIMIT 等瞬时错误才自动切换本地模型；
+                    //    AUTH / 余额不足 / 安全拦截等需用户处理的错误不静默降级
+                    val cloudFailure = CloudFallbackPolicy.classify(
+                        httpCode = 0,
+                        errorBody = lastError,
+                        exception = RuntimeException(lastError),
+                    )
+                    if (CloudFallbackPolicy.shouldFallbackToLocal(cloudFailure) && localEngine.isReady) {
                         DebugLog.i("runModel: API 网络错误，自动降级到本地模型 — $lastError")
                         _state.value = _state.value.copy(
                             streamingPhase = app.getString(R.string.phase_network_error_offline),

@@ -24,6 +24,8 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
+ * 停服说明：阶跃星辰图像服务自 2026-10-10 起停服（step-2x-large、step-image-edit-2 等型号无继任），本工具已从默认注册中移除，文生图请改用 siliconflow_image_generate（硅基流动 FLUX）。
+ *
  * 阶跃星辰图像工具集 — 图像编辑 + 图生图 (Image-to-Image)。
  *
  * ## 支持的 API 端点

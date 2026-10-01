@@ -18,6 +18,8 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.TimeUnit
 
 /**
+ * 停服说明：阶跃星辰图像服务自 2026-10-10 起停服（step-2x-large、step-image-edit-2 等型号无继任），本工具已从默认注册中移除，文生图请改用 siliconflow_image_generate（硅基流动 FLUX）。
+ *
  * step_image_generate 工具 — 阶跃星辰图片生成 (文生图 / 图生图)。
  *
  * 基于 StepFun Images API:

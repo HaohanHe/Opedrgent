@@ -507,7 +507,6 @@
     <string name="note_editor_saved">ノートを保存しました</string>
     <string name="note_editor_saved_with_links">保存し、%1$d 件の関連を発見しました</string>
     <string name="note_editor_seed_prefix">ポイント：%1$s</string>
-    <string name="note_editor_core_insight">コアインサイト</string>
     <string name="note_editor_start_writing">入力を開始…</string>
     <string name="recording_stop_confirm_desc">録音を停止して戻りますか？現在の録音は保存されません。</string>
     <string name="recording_stop_confirm_title">録音中</string>

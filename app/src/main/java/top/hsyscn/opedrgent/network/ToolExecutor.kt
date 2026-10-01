@@ -35,8 +35,7 @@ import top.hsyscn.opedrgent.tools.StepRagTool
 import top.hsyscn.opedrgent.tools.StepSearchTool
 import top.hsyscn.opedrgent.tools.StepMobileAgentTool
 import top.hsyscn.opedrgent.tools.StepVisionTool
-import top.hsyscn.opedrgent.tools.StepImageEditTool
-import top.hsyscn.opedrgent.tools.StepImageGenTool
+import top.hsyscn.opedrgent.tools.SiliconFlowImageGenTool
 import top.hsyscn.opedrgent.tools.StepVideoSummaryTool
 import top.hsyscn.opedrgent.tools.SatellitePassTool
 import top.hsyscn.opedrgent.tools.HealthTool
@@ -128,8 +127,7 @@ class ToolExecutor(
         register(StepSearchTool())
         register(StepMobileAgentTool(context))
         register(StepVisionTool(context))
-        register(StepImageEditTool(context))
-        register(StepImageGenTool())
+        register(SiliconFlowImageGenTool(context))
         register(StepVideoSummaryTool(context, llm, apiSettings))
         // ★ Ham 模式：始终注册 SatellitePassTool 实现。
         // 工具定义的暴露（是否让模型看到）由 MainViewModel.hamModeTools() 动态控制，

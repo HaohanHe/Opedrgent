@@ -12,6 +12,7 @@ import okhttp3.Response
 import okio.IOException
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.cloud.CloudCatalog
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.MultimodalContent
 import top.hsyscn.opedrgent.model.MultimodalMessage
@@ -62,17 +63,20 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
     companion object {
         private val MULTIMODAL_MODELS = setOf(
             "mimo-v2.5",
+            "mimo-v2.6",
             // 阶跃星辰视觉理解模型 — 支持图像/视频多模态输入
             "step-1o-turbo-vision",
         )
         private val WEB_SEARCH_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5",
+            "mimo-v2.6",
         )
         private val TTS_MODELS = setOf(
             "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone",
         )
         private val THINKING_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2",
+            "mimo-v2.6",
             "gemini-2.5",
             "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro",
             // 阶跃星辰 Step Plan — 支持三档推理强度 low/medium/high
@@ -99,6 +103,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         private const val NATIVE_SEARCH_TEMPERATURE = 0.3
         private val MIMO_THINKING_MODELS = setOf(
             "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash", "mimo-v2",
+            "mimo-v2.6",
         )
 
         fun isMultimodalModel(model: String): Boolean {
@@ -182,11 +187,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             .url(url)
             .post(body.toRequestBody("application/json".toMediaType()))
             .header("Content-Type", "application/json")
-        when {
-            apiKey.startsWith("tp-") -> reqBuilder.header("api-key", apiKey)
-            apiKey.startsWith("AIza") -> reqBuilder.header("x-goog-api-key", apiKey)
-            else -> reqBuilder.header("Authorization", "Bearer $apiKey")
-        }
+        // 统一由 CloudProvider 抽象决定鉴权头：已登记 provider 按自身规则，
+        // 其余 OpenAI 兼容端点走 genericOpenAi 兜底（AIza -> x-goog-api-key，否则 Bearer）
+        val (authName, authValue) = CloudCatalog.findByBaseUrl(url)?.authHeader(apiKey)
+            ?: CloudCatalog.genericOpenAi(url).authHeader(apiKey)
+        reqBuilder.header(authName, authValue)
         return reqBuilder.build()
     }
 
