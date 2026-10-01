@@ -239,7 +239,7 @@ private fun generateIndexHtml(notes: List<Note>, noteMetaList: List<JSONObject>)
     </div>
     <div class="stat-card">
       <div class="stat-number">$sproutCount</div>
-      <div class="stat-label">发芽报告</div>
+      <div class="stat-label">洞察报告</div>
     </div>
     <div class="stat-card">
       <div class="stat-number">${allTags.size}</div>
@@ -355,23 +355,23 @@ private fun generateNoteDetailHtml(note: Note, uuid: String): String {
         val article = sproutArticle
         val sectionsHtml = article.articles.mapIndexed { _, sec ->
             val importanceStars = "*".repeat(sec.importance.coerceIn(1, 5))
-            val shockingHtml = if (sec.shockingMoment.isNotBlank()) {
-                "\n              <div class=\"aha-moment\">\n" +
-                "                <span class=\"aha-label\">震惊瞬间</span>\n" +
-                "                <blockquote class=\"aha-quote\">${escapeHtml(sec.shockingMoment)}</blockquote>\n" +
+            val insightHtml = if (sec.coreInsight.isNotBlank()) {
+                "\n              <div class=\"insight-moment\">\n" +
+                "                <span class=\"insight-label\">核心洞察</span>\n" +
+                "                <blockquote class=\"insight-quote\">${escapeHtml(sec.coreInsight)}</blockquote>\n" +
                 "              </div>"
             } else ""
             """
             <article class="sprout-article">
               <h3 class="sprout-article-title">${escapeHtml(sec.title)}</h3>
               <div class="sprout-seed">
-                <span class="seed-label">种子</span>
+                <span class="seed-label">要点</span>
                 <blockquote class="seed-quote">${escapeHtml(sec.seed)}</blockquote>
               </div>
               <div class="sprout-body">
                 ${renderMarkdownSimple(sec.body)}
               </div>
-              $shockingHtml
+              $insightHtml
               <div class="sprout-importance">
                 重要度: <span class="stars">$importanceStars</span>
               </div>
@@ -411,7 +411,7 @@ private fun generateNoteDetailHtml(note: Note, uuid: String): String {
 
         "\n        <section class=\"sprout-report-section\">\n" +
         "          <div class=\"sprout-header glass-card\">\n" +
-        "            <h2 class=\"sprout-main-title\">AI 发芽报告</h2>\n" +
+        "            <h2 class=\"sprout-main-title\">AI 洞察报告</h2>\n" +
         "            <div class=\"sprout-meta-row\">\n" +
         "              <span class=\"sprout-meta-item\">模型: ${escapeHtml(article.modelUsed)}</span>\n" +
         "              <span class=\"sprout-meta-item\">情感: $sentimentLabel</span>\n" +
@@ -649,8 +649,8 @@ private fun generateStyleCss(): String {
 
   /* Sprout */
   --sprout-bg: linear-gradient(135deg, rgba(240,253,244,0.7) 0%, rgba(236,253,245,0.6) 50%, rgba(240,249,255,0.7) 100%);
-  --aha-border-left: #F59E0B;
-  --aha-bg: rgba(245, 158, 11, 0.08);
+  --insight-border-left: #F59E0B;
+  --insight-bg: rgba(245, 158, 11, 0.08);
   --seed-text: #6B7280;
 
   /* Refraction Highlight Opacity */
@@ -683,8 +683,8 @@ private fun generateStyleCss(): String {
     --accent-glow: rgba(50, 173, 230, 0.22);
 
     --sprout-bg: linear-gradient(135deg, rgba(5,46,22,0.7) 0%, rgba(12,45,45,0.6) 50%, rgba(12,25,41,0.7) 100%);
-    --aha-border-left: #F59E0B;
-    --aha-bg: rgba(245, 158, 11, 0.08);
+    --insight-border-left: #F59E0B;
+    --insight-bg: rgba(245, 158, 11, 0.08);
     --seed-text: #9CA3AF;
 
     --refraction-light: 0.10;
@@ -701,7 +701,7 @@ body.light-mode {
   --text-primary:#1c1c1e;--text-secondary:#636366;--text-tertiary:#aeaeb2;
   --accent:#007AFF;--accent-light:rgba(0,122,255,0.12);--accent-glow:rgba(0,122,255,0.20);
   --sprout-bg:linear-gradient(135deg,rgba(240,253,244,0.7)0%,rgba(236,253,245,0.6)50%,rgba(240,249,255,0.7)100%);
-  --aha-border-left:#F59E0B;--aha-bg:rgba(245,158,11,0.08);--seed-text:#6B7280;
+  --insight-border-left:#F59E0B;--insight-bg:rgba(245,158,11,0.08);--seed-text:#6B7280;
   --refraction-light:0.22;
 }
 body.dark-mode {
@@ -713,7 +713,7 @@ body.dark-mode {
   --text-primary:#f5f5f7;--text-secondary:#98989d;--text-tertiary:#636366;
   --accent:#32ADE6;--accent-light:rgba(50,173,230,0.14);--accent-glow:rgba(50,173,230,0.22);
   --sprout-bg:linear-gradient(135deg,rgba(5,46,22,0.7)0%,rgba(12,45,45,0.6)50%,rgba(12,25,41,0.7)100%);
-  --aha-border-left:#F59E0B;--aha-bg:rgba(245,158,11,0.08);--seed-text:#9CA3AF;
+  --insight-border-left:#F59E0B;--insight-bg:rgba(245,158,11,0.08);--seed-text:#9CA3AF;
   --refraction-light:0.10;
 }
 
@@ -1514,16 +1514,16 @@ body {
 .sprout-body strong { font-weight: 650; }
 
 /* 震惊瞬间 Card */
-.aha-moment { margin-bottom: 12px; position: relative; z-index: 2; }
-.aha-label {
+.insight-moment { margin-bottom: 12px; position: relative; z-index: 2; }
+.insight-label {
   display: inline-block;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
   color: #D97706; margin-bottom: 6px;
 }
-.aha-quote {
-  border-left: 3px solid var(--aha-border-left);
+.insight-quote {
+  border-left: 3px solid var(--insight-border-left);
   padding: 14px 20px;
-  background: var(--aha-bg);
+  background: var(--insight-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;

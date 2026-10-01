@@ -100,9 +100,9 @@ enum class SproutVoiceStatus {
 enum class SproutPhase(
     val label: String,
 ) {
-    SEED_EXTRACTION("种子提取"),
+    SEED_EXTRACTION("要点提取"),
     CROSS_DOMAIN("跨领域关联"),
     WEB_ENHANCE("联网增强"),
-    SHOCKING_INSIGHT("震惊瞬间洞察"),
+    CORE_INSIGHT("核心洞察"),
     QUOTE_RESONANCE("金句回响"),
 }

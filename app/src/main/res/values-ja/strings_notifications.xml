@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ========== Notification Channels ========== -->
-    <string name="notif_channel_sprout_name">発芽レポート</string>
-    <string name="notif_channel_sprout_desc">発芽レポートの生成完了時に通知</string>
+    <string name="notif_channel_sprout_name">インサイトレポート</string>
+    <string name="notif_channel_sprout_desc">インサイトレポートの生成完了時に通知</string>
     <string name="notif_channel_digest_name">デイリーサマリー</string>
-    <string name="notif_channel_digest_desc">毎日のコンテンツ振り返りと収穫サマリー</string>
+    <string name="notif_channel_digest_desc">毎日のコンテンツ振り返りとポイントサマリー</string>
     <string name="notif_channel_feedback_name">フィードバック</string>
     <string name="notif_channel_feedback_desc">AI によるノートへの温かいコメント</string>
     <string name="notif_channel_autosave_name">自動保存</string>
@@ -23,12 +23,12 @@
     <string name="notif_channel_floating_desc">内部録音コントロール用フローティングウィンドウ通知</string>
 
     <!-- ========== NotificationHelper ========== -->
-    <string name="notif_sprout_complete_title">発芽レポートが生成されました</string>
+    <string name="notif_sprout_complete_title">インサイトレポートが生成されました</string>
     <string name="notif_sprout_tap_to_view">%1$s…タップして完全なレポートを表示</string>
     <string name="notif_sprout_tap_to_view_short">%1$s -- タップして完全なレポートを表示</string>
-    <string name="notif_digest_title">今日の収穫</string>
+    <string name="notif_digest_title">今日の振り返り</string>
     <string name="notif_digest_content">昨日は %1$d 件記録しました。%2$s…%3$s</string>
-    <string name="notif_digest_new_sprouts"> %1$d 件の新しい発芽レポート</string>
+    <string name="notif_digest_new_sprouts"> %1$d 件の新しいインサイトレポート</string>
     <string name="notif_digest_anniversary">\n---\n%1$d日前の今日：%2$s</string>
     <string name="notif_feedback_title">AI コメント</string>
     <string name="notif_autosave_title">自動保存しました</string>

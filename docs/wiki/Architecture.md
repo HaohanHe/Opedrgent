@@ -43,10 +43,10 @@
 │  KnowledgeBase (SQLite全文检索)                              │
 ├─────────────────────────────────────────────────────────────┤
 │                 Insight & Agent Layer                        │
-│  InsightSproutEngine (4阶段知识发芽)                         │
+│  InsightSproutEngine (4阶段知识洞察)                         │
 │  AgentSwarm + MultiAgentOrchestrator (多智能体编排)          │
 │  EditorTeamService (编辑团队管线)                            │
-│  SproutService (笔记发芽服务)                                │
+│  SproutService (笔记洞察服务)                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 

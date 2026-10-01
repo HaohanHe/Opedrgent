@@ -21,7 +21,7 @@ Opedrgent 的工具系统允许 LLM 在对话过程中动态调用外部能力�
 | `run_js` | RunJsTool.kt | JS Skill 沙箱执行 | 有 |
 | `speech_to_text` | SpeechToTextTool.kt | 语音转文字 | 有 |
 | `mimo_tts` | MimoTtsTool.kt | TTS 语音合成 | 有 |
-| `insight_sprout` | InsightSproutTool.kt | 知识发芽 | 有 |
+| `insight_sprout` | InsightSproutTool.kt | 知识洞察 | 有 |
 | `deep_research` | DeepResearchTool.kt | 深度研究 | 有 |
 | `generate_report` | GenerateReportTool.kt | 报告生成 | 有 |
 | `reverse_geocode` | ReverseGeocodeTool.kt | 坐标转地址 | 有 |

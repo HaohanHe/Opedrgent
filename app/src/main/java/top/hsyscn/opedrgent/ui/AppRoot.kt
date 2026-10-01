@@ -481,6 +481,14 @@ fun AppRoot(
                     vm = vm,
                     onBack = { subScreen = null },
                 )
+                "cultivation" -> CultivationScreen(
+                    manager = vm.cultivation,
+                    onBack = { subScreen = null },
+                    onManageLocalModel = {
+                        subScreen = null
+                        selectedTab = MainTab.SETTINGS
+                    },
+                )
                 // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
                 "import" -> ImportFileScreen(
                     vm = vm,
@@ -626,6 +634,10 @@ fun AppRoot(
                             onNavigateToInterview = {
                                 subScreen = "interview"
                             },
+                            // 个人言行修炼批判镜
+                            onNavigateToCultivation = {
+                                subScreen = "cultivation"
+                            },
                             onNavigateToSearch = { selectedTab = MainTab.NOTES },
                         )
                         MainTab.NOTES -> NoteListScreen(
@@ -666,6 +678,7 @@ fun AppRoot(
                             vm = vm,
                             onOpenSubScreen = { subScreen = it },
                             onNavigateToNotes = { selectedTab = MainTab.NOTES },
+                            onNavigateToCultivation = { subScreen = "cultivation" },
                         )
                         MainTab.AI -> ChatTab(
                             vm = vm,

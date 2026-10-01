@@ -28,11 +28,11 @@ object SproutPromptBuilder {
         return """你是一位认知科学分析师，擅长从文本中提取核心概念和潜在主题。
 
 ## 任务
-分析以下文本，提取其中的**核心种子**（关键概念、观点、情感倾向、潜在主题）。
+分析以下文本，提取其中的**核心要点**（关键概念、观点、情感倾向、潜在主题）。
 
 ## 输入文本
 $inputText$ctxSection## 输出要求
-请提取 **2-3 个核心种子**，每个种子包含：
+请提取 **2-3 个核心要点**，每个要点包含：
 1. **概念名称**（简短精炼，2-6个字）
 2. **描述**（1-2句话解释这个概念在文本中的含义）
 3. **相关关键词**（3-5个关联词）
@@ -75,7 +75,7 @@ $inputText$ctxSection## 输出要求
 3. **穿越模式(TIME_TRAVEL)**：历史学家 + 未来派 + 洞察者。适用于需要历史纵深或趋势推演的话题。
 4. **快速模式(QUICK)**：洞察者 + 批判者。快速获得核心观点，适合时间有限的场景。
 
-## 种子数据
+## 要点数据
 $seedsJson
 
 ## 原始输入
@@ -124,7 +124,7 @@ $inputText
 你的发言风格：直接、有力、偶尔 provocative（挑衅性的）。
 你不是在讨好用户，而是在挑战他们的思维边界。
 
-## 已提取的核心种子
+## 已提取的核心要点
 $seedsJson
 
 ## 用户原始输入
@@ -187,7 +187,7 @@ $inputText$prevSection## 你的任务
 你的风格：犀利但不恶毒，精准而不泛泛。
 你喜欢说"但是"，但你的"但是"后面跟着的是真问题，不是抬杠。
 
-## 已提取的核心种子
+## 已提取的核心要点
 $seedsJson
 
 ## 用户原始输入
@@ -251,7 +251,7 @@ $inputText$prevSection## 你的任务
 你关注的是：这个想法中什么是对的？怎么做才能让它实现？
 你的风格：务实、温暖、行动导向。
 
-## 已提取的核心种子
+## 已提取的核心要点
 $seedsJson
 
 ## 用户原始输入
@@ -321,7 +321,7 @@ $inputText$prevSection## 你的任务
 并告诉他们："你正在重新发现 X 年前 Y 已经走过的路。"
 你引用的历史资料必须具体：注明时代、人物、著作、核心论点。
 
-## 已提取的核心种子
+## 已提取的核心要点
 $seedsJson
 
 ## 用户原始输入
@@ -412,7 +412,7 @@ $inputText$webSection$prevSection## 你的任务
 你关心的是：因果链、反馈循环、临界点、黑天鹅。
 你的发言让用户意识到：你现在做的每一个选择，都在塑造一个特定的未来。
 
-## 已提取的核心种子
+## 已提取的核心要点
 $seedsJson
 
 ## 用户原始输入
@@ -525,7 +525,7 @@ $inputText$prevSection## 你的任务
 3. **给出方向**——基于以上分析，用户应该做什么？下一步怎么走？
 4. **留下一个好问题**——让用户离开后还在思考（一个好问题比十个好答案更有力量）
 
-## 种子数据
+## 要点数据
 $seedsJson
 
 ## 用户原始输入
@@ -699,16 +699,16 @@ $allVoiceContent
     fun buildPhase2Prompt(seedsJson: String, previousContext: String): String {
         return """你是一位跨学科研究专家，擅长在不同领域之间建立意想不到的联系。
 
-## 已提取的种子
+## 已提取的要点
 $seedsJson
 
 ## 前序上下文
 $previousContext
 
 ## 任务
-将上述种子映射到 **>=3 个不同领域**（从以下领域选择：历史、科学、哲学、心理学、经济学、文学、生物学、社会学、艺术、技术、商业），为每个提供一个：
+将上述要点映射到 **>=3 个不同领域**（从以下领域选择：历史、科学、哲学、心理学、经济学、文学、生物学、社会学、艺术、技术、商业），为每个提供一个：
 1. **类比或真实案例**（具体、有画面感）
-2. **深度分析解读**（解释这个案例如何与种子产生联系）
+2. **深度分析解读**（解释这个案例如何与要点产生联系）
 
 ## 要求
 - 寻找**反直觉的、出人意料的关联**，避免陈词滥调
@@ -754,10 +754,10 @@ $previousContext
         searchResults: String,
         previousContext: String,
     ): String {
-        return """你是一位知识整合专家。你已经对一段文本进行了初步分析（提取了种子），
-并且针对这些种子进行了网络搜索，获得了以下真实资料。
+        return """你是一位知识整合专家。你已经对一段文本进行了初步分析（提取了要点），
+并且针对这些要点进行了网络搜索，获得了以下真实资料。
 
-## 已提取的种子
+## 已提取的要点
 $seedsJson
 
 ## 网络搜索结果（真实资料）
@@ -767,7 +767,7 @@ $searchResults
 $previousContext
 
 ## 任务
-基于以上**真实的网络搜索结果**，为每个种子补充或修正 **1-2 条高质量的跨领域关联**。
+基于以上**真实的网络搜索结果**，为每个要点补充或修正 **1-2 条高质量的跨领域关联**。
 
 重点关注：
 1. **历史纵深**：这个概念在历史上有何渊源？中国古代/世界历史中有无相关案例？
@@ -779,7 +779,7 @@ $previousContext
 {
   "enhancedConnections": [
     {
-      "seedConcept": "对应的种子概念",
+      "seedConcept": "对应的要点概念",
       "domain": "领域名称",
       "reference": "具体的参考资料（书籍/文章/事件/人物，注明来源）",
       "insight": "基于此资料的原创性洞察（2-3句话）",
@@ -788,7 +788,7 @@ $previousContext
   ]
 }
 ```
-`relevanceScore` 表示该关联与原种子的相关度（0-1）。
+`relevanceScore` 表示该关联与原要点的相关度（0-1）。
 
 请直接输出 JSON，不要添加其他说明文字。"""
     }
@@ -805,16 +805,16 @@ $previousContext
     fun buildPhase3Prompt(seedsAndConnections: String, previousContext: String): String {
         return """你是一位深度思考者和行为经济学家，擅长发现隐藏在表象之下的反直觉真相。
 
-## 种子与跨领域关联
+## 要点与跨领域关联
 $seedsAndConnections
 
 ## 前序上下文
 $previousContext
 
 ## 任务
-基于以上所有信息，生成 **1-2 条原创的震惊瞬间洞察**。
+基于以上所有信息，生成 **1-2 条原创的核心洞察**。
 
-## 震惊瞬间洞察的标准
+## 核心洞察的标准
 - **简洁有力**：像金句一样可以独立传播（不超过 30 字）
 - **反直觉**：挑战常识，打破固有认知
 - **启发性**：引发读者重新思考
@@ -909,7 +909,7 @@ $allPreviousContext$domainHint## 任务
     fun buildFinalMarkdownReport(result: SproutResult): String {
         val sb = StringBuilder()
 
-        sb.appendLine("**种子**")
+        sb.appendLine("**要点**")
         sb.appendLine()
         result.seeds.forEachIndexed { index, seed ->
             sb.appendLine("${index + 1}. **${seed.concept}**：${seed.description}")
@@ -921,7 +921,7 @@ $allPreviousContext$domainHint## 任务
 
         sb.appendLine("---")
         sb.appendLine()
-        sb.appendLine("**震惊瞬间**")
+        sb.appendLine("**核心洞察**")
         sb.appendLine()
         result.insights.forEachIndexed { index, insight ->
             sb.appendLine("> ${insight.content}")

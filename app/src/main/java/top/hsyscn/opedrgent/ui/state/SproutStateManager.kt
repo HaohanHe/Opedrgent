@@ -123,7 +123,7 @@ class SproutStateManager(
                         SproutPhase.SEED_EXTRACTION -> _sproutingState.value = SproutingState.PHASE1
                         SproutPhase.CROSS_DOMAIN -> _sproutingState.value = SproutingState.PHASE2
                         SproutPhase.WEB_ENHANCE -> _sproutingState.value = SproutingState.PHASE2
-                        SproutPhase.SHOCKING_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
+                        SproutPhase.CORE_INSIGHT -> _sproutingState.value = SproutingState.PHASE3
                         SproutPhase.QUOTE_RESONANCE -> _sproutingState.value = SproutingState.PHASE4
                     }
                 }

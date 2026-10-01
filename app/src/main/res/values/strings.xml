@@ -63,7 +63,7 @@
     <string name="title_export">导出</string>
     <string name="title_import_file">导入文件</string>
     <string name="title_invisible_partner">无感伙伴模式</string>
-    <string name="title_sprout_report">发芽报告</string>
+    <string name="title_sprout_report">洞察报告</string>
     <string name="title_share_note">分享笔记</string>
     <string name="title_note_editor">笔记编辑器</string>
     <string name="title_new_note">新建笔记</string>
@@ -392,7 +392,7 @@
     <string name="settings_advanced_options">高级选项</string>
     <string name="settings_hippocampus_index">海马体索引</string>
     <string name="settings_invisible_partner">无感伙伴模式</string>
-    <string name="settings_invisible_partner_desc">录音自动保存 / 智能发芽 / 每日收获</string>
+    <string name="settings_invisible_partner_desc">录音自动保存 / 智能洞察 / 每日回顾</string>
     <string name="settings_api_key_label">API Key</string>
     <string name="settings_api_key_optional">Jina API Key (可选)</string>
     <string name="settings_clear_api_key">清除 API Key</string>
@@ -455,8 +455,8 @@
     <string name="note_editor_save_leave">保存并离开</string>
     <string name="note_editor_no_save">不保存</string>
     <string name="note_editor_ai_action">AI 操作</string>
-    <string name="note_editor_no_sprout">暂无发芽</string>
-    <string name="note_editor_generating_sprout">正在汲取养分…</string>
+    <string name="note_editor_no_sprout">暂无洞察</string>
+    <string name="note_editor_generating_sprout">正在生成洞察…</string>
     <string name="note_editor_no_original_text">暂无原始转录文本</string>
     <string name="note_editor_source_link">来源链接</string>
     <string name="note_editor_saved_at">保存于 %s</string>
@@ -472,7 +472,7 @@
     <string name="note_editor_key_points">关键要点</string>
     <string name="note_editor_tab_original">原文</string>
     <string name="note_editor_tab_content">笔记内容</string>
-    <string name="note_editor_tab_sprout">发芽</string>
+    <string name="note_editor_tab_sprout">洞察</string>
     <string name="note_editor_tab_append">追加笔记</string>
 
     <!-- Knowledge Base - additional -->
@@ -535,7 +535,7 @@
     <string name="graph_stat_total_links">总关联</string>
     <string name="graph_stat_isolated_notes">孤立笔记</string>
 
-    <!-- i18n 补充：会话 / 编辑器 / 发芽 硬编码字符串 -->
+    <!-- i18n 补充：会话 / 编辑器 / 洞察 硬编码字符串 -->
     <!-- ASR / 语音输入 -->
     <string name="msg_asr_no_speech">未识别到语音</string>
     <string name="msg_asr_failed">语音识别失败: %1$s</string>
@@ -588,12 +588,12 @@
     <string name="action_ignore">忽略</string>
 
     <!-- Note editor (reader mode + sprout) -->
-    <string name="note_editor_seed_prefix">种子：%1$s</string>
-    <string name="note_editor_shocking_moment">震惊瞬间</string>
-    <string name="note_editor_legacy_sprout">旧版发芽报告</string>
-    <string name="note_editor_legacy_detected">检测到旧版发芽报告</string>
-    <string name="note_editor_legacy_desc">当前显示的是旧版摘要格式，重新发芽可获取完整的叙事式分析报告。</string>
-    <string name="note_editor_regenerate_sprout">重新发芽</string>
+    <string name="note_editor_seed_prefix">要点：%1$s</string>
+    <string name="note_editor_core_insight">核心洞察</string>
+    <string name="note_editor_legacy_sprout">旧版洞察报告</string>
+    <string name="note_editor_legacy_detected">检测到旧版洞察报告</string>
+    <string name="note_editor_legacy_desc">当前显示的是旧版摘要格式，重新洞察可获取完整的叙事式分析报告。</string>
+    <string name="note_editor_regenerate_sprout">重新洞察</string>
     <string name="note_editor_model_used">模型: %1$s</string>
     <string name="note_editor_model_default">默认</string>
     <string name="note_editor_start_writing">开始书写…</string>
@@ -606,20 +606,20 @@
     <string name="note_editor_markdown_placeholder">开始书写…\n\n支持 Markdown 格式：\n# 标题\n**加粗** *斜体* `代码`\n- 无序列表\n1. 有序列表\n&gt; 引用\n![图片](url)\n[链接](url)</string>
 
     <!-- Sprout messages -->
-    <string name="msg_sprout_in_progress">发芽正在进行中，请稍候</string>
-    <string name="msg_sprout_unavailable">笔记未加载或发芽服务不可用</string>
-    <string name="msg_sprout_failed">发芽失败: %1$s</string>
+    <string name="msg_sprout_in_progress">洞察正在进行中，请稍候</string>
+    <string name="msg_sprout_unavailable">笔记未加载或洞察服务不可用</string>
+    <string name="msg_sprout_failed">洞察失败: %1$s</string>
     <string name="sprout_copy_report">复制报告</string>
-    <string name="sprout_loading_title">正在发芽…</string>
+    <string name="sprout_loading_title">正在生成洞察…</string>
     <string name="sprout_loading_subtitle">AI 正在从多视角深度分析你的笔记</string>
-    <string name="sprout_error_title">发芽失败</string>
+    <string name="sprout_error_title">洞察失败</string>
     <string name="sprout_error_retry">重试</string>
-    <string name="sprout_empty_title">还没有发芽报告</string>
+    <string name="sprout_empty_title">还没有洞察报告</string>
     <string name="sprout_empty_subtitle">让 AI 帮你深度分析这篇笔记</string>
-    <string name="sprout_start">开始发芽</string>
+    <string name="sprout_start">开始洞察</string>
     <string name="sprout_action_items">行动建议</string>
     <string name="sprout_related_concepts">相关概念</string>
-    <string name="sprout_phase_seed">提取种子</string>
+    <string name="sprout_phase_seed">提取要点</string>
     <string name="sprout_phase_connection">建立关联</string>
     <string name="sprout_phase_insight">生成洞察</string>
     <string name="sprout_phase_quote">金句回响</string>
@@ -641,7 +641,7 @@
     <string name="note_editor_subtab_todos">待办事项</string>
 
     <!-- Clipboard labels -->
-    <string name="clipboard_label_sprout_result">发芽结果</string>
+    <string name="clipboard_label_sprout_result">洞察结果</string>
 
     <!-- Internal data labels (user-visible in lists/history) -->
     <string name="memory_evolution_title">进化记忆</string>
@@ -654,4 +654,69 @@
     <string name="theme_preview_semantic_colors">业务语义颜色</string>
 
     <!-- Onboarding -->
+    <!-- Cultivation (self mirror) -->
+    <string name="cultivation_title">言行修炼</string>
+    <string name="cultivation_home_subtitle">对照理想人格，反讨好地复盘你的真实表达</string>
+    <string name="cultivation_tab_mirror">批判镜</string>
+    <string name="cultivation_tab_baseline">人格基准</string>
+    <string name="cultivation_tab_history">修炼轨迹</string>
+    <string name="cultivation_backend_label">运行后端</string>
+    <string name="cultivation_backend_local">端侧（默认）</string>
+    <string name="cultivation_backend_cloud">云端</string>
+    <string name="cultivation_cloud_warn">云端分析会把转写发送到你在设置中配置的服务商；端侧则全程不出设备。</string>
+    <string name="cultivation_local_status">本地模型：%1$s（全程不出设备）</string>
+    <string name="cultivation_local_not_ready">未加载</string>
+    <string name="cultivation_local_needed_title">先在本机加载一个模型</string>
+    <string name="cultivation_local_needed_desc">你的语音转写与复盘全程只在这台设备上运行，不会上传。加载一次端侧小模型后，就能随时照镜。</string>
+    <string name="cultivation_local_manage">去加载本地模型</string>
+    <string name="cultivation_mode_label">反馈风格</string>
+    <string name="cultivation_mode_standard">标准</string>
+    <string name="cultivation_mode_gentle">温和</string>
+    <string name="cultivation_transcript_hint">粘贴或录入“本人”语音转写文本（他人内容请先剔除）</string>
+    <string name="cultivation_start">开始批判镜分析</string>
+    <string name="cultivation_analyzing">分析中…</string>
+    <string name="cultivation_below_bar">本次未达质量门槛，未展示低质反馈：</string>
+    <string name="cultivation_ref">对照基准：%1$s</string>
+    <string name="cultivation_alternative">可改为：%1$s</string>
+    <string name="cultivation_next_step">下一步：%1$s</string>
+    <string name="cultivation_strengths">你的优势</string>
+    <string name="cultivation_patterns">反复出现的模式</string>
+    <string name="cultivation_followups">接下来可以做</string>
+    <string name="cultivation_followup_open">待办</string>
+    <string name="cultivation_followup_done">已做到</string>
+    <string name="cultivation_followup_drop">不再跟进</string>
+    <string name="cultivation_insights_title">成长全景</string>
+    <string name="cultivation_insights_summary">累计 %1$d 次复盘 · 活跃 %2$d 天 · 跟进完成率 %3$d%%</string>
+    <string name="cultivation_insights_traits">高频优势</string>
+    <string name="cultivation_insights_patterns">反复出现的模式</string>
+    <string name="cultivation_retain_exemplar">仅本次对照，不留存</string>
+    <string name="cultivation_mark_accept">接受</string>
+    <string name="cultivation_mark_improved">已改进</string>
+    <string name="cultivation_mark_disagree">不同意</string>
+    <string name="cultivation_route_analyze">言行复盘</string>
+    <string name="cultivation_route_support">情绪支持</string>
+    <string name="cultivation_route_crisis">危机陪伴</string>
+    <string name="cultivation_baseline_intro">定义你想成为的人：每个维度写“做到”和“不接受”的具体行为，每行一条，分析将以此为镜。</string>
+    <string name="cultivation_dim_name">维度名称</string>
+    <string name="cultivation_dim_do">做到的行为（每行一条）</string>
+    <string name="cultivation_dim_dont">不接受的行为（每行一条）</string>
+    <string name="cultivation_remove_dim">删除该维度</string>
+    <string name="cultivation_add_dim">添加维度</string>
+    <string name="cultivation_save_baseline">保存基准</string>
+    <string name="cultivation_history_title">历史轨迹</string>
+    <string name="cultivation_clear_all">清空记录</string>
+    <string name="cultivation_dismiss">完成</string>
+    <string name="cultivation_history_empty">还没有修炼记录</string>
+    <string name="cultivation_delete_report">删除该记录</string>
+    <string name="recording_send_to_cultivation">送批判镜复盘</string>
+    <string name="cultivation_tab_exemplar">榜样镜</string>
+    <string name="cultivation_exemplar_name_hint">你想以谁为镜（历史人物或认可的榜样）</string>
+    <string name="cultivation_exemplar_why_hint">为什么以他为镜（可选，帮模型抓住重点）</string>
+    <string name="cultivation_exemplar_shared_transcript">与“批判镜”共用同一段转写：可到“批判镜”页粘贴，或由录音一键带入。</string>
+    <string name="cultivation_exemplar_start">开始榜样镜对照</string>
+    <string name="cultivation_exemplar_analyzing">对照中…</string>
+    <string name="cultivation_exemplar_actions">他会怎么做</string>
+    <string name="cultivation_exemplar_highlights">你已做到的亮点</string>
+    <string name="cultivation_exemplar_improvements">还能怎么优化</string>
+    <string name="cultivation_exemplar_takeaway">榜样心法：%1$s</string>
 </resources>

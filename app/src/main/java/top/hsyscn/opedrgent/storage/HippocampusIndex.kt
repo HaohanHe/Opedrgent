@@ -23,10 +23,11 @@ enum class SourceType(val label: String) {
     // -- 全局级 --
     USER_PREFERENCES("用户偏好"),
     USER_MEMORY("用户记忆"),
+    CULTIVATION("修炼"),
 
     // -- 项目级 --
     NOTE("笔记"),
-    SPROUT("发芽"),
+    SPROUT("洞察"),
 
     // -- 会话级 --
     CONVERSATION("对话"),
@@ -216,7 +217,7 @@ class HippocampusIndex(context: Context) {
         upsert(IndexedItem(
             sourceType = SourceType.SPROUT,
             sourceId = noteId,
-            title = "发芽: $noteTitle",
+            title = "洞察: $noteTitle",
             summary = reportSummary.take(500),
             keywords = extractKeywords(noteTitle, reportSummary),
             scope = MemoryScope.PROJECT,
@@ -260,6 +261,30 @@ class HippocampusIndex(context: Context) {
             keywords = extractKeywords(preferenceKey, preferenceValue),
             scope = MemoryScope.GLOBAL,
         ))
+    }
+
+    /** 索引个人修炼（批判镜）复盘：全局级长期自我模式，跨会话可回顾，也能被其它模块 recall。 */
+    suspend fun upsertCultivation(reportId: Long, summary: String) = withContext(Dispatchers.IO) {
+        upsert(
+            IndexedItem(
+                sourceType = SourceType.CULTIVATION,
+                sourceId = reportId.toString(),
+                title = "修炼复盘",
+                summary = summary.take(500),
+                keywords = extractKeywords("修炼复盘 言行 自我", summary),
+                scope = MemoryScope.GLOBAL,
+            )
+        )
+    }
+
+    /** 删除单条修炼索引（与批判镜报告删除保持一致）。 */
+    suspend fun deleteCultivation(reportId: Long) = withContext(Dispatchers.IO) {
+        deleteBySource(SourceType.CULTIVATION, reportId.toString())
+    }
+
+    /** 清空全部修炼索引（修炼数据独立清除入口）。 */
+    suspend fun deleteAllCultivation() = withContext(Dispatchers.IO) {
+        getAllByType(SourceType.CULTIVATION, Int.MAX_VALUE).forEach { delete(it.id) }
     }
 
     /** 为索引条目提取关键词（供批量索引复用） */

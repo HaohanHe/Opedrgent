@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ========== Notification Channels ========== -->
-    <string name="notif_channel_sprout_name">Sprout Reports</string>
-    <string name="notif_channel_sprout_desc">Notify when a sprout report is generated</string>
+    <string name="notif_channel_sprout_name">Insight Reports</string>
+    <string name="notif_channel_sprout_desc">Notify when a insight report is generated</string>
     <string name="notif_channel_digest_name">Daily Digest</string>
-    <string name="notif_channel_digest_desc">Daily content review and harvest summary</string>
+    <string name="notif_channel_digest_desc">Daily content review and key-points summary</string>
     <string name="notif_channel_feedback_name">Feedback</string>
     <string name="notif_channel_feedback_desc">Warm AI feedback on your notes</string>
     <string name="notif_channel_autosave_name">Auto Save</string>
@@ -23,12 +23,12 @@
     <string name="notif_channel_floating_desc">Floating window notification for internal recording control</string>
 
     <!-- ========== NotificationHelper ========== -->
-    <string name="notif_sprout_complete_title">Sprout Report Ready</string>
+    <string name="notif_sprout_complete_title">Insight Report Ready</string>
     <string name="notif_sprout_tap_to_view">%1$s…Tap to view full report</string>
     <string name="notif_sprout_tap_to_view_short">%1$s -- Tap to view full report</string>
-    <string name="notif_digest_title">Today\'s Harvest</string>
+    <string name="notif_digest_title">Today\'s Review</string>
     <string name="notif_digest_content">Recorded %1$d items yesterday. %2$s…%3$s</string>
-    <string name="notif_digest_new_sprouts"> %1$d new sprout reports</string>
+    <string name="notif_digest_new_sprouts"> %1$d new insight reports</string>
     <string name="notif_digest_anniversary">\n---\nOn this day %1$d days ago: %2$s</string>
     <string name="notif_feedback_title">AI Feedback</string>
     <string name="notif_autosave_title">Auto Saved</string>

@@ -90,10 +90,11 @@
     <string name="hippocampus_bi_ji">Notes</string>
     <string name="hippocampus_dui_hua">Conversations</string>
     <string name="hippocampus_lu_yin">Recordings</string>
-    <string name="hippocampus_fa_ya">Sprouts</string>
+    <string name="hippocampus_fa_ya">Insights</string>
     <string name="hippocampus_mian_shi">Interviews</string>
     <string name="hippocampus_ji_yi">Memory</string>
     <string name="hippocampus_pian_hao">Preferences</string>
+    <string name="hippocampus_xiu_lian">Cultivation</string>
     <string name="hippocampus_qing_chu">Clear</string>
     <!-- sessions -->
     <string name="sessions_empty_action">New Session</string>
@@ -232,16 +233,16 @@
     <string name="invisible_partner_lu_yin_zi_dong_bao_cun">Auto-Save Recordings</string>
     <string name="invisible_partner_mei_ci_bao_cun_bi_ji_hou_ai">AI gives a warm response after each note save</string>
     <string name="invisible_partner_mei_ri_tui_song">Daily Push</string>
-    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">Maximum auto-generated sprout reports per day</string>
-    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">Automatically analyze the day\'s content every night and push a sprout report the next morning</string>
+    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">Maximum auto-generated insight reports per day</string>
+    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">Automatically analyze the day\'s content every night and push a insight report the next morning</string>
     <string name="invisible_partner_mei_tian_zao_shang_tui_song">Push yesterday\'s summary every morning</string>
     <string name="invisible_partner_shi_yong_mo_shi">Usage Mode</string>
     <string name="invisible_partner_wen_nuan_dian_ping">Warm Feedback</string>
-    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">Invisible Partner mode lets AI work silently in the background. When enabled, the system automatically completes recording transcription, content analysis, sprout report generation, and daily summary push at scheduled times without manual operation. All data is stored locally on the device.</string>
+    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">Invisible Partner mode lets AI work silently in the background. When enabled, the system automatically completes recording transcription, content analysis, insight report generation, and daily summary push at scheduled times without manual operation. All data is stored locally on the device.</string>
     <string name="invisible_partner_xi_tong_hui_gen_ju_shi_jian">The system will automatically adjust based on time, content, and schedule</string>
-    <string name="invisible_partner_zi_dong_fa_ya">Auto Sprout</string>
+    <string name="invisible_partner_zi_dong_fa_ya">Auto Insight</string>
     <string name="invisible_partner_zi_dong_qie_huan">Auto Switch</string>
-    <string name="invisible_partner_zui_da_fa_ya_shu">Max Sprouts</string>
+    <string name="invisible_partner_zui_da_fa_ya_shu">Max Insights</string>
     <string name="invisible_partner_sheng_huo_ji_lu">Life Journal</string>
     <string name="invisible_partner_xiao_lv_gong_zuo">Productivity</string>
     <string name="invisible_partner_chuang_zuo_ling_gan">Creative Inspiration</string>
@@ -520,7 +521,7 @@
     <string name="sprout_android_11_qing_shou_yu_suo">Android 11+ please grant all files access permission before exporting</string>
     <string name="sprout_cao_zuo_zheng_zai_jin_xing">Operation in progress, please wait</string>
     <string name="sprout_dao_chu_markdown">Export Markdown</string>
-    <string name="sprout_fa_ya_bao_gao">  Sprout Report  </string>
+    <string name="sprout_fa_ya_bao_gao">  Insight Report  </string>
     <string name="sprout_geng_duo_cao_zuo">More Actions</string>
     <string name="sprout_index_1_wei_ming_ming_dong_cha">%1$s. Unnamed Insight</string>
     <string name="sprout_mei_you_ke_dao_chu_de_nei_rong">No content to export</string>
@@ -528,17 +529,17 @@
     <string name="sprout_wei_wan_cheng">Incomplete</string>
     <string name="sprout_yi_dao_chu_dao_xia_zai_mu_lu_1">Exported to downloads directory: %1$s</string>
     <string name="sprout_yi_zhui_jia_wei_xin_bi_ji">Appended as new note</string>
-    <string name="sprout_zai_fa_ya">Re-sprout</string>
+    <string name="sprout_zai_fa_ya">Re-analyze</string>
     <string name="sprout_zhui_jia_shi_bai_1">Append failed: %1$s</string>
-    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">Sprout Report</string>
-    <string name="note_sprout_fa_ya_shi_bai">Sprout Failed</string>
-    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">Sprouting in progress, please wait</string>
+    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">Insight Report</string>
+    <string name="note_sprout_fa_ya_shi_bai">Insight Failed</string>
+    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">Analyzing in progress, please wait</string>
     <string name="note_sprout_ri_qi_ge_shi">MM/dd</string>
     <string name="note_sprout_sheng_cheng_shi_bai">Generation Failed</string>
     <string name="note_sprout_markdown_title"># %1$s</string>
-    <string name="note_sprout_section_shocking_moment">**Shocking Moment:** %1$s</string>
+    <string name="note_sprout_section_core_insight">**Core Insight:** %1$s</string>
     <string name="note_sprout_action_items_title">## Action Items</string>
-    <string name="note_sprout_plain_shocking_moment">Shocking Moment: %1$s</string>
+    <string name="note_sprout_plain_core_insight">Core Insight: %1$s</string>
     <string name="note_sprout_plain_action_items_title">Action Items:</string>
     <string name="note_sprout_share_title">【%1$s】</string>
     <!-- voiceprint -->
@@ -590,12 +591,12 @@
     <string name="vocabulary_term_label">Term</string>
     <!-- sprout -->
     <string name="sprout_error_empty">Input text cannot be empty</string>
-    <string name="sprout_error_empty_detail">Input text cannot be empty; please provide content to sprout</string>
-    <string name="sprout_error_too_short">Input text is too short (at least 10 characters); provide richer content for better sprout results</string>
+    <string name="sprout_error_empty_detail">Input text cannot be empty; please provide content to analyze</string>
+    <string name="sprout_error_too_short">Input text is too short (at least 10 characters); provide richer content for better insight results</string>
     <string name="sprout_error_no_api_key">Please fill in the API Key in Settings first</string>
-    <string name="sprout_error_processing">Sprout processing failed: %1$s</string>
+    <string name="sprout_error_processing">Insight processing failed: %1$s</string>
     <string name="sprout_error_no_session">No current session; please start a conversation first</string>
-    <string name="sprout_error_empty_context">Current conversation is empty; no content to sprout</string>
+    <string name="sprout_error_empty_context">Current conversation is empty; no content to analyze</string>
     <string name="sprout_system_prompt">You are a knowledge analysis assistant. Please perform deep analysis based on user input.</string>
     <!-- stt -->
     <string name="stt_error_validation_failed">Audio file validation failed</string>

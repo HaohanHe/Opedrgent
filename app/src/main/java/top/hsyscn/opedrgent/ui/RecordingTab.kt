@@ -208,6 +208,7 @@ fun RecordingTab(
     vm: MainViewModel,
     onOpenSubScreen: (String) -> Unit,
     onNavigateToNotes: () -> Unit = {},
+    onNavigateToCultivation: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1194,6 +1195,15 @@ fun RecordingTab(
                                         scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_copied)) }
                                     },
                                     onNavigateToNotes = onNavigateToNotes,
+                                    onSendToCultivation = {
+                                        val mirrorText = result.fullText.trim()
+                                        if (mirrorText.isBlank()) {
+                                            scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_contact_log_empty_transcript)) }
+                                        } else {
+                                            vm.cultivation.loadTranscript(mirrorText)
+                                            onNavigateToCultivation()
+                                        }
+                                    },
                                     onSave = { showSaveDialog = true },
                                     onAiSummary = {
                                         val structuredPrompt = context.getString(R.string.recording_ai_zong_jie_ti_shi, result.fullText)
@@ -2190,6 +2200,7 @@ private fun TranscriptResultCard(
     hamModeEnabled: Boolean = false,
     onCopy: () -> Unit,
     onNavigateToNotes: () -> Unit,
+    onSendToCultivation: () -> Unit,
     onSave: () -> Unit,
     onAiSummary: () -> Unit,
     onConvertToContactLog: () -> Unit,
@@ -2395,6 +2406,20 @@ private fun TranscriptResultCard(
                     Spacer(Modifier.width(SpacingTokens.sm))
                     Text(stringResource(R.string.recording_ai_summary), style = MaterialTheme.typography.labelLarge)
                 }
+            }
+
+            // 个人修炼：把本人转写一键带入批判镜
+            Spacer(Modifier.height(SpacingTokens.md))
+            OutlinedButton(
+                onClick = onSendToCultivation,
+                shape = ShapeTokens.mediumShape,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(SizeTokens.searchBarHeight),
+            ) {
+                Icon(Icons.Default.FormatQuote, contentDescription = null, modifier = Modifier.size(SizeTokens.iconMd))
+                Spacer(Modifier.width(SpacingTokens.sm))
+                Text(stringResource(R.string.recording_send_to_cultivation), style = MaterialTheme.typography.labelLarge)
             }
 
             // ★ Ham 模式：通联日志按钮

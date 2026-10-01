@@ -281,7 +281,7 @@ private fun SproutArticle.toMarkdown(): String = buildString {
         appendLine()
         appendLine(article.body)
         appendLine()
-        appendLine("**${article.shockingMoment}**")
+        appendLine("**${article.coreInsight}**")
         appendLine()
     }
     if (actionItems.isNotEmpty()) {

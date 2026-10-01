@@ -49,15 +49,15 @@
 
 ## 知识与记忆
 
-### 知识发芽 (Insight Sprout)
-- 四阶段 AI 洞察引擎：种子提取 -> 跨领域关联 -> AHA 洞察 -> 金句回响
+### 知识洞察 (Insight Sprout)
+- 四阶段 AI 洞察引擎：要点提取 -> 跨领域关联 -> 核心洞察 -> 金句回响
 - 三层渐进式上下文注入：标签层 -> 索引层 -> 联网搜索验证
 - 叙事式文章输出（非结构化数据）
-- 发芽数据持久化，重启不丢失
+- 洞察数据持久化，重启不丢失
 
 ### 海马记忆系统 (Hippocampus Memory)
 - SQLite 全局索引，关键词提取 + LIKE 模糊匹配
-- 自动索引：笔记、对话、录音、发芽、面试、用户偏好
+- 自动索引：笔记、对话、录音、洞察、面试、用户偏好
 - 三个作用域：GLOBAL / PROJECT / SESSION
 - 面试模式：目标锚定 + 漂移检测 + 注意力注入
 
@@ -65,7 +65,7 @@
 - 完整的 CRUD 笔记管理
 - 文件夹分类 + 标签系统
 - 知识图谱 (KnowledgeGraph) 关系可视化
-- 笔记发芽/分享/图谱
+- 笔记洞察/分享/图谱
 
 ---
 
@@ -104,4 +104,12 @@
 - JS Skill 沙箱执行（WebView + JavaScript Bridge）
 - 三种导入方式：URL 远程加载、本地文件导入、手动创建
 - RequireSecret 三级授权：ALLOW / ASK / DENY
-- 内置技能：calculate-hash、mood-tracker-lite、critical-inquiry 等
+- 内置技能：calculate-hash、mood-tracker-lite、critical-inquiry、self-mirror（个人言行修炼批判镜，实验阶段）等
+
+## 个人修炼（实验）
+
+- 批判镜：对照自定义理想人格基准，分析本人语音转写，反讨好但不对抗地指出言行差距并给替代说法
+- 模型为大：分析组织、问题聚焦、状态与危机路由由模型结合完整语境决定，不设关键词表
+- 反讨好双保险：模型自审 + 确定性字符串核验（引用须逐字出现在转写、须有替代行动），至多重做一次
+- 默认端侧 LiteRT-LM 全本地，云端需显式开关；基准与报告本地持久化、可独立清除
+- 原生模块位于 `cultivation` 包，`CultivationScreen` 提供批判镜/基准/轨迹三段界面，首页“发现新功能”进入；设计见 [Cultivation.md](Cultivation.md)，风格评测见 `docs/eval/self-mirror-style-eval`

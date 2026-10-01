@@ -46,6 +46,7 @@ import top.hsyscn.opedrgent.stt.MeetingTranscriptResult
 import top.hsyscn.opedrgent.stt.SystemAudioRecorder
 import top.hsyscn.opedrgent.ui.components.RecordingState
 import top.hsyscn.opedrgent.ui.state.RecorderStateManager
+import top.hsyscn.opedrgent.ui.state.CultivationStateManager
 import top.hsyscn.opedrgent.ui.state.InterviewStateManager
 import top.hsyscn.opedrgent.ui.state.AgentUiBridge
 import top.hsyscn.opedrgent.ui.state.AgentUiStateManager
@@ -6279,6 +6280,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** 面试状态暴露给 UI 层 */
     val interviewState: StateFlow<InterviewStateManager.InterviewUiState> = interview.interviewState
+
+    /** 个人修炼批判镜状态（默认端侧，全本地） */
+    val cultivation = CultivationStateManager(
+        app = app,
+        apiSettings = apiSettings,
+        coroutineScope = viewModelScope,
+        hippocampusProvider = { hippocampus },
+    )
+    val cultivationState: StateFlow<CultivationStateManager.CultivationUiState> = cultivation.state
 
     fun startInterview(config: InterviewConfig) = interview.startInterview(config)
     fun sendInterviewAnswer(answer: String) = interview.sendInterviewAnswer(answer)

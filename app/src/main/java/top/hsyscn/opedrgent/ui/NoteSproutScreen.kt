@@ -612,8 +612,8 @@ private fun ArticleCard(section: ArticleSection, index: Int) {
 
             Spacer(Modifier.height(SpacingTokens.lg))
 
-            if (section.shockingMoment.isNotEmpty()) {
-                ShockingBlock(moment = section.shockingMoment, importance = section.importance)
+            if (section.coreInsight.isNotEmpty()) {
+                CoreInsightBlock(moment = section.coreInsight, importance = section.importance)
             }
 
             HorizontalDivider(color = themeSproutDivider(), thickness = SizeTokens.dividerThickness)
@@ -674,7 +674,7 @@ private fun QuoteBlock(text: String) {
 // ==================== 震惊瞬间块 ====================
 
 @Composable
-private fun ShockingBlock(moment: String, importance: Int) {
+private fun CoreInsightBlock(moment: String, importance: Int) {
     Row(Modifier.padding(start = SpacingTokens.xs)) {
         Text(text = "  ", style = MaterialTheme.typography.bodyLarge)
         Column(Modifier.weight(1f)) {
@@ -1026,8 +1026,8 @@ private fun SproutArticle.toMarkdown(context: Context): String = buildString {
         appendLine("## ${section.title}")
         if (section.seed.isNotEmpty()) appendLine("*${section.seed}*").appendLine()
         appendLine(section.body).appendLine()
-        if (section.shockingMoment.isNotEmpty()) {
-            appendLine(context.getString(R.string.note_sprout_section_shocking_moment, section.shockingMoment)).appendLine()
+        if (section.coreInsight.isNotEmpty()) {
+            appendLine(context.getString(R.string.note_sprout_section_core_insight, section.coreInsight)).appendLine()
         }
     }
     if (actionItems.isNotEmpty()) {
@@ -1046,8 +1046,8 @@ private fun SproutArticle.toPlainText(context: Context): String = buildString {
     articles.forEach { section ->
         if (section.title.isNotEmpty()) appendLine("## ${section.title}")
         appendLine(section.body)
-        if (section.shockingMoment.isNotEmpty()) {
-            appendLine(context.getString(R.string.note_sprout_plain_shocking_moment, section.shockingMoment))
+        if (section.coreInsight.isNotEmpty()) {
+            appendLine(context.getString(R.string.note_sprout_plain_core_insight, section.coreInsight))
         }
     }
     if (actionItems.isNotEmpty()) {

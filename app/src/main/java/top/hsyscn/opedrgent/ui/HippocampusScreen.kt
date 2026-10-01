@@ -158,6 +158,7 @@ private fun TypeFilterRow(
         SourceType.RECORDING,
         SourceType.SPROUT,
         SourceType.INTERVIEW,
+        SourceType.CULTIVATION,
     )
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = AccentBlue,
@@ -180,6 +181,7 @@ private fun TypeFilterRow(
                 SourceType.INTERVIEW -> stringResource(R.string.hippocampus_mian_shi)
                 SourceType.USER_MEMORY -> stringResource(R.string.hippocampus_ji_yi)
                 SourceType.USER_PREFERENCES -> stringResource(R.string.hippocampus_pian_hao)
+                SourceType.CULTIVATION -> stringResource(R.string.hippocampus_xiu_lian)
             }
             val isSelected = type == selectedType
             FilterChip(
@@ -357,6 +359,7 @@ private fun SourceTypeChip(sourceType: SourceType) {
         SourceType.INTERVIEW -> AccentBlue to R.string.hippocampus_mian_shi
         SourceType.USER_MEMORY -> MaterialTheme.colorScheme.outline to R.string.hippocampus_ji_yi
         SourceType.USER_PREFERENCES -> AccentOrange to R.string.hippocampus_pian_hao
+        SourceType.CULTIVATION -> SuccessGreen to R.string.hippocampus_xiu_lian
     }
     val label = stringResource(labelRes)
 

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -106,6 +107,7 @@ fun HomeDashboardScreen(
     onNavigateToRecording: () -> Unit = {},
     onNavigateToKnowledge: () -> Unit = {},
     onNavigateToInterview: () -> Unit = {},
+    onNavigateToCultivation: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
 ) {
     var recentNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
@@ -187,6 +189,7 @@ fun HomeDashboardScreen(
                                 onEditorTeam = onOpenEditorTeam,
                                 onVoiceNotes = onNavigateToRecording,
                                 onSprout = onNavigateToNotes,
+                                onCultivation = onNavigateToCultivation,
                             )
                         }
                         item {
@@ -241,6 +244,7 @@ fun HomeDashboardScreen(
                             onEditorTeam = onOpenEditorTeam,
                             onVoiceNotes = onNavigateToRecording,
                             onSprout = onNavigateToNotes,
+                            onCultivation = onNavigateToCultivation,
                         )
                     }
                     item {
@@ -532,6 +536,7 @@ private fun FeatureDiscoveryGrid(
     onEditorTeam: () -> Unit,
     onVoiceNotes: () -> Unit,
     onSprout: () -> Unit,
+    onCultivation: () -> Unit,
 ) {
     Column {
         Text(
@@ -580,6 +585,15 @@ private fun FeatureDiscoveryGrid(
                     modifier = Modifier.weight(1f),
                 )
             }
+            Spacer(modifier = Modifier.height(SpacingTokens.md))
+            FeatureCard(
+                title = stringResource(R.string.cultivation_title),
+                subtitle = stringResource(R.string.cultivation_home_subtitle),
+                icon = Icons.Default.Psychology,
+                gradient = themeGradientSprout(),
+                onClick = onCultivation,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

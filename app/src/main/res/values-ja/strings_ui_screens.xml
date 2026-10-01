@@ -90,10 +90,11 @@
     <string name="hippocampus_bi_ji">ノート</string>
     <string name="hippocampus_dui_hua">会話</string>
     <string name="hippocampus_lu_yin">録音</string>
-    <string name="hippocampus_fa_ya">発芽</string>
+    <string name="hippocampus_fa_ya">インサイト</string>
     <string name="hippocampus_mian_shi">面接</string>
     <string name="hippocampus_ji_yi">記憶</string>
     <string name="hippocampus_pian_hao">設定</string>
+    <string name="hippocampus_xiu_lian">修練</string>
     <string name="hippocampus_qing_chu">クリア</string>
     <!-- sessions -->
     <string name="sessions_empty_action">新規セッション</string>
@@ -232,16 +233,16 @@
     <string name="invisible_partner_lu_yin_zi_dong_bao_cun">録音自動保存</string>
     <string name="invisible_partner_mei_ci_bao_cun_bi_ji_hou_ai">ノート保存のたびに AI が温かい一言を返します</string>
     <string name="invisible_partner_mei_ri_tui_song">毎日プッシュ</string>
-    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">1日に自動生成する発芽レポートの最大数</string>
-    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">毎晩自動的に当日の内容を分析し、翌朝に発芽レポートをプッシュ</string>
+    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">1日に自動生成するインサイトレポートの最大数</string>
+    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">毎晩自動的に当日の内容を分析し、翌朝にインサイトレポートをプッシュ</string>
     <string name="invisible_partner_mei_tian_zao_shang_tui_song">毎朝、前日の記録サマリーをプッシュ</string>
     <string name="invisible_partner_shi_yong_mo_shi">使用モード</string>
     <string name="invisible_partner_wen_nuan_dian_ping">ウォームフィードバック</string>
-    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">インビジブルパートナーモードでは、AI がバックグラウンドで静かに動作します。有効にすると、指定した時間に自動的に録音テキスト変換、コンテンツ分析、発芽レポート生成、デイリーサマリー配信を行います。手動操作は不要です。すべてのデータはデバイスにローカル保存されます。</string>
+    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">インビジブルパートナーモードでは、AI がバックグラウンドで静かに動作します。有効にすると、指定した時間に自動的に録音テキスト変換、コンテンツ分析、インサイトレポート生成、デイリーサマリー配信を行います。手動操作は不要です。すべてのデータはデバイスにローカル保存されます。</string>
     <string name="invisible_partner_xi_tong_hui_gen_ju_shi_jian">システムが時間、内容、スケジュールに基づいて自動調整します</string>
-    <string name="invisible_partner_zi_dong_fa_ya">自動発芽</string>
+    <string name="invisible_partner_zi_dong_fa_ya">自動インサイト</string>
     <string name="invisible_partner_zi_dong_qie_huan">自動切替</string>
-    <string name="invisible_partner_zui_da_fa_ya_shu">最大発芽数</string>
+    <string name="invisible_partner_zui_da_fa_ya_shu">最大インサイト数</string>
     <string name="invisible_partner_sheng_huo_ji_lu">ライフログ</string>
     <string name="invisible_partner_xiao_lv_gong_zuo">効率的な仕事</string>
     <string name="invisible_partner_chuang_zuo_ling_gan">創作インスピレーション</string>
@@ -520,7 +521,7 @@
     <string name="sprout_android_11_qing_shou_yu_suo">Android 11+ では、エクスポート前にすべてのファイルアクセス権限を付与してください</string>
     <string name="sprout_cao_zuo_zheng_zai_jin_xing">操作を実行中です。しばらくお待ちください</string>
     <string name="sprout_dao_chu_markdown">Markdown をエクスポート</string>
-    <string name="sprout_fa_ya_bao_gao">  発芽レポート  </string>
+    <string name="sprout_fa_ya_bao_gao">  インサイトレポート  </string>
     <string name="sprout_geng_duo_cao_zuo">その他の操作</string>
     <string name="sprout_index_1_wei_ming_ming_dong_cha">%1$s. 無名の洞察</string>
     <string name="sprout_mei_you_ke_dao_chu_de_nei_rong">エクスポートする内容がありません</string>
@@ -528,17 +529,17 @@
     <string name="sprout_wei_wan_cheng">未完了</string>
     <string name="sprout_yi_dao_chu_dao_xia_zai_mu_lu_1">ダウンロードディレクトリにエクスポート: %1$s</string>
     <string name="sprout_yi_zhui_jia_wei_xin_bi_ji">新しいノートとして追加しました</string>
-    <string name="sprout_zai_fa_ya">再発芽</string>
+    <string name="sprout_zai_fa_ya">再インサイト</string>
     <string name="sprout_zhui_jia_shi_bai_1">追加失敗: %1$s</string>
-    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">発芽レポート</string>
-    <string name="note_sprout_fa_ya_shi_bai">発芽失敗</string>
-    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">発芽処理中です。しばらくお待ちください</string>
+    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">インサイトレポート</string>
+    <string name="note_sprout_fa_ya_shi_bai">インサイト失敗</string>
+    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">インサイト処理中です。しばらくお待ちください</string>
     <string name="note_sprout_ri_qi_ge_shi">MM月dd日</string>
     <string name="note_sprout_sheng_cheng_shi_bai">生成失敗</string>
     <string name="note_sprout_markdown_title"># %1$s</string>
-    <string name="note_sprout_section_shocking_moment">**驚きの瞬間:** %1$s</string>
+    <string name="note_sprout_section_core_insight">**コアインサイト:** %1$s</string>
     <string name="note_sprout_action_items_title">## 行動提案</string>
-    <string name="note_sprout_plain_shocking_moment">驚きの瞬間: %1$s</string>
+    <string name="note_sprout_plain_core_insight">コアインサイト: %1$s</string>
     <string name="note_sprout_plain_action_items_title">行動提案:</string>
     <string name="note_sprout_share_title">【%1$s】</string>
     <!-- voiceprint -->
@@ -590,12 +591,12 @@
     <string name="vocabulary_term_label">用語</string>
     <!-- sprout -->
     <string name="sprout_error_empty">入力テキストは空にできません</string>
-    <string name="sprout_error_empty_detail">入力テキストは空にできません。発芽させる内容を入力してください</string>
-    <string name="sprout_error_too_short">入力テキストが短すぎます（最低10文字）。より豊富な内容を入力すると、より良い発芽結果が得られます</string>
+    <string name="sprout_error_empty_detail">入力テキストは空にできません。インサイトを得る内容を入力してください</string>
+    <string name="sprout_error_too_short">入力テキストが短すぎます（最低10文字）。より豊富な内容を入力すると、より良いインサイト結果が得られます</string>
     <string name="sprout_error_no_api_key">先に設定で API Key を入力してください</string>
-    <string name="sprout_error_processing">発芽処理に失敗しました: %1$s</string>
+    <string name="sprout_error_processing">インサイト処理に失敗しました: %1$s</string>
     <string name="sprout_error_no_session">現在のセッションがありません。先に会話を開始してください</string>
-    <string name="sprout_error_empty_context">現在の会話が空です。発芽させる内容がありません</string>
+    <string name="sprout_error_empty_context">現在の会話が空です。インサイトを得る内容がありません</string>
     <string name="sprout_system_prompt">あなたは知識分析アシスタントです。ユーザーの入力に基づいて深い分析を行ってください。</string>
     <!-- stt -->
     <string name="stt_error_validation_failed">音声ファイルの検証に失敗しました</string>

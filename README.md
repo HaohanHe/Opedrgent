@@ -23,10 +23,14 @@ Opedrgent 是一个跑在 Android 手机本地的 AI Agent 应用，用 Kotlin +
 - TTS：MiMO TTS 客户端 + 本地 TtsPlayer。
 
 **知识与记忆**
-- Insight Sprout：四阶段洞察引擎（种子提取→跨域关联→AHA 洞察→金句回响），三层渐进式上下文注入。
-- 海马记忆：SQLite 全局索引，关键词提取 + LIKE 模糊匹配，自动索引笔记/对话/录音/发芽；面试模式下做目标锚定和漂移检测。
+- Insight Sprout：四阶段洞察引擎（要点提取→跨域关联→核心洞察→金句回响），三层渐进式上下文注入。
+- 海马记忆：SQLite 全局索引，关键词提取 + LIKE 模糊匹配，自动索引笔记/对话/录音/洞察；面试模式下做目标锚定和漂移检测。
 - 笔记系统：CRUD + 文件夹分类 + KnowledgeGraph 图谱可视化。
 - 知识库：文档管理与检索。
+
+**个人修炼（批判镜）**
+- 批判镜：录下自己的话，经端侧 ASR 转写后，对照你自定义的「理想人格」行为基准，逐字指出言行差距，反讨好但不对抗，并给出可直接使用的替代说法。
+- 全程本地：录音、转写、复盘默认在手机内完成，不强制上传；处于强烈自我否定时优先给予支持。
 
 **浏览器与自动化**
 - WebView Agent：网页抓取、搜索、截图、多模态点击。
@@ -44,7 +48,7 @@ Opedrgent 是一个跑在 Android 手机本地的 AI Agent 应用，用 Kotlin +
 - JS Skill 沙箱执行（run_js → SkillWebViewExecutor → ai_edge_gallery_get_result 回调）。
 - run_intent 派发六种系统 Intent（邮件/短信/日历/URL/分享/电话）。
 - 三种导入方式：URL 远程加载、本地文件、手动新建。
-- 内置 JS Skills：calculate-hash、mood-tracker-lite；内置 Text Skills：critical-inquiry、insight-sprout、insight-review、text-refine、mimo-tts、multi-agent-collaboration。
+- 内置 JS Skills：calculate-hash、mood-tracker-lite；内置 Text Skills：critical-inquiry、insight-sprout、insight-review、text-refine、mimo-tts、multi-agent-collaboration、self-mirror。
 - RequireSecret 三级授权：ALLOW / ASK / DENY。
 
 **日历、健康与文档**
@@ -87,6 +91,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── stt/                         # ASR 多引擎管理、会议转写、音频预处理
 ├── interview/                   # 面试模式：全双工语音引擎、目标锚定、漂移检测
 ├── insight/                     # Insight Sprout 四阶段引擎
+├── cultivation/                 # 个人修炼批判镜（对照理想人格的言行复盘）
 ├── intelligence/                # 向量记忆、记忆桥、推荐、token 预算监控
 ├── mcp/                         # Skill 系统 V2、编辑组、动态工具注册
 ├── agent/                       # 多智能体编排
@@ -122,7 +127,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ./gradlew assembleDebug
 ```
 
-注意：系统 JDK 25+ 与 Gradle 8.x 不兼容，必须用 Android Studio 内置 JBR（Java 21）。Sherpa-ONNX 的 AAR 需要手动放到 `app/libs/`，仓库里目前用 stub 编译。
+注意：系统 JDK 25+ 与 Gradle 8.x 不兼容，必须用 Android Studio 内置 JBR（Java 21）。Sherpa-ONNX 由 Gradle 经 JitPack（com.github.k2-fsa:sherpa-onnx）自动解析，无需手动放置 AAR，首次构建需联网访问 Maven Central / JitPack。
 
 ### 文档
 
@@ -157,10 +162,14 @@ Opedrgent は Android スマホ上でローカルに動く AI エージェント
 - TTS：MiMO TTS クライアント + ローカル TtsPlayer。
 
 **知識とメモリ**
-- Insight Sprout：4 段階インサイトエンジン（種抽出→領域横断関連付け→AHA インサイト→金句エコー）、3 層の段階的コンテキスト注入。
-- 海馬メモリ：SQLite グローバルインデックス、キーワード抽出 + LIKE 曖昧一致。ノート・会話・録音・スプラウトを自動索引。面接モードでは目標アンカーとドリフト検出を行う。
+- Insight Sprout：4 段階インサイトエンジン（要点抽出→領域横断関連付け→核心インサイト→金句エコー）、3 層の段階的コンテキスト注入。
+- 海馬メモリ：SQLite グローバルインデックス、キーワード抽出 + LIKE 曖昧一致。ノート・会話・録音・インサイトを自動索引。面接モードでは目標アンカーとドリフト検出を行う。
 - ノートシステム：CRUD + フォルダ分類 + KnowledgeGraph 可視化。
 - ナレッジベース：ドキュメント管理と検索。
+
+**自己修練（批判鏡）**
+- 批判鏡：自分の声を録音し、端末側 ASR で書き起こした上で、自分で定めた「理想の人格」の行動基準と照合。逐語で言動の差を指摘し、お世辞は言わないが対立もせず、すぐ使える言い換えを提示。
+- すべてローカル：録音・書き起こし・振り返りは既定で端末内にとどまり、アップロードは任意。強い自己否定時は支援を優先。
 
 **ブラウザと自動化**
 - WebView Agent：Web スクレイピング、検索、スクリーンショット、マルチモーダルクリック。
@@ -178,7 +187,7 @@ Opedrgent は Android スマホ上でローカルに動く AI エージェント
 - JS Skill サンドボックス実行（run_js → SkillWebViewExecutor → ai_edge_gallery_get_result コールバック）。
 - run_intent で 6 種類のシステム Intent（メール/SMS/カレンダー/URL/共有/電話）を発行。
 - 3 種類のインポート方式：URL リモート読み込み、ローカルファイル、手動作成。
-- 内蔵 JS Skills：calculate-hash、mood-tracker-lite。内蔵 Text Skills：critical-inquiry、insight-sprout、insight-review、text-refine、mimo-tts、multi-agent-collaboration。
+- 内蔵 JS Skills：calculate-hash、mood-tracker-lite。内蔵 Text Skills：critical-inquiry、insight-sprout、insight-review、text-refine、mimo-tts、multi-agent-collaboration、self-mirror。
 - RequireSecret 3 段階認可：ALLOW / ASK / DENY。
 
 **カレンダー、ヘルス、ドキュメント**
@@ -221,6 +230,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── stt/                         # ASR マルチエンジン、会議転記、音声前処理
 ├── interview/                   # 面接モード：全二重音声、目標アンカー、ドリフト検出
 ├── insight/                     # Insight Sprout 4 段階エンジン
+├── cultivation/                 # 自己修練 批判鏡（理想の人格と照合する言動レビュー）
 ├── intelligence/                # ベクトルメモリ、メモリブリッジ、推薦、トークン予算監視
 ├── mcp/                         # Skill V2、編集チーム、動的ツール登録
 ├── agent/                       # マルチエージェントオーケストレーション
@@ -256,7 +266,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ./gradlew assembleDebug
 ```
 
-注意：システム JDK 25 以上は Gradle 8.x と非互換です。Android Studio 同梱の JBR（Java 21）を必ず使ってください。Sherpa-ONNX の AAR は手動で `app/libs/` に配置する必要があり、リポジトリでは現在スタブでコンパイルしています。
+注意：システム JDK 25 以上は Gradle 8.x と非互換です。Android Studio 同梱の JBR（Java 21）を必ず使ってください。Sherpa-ONNX は Gradle が JitPack（com.github.k2-fsa:sherpa-onnx）から自動取得するため AAR の手動配置は不要で、初回ビルドは Maven Central / JitPack への接続が必要です。
 
 ### ドキュメント
 
@@ -291,10 +301,14 @@ Opedrgent is an on-device AI agent app for Android, written in Kotlin and Jetpac
 - TTS: MiMO TTS client plus a local TtsPlayer.
 
 **Knowledge and memory**
-- Insight Sprout: a four-stage insight engine (seed extraction, cross-domain association, AHA insight, golden quote echo) with three-layer progressive context injection.
-- Hippocampus memory: a SQLite global index with keyword extraction and LIKE fuzzy matching, auto-indexing notes, conversations, recordings, and sprouts. In interview mode it anchors goals and detects drift.
+- Insight Sprout: a four-stage insight engine (key-point extraction, cross-domain association, core insight, golden quote echo) with three-layer progressive context injection.
+- Hippocampus memory: a SQLite global index with keyword extraction and LIKE fuzzy matching, auto-indexing notes, conversations, recordings, and insights. In interview mode it anchors goals and detects drift.
 - Note system: full CRUD, folder classification, and KnowledgeGraph visualization.
 - Knowledge base: document management and retrieval.
+
+**Self-cultivation (Critical Mirror)**
+- Critical Mirror: record your own speech, transcribe it with on-device ASR, and compare it against your own "ideal persona" behavioral baseline. It points to verbatim gaps in your words and deeds—candid but not confrontational—and offers ready-to-use alternative phrasing.
+- Fully local: recording, transcription, and review stay on the phone by default; upload is optional. When you are strongly self-critical, support takes priority.
 
 **Browser and automation**
 - WebView Agent: web scraping, search, screenshots, and multimodal clicks.
@@ -312,7 +326,7 @@ Opedrgent is an on-device AI agent app for Android, written in Kotlin and Jetpac
 - JS Skill sandbox execution (run_js to SkillWebViewExecutor to ai_edge_gallery_get_result callback).
 - run_intent dispatches six system Intent types (email, SMS, calendar, URL, share, phone).
 - Three import methods: remote URL load, local file, manual creation.
-- Built-in JS skills: calculate-hash, mood-tracker-lite. Built-in text skills: critical-inquiry, insight-sprout, insight-review, text-refine, mimo-tts, multi-agent-collaboration.
+- Built-in JS skills: calculate-hash, mood-tracker-lite. Built-in text skills: critical-inquiry, insight-sprout, insight-review, text-refine, mimo-tts, multi-agent-collaboration, self-mirror.
 - RequireSecret three-tier permission control: ALLOW, ASK, DENY.
 
 **Calendar, health, and documents**
@@ -355,6 +369,7 @@ app/src/main/java/top/hsyscn/opedrgent/
 ├── stt/                         # Multi-engine ASR, meeting transcription, audio preprocessing
 ├── interview/                   # Interview mode: full-duplex audio, goal anchor, drift detection
 ├── insight/                     # Insight Sprout four-stage engine
+├── cultivation/                 # Self-cultivation critical mirror (behavioral review vs ideal persona)
 ├── intelligence/                # Vector memory, memory bridge, recommendations, token budget monitor
 ├── mcp/                         # Skill V2, editor team, dynamic tool registration
 ├── agent/                       # Multi-agent orchestration
@@ -390,7 +405,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ./gradlew assembleDebug
 ```
 
-Note: system JDK 25 or newer is incompatible with Gradle 8.x. You must use the Android Studio bundled JBR (Java 21). The Sherpa-ONNX AAR must be placed manually in `app/libs/`; the repo currently compiles against a stub.
+Note: system JDK 25 or newer is incompatible with Gradle 8.x. You must use the Android Studio bundled JBR (Java 21). Sherpa-ONNX is resolved automatically via JitPack (com.github.k2-fsa:sherpa-onnx), so no manual AAR placement is needed; the first build requires access to Maven Central / JitPack.
 
 ### Documentation
 

@@ -75,7 +75,8 @@ skills/calculate-hash/
 | 技能 | 分类 | 功能 |
 |------|------|------|
 | critical-inquiry | analysis | 批判性探究 |
-| insight-sprout | insight | 知识发芽触发 |
+| self-mirror | analysis | 个人言行修炼批判镜（实验阶段，对照评测见 docs/eval/self-mirror-style-eval） |
+| insight-sprout | insight | 知识洞察触发 |
 | insight-review | review | 洞察评审 |
 | text-refine | writing | 文本精炼 |
 | mimo-tts | audio | TTS 语音合成 |

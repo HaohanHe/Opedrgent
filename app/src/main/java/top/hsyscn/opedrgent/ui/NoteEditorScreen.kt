@@ -798,18 +798,18 @@ fun NoteEditorScreen(
                                                         )
 
                                                         // 震惊瞬间金句
-                                                        if (section.shockingMoment.isNotBlank()) {
+                                                        if (section.coreInsight.isNotBlank()) {
                                                             Spacer(Modifier.height(SizeTokens.sectionGapSm))
                                                             Row(modifier = Modifier.fillMaxWidth()) {
                                                                 Icon(
                                                                     Icons.Default.AutoAwesome,
-                                                                    contentDescription = stringResource(R.string.note_editor_shocking_moment),
+                                                                    contentDescription = stringResource(R.string.note_editor_core_insight),
                                                                     tint = MaterialTheme.customColors.accentOrange,
                                                                     modifier = Modifier.size(SizeTokens.iconSm),
                                                                 )
                                                                 Spacer(Modifier.width(SizeTokens.compactSpacing))
                                                                 Text(
-                                                                    section.shockingMoment,
+                                                                    section.coreInsight,
                                                                     style = MaterialTheme.typography.labelLarge,
                                                                     color = MaterialTheme.customColors.accentOrange,
                                                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,

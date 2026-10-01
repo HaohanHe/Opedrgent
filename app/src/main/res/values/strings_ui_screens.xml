@@ -90,10 +90,11 @@
     <string name="hippocampus_bi_ji">笔记</string>
     <string name="hippocampus_dui_hua">对话</string>
     <string name="hippocampus_lu_yin">录音</string>
-    <string name="hippocampus_fa_ya">发芽</string>
+    <string name="hippocampus_fa_ya">洞察</string>
     <string name="hippocampus_mian_shi">面试</string>
     <string name="hippocampus_ji_yi">记忆</string>
     <string name="hippocampus_pian_hao">偏好</string>
+    <string name="hippocampus_xiu_lian">修炼</string>
     <string name="hippocampus_qing_chu">清除</string>
     <!-- sessions -->
     <string name="sessions_empty_action">新建会话</string>
@@ -232,16 +233,16 @@
     <string name="invisible_partner_lu_yin_zi_dong_bao_cun">录音自动保存</string>
     <string name="invisible_partner_mei_ci_bao_cun_bi_ji_hou_ai">每次保存笔记后 AI 给一句有温度的回应</string>
     <string name="invisible_partner_mei_ri_tui_song">每日推送</string>
-    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">每日最多自动生成几篇发芽报告</string>
-    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">每天夜间自动分析当天内容，次日晨间推送发芽报告</string>
+    <string name="invisible_partner_mei_ri_zui_duo_zi_dong_sheng">每日最多自动生成几篇洞察报告</string>
+    <string name="invisible_partner_mei_tian_ye_jian_zi_dong_fen">每天夜间自动分析当天内容，次日晨间推送洞察报告</string>
     <string name="invisible_partner_mei_tian_zao_shang_tui_song">每天早上推送昨日记录摘要</string>
     <string name="invisible_partner_shi_yong_mo_shi">使用模式</string>
     <string name="invisible_partner_wen_nuan_dian_ping">温暖点评</string>
-    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">无感伙伴模式让 AI 在后台默默为你工作。打开开关后，系统会在指定时间自动完成录音转写、内容分析、发芽报告生成和每日摘要推送，无需手动操作。所有数据仅存储在本地设备上。</string>
+    <string name="invisible_partner_wu_gan_huo_ban_mo_shi_rang_ai">无感伙伴模式让 AI 在后台默默为你工作。打开开关后，系统会在指定时间自动完成录音转写、内容分析、洞察报告生成和每日摘要推送，无需手动操作。所有数据仅存储在本地设备上。</string>
     <string name="invisible_partner_xi_tong_hui_gen_ju_shi_jian">系统会根据时间、内容和日程自动调整</string>
-    <string name="invisible_partner_zi_dong_fa_ya">自动发芽</string>
+    <string name="invisible_partner_zi_dong_fa_ya">自动洞察</string>
     <string name="invisible_partner_zi_dong_qie_huan">自动切换</string>
-    <string name="invisible_partner_zui_da_fa_ya_shu">最大发芽数</string>
+    <string name="invisible_partner_zui_da_fa_ya_shu">最大洞察数</string>
     <string name="invisible_partner_sheng_huo_ji_lu">生活记录</string>
     <string name="invisible_partner_xiao_lv_gong_zuo">效率工作</string>
     <string name="invisible_partner_chuang_zuo_ling_gan">创作灵感</string>
@@ -520,7 +521,7 @@
     <string name="sprout_android_11_qing_shou_yu_suo">Android 11+ 请授予所有文件访问权限后导出</string>
     <string name="sprout_cao_zuo_zheng_zai_jin_xing">操作正在进行中，请稍候</string>
     <string name="sprout_dao_chu_markdown">导出 Markdown</string>
-    <string name="sprout_fa_ya_bao_gao">  发芽报告  </string>
+    <string name="sprout_fa_ya_bao_gao">  洞察报告  </string>
     <string name="sprout_geng_duo_cao_zuo">更多操作</string>
     <string name="sprout_index_1_wei_ming_ming_dong_cha">%1$s. 未命名洞察</string>
     <string name="sprout_mei_you_ke_dao_chu_de_nei_rong">没有可导出的内容</string>
@@ -528,17 +529,17 @@
     <string name="sprout_wei_wan_cheng">未完成</string>
     <string name="sprout_yi_dao_chu_dao_xia_zai_mu_lu_1">已导出到下载目录: %1$s</string>
     <string name="sprout_yi_zhui_jia_wei_xin_bi_ji">已追加为新笔记</string>
-    <string name="sprout_zai_fa_ya">再发芽</string>
+    <string name="sprout_zai_fa_ya">再次洞察</string>
     <string name="sprout_zhui_jia_shi_bai_1">追加失败: %1$s</string>
-    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">发芽报告</string>
-    <string name="note_sprout_fa_ya_shi_bai">发芽失败</string>
-    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">发芽正在进行中，请稍候</string>
+    <string name="note_sprout_bao_gao_wen_jian_qian_zhui">洞察报告</string>
+    <string name="note_sprout_fa_ya_shi_bai">洞察失败</string>
+    <string name="note_sprout_fa_ya_zheng_zai_jin_xing">洞察正在进行中，请稍候</string>
     <string name="note_sprout_ri_qi_ge_shi">MM月dd日</string>
     <string name="note_sprout_sheng_cheng_shi_bai">生成失败</string>
     <string name="note_sprout_markdown_title"># %1$s</string>
-    <string name="note_sprout_section_shocking_moment">**震惊瞬间:** %1$s</string>
+    <string name="note_sprout_section_core_insight">**核心洞察:** %1$s</string>
     <string name="note_sprout_action_items_title">## 行动建议</string>
-    <string name="note_sprout_plain_shocking_moment">震惊瞬间: %1$s</string>
+    <string name="note_sprout_plain_core_insight">核心洞察: %1$s</string>
     <string name="note_sprout_plain_action_items_title">行动建议:</string>
     <string name="note_sprout_share_title">【%1$s】</string>
     <!-- voiceprint -->
@@ -590,12 +591,12 @@
     <string name="vocabulary_term_label">术语</string>
     <!-- sprout -->
     <string name="sprout_error_empty">输入文本不能为空</string>
-    <string name="sprout_error_empty_detail">输入文本不能为空，请提供需要发芽的内容</string>
-    <string name="sprout_error_too_short">输入文本过短（至少10个字符），请提供更丰富的内容以获得更好的发芽效果</string>
+    <string name="sprout_error_empty_detail">输入文本不能为空，请提供需要洞察的内容</string>
+    <string name="sprout_error_too_short">输入文本过短（至少10个字符），请提供更丰富的内容以获得更好的洞察效果</string>
     <string name="sprout_error_no_api_key">请先在设置里填写 API Key</string>
-    <string name="sprout_error_processing">发芽处理失败: %1$s</string>
+    <string name="sprout_error_processing">洞察处理失败: %1$s</string>
     <string name="sprout_error_no_session">没有当前会话，请先开始对话</string>
-    <string name="sprout_error_empty_context">当前对话为空，没有可发芽的内容</string>
+    <string name="sprout_error_empty_context">当前对话为空，没有可洞察的内容</string>
     <string name="sprout_system_prompt">你是一个知识分析助手，请根据用户输入进行深度分析。</string>
     <!-- stt -->
     <string name="stt_error_validation_failed">音频文件验证失败</string>

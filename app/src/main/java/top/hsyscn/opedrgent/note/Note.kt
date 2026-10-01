@@ -156,7 +156,7 @@ data class SproutReport(
     /** 关键要点列表（3-5条） */
     val keyPoints: List<String> = emptyList(),
     /** 震惊瞬间 — 高亮的重要发现或洞察 */
-    val shockingMoments: List<ShockingMoment> = emptyList(),
+    val coreInsights: List<CoreInsight> = emptyList(),
     /** 行动建议 */
     val actionItems: List<String> = emptyList(),
     /** 相关概念/标签 */
@@ -173,7 +173,7 @@ data class SproutReport(
                 put("modelUsed", modelUsed)
                 put("summary", summary)
                 put("keyPoints", org.json.JSONArray(keyPoints))
-                put("ahaMoments", org.json.JSONArray(shockingMoments.map { it.toJson() }))
+                put("coreInsights", org.json.JSONArray(coreInsights.map { it.toJson() }))
                 put("actionItems", org.json.JSONArray(actionItems))
                 put("relatedConcepts", org.json.JSONArray(relatedConcepts))
                 put("sentiment", sentiment.name)
@@ -194,9 +194,9 @@ data class SproutReport(
                     keyPoints = json.optJSONArray("keyPoints")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList(),
-                    shockingMoments = json.optJSONArray("ahaMoments")?.let { arr ->
+                    coreInsights = (json.optJSONArray("coreInsights") ?: json.optJSONArray("ahaMoments")) /* 兼容旧版本地数据 */?.let { arr ->
                         (0 until arr.length()).mapNotNull {
-                            ShockingMoment.fromJson(arr.getJSONObject(it).toString())
+                            CoreInsight.fromJson(arr.getJSONObject(it).toString())
                         }
                     } ?: emptyList(),
                     actionItems = json.optJSONArray("actionItems")?.let { arr ->
@@ -216,7 +216,7 @@ data class SproutReport(
 /**
  * 震惊瞬间 — 笔记中的高光时刻
  */
-data class ShockingMoment(
+data class CoreInsight(
     /** 原文引用 */
     val quote: String,
     /** AI 解读/点评 */
@@ -236,10 +236,10 @@ data class ShockingMoment(
     }
 
     companion object {
-        fun fromJson(jsonStr: String): ShockingMoment? {
+        fun fromJson(jsonStr: String): CoreInsight? {
             return try {
                 val json = org.json.JSONObject(jsonStr)
-                ShockingMoment(
+                CoreInsight(
                     quote = json.optString("quote", ""),
                     insight = json.optString("insight", ""),
                     importance = json.optInt("importance", 3),
@@ -360,7 +360,7 @@ data class ArticleSection(
     /** 正文 — AI 生成的完整分析（支持 Markdown） */
     val body: String,
     /** 💡 震惊瞬间 — 金句引用 */
-    val shockingMoment: String,
+    val coreInsight: String,
     /** 重要性 1-5 */
     val importance: Int = 3,
 ) {
@@ -369,7 +369,7 @@ data class ArticleSection(
             put("title", title)
             put("seed", seed)
             put("body", body)
-            put("ahaMoment", shockingMoment)
+            put("coreInsight", coreInsight)
             put("importance", importance)
         }.toString()
     }
@@ -382,7 +382,7 @@ data class ArticleSection(
                     title = json.optString("title", ""),
                     seed = json.optString("seed", ""),
                     body = json.optString("body", ""),
-                    shockingMoment = json.optString("ahaMoment", ""),
+                    coreInsight = json.optString("coreInsight", json.optString("ahaMoment", "")) // 回退旧版本地键,
                     importance = json.optInt("importance", 3).coerceIn(1, 5),
                 )
             } catch (_: Exception) { null }

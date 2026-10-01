@@ -82,7 +82,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
          * 每篇文章有独立的编号标题、种子引用、正文展开和金句收尾。
          */
         private val SPROUT_PROMPT_NARRATIVE = """
-你是一位顶级知识管理顾问兼深度内容分析师。请对以下笔记进行"发芽"处理——将其转化为一系列引人入胜的洞察文章。
+你是一位顶级知识管理顾问兼深度内容分析师。请对以下笔记进行洞察分析，将其转化为一系列有深度的洞察文章。
 
 【用户笔记】
 %s
@@ -90,13 +90,13 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 ## 输出格式要求（严格 JSON）
 
 {
-  "summary": "整份报告的一句话灵魂概括",
+  "summary": "整份报告的一句话概括",
   "articles": [
     {
       "title": "01. 吸引眼球的编号标题（概括这个洞察的核心）",
-      "seed": "种子：从用户笔记中摘取触发这段分析的原文片段（50-100字）",
+      "seed": "触发要点：从用户笔记中摘取触发这段分析的原文片段（50-100字）",
       "body": "正文：用**加粗**强调关键概念，用> 引用重要数据。写一篇300-500字的深度分析，像专栏文章一样流畅。要有论点、论据、案例。不要用列表形式，要写成连贯的叙述。",
-      "ahaMoment": "震惊瞬间：这段分析中最有力的一句金句（20-40字），让人读了会产生'原来如此'的顿悟感",
+      "coreInsight": "核心洞察：这段分析中最有力的一句概括（20-40字），精准点出关键",
       "importance": 5
     }
   ],
@@ -108,15 +108,15 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
 
 ## 写作风格指南
 
-1. **标题要抓人**：像公众号爆款标题一样，但不要标题党。如"01. 为什么'富'只能排第二？"
-2. **种子要精准**：明确指出是笔记的哪段内容触发了这个洞察，让用户看到 AI 的推理路径
+1. **标题要清晰有吸引力**：准确概括核心洞察，不做标题党。
+2. **触发要点要精准**：明确指出是笔记的哪段内容触发了这个洞察，让用户看到 AI 的推理路径
 3. **正文要有深度**：
    - 不要泛泛而谈，要深入到具体案例和数据
    - 用类比帮助理解抽象概念
    - 适当使用反问引发思考
    - 加粗关键术语（**关键概念**）
    - 重要数据用引用块（> 数据说明）
-4. **震惊瞬间要震撼**：每篇只有一个震惊瞬间，必须是全文最精华的那句话
+4. **核心洞察要精炼**：每篇只保留一句核心洞察，必须是全文最精华的概括
 5. **生成 2-4 篇文章**，覆盖笔记的不同维度
 6. **总字数控制在 1500-2500 字**
 
@@ -292,7 +292,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
             }
 
             if (finalContent == null) {
-                return@withContext Result.failure(RuntimeException("发芽 tool call 循环未产生最终回答"))
+                return@withContext Result.failure(RuntimeException("洞察 tool call 循环未产生最终回答"))
             }
 
             // 复用原有解析逻辑
@@ -504,25 +504,25 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
         return try {
             val summary = Regex("\"summary\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"").find(fixed)?.groupValues?.get(1) ?: ""
 
-            // 提取所有文章块：匹配 { "title": "...", "seed": "...", "body": "...", "ahaMoment": "..." }
+            // 提取所有文章块：匹配 { "title": "...", "seed": "...", "body": "...", "coreInsight": "..." }
             // title/seed/body 用 [\s\S]*? 非贪婪匹配，允许字段值内出现未转义双引号
             // （LLM 偶尔会在 body 中输出 "未来次数" 这样的未转义引号，导致标准 JSON 解析失败）。
             // 各字段以"下一字段名"作为终止锚点，避免在未转义引号处提前截断。
             val articleSections = mutableListOf<ArticleSection>()
             val articlePattern = Regex(
-                "\\{\\s*\"title\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"seed\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"body\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"ahaMoment\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"(?:\\s*,\\s*\"importance\"\\s*:\\s*(\\d+))?\\s*\\}",
+                "\\{\\s*\"title\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"seed\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"body\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*,\\s*\"(?:coreInsight|ahaMoment)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*?)\"(?:\\s*,\\s*\"importance\"\\s*:\\s*(\\d+))?\\s*\\}",
                 RegexOption.DOT_MATCHES_ALL
             )
             for (match in articlePattern.findAll(fixed)) {
                 val title = match.groupValues[1].replace("\\\"", "\"")
                 val seed = match.groupValues[2].replace("\\n", "\n").replace("\\\"", "\"")
                 val body = match.groupValues[3].replace("\\n", "\n").replace("\\\"", "\"")
-                val shockingMoment = match.groupValues[4].replace("\\\"", "\"")
+                val coreInsight = match.groupValues[4].replace("\\\"", "\"")
                 val importance = match.groupValues[5].toIntOrNull()?.coerceIn(1, 5) ?: 3
                 if (title.isNotBlank() || body.isNotBlank()) {
                     articleSections.add(ArticleSection(
                         title = title, seed = seed, body = body,
-                        shockingMoment = shockingMoment, importance = importance,
+                        coreInsight = coreInsight, importance = importance,
                     ))
                 }
             }
@@ -535,7 +535,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                     articleSections.add(ArticleSection(
                         title = title.replace("\\\"", "\""),
                         seed = "", body = body.replace("\\n", "\n").replace("\\\"", "\""),
-                        shockingMoment = "",
+                        coreInsight = "",
                     ))
                 }
             }
@@ -566,7 +566,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
                         title = secObj.optString("title", ""),
                         seed = secObj.optString("seed", ""),
                         body = secObj.optString("body", ""),
-                        shockingMoment = secObj.optString("ahaMoment", ""),
+                        coreInsight = secObj.optString("coreInsight", secObj.optString("ahaMoment", "")),
                         importance = secObj.optInt("importance", 3).coerceIn(1, 5),
                     )
                 } catch (_: Exception) { null }

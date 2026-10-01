@@ -32,7 +32,7 @@ class InsightSproutTool(
     )
 
     @Tool("insight_sprout")
-    @ToolDescription("知识发芽：对输入文本进行深度多维度分析，发芽衍生出结构化的洞察报告。参数中 text 为必填，length/domains/use_context 为可选。")
+    @ToolDescription("知识洞察：对输入文本进行深度多维度分析，衍生出结构化的洞察报告。参数中 text 为必填，length/domains/use_context 为可选。")
     suspend fun executeInsightSprout(
         tp: ToolPart,
         config: ApiConfig,
@@ -41,13 +41,13 @@ class InsightSproutTool(
     ): ToolResult {
         val rawText = tp.state.input["text"]
         if (rawText.isNullOrBlank()) {
-            return emptyResult(tp, "缺少必填参数 text：需要提供待发芽的文本内容（至少 $MIN_TEXT_LENGTH 个字符）")
+            return emptyResult(tp, "缺少必填参数 text：需要提供待洞察的文本内容（至少 $MIN_TEXT_LENGTH 个字符）")
         }
 
         val text = rawText.trim()
 
         if (text.length < MIN_TEXT_LENGTH) {
-            return emptyResult(tp, "输入文本过短（当前 ${text.length} 字符，最少需要 $MIN_TEXT_LENGTH 字符），无法进行有效的知识发芽分析。请提供更完整的文本内容。")
+            return emptyResult(tp, "输入文本过短（当前 ${text.length} 字符，最少需要 $MIN_TEXT_LENGTH 字符），无法进行有效的知识洞察分析。请提供更完整的文本内容。")
         }
 
         if (text.length > MAX_TEXT_LENGTH) {
@@ -114,11 +114,11 @@ class InsightSproutTool(
             engine.sprout(effectiveText, sproutConfig)
         } catch (e: Exception) {
             DebugLog.e("insight_sprout: engine execution failed - ${e.message}", e)
-            return emptyResult(tp, "知识发芽执行失败：${e.message}\n\n提示：发芽过程涉及多阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
+            return emptyResult(tp, "知识洞察执行失败：${e.message}\n\n提示：洞察过程涉及多阶段 LLM 调用，可能因网络或超时失败，请稍后重试。")
         }
 
         if (result.markdownReport.isBlank() && result.seeds.isEmpty() && result.insights.isEmpty()) {
-            return emptyResult(tp, "知识发芽未产生有效输出。请检查输入文本是否包含足够的信息密度（如观点、论述、案例等），纯数据或代码片段可能不适合发芽分析。")
+            return emptyResult(tp, "知识洞察未产生有效输出。请检查输入文本是否包含足够的信息密度（如观点、论述、案例等），纯数据或代码片段可能不适合洞察分析。")
         }
 
         val qualityScore = engine.getCachedQualityScore()?.overallScore ?: evaluateFallbackQuality(result)
@@ -213,9 +213,9 @@ class InsightSproutTool(
         val phasesCompleted = result.completedPhases.size
         val totalPhases = 5
 
-        sb.appendLine("**知识发芽完成**")
+        sb.appendLine("**知识洞察完成**")
         sb.appendLine()
-        sb.appendLine("已完成 **$phasesCompleted/$totalPhases** 阶段的处理，以下是您的发芽报告：")
+        sb.appendLine("已完成 **$phasesCompleted/$totalPhases** 阶段的处理，以下是您的洞察报告：")
         sb.appendLine()
         sb.appendLine("---")
         sb.appendLine()
@@ -249,7 +249,7 @@ class InsightSproutTool(
             sb.appendLine("- 想要更长或更短的报告？调整 `--length=\"long\"` 或 `--length=\"short\"`")
         }
         sb.appendLine("- 复制全文或点击「继续追问」深入探讨某个感兴趣的洞察")
-        sb.appendLine("- 尝试对发芽结果中的某个金句再次发芽，获得更深层的联想")
+        sb.appendLine("- 尝试对洞察结果中的某个金句再次洞察，获得更深层的联想")
 
         return sb.toString()
     }
@@ -257,7 +257,7 @@ class InsightSproutTool(
     private fun formatCachedResult(report: String, qualityScore: Float, fromCache: Boolean): String {
         if (!fromCache) return report
         val prefix = """
-            |**知识发芽完成**（缓存命中）
+            |**知识洞察完成**（缓存命中）
             |
             |> ⚡ 本次结果来自近期缓存，相同文本无需重复分析
             |
@@ -275,7 +275,7 @@ class InsightSproutTool(
 
     private fun appendFallbackReport(sb: StringBuilder, result: top.hsyscn.opedrgent.insight.SproutResult) {
         if (result.seeds.isNotEmpty()) {
-            sb.appendLine("## 种子概念")
+            sb.appendLine("## 核心要点")
             sb.appendLine()
             result.seeds.forEachIndexed { i, seed ->
                 sb.appendLine("${i + 1}. **${seed.concept}**: ${seed.description}")
@@ -294,7 +294,7 @@ class InsightSproutTool(
         }
 
         if (result.insights.isNotEmpty()) {
-            sb.appendLine("## 震惊瞬间洞察")
+            sb.appendLine("## 核心洞察")
             sb.appendLine()
             result.insights.forEach { insight ->
                 sb.appendLine("> 「${insight.content}」")
@@ -341,7 +341,7 @@ class InsightSproutTool(
         return mapOf(
             "insight_sprout" to ToolBinding(
                 name = "insight_sprout",
-                description = "知识发芽：对输入文本进行深度多维度分析，发芽衍生出结构化的洞察报告。" +
+                description = "知识洞察：对输入文本进行深度多维度分析，衍生出结构化的洞察报告。" +
                     "参数中 text 为必填，length(domains/use_context) 为可选。" +
                     "适用于笔记深化、观点发散、跨领域联想等场景。",
                 invoker = { tp, cfg, sp, ups -> executeInsightSprout(tp, cfg, sp, ups) },

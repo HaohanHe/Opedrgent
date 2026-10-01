@@ -80,7 +80,7 @@ class InsightSproutEngine(
 
         // ====== 阶段0: 种子提取（始终执行）======
         var seedsJson: String? = null
-        runCatchingWithRecovery("种子提取", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
+        runCatchingWithRecovery("要点提取", config.maxPhaseTimeoutSeconds.toLong() * 1000) {
             val effectiveContext = when {
                 userContext != null -> userContext
                 config.useContext -> ""
@@ -187,7 +187,7 @@ class InsightSproutEngine(
                 synthesizeAll(voiceStatements.toMap(), rawSeedsJson, inputText)
             }.onSuccess { result ->
                 synthesis = result
-                completedPhases.add(SproutPhase.SHOCKING_INSIGHT)
+                completedPhases.add(SproutPhase.CORE_INSIGHT)
                 DebugLog.i("InsightSproutEngine: [ThinkingSpace] 阶段3 综合完成")
             }.onFailure { e ->
                 DebugLog.w("InsightSproutEngine: [ThinkingSpace] 阶段3 综合跳过: ${e.message}")
@@ -279,7 +279,7 @@ class InsightSproutEngine(
 ## 输入文本摘要
 ${inputText.take(200)}
 
-## 已提取的种子
+## 已提取的要点
 $seedsJson
 
 ## 可用模板
@@ -325,7 +325,7 @@ ${SproutTemplate.entries.joinToString("\n") { "- **${it.name}** (${it.displayNam
         sb.appendLine("\n## 分析素材")
         sb.appendLine("\n### 用户原始输入")
         sb.appendLine(inputText.take(1500))
-        sb.appendLine("\n### 已提取的核心种子")
+        sb.appendLine("\n### 已提取的核心要点")
         sb.appendLine(seedsJson)
 
         // 其他声音的已有发言（用于互动）
@@ -553,7 +553,7 @@ ${SproutTemplate.entries.joinToString("\n") { "- **${it.name}** (${it.displayNam
 ## 原始输入摘要
 ${inputText.take(300)}
 
-## 核心种子
+## 核心要点
 $seedsJson
 
 ## 各声音的分析结论""")
@@ -742,7 +742,7 @@ $seedsJson
         sb.appendLine()
 
         // 种子区域
-        sb.appendLine("## 种子")
+        sb.appendLine("## 要点")
         sb.appendLine()
         if (session.seeds.isNotEmpty()) {
             sb.appendLine("| # | 核心概念 | 描述 | 关键词 |")
@@ -752,7 +752,7 @@ $seedsJson
                 sb.appendLine("| ${index + 1} | **${escapeMarkdown(seed.concept)}** | ${escapeMarkdown(seed.description)} | ${escapeMarkdown(kw)} |")
             }
         } else {
-            sb.appendLine("*（未成功提取种子）*")
+            sb.appendLine("*（未成功提取要点）*")
         }
         sb.appendLine()
         sb.appendLine("---")

@@ -230,6 +230,8 @@ object DownloadQuotes {
         DownloadQuote("海纳百川，有容乃大；壁立千仞，无欲则刚。", "林则徐"),
         DownloadQuote("人有逆天之时，天无绝人之路。", "冯梦龙"),
         DownloadQuote("世上没有后悔药，但有预防药。", ""),
+        DownloadQuote("不要为了做北斗而北斗", "曹冲"),
+        DownloadQuote("何以解忧，唯有需求", "曹冲"),
     )
 
     fun getRandomQuote(): DownloadQuote = ALL_QUOTES.random()

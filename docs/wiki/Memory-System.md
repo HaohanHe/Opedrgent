@@ -41,7 +41,7 @@ data class IndexedItem(
 | NOTE | 笔记创建/更新时 | PROJECT |
 | CONVERSATION | AI 对话完成时 | SESSION |
 | RECORDING | 录音转录完成时 | SESSION |
-| SPROUT | 发芽报告生成后 | PROJECT |
+| SPROUT | 洞察报告生成后 | PROJECT |
 | INTERVIEW | 面试会话关闭时 | SESSION |
 | USER_PREFERENCES | 设置变更时 | GLOBAL |
 
@@ -116,7 +116,7 @@ data class MemoryEntry(
 [HippocampusIndex 中的最近记录]
 ```
 
-### 发芽中的三层渐进注入
+### 洞察中的三层渐进注入
 
 在 `SproutService.sprout()` 中：
 

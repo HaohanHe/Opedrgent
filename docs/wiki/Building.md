@@ -6,8 +6,8 @@
 |------|------|
 | JDK | Java 21（必须使用 Android Studio 内置 JBR） |
 | Gradle | 8.x（通过 Wrapper 管理） |
-| SDK | compileSdk 35, minSdk 26, targetSdk 35 |
-| NDK | arm64-v8a + armeabi-v7a |
+| SDK | compileSdk 36, minSdk 26, targetSdk 35 |
+| NDK ABI | 仅 arm64-v8a |
 | IDE | Android Studio（推荐最新稳定版） |
 
 > **重要**: 系统 JDK 25+ 与 Gradle 8.x 不兼容（`JavaVersion.parse("25")` 会失败）。必须使用 Android Studio 内置的 JBR（Java 21）。
@@ -23,15 +23,11 @@ git clone https://github.com/HaohanHe/Opedrgent.git
 cd Opedrgent
 ```
 
-### 2. 放置 Sherpa-ONNX AAR
+### 2. 依赖获取（无需手动放置 AAR）
 
-Sherpa-ONNX AAR 需手动下载放入 `app/libs/` 目录：
+Sherpa-ONNX 通过 JitPack 坐标 `com.github.k2-fsa:sherpa-onnx:1.13.1` 由 Gradle 自动拉取，**无需手动下载或放置 AAR**，但首次构建需要可访问 Maven Central 与 JitPack（jitpack.io）的网络。
 
-```
-Opedrgent/app/libs/sherpa-onnx-1.13.2.aar
-```
-
-> 当前仓库使用 stub 编译，实际使用语音功能需要真实 AAR。
+> `app/libs/sherpa-onnx-1.13.2.aar` 是早期本地方案的历史遗留：当前 `app/build.gradle.kts` 并未通过 fileTree 引用它，构建实际使用 JitPack 上的 1.13.1。该文件不参与编译，保留或删除均可。
 
 ### 3. 设置 JAVA_HOME
 
@@ -83,8 +79,8 @@ A: 系统 JDK 版本太高。使用 Android Studio 内置 JBR：
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 
-### Q: Sherpa-ONNX 相关编译错误
-A: 确保 `app/libs/sherpa-onnx-1.13.2.aar` 文件存在。如果是 stub 编译，部分语音功能不可用。
+### Q: Sherpa-ONNX 依赖拉取失败 / 相关编译错误
+A: Sherpa-ONNX 由 Gradle 从 JitPack（`com.github.k2-fsa:sherpa-onnx:1.13.1`）解析，请确认网络可访问 jitpack.io，必要时在 Android Studio 配置代理后重新 Sync，无需手动放置 AAR。
 
 ### Q: Health Connect 权限请求不生效
 A: 检查以下几点：
@@ -115,7 +111,7 @@ Opedrgent/
 │       │   ├── stt/             # 语音识别
 │       │   ├── tts/             # 语音合成
 │       │   ├── interview/       # 面试模式
-│       │   ├── insight/         # 发芽引擎
+│       │   ├── insight/         # 洞察引擎
 │       │   ├── note/            # 笔记系统
 │       │   ├── storage/         # 存储层
 │       │   ├── health/          # 健康数据

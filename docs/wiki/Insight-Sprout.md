@@ -1,20 +1,20 @@
-# 发芽系统 (Insight Sprout)
+# 洞察系统 (Insight Sprout)
 
 ## 概述
 
-发芽是 Opedrgent 的核心特色功能——将用户笔记通过 AI 分析，生成叙事式洞察文章。不是结构化的要点列表，而是像专栏文章一样有深度、有温度的分析。
+洞察是 Opedrgent 的核心特色功能——将用户笔记通过 AI 分析，生成叙事式洞察文章。不是结构化的要点列表，而是像专栏文章一样有深度、有温度的分析。
 
 ---
 
 ## 四阶段洞察引擎
 
-### 阶段一：种子提取 (SproutSeed)
+### 阶段一：要点提取 (SproutSeed)
 从笔记原文中提取触发洞察的关键片段
 
 ### 阶段二：跨领域关联 (SproutConnection)
-将种子与知识库中的其他内容建立联系
+将要点与知识库中的其他内容建立联系
 
-### 阶段三：AHA 洞察 (SproutInsight)
+### 阶段三：核心洞察 (SproutInsight)
 生成突破性的洞察和新视角
 
 ### 阶段四：金句回响 (SproutQuote)
@@ -79,16 +79,16 @@ data class SproutArticle(
 
 data class ArticleSection(
     val title: String,      // 编号标题（如"01. 一座王宫换来的大学"）
-    val seed: String,       // 种子 — 原文触发点
+    val seed: String,       // 要点 — 原文触发点
     val body: String,       // 正文 — AI 生成的完整分析
-    val ahaMoment: String,  // Aha 瞬间 — 金句引用
+    val coreInsight: String,  // 核心洞察 — 金句引用
     val importance: Int,    // 重要性 1-5
 )
 ```
 
 ### 存储
 
-发芽报告以 JSON 格式存储在笔记的 `sproutReportJson` 字段中，通过 `NoteDao` 的全列 UPDATE 持久化到 SQLite。
+洞察报告以 JSON 格式存储在笔记的 `sproutReportJson` 字段中，通过 `NoteDao` 的全列 UPDATE 持久化到 SQLite。
 
 ---
 
@@ -132,7 +132,7 @@ val jsonBody = JSONObject().apply {
 
 ---
 
-## 发芽数据持久化
+## 洞察数据持久化
 
 ### 问题
 
@@ -145,7 +145,7 @@ val jsonBody = JSONObject().apply {
 ```kotlin
 val note = Note(
     // ... 可编辑字段 ...
-    sproutReportJson = currentNote?.sproutReportJson,  // 保留发芽数据
+    sproutReportJson = currentNote?.sproutReportJson,  // 保留洞察数据
     summary = currentNote?.summary,
     folderId = currentNote?.folderId,
     isPinned = currentNote?.isPinned,
