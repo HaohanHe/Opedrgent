@@ -59,6 +59,40 @@ class ApiSettings(private val context: Context) {
         )
     }
 
+    init {
+        migrateLegacySecrets()
+    }
+
+    /**
+     * 幂等迁移：把旧版本以明文存于 opedrgent_settings 的云端密钥搬入 EncryptedSharedPreferences。
+     *
+     * 仅处理下列六个密钥字段，不扫描、不判定任何对话/消息文本：
+     * apiKey / jinaApiKey / braveApiKey / tavilyApiKey / firecrawlApiKey / mimoApiKey。
+     * 规则：securePrefs 中该字段为空而明文 prefs 非空时才搬迁；无论是否发生搬迁，最后都从明文
+     * prefs 移除这些密钥键。用 prefs 标志位保证整个迁移只执行一次。
+     *
+     * 失败安全：若加密存储/Keystore 不可用导致中途异常，则不置标志位、也不移除明文密钥，
+     * 下次启动重试，避免在无法加密落地时误删明文而丢失密钥。
+     */
+    private fun migrateLegacySecrets() {
+        if (prefs.getBoolean(LEGACY_SECRETS_MIGRATED, false)) return
+        runCatching {
+            // 1) 先搬迁：仅当 securePrefs 为空、明文非空时搬入
+            for (key in LEGACY_SECRET_KEYS) {
+                val legacy = prefs.getString(key, null)?.trim().orEmpty()
+                val existing = securePrefs.getString(key, null)?.trim().orEmpty()
+                if (legacy.isNotEmpty() && existing.isEmpty()) {
+                    securePrefs.edit().putString(key, legacy).apply()
+                }
+            }
+            // 2) 无论是否搬迁，都清除明文中的密钥键，并置标志位
+            prefs.edit().apply {
+                LEGACY_SECRET_KEYS.forEach { remove(it) }
+                putBoolean(LEGACY_SECRETS_MIGRATED, true)
+            }.apply()
+        }
+    }
+
     fun getApiConfig(): ApiConfig? {
         val apiKey = securePrefs.getString("apiKey", null)?.trim().orEmpty()
         if (apiKey.isEmpty()) return null
@@ -480,5 +514,15 @@ class ApiSettings(private val context: Context) {
 
     fun saveRecordingQuality(quality: RecordingQuality) {
         prefs.edit().putString("recordingQuality", quality.key).apply()
+    }
+
+    companion object {
+        /** 旧版本曾以明文存放的云端密钥字段（仅这些字段参与迁移与清理）。 */
+        private val LEGACY_SECRET_KEYS = listOf(
+            "apiKey", "jinaApiKey", "braveApiKey", "tavilyApiKey", "firecrawlApiKey", "mimoApiKey",
+        )
+
+        /** 迁移完成标志位（存于明文 prefs，非敏感）。 */
+        private const val LEGACY_SECRETS_MIGRATED = "legacy_secrets_migrated"
     }
 }

@@ -9,10 +9,13 @@ import top.hsyscn.opedrgent.ui.theme.customColors
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.health.connect.client.HealthConnectClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -133,6 +136,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.modelreadiness.ModelReadinessRepository
+import top.hsyscn.opedrgent.storage.DataCategory
+import top.hsyscn.opedrgent.storage.LocalDataDeleter
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.llm.LocalLlmState
@@ -313,6 +322,12 @@ fun SettingsScreen(
             scope.launch { snackbar.showSnackbar(context.getString(R.string.settings_wei_shou_yu_huo_dong_shi_bie)) }
         }
     }
+
+    // 通知权限（POST_NOTIFICATIONS）：仅在启用需要常驻通知的前台服务功能时用时申请，
+    // 不在 App 启动时请求。被拒绝不阻断主功能——前台服务仍可运行，仅不显示常驻通知；不反复弹窗。
+    val notificationPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 结果不影响功能开关状态，无需在此处理 */ }
 
     // 进入设置页或从外部返回时重新校验 Health Connect 权限
     // （用户可能在 Health Connect 应用或系统设置中撤销了权限）
@@ -1538,6 +1553,15 @@ fun SettingsScreen(
                         onCheckedChange = {
                             bgRunning = it
                             if (it) {
+                                // 后台保活以前台服务运行，需要常驻通知：Android 13+ 用时申请通知权限。
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                                    PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                            if (it) {
                                 val activity = context as? Activity
                                 if (activity != null) {
                                     val status = BackgroundPermHelper.checkPermissions(context)
@@ -1954,6 +1978,12 @@ fun SettingsScreen(
                 }
             }
             }
+
+            // ── 数据管理 ──
+            DataManagementGroup(
+                scope = scope,
+                snackbar = snackbar,
+            )
 
             // ── 导入导出 ──
             Box(modifier = Modifier.onGloballyPositioned { coordinates ->
@@ -2527,3 +2557,163 @@ private fun SettingSwitchRow(
     }
 }
 
+
+@Composable
+private fun DataManagementGroup(
+    scope: CoroutineScope,
+    snackbar: SnackbarHostState,
+) {
+    val context = LocalContext.current
+    // 正在删除的分类；非空表示有删除进行中，其余按钮置灰，杜绝重复点击。
+    var busyCategory by remember { mutableStateOf<DataCategory?>(null) }
+    var deletingAll by remember { mutableStateOf(false) }
+    var confirmCategory by remember { mutableStateOf<DataCategory?>(null) }
+    var confirmAll by remember { mutableStateOf(false) }
+    val anyBusy = busyCategory != null || deletingAll
+
+    // (分类, 标题, 用途说明)。命名与 PRIVACY.md「数据管理 / 删除」小节保持一致。
+    val rows = listOf(
+        Triple(DataCategory.NOTES, "笔记", "删除全部笔记、文件夹与关联知识图谱"),
+        Triple(DataCategory.REFLECTIONS, "复盘记录", "删除复盘与批判镜记录"),
+        Triple(DataCategory.RECORDINGS, "录音", "删除录音与会议音频缓存"),
+        Triple(DataCategory.DOWNLOADED_MODELS, "已下载模型", "删除本地大模型与语音识别模型"),
+        Triple(DataCategory.MEMORY_INDEX, "记忆索引", "清空海马记忆索引"),
+    )
+
+    fun formatMb(bytes: Long): String =
+        String.format(java.util.Locale.US, "%.1f", bytes / (1024.0 * 1024.0))
+
+    fun feedback(result: top.hsyscn.opedrgent.storage.DeletionResult, prefix: String) {
+        val msg = if (result.errors.isNotEmpty()) {
+            "$prefix，释放 ${formatMb(result.freedBytes)} MB；部分项目失败：${result.errors.joinToString("；")}"
+        } else {
+            "$prefix，释放 ${formatMb(result.freedBytes)} MB"
+        }
+        scope.launch { snackbar.showSnackbar(msg) }
+    }
+
+    // 删除为阻塞操作，统一在 IO 上执行后再回 UI。
+    fun runDelete(category: DataCategory) {
+        busyCategory = category
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                LocalDataDeleter.getInstance(context).deleteCategory(category)
+            }
+            // 删除已下载模型后即时刷新模型就绪状态
+            if (category == DataCategory.DOWNLOADED_MODELS) {
+                ModelReadinessRepository.getInstance(context).refresh()
+            }
+            val label = rows.first { it.first == category }.second
+            feedback(result, "已清理「$label」")
+            busyCategory = null
+        }
+    }
+
+    fun runDeleteAll() {
+        deletingAll = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                LocalDataDeleter.getInstance(context).deleteAllUserData()
+            }
+            ModelReadinessRepository.getInstance(context).refresh()
+            feedback(result, "已清除全部本地数据")
+            deletingAll = false
+        }
+    }
+
+    SettingGroup(title = "数据管理") {
+        rows.forEach { row ->
+            val category = row.first
+            SettingRow(
+                title = row.second,
+                subtitle = row.third,
+                showDivider = true,
+                trailing = {
+                    if (busyCategory == category) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(SpacingTokens.lg),
+                            strokeWidth = SizeTokens.progressTrackHeight,
+                        )
+                    } else {
+                        TextButton(
+                            onClick = { confirmCategory = category },
+                            enabled = !anyBusy,
+                        ) {
+                            Text(
+                                "删除",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                },
+                onClick = { if (!anyBusy) confirmCategory = category },
+            )
+        }
+        HorizontalDivider(color = themeBorder())
+        SettingRow(
+            title = "清除全部本地数据",
+            subtitle = "一次性删除以上五类全部本地数据，不可恢复",
+            showDivider = false,
+            trailing = {
+                if (deletingAll) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(SpacingTokens.lg),
+                        strokeWidth = SizeTokens.progressTrackHeight,
+                    )
+                } else {
+                    TextButton(
+                        onClick = { confirmAll = true },
+                        enabled = !anyBusy,
+                    ) {
+                        Text(
+                            "清除全部",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+            onClick = { if (!anyBusy) confirmAll = true },
+        )
+    }
+
+    confirmCategory?.let { category ->
+        val label = rows.firstOrNull { it.first == category }?.second ?: category.name
+        AlertDialog(
+            onDismissRequest = { confirmCategory = null },
+            title = { Text("删除「$label」？") },
+            text = { Text("将永久删除该类全部本地内容，且无法恢复。是否继续？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCategory = null
+                    runDelete(category)
+                }) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCategory = null }) { Text("取消") }
+            },
+        )
+    }
+
+    if (confirmAll) {
+        AlertDialog(
+            onDismissRequest = { confirmAll = false },
+            title = { Text("清除全部本地数据？") },
+            text = { Text("将永久删除以下全部内容，且无法恢复：\n· 笔记\n· 复盘记录\n· 录音\n· 已下载模型\n· 记忆索引\n\n此操作不可撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmAll = false
+                    runDeleteAll()
+                }) {
+                    Text("清除全部", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAll = false }) { Text("取消") }
+            },
+        )
+    }
+}

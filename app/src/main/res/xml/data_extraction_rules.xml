@@ -15,6 +15,8 @@
     <cloud-backup>
         <!-- 用户设置与数据需要备份：卸载重装后可恢复 -->
         <include domain="sharedpref" path="opedrgent_settings" />
+        <!-- 加密密钥库显式排除（云备份与换机迁移均不带走）：MasterKey 由 Keystore 生成、不可导出，他机无法解密，此处为纵深防御。 -->
+        <exclude domain="sharedpref" path="opedrgent_secure.xml" />
         <include domain="sharedpref" path="opedrgent_memory" />
         <include domain="sharedpref" path="opedrgent_skills" />
         <include domain="sharedpref" path="opedrgent_automations" />
@@ -34,6 +36,8 @@
     <device-transfer>
         <!-- 用户设置与数据需要备份：换机后可恢复 -->
         <include domain="sharedpref" path="opedrgent_settings" />
+        <!-- 加密密钥库显式排除（云备份与换机迁移均不带走）：MasterKey 由 Keystore 生成、不可导出，他机无法解密，此处为纵深防御。 -->
+        <exclude domain="sharedpref" path="opedrgent_secure.xml" />
         <include domain="sharedpref" path="opedrgent_memory" />
         <include domain="sharedpref" path="opedrgent_skills" />
         <include domain="sharedpref" path="opedrgent_automations" />

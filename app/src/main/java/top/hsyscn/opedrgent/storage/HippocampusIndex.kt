@@ -282,9 +282,17 @@ class HippocampusIndex(context: Context) {
         deleteBySource(SourceType.CULTIVATION, reportId.toString())
     }
 
+    /** 删除指定来源类型的全部索引项（笔记/录音等分类清除复用）。 */
+    suspend fun deleteAllByType(sourceType: SourceType) = withContext(Dispatchers.IO) {
+        getAllByType(sourceType, Int.MAX_VALUE).forEach { delete(it.id) }
+    }
+
     /** 清空全部修炼索引（修炼数据独立清除入口）。 */
-    suspend fun deleteAllCultivation() = withContext(Dispatchers.IO) {
-        getAllByType(SourceType.CULTIVATION, Int.MAX_VALUE).forEach { delete(it.id) }
+    suspend fun deleteAllCultivation() = deleteAllByType(SourceType.CULTIVATION)
+
+    /** 清空整张海马索引表（记忆索引分类清除：删除即不可恢复）。 */
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
+        db.delete(HippocampusDatabase.TABLE, null, null)
     }
 
     /** 为索引条目提取关键词（供批量索引复用） */

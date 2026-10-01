@@ -37,6 +37,57 @@ You can revoke these permissions at any time through your device settings or the
 
 Opedrgent does not retain health data. All health information is processed in-memory and discarded after the AI conversation context is cleared.
 
+## On-Device Data
+
+Opedrgent is local-first. The content you create — notes, review and critique-mirror records, audio recordings, and downloaded models — lives on this device and is not uploaded unless you explicitly opt in to a cloud endpoint (see Cloud Services below).
+
+### Storage Locations
+
+Your content is kept inside Opedrgent's private application sandbox:
+
+- internal app storage (`filesDir`) for the content database, notes and note images, recordings, exported files, and on-device models;
+- the app-private external directory (`getExternalFilesDir(...)`) for larger downloads such as generated images.
+
+These directories belong to Opedrgent and are not exposed to other apps. On Android 10 and above no broad external-storage permission is required to read or write them. The only storage-related declarations are a scoped `READ_EXTERNAL_STORAGE` limited to Android 9 and below, and `READ_MEDIA_AUDIO` used when you pick an audio file yourself.
+
+### Security
+
+- Sensitive configuration — most notably your cloud API Keys and base URLs — is stored in EncryptedSharedPreferences backed by an Android Keystore master key. Values are encrypted with AES256-GCM and keys with AES256-SIV; the wrapping key never leaves the device.
+- This encrypted preference file is intentionally excluded from Android cloud backup and device-to-device migration, so it is not copied to cloud servers or to a new device.
+- Your notes, conversations, recordings, and other local content are protected by the Android application sandbox. Opedrgent does not claim that this content database is encrypted as a whole.
+
+### Permissions
+
+Runtime and special permissions are requested only when you first use the feature that needs them. Declining any single permission does not prevent the rest of the app from working, and every permission can be revoked later in system settings.
+
+| Permission | Purpose | When it is requested |
+|---|---|---|
+| `RECORD_AUDIO` | Voice recognition (ASR) and audio recording / meeting transcription. | Only when you start voice input or a recording. |
+| `CAMERA` | Taking photos to attach to notes or multimodal prompts. | Only when you choose to capture an image. |
+| `POST_NOTIFICATIONS` | Notifying you during recording, model download, or background automation foreground services. | Only when such a foreground service is first used (Android 13+). |
+| `READ_CALENDAR` / `WRITE_CALENDAR` | Reading, creating, updating, or deleting calendar events through the calendar tool. | Only when you first use calendar features. |
+| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | Optional environment / location tooling. | Off by default; requested only if you enable the location feature. |
+| Health Connect read permissions + `ACTIVITY_RECOGNITION` | Reading steps, heart rate, calories, distance, sleep, and exercise as health-related context. | Off by default; requested only when you enable the health feature (see Health Connect Data above). |
+| `SYSTEM_ALERT_WINDOW` | Drawing the floating assistant window over other apps. | Only when you enable the floating window. |
+| Battery-optimization exemption (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`), `RECEIVE_BOOT_COMPLETED`, and the system Accessibility Service | Background automation: keeping scheduled tasks alive, restarting after reboot, and — only when you turn it on — observing the foreground app and performing taps or back gestures. | Off by default; requested only when you set up background automation. |
+
+In addition, Opedrgent declares the install-time (normal) permissions `INTERNET`, `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, and `FOREGROUND_SERVICE`; these are used only to carry out the network calls you initiate, keep the device awake during processing, and run the foreground services listed above.
+
+### Retention
+
+Your on-device content remains on the device until you delete it. Opedrgent does not automatically expire or purge your notes, recordings, or downloaded models.
+
+### Deletion
+
+You can delete individual items at any time. Through the app's data-management options in Settings you can also clear content by category — review and critique-mirror records, recordings, notes, and downloaded models — or erase all of it at once. Deletion takes effect immediately and cannot be undone.
+
+### Export
+
+- Notes can be exported as plain text (`.txt`) or Markdown (`.md`).
+- Conversations can be copied or shared as Markdown, or saved as a context package that bundles the session together with related memory, notes, and references.
+
+Exported files are written to Opedrgent's private export directory and leave the device only when you explicitly choose to share them with another app.
+
 ## Cloud Services
 
 ### Local-First by Default
@@ -134,6 +185,57 @@ Opedrgent 采用本地优先设计。默认情况下，App **不会**向任何�
 - 仅启用本地模型，不使用云端配置。
 
 清空密钥后，应用将不再发起任何云端请求。
+
+## 本地数据
+
+Opedrgent 采用本地优先设计。你创建的内容——笔记、复盘与批判镜记录、录音、已下载模型——均保存在本机，除非你主动选择接入云端端点，否则不会上传（见下文「云端服务」）。
+
+### 数据存放位置
+
+你的内容保存在 Opedrgent 私有的应用沙箱目录中：
+
+- 应用内部存储（`filesDir`）：内容数据库、笔记与笔记配图、录音、导出文件以及端侧模型；
+- 应用私有外部目录（`getExternalFilesDir(...)`）：生成图片等较大体积的下载文件。
+
+这些目录归 Opedrgent 自身所有，不对其他应用开放。在 Android 10 及以上系统，读写这些目录无需申请通用外部存储权限。与存储相关的声明仅有两项：限定在 Android 9 及以下生效的 `READ_EXTERNAL_STORAGE`，以及你自行挑选音频文件时使用的 `READ_MEDIA_AUDIO`。
+
+### 安全
+
+- 敏感配置（尤其是云端 API Key 与 baseUrl）保存在 EncryptedSharedPreferences 中，由 Android Keystore 生成的主密钥保护：值以 AES256-GCM 加密，键以 AES256-SIV 加密，主密钥不会离开设备。
+- 该加密偏好文件被明确排除在 Android 云端备份与设备间迁移之外，因此不会被复制到云端服务器或迁移到新设备。
+- 你的笔记、对话、录音等本地内容由 Android 应用沙箱保护。Opedrgent 不声称该内容数据库已做整库加密。
+
+### 权限用途
+
+运行时权限与特殊权限均在你首次使用对应功能时才申请。拒绝其中任何一项都不影响应用其余部分的正常使用，且你可随时在系统设置中撤销。
+
+| 权限 | 用途 | 申请时机 |
+|---|---|---|
+| `RECORD_AUDIO` | 语音识别（ASR）与录音 / 会议转录。 | 仅在你开始语音输入或录音时申请。 |
+| `CAMERA` | 拍摄照片，用于附加到笔记或多模态提问。 | 仅在你选择拍摄图片时申请。 |
+| `POST_NOTIFICATIONS` | 在录音、模型下载或后台自动化前台服务运行时向你提示。 | 仅在首次使用此类前台服务时申请（Android 13+）。 |
+| `READ_CALENDAR` / `WRITE_CALENDAR` | 通过日历工具读取、创建、更新或删除系统日历事件。 | 仅在你首次使用日历功能时申请。 |
+| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | 可选的环境 / 位置工具。 | 默认关闭；仅在你启用位置功能时申请。 |
+| Health Connect 读取权限 + `ACTIVITY_RECOGNITION` | 读取步数、心率、卡路里、距离、睡眠与运动，作为健康相关上下文。 | 默认关闭；仅在你启用运动健康功能时申请（见上文「Health Connect 数据」）。 |
+| `SYSTEM_ALERT_WINDOW` | 在其他应用之上绘制悬浮助手窗口。 | 仅在你启用悬浮窗时申请。 |
+| 电池优化豁免（`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`）、`RECEIVE_BOOT_COMPLETED` 与系统无障碍服务 | 后台自动化：维持定时任务存活、开机后重启，以及——仅在你主动开启时——感知前台应用并模拟点击或返回手势。 | 默认关闭；仅在你配置后台自动化时申请。 |
+
+此外，Opedrgent 声明了安装即生效的普通权限 `INTERNET`、`ACCESS_NETWORK_STATE`、`WAKE_LOCK`、`FOREGROUND_SERVICE`，仅用于发起你主动请求的网络调用、在处理期间保持设备唤醒，以及运行上述前台服务。
+
+### 数据保留
+
+你的本地内容会一直保留在设备上，直到你主动删除。Opedrgent 不会自动过期或清理你的笔记、录音或已下载模型。
+
+### 数据删除
+
+你可以随时逐条删除内容。在应用「设置」的数据管理选项中，你还可以按类别清除——复盘与批判镜记录、录音、笔记、已下载模型——或一次性清空全部本地内容。删除立即生效，且不可恢复。
+
+### 数据导出
+
+- 笔记可导出为纯文本（`.txt`）或 Markdown（`.md`）。
+- 对话可复制或以 Markdown 分享，也可保存为上下文归档包，将会话连同相关记忆、笔记与引用一并打包。
+
+导出文件写入 Opedrgent 私有的导出目录，仅在你主动选择分享给其他应用时才会离开设备。
 
 ## Contact
 

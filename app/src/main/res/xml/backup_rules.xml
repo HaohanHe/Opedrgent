@@ -14,6 +14,13 @@
 
     <!-- 用户设置与数据需要备份：卸载重装后可恢复 -->
     <include domain="sharedpref" path="opedrgent_settings" />
+
+    <!--
+      加密密钥库（EncryptedSharedPreferences）显式排除，纵深防御：
+      即便上述 include 策略被误改，密钥也不会进入云端备份。
+      其 MasterKey 由 Android Keystore 生成、不可导出，本就无法在他机解密，此处为双保险。
+    -->
+    <exclude domain="sharedpref" path="opedrgent_secure.xml" />
     <include domain="sharedpref" path="opedrgent_memory" />
     <include domain="sharedpref" path="opedrgent_skills" />
     <include domain="sharedpref" path="opedrgent_automations" />
