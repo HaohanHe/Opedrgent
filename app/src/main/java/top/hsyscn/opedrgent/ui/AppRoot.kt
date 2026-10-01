@@ -148,6 +148,9 @@ import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.ui.components.FeedbackController
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.components.UserBubble
+import top.hsyscn.opedrgent.ui.components.ModelSetupScreen
+import top.hsyscn.opedrgent.modelreadiness.ModelReadinessRepository
+import top.hsyscn.opedrgent.modelreadiness.ReadyState
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
 import top.hsyscn.opedrgent.ui.components.SttResultCard
 import top.hsyscn.opedrgent.ui.components.EmptyStateView
@@ -346,6 +349,28 @@ fun AppRoot(
                 },
             )
         }
+        return
+    }
+
+    // 端侧模型首次准备门：LLM/ASR 未就绪且用户未选「稍后」时引导下载；
+    // 已就绪或已 deferred 直接进入主应用（deferred 后由各功能面内联门控卡承接）。
+    val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
+    LaunchedEffect(Unit) { readinessRepo.refresh() }
+    val setupSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
+    val setupDeferred by ModelSetupDataStore.isDeferred(context).collectAsStateWithLifecycle(initialValue = null)
+    val coreModelsReady = setupSnapshot.llm.state == ReadyState.READY &&
+            setupSnapshot.asr.state == ReadyState.READY
+    if (setupDeferred != null && !coreModelsReady && setupDeferred == false) {
+        ModelSetupScreen(
+            snapshot = setupSnapshot,
+            onStart = { readinessRepo.startRecommended(it) },
+            onPause = { readinessRepo.pause(it) },
+            onResume = { readinessRepo.resume(it) },
+            onCancel = { readinessRepo.cancel(it) },
+            onRetry = { readinessRepo.retry(it) },
+            onDefer = { scope.launch { ModelSetupDataStore.markDeferred(context) } },
+            onDone = { /* 就绪后自动放行，无需持久化 */ },
+        )
         return
     }
 

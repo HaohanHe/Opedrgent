@@ -168,6 +168,10 @@ import top.hsyscn.opedrgent.ui.state.SttUiState
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 import top.hsyscn.opedrgent.ui.components.isExpandedWidth
 import top.hsyscn.opedrgent.ui.components.isLandscape
+import top.hsyscn.opedrgent.ui.components.ModelRequiredCard
+import top.hsyscn.opedrgent.modelreadiness.ModelKind
+import top.hsyscn.opedrgent.modelreadiness.ModelReadinessRepository
+import top.hsyscn.opedrgent.modelreadiness.ReadyState
 
 
 
@@ -1631,6 +1635,13 @@ private fun IdleModeSelection(
     val landscape = isLandscape()
     val isMediumOrExpanded = isAtLeastMediumWidth()
 
+    // 端侧 ASR 门控：未就绪且无云端识别后端时，在录音入口给出下载门控卡
+    val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
+    LaunchedEffect(Unit) { readinessRepo.refresh() }
+    val readinessSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
+    val cloudRecognizer = vm.apiSettings.getApiConfig() != null
+    val asrBlocked = readinessSnapshot.asr.state != ReadyState.READY && !cloudRecognizer
+
     val titleSection: @Composable () -> Unit = {
         Text(
             text = stringResource(R.string.recording_select_mode),
@@ -1693,6 +1704,18 @@ private fun IdleModeSelection(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (asrBlocked) {
+                ModelRequiredCard(
+                    status = readinessSnapshot.asr,
+                    online = readinessSnapshot.online,
+                    onStart = { readinessRepo.startRecommended(ModelKind.ASR) },
+                    onPause = { readinessRepo.pause(ModelKind.ASR) },
+                    onResume = { readinessRepo.resume(ModelKind.ASR) },
+                    onCancel = { readinessRepo.cancel(ModelKind.ASR) },
+                    onRetry = { readinessRepo.retry(ModelKind.ASR) },
+                    modifier = Modifier.padding(bottom = SpacingTokens.lg),
+                )
+            }
             Text(
                 text = run { val h = vm.getRecordingMaxHours(selectedMode.name); if (h == 0) stringResource(R.string.recording_max_unlimited) else stringResource(R.string.recording_max_hours, h) },
                 style = MaterialTheme.typography.bodyMedium,

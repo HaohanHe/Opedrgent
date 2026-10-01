@@ -134,6 +134,10 @@ import top.hsyscn.opedrgent.ui.components.StreamingCard
 import top.hsyscn.opedrgent.ui.components.UserBubble
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 import top.hsyscn.opedrgent.ui.components.isExpandedWidth
+import top.hsyscn.opedrgent.ui.components.ModelRequiredCard
+import top.hsyscn.opedrgent.modelreadiness.ModelKind
+import top.hsyscn.opedrgent.modelreadiness.ModelReadinessRepository
+import top.hsyscn.opedrgent.modelreadiness.ReadyState
 import top.hsyscn.opedrgent.ui.theme.themeBarBg
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
 import top.hsyscn.opedrgent.ui.theme.themeCardBackground
@@ -255,6 +259,13 @@ fun SessionScreen(
     val confirmationRequest by vm.confirmationRequest.collectAsStateWithLifecycle()
 
     val session = state.current
+
+    // 端侧 LLM 门控：未就绪且未配置云端时，内联门控卡并禁用输入发送
+    val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
+    LaunchedEffect(Unit) { readinessRepo.refresh() }
+    val readinessSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
+    val cloudConfigured = vm.apiSettings.getApiConfig() != null
+    val llmBlocked = readinessSnapshot.llm.state != ReadyState.READY && !cloudConfigured
 
     Box(modifier = Modifier.fillMaxSize().background(themeBgGray())) {
         var showMoreOptionsSheet by rememberSaveable { mutableStateOf(false) }
@@ -568,6 +579,19 @@ fun SessionScreen(
                 }
             }
 
+            if (llmBlocked) {
+                ModelRequiredCard(
+                    status = readinessSnapshot.llm,
+                    online = readinessSnapshot.online,
+                    onStart = { readinessRepo.startRecommended(ModelKind.LLM) },
+                    onPause = { readinessRepo.pause(ModelKind.LLM) },
+                    onResume = { readinessRepo.resume(ModelKind.LLM) },
+                    onCancel = { readinessRepo.cancel(ModelKind.LLM) },
+                    onRetry = { readinessRepo.retry(ModelKind.LLM) },
+                    modifier = Modifier.padding(bottom = SpacingTokens.sm),
+                )
+            }
+
             // Input bar
             Row(
                 modifier = Modifier
@@ -637,6 +661,7 @@ fun SessionScreen(
                         OutlinedTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
+                            enabled = !llmBlocked,
                             placeholder = { Text(stringResource(R.string.msg_type_message), color = themeTextGrey()) },
                             modifier = Modifier
                                 .weight(1f)
@@ -650,7 +675,7 @@ fun SessionScreen(
                             maxLines = 5,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = {
-                                if (!state.isStreaming && prompt.isNotBlank()) {
+                                if (!state.isStreaming && prompt.isNotBlank() && !llmBlocked) {
                                     val text = prompt
                                     prompt = ""
                                     vm.sendUserMessage(text)
@@ -732,7 +757,7 @@ fun SessionScreen(
                         .size(SizeTokens.quickActionIcon)
                         .clip(CircleShape),
                     onClick = {
-                        if (!state.isStreaming && prompt.isNotBlank()) {
+                        if (!state.isStreaming && prompt.isNotBlank() && !llmBlocked) {
                             val text = prompt
                             prompt = ""
                             vm.sendUserMessage(text)

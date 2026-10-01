@@ -13,6 +13,7 @@ import okio.sink
 import okio.source
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import top.hsyscn.opedrgent.network.NetworkConfig
+import top.hsyscn.opedrgent.utils.FileHasher
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -49,6 +50,12 @@ object ModelManager {
         val repoPath: String,
         /** 需要下载的文件列表 (远程文件名 to 本地文件名) */
         val files: List<Pair<String, String>>,
+
+        /**
+         * 逐文件可信上游 SHA-256（key=本地文件名，即 files 中的 localName）。
+         * 为 null 时维持现有“文件存在性”校验；当前清单暂无可靠上游哈希，一律保持 null，严禁臆造。
+         */
+        val fileSha256: Map<String, String>? = null,
     ) {
         /**
          * 生成下载任务列表。
@@ -521,6 +528,23 @@ object ModelManager {
 
             // 后处理2: 转换 tokens.json → tokens.txt（部分模型源提供 JSON 格式）
             convertTokensJsonToTxt(modelDir)
+
+            // 完整性校验：若配置了逐文件 SHA-256 则逐字节比对；任一不一致即判失败（不缓存为已下载、可重试）。
+            // 未配置（null）时维持现有文件存在性校验。
+            val expectedHashes = modelInfo.fileSha256
+            if (!expectedHashes.isNullOrEmpty()) {
+                var hashOk = true
+                for ((localName, expected) in expectedHashes) {
+                    val f = File(modelDir, localName)
+                    if (!f.exists() || !FileHasher.matchesSha256(f, expected)) {
+                        DebugLog.e("$TAG: 文件 SHA-256 校验失败: $localName")
+                        emit(DownloadProgress.Error("文件完整性校验失败: $localName"))
+                        hashOk = false
+                        break
+                    }
+                }
+                if (!hashOk) return@flow
+            }
 
             downloadStatusCache[modelType] = true
             DebugLog.i("$TAG: 模型 ${modelInfo.modelName} 安装完成")

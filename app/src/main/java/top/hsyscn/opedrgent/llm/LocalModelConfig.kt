@@ -18,6 +18,11 @@ data class LocalModelInfo(
     val supportsSpecDec: Boolean = false,
     val preferGpu: Boolean = true,
     val fallbackUrl: String? = null,
+    /**
+     * 完整文件的可信上游 SHA-256（十六进制，大小写不敏感）。
+     * 为 null 时维持现有“体积 90%”校验；当前清单暂无可靠上游哈希，一律保持 null，严禁臆造。
+     */
+    val expectedSha256: String? = null,
 )
 
 object AvailableLocalModels {

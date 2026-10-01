@@ -12,6 +12,7 @@ import okio.sink
 import top.hsyscn.opedrgent.network.HttpClients
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.service.ModelDownloadService
+import top.hsyscn.opedrgent.utils.FileHasher
 import java.io.File
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -211,6 +212,19 @@ class ModelDownloadManager(private val context: Context) {
         return AvailableLocalModels.MODELS.filter { isModelComplete(it) }
     }
 
+    /** 返回某模型的最终落地文件（可能不存在）；仅供就绪状态读取 filePath。 */
+    fun getModelFile(modelId: String): File? {
+        val info = AvailableLocalModels.findById(modelId) ?: return null
+        return File(modelDir, info.fileName)
+    }
+
+    /** 返回 .tmp 临时文件已下载字节数（用于暂停/未完成时展示可断点续传的进度）。 */
+    fun getPartialBytes(modelId: String): Long {
+        val info = AvailableLocalModels.findById(modelId) ?: return 0L
+        val tmp = File(modelDir, "${info.fileName}.tmp")
+        return if (tmp.exists()) tmp.length() else 0L
+    }
+
     fun getTotalUsedSpaceMb(): Long {
         return modelDir.listFiles()?.sumOf { it.length() }?.div(1024 * 1024) ?: 0
     }
@@ -355,6 +369,14 @@ class ModelDownloadManager(private val context: Context) {
 
             if (!outputFile.exists() || outputFile.length() < modelInfo.sizeMb * 1024 * 1024 * 0.9) {
                 throw IOException("Downloaded file size mismatch: ${outputFile.length()} bytes")
+            }
+
+            // 体积校验通过后，若配置了可信上游 SHA-256 则做完整哈希校验；
+            // 不一致视为下载失败（不标记完成、不发 COMPLETED，可重试）。为空则仅维持上述体积校验。
+            if (modelInfo.expectedSha256 != null &&
+                !FileHasher.matchesSha256(outputFile, modelInfo.expectedSha256)
+            ) {
+                throw Exception("Downloaded file SHA-256 mismatch: ${modelInfo.id}")
             }
 
             emitProgress(flow, modelInfo.id, DownloadProgress(

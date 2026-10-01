@@ -77,6 +77,12 @@ import top.hsyscn.opedrgent.cultivation.model.TrendInsights
 import top.hsyscn.opedrgent.cultivation.model.VirtueDimension
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.ui.components.TrendCard
+import top.hsyscn.opedrgent.ui.components.ModelRequiredCard
+import top.hsyscn.opedrgent.modelreadiness.ModelKind
+import top.hsyscn.opedrgent.modelreadiness.ModelReadinessRepository
+import top.hsyscn.opedrgent.modelreadiness.ReadyState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.ui.state.CultivationStateManager
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -97,6 +103,10 @@ fun CultivationScreen(
     val state by manager.state.collectAsStateCompat()
     val snackbarHostState = remember { SnackbarHostState() }
     var tab by rememberSaveable { mutableStateOf(CultivationTab.MIRROR) }
+    val context = LocalContext.current
+    val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
+    LaunchedEffect(Unit) { readinessRepo.refresh() }
+    val readinessSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
 
     // 从设置加载完模型返回时，自动重新探测端侧就绪状态，不让用户手动找刷新
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -162,8 +172,19 @@ fun CultivationScreen(
             }
 
             // 端侧未就绪是“第一步”而非报错：两镜共用，先引导把模型跑起来
-            if (!state.useCloud && !state.localReady) {
-                item { LocalModelNeededCard(onManageLocalModel) }
+            // 端侧未就绪：统一 snapshot(llm) 门控，替换旧提示；云端 opt-in 路由不变
+            if (!state.useCloud && readinessSnapshot.llm.state != ReadyState.READY) {
+                item {
+                    ModelRequiredCard(
+                        status = readinessSnapshot.llm,
+                        online = readinessSnapshot.online,
+                        onStart = { readinessRepo.startRecommended(ModelKind.LLM) },
+                        onPause = { readinessRepo.pause(ModelKind.LLM) },
+                        onResume = { readinessRepo.resume(ModelKind.LLM) },
+                        onCancel = { readinessRepo.cancel(ModelKind.LLM) },
+                        onRetry = { readinessRepo.retry(ModelKind.LLM) },
+                    )
+                }
             }
 
             when (tab) {
