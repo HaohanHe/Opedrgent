@@ -125,3 +125,79 @@ Opedrgent/
 ├── ROADMAP.md                   # 路线图
 └── build.gradle.kts             # 构建配置
 ```
+
+---
+
+## 零障碍复现（命令行 + 本地 JDK21 + 本地 SDK + init 镜像）
+
+> 适用于无 Android Studio、需在干净机器上纯命令行复现 debug 包的场景。已于 2026-10-02 独立复核：`:app:clean :app:assembleDebug` **BUILD SUCCESSFUL（约 5 分钟）**，产物 `top.hsyscn.opedrgent` versionCode=4 versionName=1.2.1，仅 arm64-v8a，Android Debug 签名校验通过。
+
+### 工具链版本
+
+- JDK：OpenJDK **21.0.2**（系统 JDK 11/25 均不可；必须显式指定 JDK21）
+- Gradle：**8.14.5**（直接用解压发行版；亦可改用 `./gradlew`，但须保证 `JAVA_HOME=21`）
+- SDK：compileSdk **36** / minSdk **26** / targetSdk **35**，build-tools **36.0.0**，仅 ABI **arm64-v8a**
+- AGP 8.13.2 / Kotlin 2.3.0
+
+### 1. 准备 JDK21 与 Android SDK
+
+SDK 组件（均来自 `https://dl.google.com`，实测可达）：
+
+```bash
+# cmdline-tools
+curl -O https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+# platforms;android-36
+curl -O https://dl.google.com/android/repository/platform-36_r02.zip
+# 其余用 sdkmanager 拉取并接受许可
+yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT "build-tools;36.0.0" "platform-tools"
+```
+
+布局：`android-sdk/{cmdline-tools/latest, platforms/android-36, build-tools/36.0.0, platform-tools, licenses}`。
+
+### 2. 仓库外 Gradle 镜像 init 脚本
+
+新建 `init.gradle`（**不改项目 settings/build 文件**，以 `-I` 注入），把阿里云镜像前置、官方源与 jitpack 作为回退：
+
+```groovy
+def GOOGLE = "https://maven.aliyun.com/repository/google"
+def CENTRAL = "https://maven.aliyun.com/repository/central"
+def PLUGIN = "https://maven.aliyun.com/repository/gradle-plugin"
+beforeSettings { s ->
+    s.pluginManagement.repositories.maven { url(GOOGLE) }
+    s.pluginManagement.repositories.maven { url(CENTRAL) }
+    s.pluginManagement.repositories.maven { url(PLUGIN) }
+    s.dependencyResolutionManagement.repositories.maven { url(GOOGLE) }
+    s.dependencyResolutionManagement.repositories.maven { url(CENTRAL) }
+    // jitpack 保持 settings.gradle.kts 内原地址 https://jitpack.io（阿里云 jitpack 代理 401）
+}
+```
+
+> 项目 `settings.gradle.kts` 已设 `RepositoriesMode.FAIL_ON_PROJECT_REPOS`；该模式只约束 project 级 buildscript 仓库，**不影响** settings 级 `beforeSettings` 前置注入，故配置可成功。
+
+### 3. 环境变量与构建
+
+```bash
+export JAVA_HOME=/path/to/jdk-21
+export ANDROID_HOME=/path/to/android-sdk
+export ANDROID_SDK_ROOT=/path/to/android-sdk
+export GRADLE_USER_HOME=/path/to/isolated-gradle-home   # 独立缓存，避免 ~/.gradle 陈旧锁冲突
+
+gradle -I /path/to/init.gradle --no-daemon \
+  -Dorg.gradle.java.installations.paths=$JAVA_HOME \
+  -Dorg.gradle.java.installations.auto-download=false \
+  :app:clean :app:assembleDebug
+```
+
+产物：`app/build/outputs/apk/debug/app-debug.apk`。
+
+### 4. 校验产物
+
+```bash
+$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2 dump badging app/build/outputs/apk/debug/app-debug.apk \
+  | grep -E '^package:|minSdk|targetSdk|native-code'
+unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E 'classes.*\.dex|lib/arm64-v8a/.*\.so'
+$JAVA_HOME/bin/java -jar $ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner verify --print-certs \
+  app/build/outputs/apk/debug/app-debug.apk
+```
+
+预期：`package: name='top.hsyscn.opedrgent' versionCode='4' versionName='1.2.1'`、`minSdkVersion:'26'`、`targetSdkVersion:'35'`、`native-code: 'arm64-v8a'`；多 dex + `lib/arm64-v8a/*.so`；`Verifies` 且签名者 `CN=Android Debug`。
