@@ -17,6 +17,7 @@ import top.hsyscn.opedrgent.cultivation.model.FollowUpStatus
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
 import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
 import top.hsyscn.opedrgent.cultivation.model.VirtueDimension
+import top.hsyscn.opedrgent.cultivation.model.BaselineTemplates
 import top.hsyscn.opedrgent.cultivation.model.ReflectionInsights
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.storage.HippocampusIndex
@@ -56,9 +57,9 @@ class CultivationStateManager(
         val history: List<ReflectionRecord> = emptyList(),
         val error: String? = null,
         val info: String? = null,
-        val exemplarName: String = "",
         val exemplarWhy: String = "",
-        val exemplarRecord: ReflectionRecord? = null,
+        val exemplarNames: List<String> = emptyList(),
+        val exemplarResults: List<ReflectionRecord> = emptyList(),
         val retainExemplar: Boolean = true,
     ) {
         /** 任一面镜子处于准备/推理/质量门阶段都算忙：忙时两面镜子入口都禁用，杜绝并发。 */
@@ -99,7 +100,7 @@ class CultivationStateManager(
                     loading = false,
                     activeBaseline = baseline,
                     editingDimensions = if (it.baselineDirty) it.editingDimensions
-                        else baseline?.dimensions ?: sampleDimensions(),
+                        else baseline?.dimensions ?: BaselineTemplates.STARTER,
                     history = history,
                     localReady = runtime.localReady(),
                     localModelId = runtime.localModelId(),
@@ -115,16 +116,26 @@ class CultivationStateManager(
         it.copy(
             transcript = text,
             result = null,
-            exemplarRecord = null,
+            exemplarResults = emptyList(),
             phase = ReflectionPhase.Idle,
         )
     }
 
     fun setMode(mode: FeedbackMode) = _state.update { it.copy(mode = mode) }
 
-    fun setExemplarName(name: String) = _state.update { it.copy(exemplarName = name) }
-
     fun setExemplarWhy(why: String) = _state.update { it.copy(exemplarWhy = why) }
+
+    /** 添加一位对标榜样：去空白，空名或已存在则忽略。 */
+    fun addExemplar(name: String) = _state.update {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed in it.exemplarNames) return@update it
+        it.copy(exemplarNames = it.exemplarNames + trimmed)
+    }
+
+    /** 移除一位对标榜样。 */
+    fun removeExemplar(name: String) = _state.update {
+        it.copy(exemplarNames = it.exemplarNames.filterNot { n -> n == name })
+    }
 
     /** 榜样镜是否留存到本地历史；false=仅本次对照，会话记录不写库。 */
     fun setRetainExemplar(retain: Boolean) = _state.update { it.copy(retainExemplar = retain) }
@@ -141,7 +152,21 @@ class CultivationStateManager(
     // ===== 基准编辑 =====
 
     fun startBaselineEdit() = _state.update {
-        it.copy(editingDimensions = it.activeBaseline?.dimensions ?: sampleDimensions(), baselineDirty = true)
+        it.copy(editingDimensions = it.activeBaseline?.dimensions ?: BaselineTemplates.STARTER, baselineDirty = true)
+    }
+
+    /**
+     * 把起始模板 BaselineTemplates.STARTER 中指定下标的维度载入编辑区（仅脚手架，不是判定词表）。
+     * @param selectedIndex STARTER 的 0..3 下标；越界者忽略
+     * @param replace true=整体替换编辑区；false=按维度名（忽略大小写）去重后追加
+     */
+    fun loadStarterDimensions(selectedIndex: List<Int>, replace: Boolean) = _state.update {
+        val picked = selectedIndex.mapNotNull { idx -> BaselineTemplates.STARTER.getOrNull(idx) }
+        if (picked.isEmpty()) return@update it
+        val existing = it.editingDimensions.mapTo(HashSet()) { d -> d.name.trim().lowercase() }
+        val next = if (replace) picked
+            else it.editingDimensions + picked.filterNot { d -> d.name.trim().lowercase() in existing }
+        it.copy(editingDimensions = next, baselineDirty = true)
     }
 
     fun addDimension() = _state.update {
@@ -276,9 +301,9 @@ class CultivationStateManager(
 
     fun analyzeExemplar() {
         val current = _state.value
-        val exemplar = current.exemplarName.trim()
-        if (exemplar.isBlank()) {
-            _state.update { it.copy(error = "请先填写对标的榜样") }
+        val names = current.exemplarNames.map { it.trim() }.filter { it.isNotBlank() }
+        if (names.isEmpty()) {
+            _state.update { it.copy(error = "请至少添加一位对标的榜样") }
             return
         }
         val transcript = current.transcript.trim()
@@ -300,41 +325,54 @@ class CultivationStateManager(
                 phase = ReflectionPhase.Reflecting(ReflectionLens.EXEMPLAR),
                 error = null,
                 info = null,
-                exemplarRecord = null,
+                exemplarResults = emptyList(),
             )
         }
         coroutineScope.launch {
             try {
-                val outcome = engine.reflectWithExemplar(
-                    backend = backend,
-                    exemplar = exemplar,
-                    whyExemplar = current.exemplarWhy.ifBlank { null },
-                    transcript = transcript,
-                    mode = current.mode,
-                    historyHint = buildHistoryHint(transcript),
-                    retain = current.retainExemplar,
-                )
-                val history = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
-                if (outcome.success && outcome.record != null) {
-                    outcome.record.exemplar?.let { rpt ->
-                        outcome.persistedId?.let { rid -> indexExemplar(rid, rpt) }
+                // 多榜样同情境：对每位榜样逐人独立走完整质量门与落库，成败互不影响；
+                // 历史提示只构建一次并逐人复用，保持上下文一致。
+                val historyHint = buildHistoryHint(transcript)
+                val succeeded = mutableListOf<ReflectionRecord>()
+                val failures = mutableListOf<String>()
+                for (name in names) {
+                    val outcome = engine.reflectWithExemplar(
+                        backend = backend,
+                        exemplar = name,
+                        whyExemplar = current.exemplarWhy.ifBlank { null },
+                        transcript = transcript,
+                        mode = current.mode,
+                        historyHint = historyHint,
+                        retain = current.retainExemplar,
+                    )
+                    if (outcome.success && outcome.record != null) {
+                        outcome.record.exemplar?.let { rpt ->
+                            outcome.persistedId?.let { rid -> indexExemplar(rid, rpt) }
+                        }
+                        succeeded.add(outcome.record)
+                    } else {
+                        outcome.violations.forEach { v -> failures += "【$name】$v" }
                     }
+                    // 每次调用后刷新历史，使后续榜样可看到刚落库的记录。
+                    val refreshed = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
+                    _state.update { it.copy(history = refreshed) }
+                }
+                val history = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
+                if (succeeded.isNotEmpty()) {
                     _state.update {
                         it.copy(
                             phase = ReflectionPhase.Idle,
-                            exemplarRecord = outcome.record,
+                            exemplarResults = succeeded,
                             history = history,
-                            info = if (outcome.attempts > 1) "首次结果未过自检，已重做后通过" else null,
+                            info = if (failures.isNotEmpty())
+                                "已完成 ${succeeded.size}/${names.size} 位榜样，其余未过质量门槛" else null,
                         )
                     }
                 } else {
                     _state.update {
                         it.copy(
-                            phase = ReflectionPhase.Blocked(
-                                ReflectionLens.EXEMPLAR,
-                                outcome.violations,
-                                outcome.attempts,
-                            ),
+                            phase = ReflectionPhase.Blocked(ReflectionLens.EXEMPLAR, failures, 0),
+                            history = history,
                             error = "榜样镜本次未达到质量门槛，未展示低质结果。可调整转写，或换一位信息更充分的榜样后重试。",
                         )
                     }
@@ -367,7 +405,9 @@ class CultivationStateManager(
                 it.copy(
                     history = history,
                     result = if (it.result?.id == recordId) refreshed else it.result,
-                    exemplarRecord = if (it.exemplarRecord?.id == recordId) refreshed else it.exemplarRecord,
+                    exemplarResults = if (it.exemplarResults.any { r -> r.id == recordId })
+                        it.exemplarResults.map { r -> if (r.id == recordId) refreshed ?: r else r }
+                    else it.exemplarResults,
                 )
             }
         }
@@ -386,7 +426,7 @@ class CultivationStateManager(
         coroutineScope.launch {
             runCatching { engine.reports().clearAll() }
             runCatching { hippocampusProvider()?.deleteAllCultivation() }
-            _state.update { it.copy(history = emptyList(), result = null, exemplarRecord = null, info = "本地修炼记录已清除") }
+            _state.update { it.copy(history = emptyList(), result = null, exemplarResults = emptyList(), info = "本地修炼记录已清除") }
         }
     }
 
@@ -469,14 +509,6 @@ class CultivationStateManager(
 
     private fun splitBehaviors(raw: String): List<String> =
         raw.split('\n', '；', ';', '，', ',').map { it.trim() }.filter { it.isNotBlank() }
-
-    private fun sampleDimensions(): List<VirtueDimension> = listOf(
-        VirtueDimension(
-            name = "尊重他人",
-            doBehaviors = listOf("先听完再回应", "就事论事"),
-            dontBehaviors = listOf("给人贴标签", "上升到人格评价"),
-        ),
-    )
 
     companion object {
         private const val MANUAL_SESSION = "cultivation-self"

@@ -83,12 +83,15 @@ enum class MirrorRoute {
  * @param baselineRef 对应的基准维度/行为条目
  * @param impact 该言语行为及其可能后果（只对行为，不对人格）
  * @param alternative 下次可直接使用的替代说法或动作
+ * @param dimension 简短、可复用的行为维度名，由模型从这段内容自行归纳（如打断、以偏概全、承诺未跟进），
+ *        没有固定词表；供长期趋势聚合用。工程只做字符串级计数，不对它做语义判断或关键词命中；无法归类可留空。
  */
 data class MirrorIssue(
     val quote: String,
     val baselineRef: String,
     val impact: String,
     val alternative: String,
+    val dimension: String = "",
 )
 
 /** 用户对单条问题的标记（需求卡 N5）。 */

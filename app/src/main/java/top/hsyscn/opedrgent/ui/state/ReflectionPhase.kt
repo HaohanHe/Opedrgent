@@ -9,7 +9,7 @@ import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
  * 任意时刻只有一个阶段，批判镜与榜样镜共用同一状态机，天然杜绝“一面镜子还在跑、又点另一面”
  * 的并发态，也让 UI 不必再用一堆布尔量拼“现在到底在干嘛”。
  *
- * 边界：本类只统一“阶段”，报告结果由 CultivationUiState.result（批判镜）/ exemplarRecord（榜样镜）承载；
+ * 边界：本类只统一“阶段”，报告结果由 CultivationUiState.result（批判镜）/ exemplarResults（榜样镜，可多位）承载；
  * 待 P1 引入统一 ReflectionReport 后，Done 将直接携带一份统一报告。
  */
 sealed interface ReflectionPhase {

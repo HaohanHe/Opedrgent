@@ -77,7 +77,7 @@ class ReflectionStore(context: Context) {
             put(CultivationDatabase.RS_MARKS_JSON, encodeMarks(record.marks))
             put(CultivationDatabase.RS_REFLECTION, record.reflection)
             put(CultivationDatabase.RS_RETAINED, if (record.retained) 1 else 0)
-            put(CultivationDatabase.RS_CREATED_AT, (report?.createdAt ?: record.createdAt))
+            put(CultivationDatabase.RS_CREATED_AT, (record.critique?.createdAt ?: record.exemplar?.createdAt ?: record.createdAt))
         }
         db.insert(CultivationDatabase.TABLE_REFLECTION, null, cv)
     }
@@ -199,7 +199,8 @@ class ReflectionStore(context: Context) {
         .put("issues", JSONArray().apply {
             r.issues.forEach { i ->
                 put(JSONObject().put("quote", i.quote).put("baselineRef", i.baselineRef)
-                    .put("impact", i.impact).put("alternative", i.alternative))
+                    .put("impact", i.impact).put("alternative", i.alternative)
+                    .put("dimension", i.dimension))
             }
         })
         .put("nextStep", r.nextStep)
@@ -235,6 +236,7 @@ class ReflectionStore(context: Context) {
                     baselineRef = jo.optString("baselineRef", ""),
                     impact = jo.optString("impact", ""),
                     alternative = jo.optString("alternative", ""),
+                    dimension = jo.optString("dimension", ""),
                 )
             },
             nextStep = o.optString("nextStep", ""),

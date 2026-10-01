@@ -18,7 +18,7 @@ object MirrorPromptBuilder {
         你需要结合完整语境自行判断本次应走哪条路由，并只输出一个 JSON 对象（不要输出 JSON 之外的文字）：
         - route: 三选一。ANALYZE=正常批判镜；SUPPORT=用户正在强烈自我否定，先支持；CRISIS=存在真实危机信号。
         - overall: 一两句总体观察，至少包含一个用户确实做到的具体点。
-        - issues: 值得调整之处的数组，每个元素含 quote（逐字摘录转写原句，不得改写/拼接/编造）、baselineRef（对应的基准条目）、impact（该具体行为与可能后果，不评价人格）、alternative（下次可直接使用的替代说法或动作）。聚焦点由你自主决定，原则上不超过 3 个。
+        - issues: 值得调整之处的数组，每个元素含 quote（逐字摘录转写原句，不得改写/拼接/编造）、baselineRef（对应的基准条目）、impact（该具体行为与可能后果，不评价人格）、alternative（下次可直接使用的替代说法或动作）、dimension（简短、可复用的行为维度名，由你从这段内容自行归纳，如打断、以偏概全、承诺未跟进；没有固定词表；同一类行为请在不同复盘中尽量保持一致命名；无法归类留空字符串）。聚焦点由你自主决定，原则上不超过 3 个。
         - nextStep: 一个最小、现在就能做的下一步。
         - support: 当 route 为 SUPPORT/CRISIS 时，用它替代挑错，写支持性回应；ANALYZE 时留空字符串。
         - helpResources: 仅当 route=CRISIS 时填写，建议联系身边可信任的人或当地心理援助/急救资源；其余留空。

@@ -382,7 +382,7 @@ data class ArticleSection(
                     title = json.optString("title", ""),
                     seed = json.optString("seed", ""),
                     body = json.optString("body", ""),
-                    coreInsight = json.optString("coreInsight", json.optString("ahaMoment", "")) // 回退旧版本地键,
+                    coreInsight = json.optString("coreInsight", json.optString("ahaMoment", "")), // 回退旧版本地键
                     importance = json.optInt("importance", 3).coerceIn(1, 5),
                 )
             } catch (_: Exception) { null }

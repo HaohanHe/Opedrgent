@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,8 +28,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,7 +51,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +64,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
+import top.hsyscn.opedrgent.cultivation.model.BaselineTemplates
 import top.hsyscn.opedrgent.cultivation.model.ExemplarReport
 import top.hsyscn.opedrgent.cultivation.model.FeedbackMode
 import top.hsyscn.opedrgent.cultivation.model.FollowUp
@@ -68,8 +73,10 @@ import top.hsyscn.opedrgent.cultivation.model.IssueMark
 import top.hsyscn.opedrgent.cultivation.model.MirrorRoute
 import top.hsyscn.opedrgent.cultivation.model.ReflectionInsights
 import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
+import top.hsyscn.opedrgent.cultivation.model.TrendInsights
 import top.hsyscn.opedrgent.cultivation.model.VirtueDimension
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
+import top.hsyscn.opedrgent.ui.components.TrendCard
 import top.hsyscn.opedrgent.ui.state.CultivationStateManager
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -733,10 +740,105 @@ private fun FollowUpRow(recordId: Long, follow: FollowUp, manager: CultivationSt
 
 // ==================== 基准 ====================
 
+/**
+ * 起始模板卡：勾选 STARTER 维度后一键载入编辑区。
+ * 仅脚手架，不做关键词判定；模板文案不参与任何自动分析。
+ */
+@Composable
+private fun StarterTemplateCard(
+    currentDimensions: List<VirtueDimension>,
+    onLoad: (selectedIndices: List<Int>, replace: Boolean) -> Unit,
+) {
+    val starterList = remember { BaselineTemplates.STARTER }
+    var checked by rememberSaveable { mutableStateOf((0 until starterList.size).toSet()) }
+    var showReplaceDialog by remember { mutableStateOf(false) }
+
+    IosGroup {
+        IosRow {
+            Text(
+                "起始模板（可勾选后载入，载入后仍可任意改写）",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            starterList.forEachIndexed { index, dim ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = index in checked,
+                        onCheckedChange = { isChecked ->
+                            checked = if (isChecked) checked + index else checked - index
+                        },
+                    )
+                    Text(
+                        dim.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            Button(
+                onClick = {
+                    val selected = checked.toList().sorted()
+                    if (selected.isEmpty()) return@Button
+                    if (currentDimensions.isEmpty()) {
+                        onLoad(selected, true)
+                    } else {
+                        showReplaceDialog = true
+                    }
+                },
+                shape = ShapeTokens.smallShape,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("载入所选维度")
+            }
+
+            Text(
+                "模板只是脚手架，分析由模型结合完整语境与逐字证据进行，不会按模板文字做关键词判定。",
+                style = MaterialTheme.typography.bodySmall,
+                color = themeTextGrey(),
+            )
+        }
+    }
+
+    if (showReplaceDialog) {
+        AlertDialog(
+            onDismissRequest = { showReplaceDialog = false },
+            title = { Text("编辑区已有维度") },
+            text = { Text("选择「替换」将清空现有维度并载入所选模板；选择「追加」则保留现有维度并追加新维度。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReplaceDialog = false
+                    onLoad(checked.toList().sorted(), true)
+                }) { Text("替换") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showReplaceDialog = false }) { Text("取消") }
+                    TextButton(onClick = {
+                        showReplaceDialog = false
+                        onLoad(checked.toList().sorted(), false)
+                    }) { Text("追加") }
+                }
+            },
+        )
+    }
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.baselineItems(
     manager: CultivationStateManager,
     dimensions: List<VirtueDimension>,
 ) {
+    // 起始模板卡：勾选 STARTER 0..3，一键载入编辑区
+    item {
+        StarterTemplateCard(
+            currentDimensions = dimensions,
+            onLoad = { indices, replace -> manager.loadStarterDimensions(indices, replace) },
+        )
+    }
+
     item {
         Text(
             stringResource(R.string.cultivation_baseline_intro),
@@ -805,6 +907,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyItems(
     manager: CultivationStateManager,
     history: List<ReflectionRecord>,
 ) {
+    // 行为维度长期趋势图（InsightsCard 之前）
+    item {
+        TrendCard(
+            insights = TrendInsights.from(history),
+            modifier = Modifier.padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
+        )
+    }
+
     item {
         if (history.isNotEmpty()) InsightsCard(ReflectionInsights.from(history))
     }
@@ -894,12 +1004,54 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
         SectionLabel(stringResource(R.string.cultivation_tab_exemplar))
         IosGroup {
             IosRow {
-                FilledField(
-                    value = state.exemplarName,
-                    onValueChange = manager::setExemplarName,
-                    label = { Text(stringResource(R.string.cultivation_exemplar_name_hint)) },
-                    singleLine = true,
+                // 榜样名输入 + 添加按钮
+                var inputName by remember { mutableStateOf("") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilledField(
+                        value = inputName,
+                        onValueChange = { inputName = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("对标榜样，可添加多位") },
+                        singleLine = true,
+                    )
+                    Spacer(Modifier.width(SpacingTokens.sm))
+                    TextButton(onClick = {
+                        val name = inputName.trim()
+                        if (name.isNotEmpty()) {
+                            manager.addExemplar(name)
+                            inputName = ""
+                        }
+                    }) { Text("添加") }
+                }
+
+                // 已选榜样 chips
+                if (state.exemplarNames.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                        state.exemplarNames.forEach { name ->
+                            AssistChip(
+                                onClick = { manager.removeExemplar(name) },
+                                label = { Text(name) },
+                                colors = AssistChipDefaults.assistChipColors(),
+                            )
+                        }
+                    }
+                }
+
+                // 建议榜样 chips
+                Text(
+                    "试试：",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeTextGrey(),
                 )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
+                    listOf("罗振宇", "刘润", "曹冲", "孔子", "老子（道家）", "王阳明", "曾国藩").forEach { suggestion ->
+                        AssistChip(
+                            onClick = { manager.addExemplar(suggestion) },
+                            label = { Text(suggestion) },
+                            colors = AssistChipDefaults.assistChipColors(),
+                        )
+                    }
+                }
             }
             Hairline(startIndent = 0.dp)
             IosRow {
@@ -943,7 +1095,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
             text = stringResource(R.string.cultivation_exemplar_start),
             loadingText = stringResource(R.string.cultivation_exemplar_analyzing),
             loading = state.progressOn(ReflectionLens.EXEMPLAR),
-            enabled = !state.isBusy && state.transcript.isNotBlank() && state.exemplarName.isNotBlank(),
+            enabled = !state.isBusy && state.transcript.isNotBlank() && state.exemplarNames.isNotEmpty(),
             onClick = manager::analyzeExemplar,
         )
     }
@@ -957,8 +1109,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
         }
     }
 
-    state.exemplarRecord?.let { rec ->
-        rec.exemplar?.let { report -> item { ExemplarReportCard(manager, report, rec.id) } }
+    // 多榜样结果：统一声明 + 逐张渲染
+    if (state.exemplarResults.isNotEmpty()) {
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeTokens.smallShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 0.dp,
+            ) {
+                Text(
+                    "以下为视角模拟：依据该人物公开、通行的思想与行事风格推演，非本人原话，亦不代表史实引用。",
+                    modifier = Modifier.padding(SpacingTokens.md),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeTextGrey(),
+                )
+            }
+        }
+        items(state.exemplarResults, key = { it.id }) { rec ->
+            rec.exemplar?.let { report ->
+                ExemplarReportCard(manager, report, rec.id)
+            }
+        }
     }
 }
 

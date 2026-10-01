@@ -139,6 +139,7 @@ class MirrorAnalyzer {
                 baselineRef = o.optString("baselineRef", "").trim(),
                 impact = o.optString("impact", "").trim(),
                 alternative = o.optString("alternative", "").trim(),
+                dimension = o.optString("dimension", "").trim(),
             )
         }
     }
