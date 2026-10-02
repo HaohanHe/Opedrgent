@@ -54,6 +54,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 mlkit-text-recognition-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkitTextRecognition" }
 mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai", version.ref = "mlkitGenai" }
