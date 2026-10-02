@@ -543,6 +543,7 @@ fun AppRoot(
                         subScreen = null
                         selectedTab = MainTab.SETTINGS
                     },
+                    onOpenGrowth = { subScreen = "growth" },
                 )
                 "actions" -> ActionsScreen(
                     onBack = { subScreen = null },
@@ -551,7 +552,20 @@ fun AppRoot(
                         subScreen = "cultivation"
                     },
                 )
-                "localmodels" -> LocalModelManageScreen(onBack = { subScreen = null }),
+                "localmodels" -> LocalModelManageScreen(onBack = { subScreen = null })
+                "growth" -> GrowthReviewScreen(
+                    onBack = { subScreen = null },
+                    onRequestGenerate = { type ->
+                        val prompt = context.getString(
+                            if (type == top.hsyscn.opedrgent.cultivation.model.growth.GrowthPeriodType.WEEK)
+                                R.string.growth_gen_prompt_week
+                            else R.string.growth_gen_prompt_month
+                        )
+                        vm.sendUserMessage(prompt)
+                        selectedTab = MainTab.AI
+                        subScreen = null
+                    },
+                )
                 // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
                 "import" -> ImportFileScreen(
                     vm = vm,

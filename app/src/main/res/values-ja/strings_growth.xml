@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="growth_review_title">成長レビュー</string>
+    <string name="growth_review_enter">週次・月次レポート</string>
+    <string name="growth_review_tab_week">週次</string>
+    <string name="growth_review_tab_month">月次</string>
+
+    <string name="growth_review_generate_week">今週のレビューを生成</string>
+    <string name="growth_review_generate_month">今月のレビューを生成</string>
+    <string name="growth_review_generating">生成中…</string>
+    <string name="growth_review_gen_hint">完全な解釈はアシスタントでモデルが生成します。</string>
+
+    <string name="growth_review_overall">全体の所見</string>
+    <string name="growth_review_changes">今期の変化</string>
+    <string name="growth_review_strengths">評価できる点</string>
+    <string name="growth_review_focus">次期の聚焦点</string>
+    <string name="growth_review_evidence">逐字の根拠</string>
+
+    <string name="growth_review_week_label">%1$d年 第%2$d週</string>
+    <string name="growth_review_month_label">%1$d年%2$d月</string>
+
+    <string name="growth_review_empty">成長レビューはまだありません。上のボタンから、今週または今月のレビューをアシスタントで生成してください。</string>
+    <string name="growth_gen_prompt_week">今週の成長レビューを生成してください。</string>
+    <string name="growth_gen_prompt_month">今月の成長レビューを生成してください。</string>
+    <string name="growth_review_no_change">今期は大きな変化はありません</string>
+</resources>

@@ -101,6 +101,7 @@ fun CultivationScreen(
     manager: CultivationStateManager,
     onBack: () -> Unit,
     onManageLocalModel: () -> Unit = {},
+    onOpenGrowth: () -> Unit = {},
 ) {
     val state by manager.state.collectAsStateCompat()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -222,7 +223,7 @@ fun CultivationScreen(
             when (tab) {
                 CultivationTab.MIRROR -> mirrorItems(manager, state, readinessSnapshot.llm.state == ReadyState.READY, handoffSourceLabel)
                 CultivationTab.BASELINE -> baselineItems(manager, state.editingDimensions)
-                CultivationTab.HISTORY -> historyItems(manager, state.history)
+                CultivationTab.HISTORY -> historyItems(manager, state.history, onOpenGrowth)
                 CultivationTab.EXEMPLAR -> exemplarItems(manager, state)
             }
         }
@@ -1007,7 +1008,32 @@ private fun androidx.compose.foundation.lazy.LazyListScope.baselineItems(
 private fun androidx.compose.foundation.lazy.LazyListScope.historyItems(
     manager: CultivationStateManager,
     history: List<ReflectionRecord>,
+    onOpenGrowth: () -> Unit,
 ) {
+    // 成长回顾入口
+    item {
+        IosGroup {
+            IosRow {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenGrowth),
+                ) {
+                    Text(
+                        stringResource(R.string.growth_review_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = themeTextDark(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        stringResource(R.string.growth_review_enter),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                }
+            }
+        }
+    }
+
     // 行为维度长期趋势图（InsightsCard 之前）
     item {
         TrendCard(

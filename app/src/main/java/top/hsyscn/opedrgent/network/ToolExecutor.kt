@@ -19,6 +19,7 @@ import top.hsyscn.opedrgent.tools.ActionItemTool
 import top.hsyscn.opedrgent.tools.BackupTool
 import top.hsyscn.opedrgent.tools.DeepResearchTool
 import top.hsyscn.opedrgent.tools.GenerateReportTool
+import top.hsyscn.opedrgent.tools.GrowthReviewTool
 import top.hsyscn.opedrgent.tools.InsightSproutTool
 import top.hsyscn.opedrgent.tools.MimoTtsTool
 import top.hsyscn.opedrgent.tools.OpenBrowserTool
@@ -140,6 +141,7 @@ class ToolExecutor(
         register(HealthTool(context))
         // ★ 行动项工具：模型可通过 tool_calls 创建 / 更新本地行动项
         register(ActionItemTool(context))
+        register(GrowthReviewTool(context))
         register(BackupTool(context))
         register(LocalModelTool(context))
     }
