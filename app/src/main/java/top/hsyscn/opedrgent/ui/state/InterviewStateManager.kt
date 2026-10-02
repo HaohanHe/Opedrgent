@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.interview.AnalysisResult
@@ -117,9 +118,11 @@ class InterviewStateManager(
                             interviewType = config.type,
                         )
                     }
-                    _interviewState.value = _interviewState.value.copy(
-                        analysisResult = analysisResult,
-                    )
+                    _interviewState.update {
+                        it.copy(
+                            analysisResult = analysisResult,
+                        )
+                    }
                 }
 
                 // 短暂展示分析结果后进入面试
@@ -146,36 +149,42 @@ class InterviewStateManager(
                         val turn = DialogueTurn(role = "interviewer", content = text, questionCategory = app.getString(R.string.interview_category_followup))
                         interviewTranscript.add(turn)
                         currentQuestionIdx++
-                        _interviewState.value = _interviewState.value.copy(
-                            messages = interviewTranscript.toList(),
-                            questionCount = currentQuestionIdx,
-                            isSpeaking = true,
-                        )
+                        _interviewState.update {
+                            it.copy(
+                                messages = interviewTranscript.toList(),
+                                questionCount = currentQuestionIdx,
+                                isSpeaking = true,
+                            )
+                        }
                     },
                     onUserSpeak = { text ->
                         val turn = DialogueTurn(role = "candidate", content = text)
                         interviewTranscript.add(turn)
-                        _interviewState.value = _interviewState.value.copy(
-                            messages = interviewTranscript.toList(),
-                            isListening = false,
-                        )
+                        _interviewState.update {
+                            it.copy(
+                                messages = interviewTranscript.toList(),
+                                isListening = false,
+                            )
+                        }
                     },
                     onPartialUserText = { partial ->
-                        _interviewState.value = _interviewState.value.copy(isListening = true)
+                        _interviewState.update { it.copy(isListening = true) }
                     },
                     onStateChange = { duplexState ->
-                        _interviewState.value = _interviewState.value.copy(
-                            duplexState = duplexState,
-                            isSpeaking = duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING,
-                            isListening = duplexState == FullDuplexAudioEngine.DuplexState.LISTENING,
-                        )
+                        _interviewState.update {
+                            it.copy(
+                                duplexState = duplexState,
+                                isSpeaking = duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING,
+                                isListening = duplexState == FullDuplexAudioEngine.DuplexState.LISTENING,
+                            )
+                        }
                     },
                     onBargeIn = {
-                        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+                        _interviewState.update { it.copy(isSpeaking = false) }
                     },
                     onStatusHint = { hint ->
                         // 克制的状态提示（断网/管线重启/失败恢复等），非对话气泡
-                        _interviewState.value = _interviewState.value.copy(statusHint = hint)
+                        _interviewState.update { it.copy(statusHint = hint) }
                     },
                     onIdleNudge = {
                         // 长静音：由模型生成一句温和引导，不机械硬塞固定话术
@@ -219,9 +228,11 @@ class InterviewStateManager(
 
             } catch (e: Exception) {
                 DebugLog.e("Interview", "启动面试失败: ${e.message}", e)
-                _interviewState.value = _interviewState.value.copy(
-                    error = app.getString(R.string.error_interview_start_failed, e.message ?: app.getString(R.string.error_unknown_error)),
-                )
+                _interviewState.update {
+                    it.copy(
+                        error = app.getString(R.string.error_interview_start_failed, e.message ?: app.getString(R.string.error_unknown_error)),
+                    )
+                }
             }
         }
     }
@@ -312,24 +323,28 @@ class InterviewStateManager(
                             answer = answerTurn,
                         )
                     }
-                    _interviewState.value = _interviewState.value.copy(coachFeedback = coachFb)
+                    _interviewState.update { it.copy(coachFeedback = coachFb) }
                 }
 
                 // 恢复正常状态
-                _interviewState.value = _interviewState.value.copy(
-                    phase = InterviewPhase.IN_PROGRESS,
-                    config = currentState.config,
-                    messages = interviewTranscript.toList(),
-                    questionCount = interviewTranscript.count { it.role == "interviewer" },
-                    elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
-                )
+                _interviewState.update {
+                    it.copy(
+                        phase = InterviewPhase.IN_PROGRESS,
+                        config = currentState.config,
+                        messages = interviewTranscript.toList(),
+                        questionCount = interviewTranscript.count { it.role == "interviewer" },
+                        elapsedSeconds = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt(),
+                    )
+                }
 
             } catch (e: Exception) {
                 DebugLog.e("Interview", "处理回答失败: ${e.message}", e)
-                _interviewState.value = _interviewState.value.copy(
-                    phase = InterviewPhase.IN_PROGRESS,
-                    error = app.getString(R.string.error_interview_processing_failed, e.message ?: app.getString(R.string.error_unknown_error)),
-                )
+                _interviewState.update {
+                    it.copy(
+                        phase = InterviewPhase.IN_PROGRESS,
+                        error = app.getString(R.string.error_interview_processing_failed, e.message ?: app.getString(R.string.error_unknown_error)),
+                    )
+                }
             }
         }
     }
@@ -351,7 +366,7 @@ class InterviewStateManager(
      * 生成最终评估报告。
      */
     private suspend fun generateFinalReport(config: InterviewConfig, apiConfig: ApiConfig) {
-        _interviewState.value = _interviewState.value.copy(phase = InterviewPhase.EVALUATING)
+        _interviewState.update { it.copy(phase = InterviewPhase.EVALUATING) }
 
         try {
             val report = withContext(Dispatchers.IO) {
@@ -373,10 +388,12 @@ class InterviewStateManager(
             )
         } catch (e: Exception) {
             DebugLog.e("Interview", "生成报告失败: ${e.message}", e)
-            _interviewState.value = _interviewState.value.copy(
-                phase = InterviewPhase.COMPLETED,
-                error = app.getString(R.string.error_interview_report_failed, e.message ?: app.getString(R.string.error_unknown_error)),
-            )
+            _interviewState.update {
+                it.copy(
+                    phase = InterviewPhase.COMPLETED,
+                    error = app.getString(R.string.error_interview_report_failed, e.message ?: app.getString(R.string.error_unknown_error)),
+                )
+            }
         } finally {
             voiceEngine?.stopFullDuplex()
         }
@@ -403,7 +420,7 @@ class InterviewStateManager(
             voiceEngine = VoiceConversationEngine(app, tts, apiSettings)
         }
 
-        _interviewState.value = _interviewState.value.copy(isListening = true)
+        _interviewState.update { it.copy(isListening = true) }
 
         voiceEngine?.startListening { partialText ->
             // 可以在这里实时显示识别结果（可选）
@@ -415,7 +432,7 @@ class InterviewStateManager(
      */
     fun stopInterviewListening() {
         voiceEngine?.stopListening()
-        _interviewState.value = _interviewState.value.copy(isListening = false)
+        _interviewState.update { it.copy(isListening = false) }
     }
 
     /**
@@ -423,7 +440,7 @@ class InterviewStateManager(
      */
     fun stopInterviewSpeaking() {
         tts.stop()
-        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+        _interviewState.update { it.copy(isSpeaking = false) }
     }
 
     /**
@@ -448,13 +465,15 @@ class InterviewStateManager(
         }
 
         scope.launch {
-            _interviewState.value = _interviewState.value.copy(statusHint = "正在重新连接…")
+            _interviewState.update { it.copy(statusHint = "正在重新连接…") }
             val ok = engine.retryPipeline()
-            _interviewState.value = if (ok) {
-                // 成功：清掉失败提示；后续 LISTENING 由引擎 onStateChanged 驱动
-                _interviewState.value.copy(statusHint = null)
-            } else {
-                _interviewState.value.copy(statusHint = "重新连接未成功，请检查网络后再试")
+            _interviewState.update {
+                if (ok) {
+                    // 成功：清掉失败提示；后续 LISTENING 由引擎 onStateChanged 驱动
+                    it.copy(statusHint = null)
+                } else {
+                    it.copy(statusHint = "重新连接未成功，请检查网络后再试")
+                }
             }
         }
     }
@@ -492,23 +511,23 @@ class InterviewStateManager(
      * 更新全双工通话状态（由语音引擎回调触发）。
      */
     fun updateDuplexState(state: FullDuplexAudioEngine.DuplexState) {
-        _interviewState.value = _interviewState.value.copy(duplexState = state)
+        _interviewState.update { it.copy(duplexState = state) }
     }
 
     /**
      * 标记插话事件（BargeIn）发生/消失。
      */
     fun setBargeInDetected(detected: Boolean) {
-        _interviewState.value = _interviewState.value.copy(bargeInDetected = detected)
+        _interviewState.update { it.copy(bargeInDetected = detected) }
     }
 
     /**
      * 让面试官说话（TTS）。
      */
     suspend fun speakAsInterviewer(text: String) {
-        _interviewState.value = _interviewState.value.copy(isSpeaking = true)
+        _interviewState.update { it.copy(isSpeaking = true) }
         voiceEngine?.aiSpeak(text)
-        _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+        _interviewState.update { it.copy(isSpeaking = false) }
     }
 
     /**
@@ -591,7 +610,7 @@ class InterviewStateManager(
                     InterviewPhase.SETUP -> break
                     else -> {
                         val elapsed = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt()
-                        _interviewState.value = _interviewState.value.copy(elapsedSeconds = elapsed)
+                        _interviewState.update { it.copy(elapsedSeconds = elapsed) }
                     }
                 }
             }

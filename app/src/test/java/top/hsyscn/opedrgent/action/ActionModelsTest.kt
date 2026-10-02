@@ -104,8 +104,10 @@ class ActionModelsTest {
 
     @Test
     fun `ActionItem 数据类 equals 按字段比较`() {
-        val a = ActionItem(title = "写周报", status = ActionStatus.OPEN)
-        val b = ActionItem(title = "写周报", status = ActionStatus.OPEN)
+        // 固定 createdAt，避免默认 System.currentTimeMillis() 跨毫秒导致的非确定性失败
+        val fixedNow = 1_700_000_000_000L
+        val a = ActionItem(title = "写周报", status = ActionStatus.OPEN, createdAt = fixedNow)
+        val b = ActionItem(title = "写周报", status = ActionStatus.OPEN, createdAt = fixedNow)
         assertEquals(a, b)
 
         val c = b.copy(status = ActionStatus.DONE)

@@ -103,10 +103,23 @@ class ReflectionStore(context: Context) {
 
     /** 更新某条记录中第 issueIndex 条问题的用户标记（批判镜 N5）。 */
     suspend fun updateMark(id: Long, issueIndex: Int, mark: IssueMark) = withContext(Dispatchers.IO) {
-        val current = getById(id)?.marks.orEmpty().toMutableMap()
-        current[issueIndex] = mark
-        val cv = ContentValues().apply { put(CultivationDatabase.RS_MARKS_JSON, encodeMarks(current)) }
-        db.update(CultivationDatabase.TABLE_REFLECTION, cv, "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()))
+        // 读整条 marks → 改 map → 整列回写，必须包事务，否则快速连续标记会丢更新。
+        // 事务内只做 DB 操作、全程同线程，故内联查询而非调用 suspend 版 getById。
+        db.beginTransaction()
+        try {
+            val current = db.query(
+                CultivationDatabase.TABLE_REFLECTION, null,
+                "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()),
+                null, null, null, "1",
+            ).use { cursorToList(it).firstOrNull()?.marks.orEmpty().toMutableMap() }
+            current[issueIndex] = mark
+            val cv = ContentValues().apply { put(CultivationDatabase.RS_MARKS_JSON, encodeMarks(current)) }
+            db.update(CultivationDatabase.TABLE_REFLECTION, cv,
+                "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     suspend fun updateReflection(id: Long, reflection: String) = withContext(Dispatchers.IO) {
@@ -117,24 +130,41 @@ class ReflectionStore(context: Context) {
     /** 回写某条会话里指定跟进的状态（待办 / 已做到 / 不再跟进），只改 payload，不触碰原文。 */
     suspend fun updateFollowUpStatus(id: Long, followUpId: String, status: FollowUpStatus) =
         withContext(Dispatchers.IO) {
-            val record = getById(id) ?: return@withContext
-            val critique = record.critique
-            val exemplar = record.exemplar
-            val payload = when {
-                critique != null -> encodeCritique(
-                    critique.copy(followUps = critique.followUps.map {
-                        if (it.id == followUpId) it.copy(status = status) else it
-                    }),
-                ).toString()
-                exemplar != null -> encodeExemplar(
-                    exemplar.copy(followUps = exemplar.followUps.map {
-                        if (it.id == followUpId) it.copy(status = status) else it
-                    }),
-                ).toString()
-                else -> return@withContext
+            // 读整条 record → 改 followUps → 整列 payload 回写，包事务防并发丢更新。
+            // 事务内只做 DB 操作、全程同线程，故内联查询而非调用 suspend 版 getById。
+            db.beginTransaction()
+            try {
+                val record = db.query(
+                    CultivationDatabase.TABLE_REFLECTION, null,
+                    "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()),
+                    null, null, null, "1",
+                ).use { cursorToList(it).firstOrNull() }
+                val payload = record?.let { r ->
+                    val critique = r.critique
+                    val exemplar = r.exemplar
+                    when {
+                        critique != null -> encodeCritique(
+                            critique.copy(followUps = critique.followUps.map {
+                                if (it.id == followUpId) it.copy(status = status) else it
+                            }),
+                        ).toString()
+                        exemplar != null -> encodeExemplar(
+                            exemplar.copy(followUps = exemplar.followUps.map {
+                                if (it.id == followUpId) it.copy(status = status) else it
+                            }),
+                        ).toString()
+                        else -> null
+                    }
+                }
+                if (payload != null) {
+                    val cv = ContentValues().apply { put(CultivationDatabase.RS_PAYLOAD_JSON, payload) }
+                    db.update(CultivationDatabase.TABLE_REFLECTION, cv,
+                        "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()))
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
             }
-            val cv = ContentValues().apply { put(CultivationDatabase.RS_PAYLOAD_JSON, payload) }
-            db.update(CultivationDatabase.TABLE_REFLECTION, cv, "${CultivationDatabase.RS_ID}=?", arrayOf(id.toString()))
         }
 
     /**

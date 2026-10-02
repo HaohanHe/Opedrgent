@@ -147,6 +147,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import top.hsyscn.opedrgent.stt.SttResult
 import top.hsyscn.opedrgent.sync.NoteSyncService
 import top.hsyscn.opedrgent.sync.WebDavConfig
@@ -843,11 +844,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             noteRepository.checkAndRebuildGraphIfNeeded()
         }
 
-        _state.value = _state.value.copy(
-            deepThinkingEnabled = apiSettings.isDeepThinking(),
-            deepResearchEnabled = apiSettings.isDeepResearch(),
-            debugModeEnabled = apiSettings.isDebugMode(),
-        )
+        _state.update {
+            it.copy(
+                deepThinkingEnabled = apiSettings.isDeepThinking(),
+                deepResearchEnabled = apiSettings.isDeepResearch(),
+                debugModeEnabled = apiSettings.isDebugMode(),
+            )
+        }
         viewModelScope.launch(Dispatchers.IO) {
             refreshSessions()
             refreshSkills()
@@ -863,17 +866,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             agentService.state.collect { agentState ->
                 if (agentState.isRunning || agentState.isStreaming) {
-                    _state.value = _state.value.copy(
-                        isStreaming = agentState.isStreaming,
-                        streamingText = agentState.streamingText,
-                        streamingReasoning = agentState.streamingReasoning,
-                        streamingToolParts = agentState.streamingToolParts,
-                        streamingPhase = agentState.streamingPhase,
-                        loading = agentState.isRunning,
-                    )
+                    _state.update {
+                        it.copy(
+                            isStreaming = agentState.isStreaming,
+                            streamingText = agentState.streamingText,
+                            streamingReasoning = agentState.streamingReasoning,
+                            streamingToolParts = agentState.streamingToolParts,
+                            streamingPhase = agentState.streamingPhase,
+                            loading = agentState.isRunning,
+                        )
+                    }
                 }
                 if (agentState.error != null) {
-                    _state.value = _state.value.copy(error = agentState.error)
+                    _state.update { it.copy(error = agentState.error) }
                 }
             }
         }
@@ -885,7 +890,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     "ask_question" -> {
                         val questions = agentUiBridge.parseQuestionInput(interaction.input)
                         agentUiState.setQuestionRequest(questions)
-                        _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_choice))
+                        _state.update { it.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_choice)) }
                         // 等待用户回答后回传给 AgentService
                         viewModelScope.launch {
                             val answers = agentUiState.questionResponse.first()
@@ -898,7 +903,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     "ask_confirmation" -> {
                         val request = agentUiBridge.parseConfirmationInput(interaction.input)
                         agentUiState.setConfirmationRequest(request)
-                        _state.value = _state.value.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_confirm))
+                        _state.update { it.copy(streamingPhase = app.getString(R.string.streaming_phase_waiting_confirm)) }
                         viewModelScope.launch {
                             val response = agentUiState.confirmationResponse.first()
                             agentService.submitUserResponse(
@@ -944,17 +949,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // listSessions 已经返回所有会话摘要，直接用 summaries 填充缓存
         // 注意：sessionCache 只缓存 SessionSummary，不缓存完整 ResearchSession
         // 完整 ResearchSession 按需从 store.getSession() 获取
-        _state.value = _state.value.copy(sessions = summaries)
+        _state.update { it.copy(sessions = summaries) }
     }
 
     fun setSessionSearchQuery(q: String) {
         val query = q.trim()
         if (query.isEmpty()) {
-            _state.value = _state.value.copy(
-                sessions = _state.value.sessions,
-                sessionSearchQuery = "",
-                messageSearchResults = emptyList(),
-            )
+            _state.update {
+                it.copy(
+                    sessions = _state.value.sessions,
+                    sessionSearchQuery = "",
+                    messageSearchResults = emptyList(),
+                )
+            }
             return
         }
         // 搜索时才加载完整会话数据（按需加载）
@@ -1004,19 +1011,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             if (messageResults.size >= 50) break
         }
 
-        _state.value = _state.value.copy(
-            sessions = filtered.map { SessionSummary(it.id, it.title, it.updatedAt) },
-            sessionSearchQuery = query,
-            messageSearchResults = messageResults.sortedByDescending { it.timestamp },
-        )
+        _state.update {
+            it.copy(
+                sessions = filtered.map { SessionSummary(it.id, it.title, it.updatedAt) },
+                sessionSearchQuery = query,
+                messageSearchResults = messageResults.sortedByDescending { it.timestamp },
+            )
+        }
     }
 
     fun refreshSkills() {
-        _state.value = _state.value.copy(skills = skillsStore.list())
+        _state.update { it.copy(skills = skillsStore.list()) }
     }
 
     fun refreshMemories() {
-        _state.value = _state.value.copy(memories = memoryStore.list())
+        _state.update { it.copy(memories = memoryStore.list()) }
     }
 
     fun refreshPendingCounts() {
@@ -1026,9 +1035,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val sproutCount = allNotes.count { note ->
                 reports.none { it.sourceNoteId == note.id }
             }
-            _state.value = _state.value.copy(
-                pendingSproutCount = sproutCount,
-            )
+            _state.update {
+                it.copy(
+                    pendingSproutCount = sproutCount,
+                )
+            }
         }
     }
 
@@ -1141,15 +1152,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             currentCall = null
             currentRunJob = null
             savePartialStreamingContent()
-            _state.value = _state.value.copy(
-                isStreaming = false,
-                streamingText = "",
-                streamingReasoning = "",
-                streamingToolParts = emptyList(),
-                streamingPhase = "",
-                streamingSessionId = null,
-                loading = false,
-            )
+            _state.update {
+                it.copy(
+                    isStreaming = false,
+                    streamingText = "",
+                    streamingReasoning = "",
+                    streamingToolParts = emptyList(),
+                    streamingPhase = "",
+                    streamingSessionId = null,
+                    loading = false,
+                )
+            }
         }
         val full = store.getSession(id)
         val maxRound = full?.messages?.maxOfOrNull { it.roundIndex } ?: -1
@@ -1158,24 +1171,28 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val pagedMessages = if (full == null) emptyList() else {
             store.getMessagesByRounds(id, oldestRound, maxRound)
         }
-        _state.value = _state.value.copy(
-            current = full?.copy(messages = pagedMessages),
-            error = null,
-            visibleRounds = visible,
-            hasMoreOlderRounds = oldestRound > 0,
-            isLoadingOlderRounds = false,
-        )
+        _state.update {
+            it.copy(
+                current = full?.copy(messages = pagedMessages),
+                error = null,
+                visibleRounds = visible,
+                hasMoreOlderRounds = oldestRound > 0,
+                isLoadingOlderRounds = false,
+            )
+        }
         apiSettings.setLastSessionId(id)
     }
 
     fun closeSession() {
-        _state.value = _state.value.copy(
-            current = null,
-            error = null,
-            visibleRounds = 10,
-            hasMoreOlderRounds = true,
-            isLoadingOlderRounds = false,
-        )
+        _state.update {
+            it.copy(
+                current = null,
+                error = null,
+                visibleRounds = 10,
+                hasMoreOlderRounds = true,
+                isLoadingOlderRounds = false,
+            )
+        }
         refreshSessions()
     }
 
@@ -1188,10 +1205,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val full = store.getSession(sessionId) ?: return
         val newMax = maxRoundOf(full.messages)
         if (newMax < 0) {
-            _state.value = _state.value.copy(
-                current = full,
-                hasMoreOlderRounds = false,
-            )
+            _state.update {
+                it.copy(
+                    current = full,
+                    hasMoreOlderRounds = false,
+                )
+            }
             return
         }
         val oldMax = _state.value.current?.messages?.let { maxRoundOf(it) } ?: -1
@@ -1201,12 +1220,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         val oldestRound = max(0, newMax - visible + 1)
         val pagedMessages = store.getMessagesByRounds(sessionId, oldestRound, newMax)
-        _state.value = _state.value.copy(
-            current = full.copy(messages = pagedMessages),
-            visibleRounds = visible,
-            hasMoreOlderRounds = oldestRound > 0,
-            isLoadingOlderRounds = false,
-        )
+        _state.update {
+            it.copy(
+                current = full.copy(messages = pagedMessages),
+                visibleRounds = visible,
+                hasMoreOlderRounds = oldestRound > 0,
+                isLoadingOlderRounds = false,
+            )
+        }
     }
 
     /**
@@ -1219,23 +1240,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (_state.value.isLoadingOlderRounds) return
         val currentSession = _state.value.current ?: return
         if (currentSession.id != sessionId) return
-        _state.value = _state.value.copy(isLoadingOlderRounds = true)
+        _state.update { it.copy(isLoadingOlderRounds = true) }
         viewModelScope.launch(Dispatchers.IO) {
             val full = store.getSession(sessionId)
             val maxRound = full?.messages?.let { maxRoundOf(it) } ?: -1
             if (maxRound < 0) {
-                _state.value = _state.value.copy(
-                    isLoadingOlderRounds = false,
-                    hasMoreOlderRounds = false,
-                )
+                _state.update {
+                    it.copy(
+                        isLoadingOlderRounds = false,
+                        hasMoreOlderRounds = false,
+                    )
+                }
                 return@launch
             }
             val currentOldestRound = max(0, maxRound - _state.value.visibleRounds + 1)
             if (currentOldestRound == 0) {
-                _state.value = _state.value.copy(
-                    isLoadingOlderRounds = false,
-                    hasMoreOlderRounds = false,
-                )
+                _state.update {
+                    it.copy(
+                        isLoadingOlderRounds = false,
+                        hasMoreOlderRounds = false,
+                    )
+                }
                 return@launch
             }
             val newOldestRound = max(0, currentOldestRound - count)
@@ -1246,12 +1271,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ).sortedWith(compareBy({ it.roundIndex }, { it.createdAt }))
             val mergedMessages = olderMessages + currentSession.messages
             val addedRounds = currentOldestRound - newOldestRound
-            _state.value = _state.value.copy(
-                current = currentSession.copy(messages = mergedMessages),
-                visibleRounds = _state.value.visibleRounds + addedRounds,
-                hasMoreOlderRounds = newOldestRound > 0,
-                isLoadingOlderRounds = false,
-            )
+            _state.update {
+                it.copy(
+                    current = currentSession.copy(messages = mergedMessages),
+                    visibleRounds = _state.value.visibleRounds + addedRounds,
+                    hasMoreOlderRounds = newOldestRound > 0,
+                    isLoadingOlderRounds = false,
+                )
+            }
         }
     }
 
@@ -1260,7 +1287,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (store.deleteSession(sessionId)) {
             // 如果删除的是当前打开的会话，关闭它
             if (_state.value.current?.id == sessionId) {
-                _state.value = _state.value.copy(current = null, error = null)
+                _state.update { it.copy(current = null, error = null) }
             }
             refreshSessions()
         }
@@ -1286,7 +1313,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun createSessionAndNavigate(title: String) {
         val session = store.createSession(title)
         refreshSessions()
-        _state.value = _state.value.copy(navigateToSessionId = session.id)
+        _state.update { it.copy(navigateToSessionId = session.id) }
         openSession(session.id)
     }
 
@@ -1325,7 +1352,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         refreshSessions()
-        _state.value = _state.value.copy(navigateToSessionId = forked.id)
+        _state.update { it.copy(navigateToSessionId = forked.id) }
         openSession(forked.id)
         DebugLog.i("forkSession: forked '${source.title}' -> '$forkedTitle' (${messagesToCopy.size} messages)")
     }
@@ -1351,7 +1378,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.msg_fetch_failed), openWebUrl = url)
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.msg_fetch_failed), openWebUrl = url) }
             } finally {
                 setLoading(false)
             }
@@ -1383,7 +1410,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             openSession(session.id)
             sessionId = session.id
             // 触发导航到 AI Tab
-            _state.value = _state.value.copy(navigateToSessionId = session.id)
+            _state.update { it.copy(navigateToSessionId = session.id) }
             DebugLog.i("sendUserMessage: 自动创建新 session $sessionId, 导航到 AI Tab")
         }
         DebugLog.i("sendUserMessage: ${text.take(100)}")
@@ -1408,14 +1435,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             currentRunJob?.cancel()
             currentCall = null
             currentRunJob = null
-            _state.value = _state.value.copy(
-                isStreaming = false,
-                streamingText = "",
-                streamingReasoning = "",
-                streamingToolParts = emptyList(),
-                streamingPhase = "",
-                streamingSessionId = null,
-            )
+            _state.update {
+                it.copy(
+                    isStreaming = false,
+                    streamingText = "",
+                    streamingReasoning = "",
+                    streamingToolParts = emptyList(),
+                    streamingPhase = "",
+                    streamingSessionId = null,
+                )
+            }
         }
 
         store.addMessage(sessionId, Role.USER, finalText)
@@ -1476,14 +1505,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             currentRunJob?.cancel()
             currentCall = null
             currentRunJob = null
-            _state.value = _state.value.copy(
-                isStreaming = false,
-                streamingText = "",
-                streamingReasoning = "",
-                streamingToolParts = emptyList(),
-                streamingPhase = "",
-                streamingSessionId = null,
-            )
+            _state.update {
+                it.copy(
+                    isStreaming = false,
+                    streamingText = "",
+                    streamingReasoning = "",
+                    streamingToolParts = emptyList(),
+                    streamingPhase = "",
+                    streamingSessionId = null,
+                )
+            }
         }
 
         when (cmd.name) {
@@ -1688,13 +1719,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * AgentSwarm 模式：LLM 自主调度多子 Agent 完成复杂任务
      */
     private fun runSwarm(sessionId: String, userText: String) {
-        _state.value = _state.value.copy(
-            isStreaming = true,
-            streamingText = app.getString(R.string.msg_starting_multi_agent),
-            streamingSessionId = sessionId,
-            streamingToolParts = emptyList(),
-            streamingPhase = "",
-        )
+        _state.update {
+            it.copy(
+                isStreaming = true,
+                streamingText = app.getString(R.string.msg_starting_multi_agent),
+                streamingSessionId = sessionId,
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+            )
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -1728,7 +1761,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     context = context,
                     apiConfig = apiConfig,
                     onProgress = { progress ->
-                        _state.value = _state.value.copy(streamingText = progress)
+                        _state.update { it.copy(streamingText = progress) }
                     },
                 )
 
@@ -1754,10 +1787,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 refreshCurrentSession(sessionId)
-                _state.value = _state.value.copy(
-                    isStreaming = false,
-                    streamingText = "",
-                )
+                _state.update {
+                    it.copy(
+                        isStreaming = false,
+                        streamingText = "",
+                    )
+                }
                 refreshSessions()
             } catch (e: CancellationException) {
                 throw e
@@ -1765,10 +1800,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 DebugLog.e("runSwarm", "AgentSwarm 失败: ${e.message}", e)
                 store.addMessage(sessionId, Role.ASSISTANT, app.getString(R.string.msg_multi_agent_failed, e.message ?: ""))
                 refreshCurrentSession(sessionId)
-                _state.value = _state.value.copy(
-                    isStreaming = false,
-                    streamingText = "",
-                )
+                _state.update {
+                    it.copy(
+                        isStreaming = false,
+                        streamingText = "",
+                    )
+                }
             }
         }
     }
@@ -1784,7 +1821,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             refreshSessions()
             openSession(session.id)
             sessionId = session.id
-            _state.value = _state.value.copy(navigateToSessionId = session.id)
+            _state.update { it.copy(navigateToSessionId = session.id) }
         }
 
         val audioPart = MessagePart.AudioClip(
@@ -1832,7 +1869,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 refreshSessions()
                 openSession(session.id)
                 sessionId = session.id
-                _state.value = _state.value.copy(navigateToSessionId = session.id)
+                _state.update { it.copy(navigateToSessionId = session.id) }
             }
 
             // 发送视频摘要请求消息
@@ -2111,7 +2148,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun runSkillByName(name: String) {
         val sessionId = _state.value.current?.id ?: return
         val skill = skillsStore.findByName(name) ?: run {
-            _state.value = _state.value.copy(error = app.getString(R.string.error_skill_not_found, name))
+            _state.update { it.copy(error = app.getString(R.string.error_skill_not_found, name)) }
             return
         }
         store.addMessage(sessionId, Role.USER, skill.prompt.trim())
@@ -2125,7 +2162,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val normalizedName = name.trim()
         val normalizedPrompt = prompt.trim()
         if (normalizedName.isEmpty() || normalizedPrompt.isEmpty()) {
-            _state.value = _state.value.copy(error = app.getString(R.string.error_skill_name_content_empty))
+            _state.update { it.copy(error = app.getString(R.string.error_skill_name_content_empty)) }
             return
         }
         val skill = if (id == null) {
@@ -2203,7 +2240,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun runGallerySkill(skill: top.hsyscn.opedrgent.mcp.skills.StandardSkillDefinition) {
         val sessionId = _state.value.current?.id ?: run {
-            _state.value = _state.value.copy(error = app.getString(R.string.error_no_active_session))
+            _state.update { it.copy(error = app.getString(R.string.error_no_active_session)) }
             return
         }
         // 构建包含完整指令的用户消息，让 LLM 知道要使用该技能
@@ -2241,7 +2278,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     suspend fun deleteGallerySkill(skillName: String) {
         val success = skillLoader.deleteSkill(skillName)
         if (!success) {
-            _state.value = _state.value.copy(error = app.getString(R.string.error_cannot_delete_builtin_skill, skillName))
+            _state.update { it.copy(error = app.getString(R.string.error_cannot_delete_builtin_skill, skillName)) }
         }
     }
 
@@ -2660,23 +2697,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             currentCall = null
             currentRunJob = null
             savePartialStreamingContent()
-            _state.value = _state.value.copy(
-                streamingText = "",
-                streamingReasoning = "",
-                streamingToolParts = emptyList(),
-                streamingPhase = "",
-            )
+            _state.update {
+                it.copy(
+                    streamingText = "",
+                    streamingReasoning = "",
+                    streamingToolParts = emptyList(),
+                    streamingPhase = "",
+                )
+            }
         }
         // cancelled.set(false) 移入协程内部，避免旧协程的CancellationException竞态
         currentRunJob = viewModelScope.launch {
             cancelled.set(false)
             setLoading(true)
-            _state.value = _state.value.copy(
-                streamingSessionId = sessionId,
-                isStreaming = true,
-                streamingText = "",
-                streamingReasoning = "",
-            )
+            _state.update {
+                it.copy(
+                    streamingSessionId = sessionId,
+                    isStreaming = true,
+                    streamingText = "",
+                    streamingReasoning = "",
+                )
+            }
             try {
                 val useLocalModel = apiSettings.isLocalModelEnabled() && localEngine.isReady
 
@@ -2694,10 +2735,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         is LocalLlmState.Loading -> "，模型正在加载中，请稍候"
                         else -> ""
                     }
-                    _state.value = _state.value.copy(
-                        streamingText = "[错误] 本地模型未就绪$errorDetail",
-                        streamingPhase = app.getString(R.string.phase_error),
-                    )
+                    _state.update {
+                        it.copy(
+                            streamingText = "[错误] 本地模型未就绪$errorDetail",
+                            streamingPhase = app.getString(R.string.phase_error),
+                        )
+                    }
                     setLoading(false)
                     return@launch
                 }
@@ -2708,9 +2751,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     // 不受 CloudFallbackPolicy 的 AUTH 判定约束；本地模型可用时维持自动降级
                     if (localEngine.isReady) {
                         DebugLog.i("runModel: 无 API Key，自动降级到本地模型")
-                        _state.value = _state.value.copy(
-                            streamingPhase = app.getString(R.string.phase_no_api_key_offline),
-                        )
+                        _state.update {
+                            it.copy(
+                                streamingPhase = app.getString(R.string.phase_no_api_key_offline),
+                            )
+                        }
                         runLocalModel(sessionId)
                         return@launch
                     }
@@ -2766,23 +2811,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                     if (CloudFallbackPolicy.shouldFallbackToLocal(cloudFailure) && localEngine.isReady) {
                         DebugLog.i("runModel: API 网络错误，自动降级到本地模型 — $lastError")
-                        _state.value = _state.value.copy(
-                            streamingPhase = app.getString(R.string.phase_network_error_offline),
-                        )
+                        _state.update {
+                            it.copy(
+                                streamingPhase = app.getString(R.string.phase_network_error_offline),
+                            )
+                        }
                         runLocalModel(sessionId)
                         return@launch
                     }
 
                     val errorMsg = "抱歉，处理过程中遇到错误: $lastError"
                     store.addMessage(sessionId, Role.ASSISTANT, errorMsg, reasoningParts = emptyList())
-                    _state.value = _state.value.copy(
-                        isStreaming = false,
-                        streamingText = "",
-                        streamingReasoning = "",
-                        streamingToolParts = emptyList(),
-                        streamingPhase = "",
-                        streamingSessionId = null,
-                    )
+                    _state.update {
+                        it.copy(
+                            isStreaming = false,
+                            streamingText = "",
+                            streamingReasoning = "",
+                            streamingToolParts = emptyList(),
+                            streamingPhase = "",
+                            streamingSessionId = null,
+                        )
+                    }
                     refreshSessions()
                     return@launch
                 }
@@ -2827,15 +2876,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 refreshCurrentSession(sessionId)
-                _state.value = _state.value.copy(
-                    error = null,
-                    isStreaming = false,
-                    streamingText = "",
-                    streamingReasoning = "",
-                    streamingToolParts = emptyList(),
-                    streamingPhase = "",
-                    streamingSessionId = null,
-                )
+                _state.update {
+                    it.copy(
+                        error = null,
+                        isStreaming = false,
+                        streamingText = "",
+                        streamingReasoning = "",
+                        streamingToolParts = emptyList(),
+                        streamingPhase = "",
+                        streamingSessionId = null,
+                    )
+                }
                 refreshSessions()
 
                 // ★ Auto-title（Kilo 风格）：第一条消息后自动生成标题
@@ -2876,7 +2927,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         downloadOnly = downloadOnly,
                     )
                     if (!downloadOnly) {
-                        _state.value = _state.value.copy(isSpeaking = true)
+                        _state.update { it.copy(isSpeaking = true) }
                     }
                 }
 
@@ -2888,15 +2939,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     DebugLog.e("runModel error: ${e.message}", e)
                     // ★ 修复：异常时保存已有的流式内容，避免用户看到的输出丢失
                     savePartialStreamingContent()
-                    _state.value = _state.value.copy(
-                        error = e.message ?: app.getString(R.string.error_request_failed),
-                        isStreaming = false,
-                        streamingText = "",
-                        streamingReasoning = "",
-                        streamingToolParts = emptyList(),
-                        streamingPhase = "",
-                        streamingSessionId = null,
-                    )
+                    _state.update {
+                        it.copy(
+                            error = e.message ?: app.getString(R.string.error_request_failed),
+                            isStreaming = false,
+                            streamingText = "",
+                            streamingReasoning = "",
+                            streamingToolParts = emptyList(),
+                            streamingPhase = "",
+                            streamingSessionId = null,
+                        )
+                    }
                 }
             } finally {
                 if (!cancelled.get()) {
@@ -2961,14 +3014,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 when (budgetDecision) {
                     is TokenBudgetMonitor.BudgetDecision.Continue -> {
-                        _state.value = _state.value.copy(
-                            streamingPhase = budgetDecision.nudgeMessage,
-                        )
+                        _state.update {
+                            it.copy(
+                                streamingPhase = budgetDecision.nudgeMessage,
+                            )
+                        }
                     }
                     is TokenBudgetMonitor.BudgetDecision.Stop -> {
                         DebugLog.i("runLoop: TokenBudgetMonitor 决定停止 — diminishing=${budgetDecision.diminishingReturns}, duration=${budgetDecision.durationMs}ms")
                         if (budgetDecision.diminishingReturns) {
-                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_token_decreasing_end))
+                            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_token_decreasing_end)) }
                         }
                         // 推进状态以便记录最终结果，然后跳出循环
                         budgetTracker.let { TokenBudgetMonitor.advanceState(it, currentTokens) }
@@ -2994,9 +3049,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         }
                         loopState = LoopState.RETRYING
                         retryCount++
-                        _state.value = _state.value.copy(
-                            streamingPhase = app.getString(R.string.agent_phase_retry_failed, outcome.delay / 1000, retryCount),
-                        )
+                        _state.update {
+                            it.copy(
+                                streamingPhase = app.getString(R.string.agent_phase_retry_failed, outcome.delay / 1000, retryCount),
+                            )
+                        }
                         delay(outcome.delay)
                         loopState = LoopState.RUNNING
                     }
@@ -3024,7 +3081,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     lastError?.contains("access denied", ignoreCase = true) == true
             if (!isFatalError) {
                 DebugLog.i("runLoop: finalContent 为空，尝试无工具最终回答兜底")
-                _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_generating_final))
+                _state.update { it.copy(streamingPhase = app.getString(R.string.phase_generating_final)) }
                 val finalAnswer = try {
                     attemptFinalAnswer(ctx)
                 } catch (e: Exception) {
@@ -3170,7 +3227,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         state.advanceTo(ResearchPhase(
             name = if (state.roundsUsed == 0) "思考中" else "继续思考",
         ))
-        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
+        _state.update { it.copy(streamingPhase = state.nextPhaseLabel()) }
 
         val mapImages = if (state.roundsUsed == 0) {
             withContext(Dispatchers.IO) { tryFetchLocationMap(messages) }
@@ -3191,10 +3248,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val cached = PromptCache.findCached(lastUserQuery)
             if (cached != null) {
                 DebugLog.i("executeOneRound: 缓存命中，跳过 LLM 调用 — query=${lastUserQuery.take(50)}")
-                _state.value = _state.value.copy(
-                    streamingText = (ctx.accumulatedText + "\n\n" + cached).trim(),
-                    streamingPhase = app.getString(R.string.phase_cached_answer),
-                )
+                _state.update {
+                    it.copy(
+                        streamingText = (ctx.accumulatedText + "\n\n" + cached).trim(),
+                        streamingPhase = app.getString(R.string.phase_cached_answer),
+                    )
+                }
                 return LoopOutcome.Break
             }
         }
@@ -3216,7 +3275,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
         val result = if (allImages.isNotEmpty()) {
-            _state.value = _state.value.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…")
+            _state.update { it.copy(streamingPhase = if (userImage != null) "正在分析图片…" else "正在分析地图…") }
             withContext(Dispatchers.IO) {
                 streamMultimodalLlm(ctx.config, compressedSystem, messages, allImages, tools = effectiveTools, deepThinkingEnabled = _state.value.deepThinkingEnabled, sessionId = ctx.sessionId)
             }
@@ -3255,10 +3314,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 else -> result.error
             }
             state.recordNoToolCalls(result.content.ifEmpty { "执行失败: $enhancedErrorMsg" })
-            _state.value = _state.value.copy(
-                streamingText = ctx.accumulatedText,
-                streamingPhase = app.getString(R.string.phase_generating),
-            )
+            _state.update {
+                it.copy(
+                    streamingText = ctx.accumulatedText,
+                    streamingPhase = app.getString(R.string.phase_generating),
+                )
+            }
             // 可重试错误：返回 Retry 让 runLoop 处理
             if (RetryPolicy.isRetryableErrorType(classified.type)) {
                 val retryDelay = top.hsyscn.opedrgent.network.ErrorClassifier.getRetryDelayMs(classified)
@@ -3283,16 +3344,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ctx.accumulatedReasoning += (if (ctx.accumulatedReasoning.isNotBlank()) "\n" else "") + result.reasoning
         }
 
-        _state.value = _state.value.copy(
-            streamingText = ctx.accumulatedText,
-            streamingReasoning = ctx.accumulatedReasoning,
-            streamingPhase = app.getString(R.string.phase_generating),
-        )
+        _state.update {
+            it.copy(
+                streamingText = ctx.accumulatedText,
+                streamingReasoning = ctx.accumulatedReasoning,
+                streamingPhase = app.getString(R.string.phase_generating),
+            )
+        }
 
         if (result.toolCalls.isEmpty()) {
             DebugLog.i("executeOneRound: no tool_call in response, model is done at round ${state.roundsUsed}")
             state.recordNoToolCalls(result.content)
-            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_generating))
+            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_generating)) }
 
             // 缓存 LLM 响应（仅在首轮、无工具调用、内容有意义时）
             if (cacheEligible && result.content.isNotBlank() && result.content.length >= 20) {
@@ -3354,7 +3417,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             )
         }
         ctx.allToolParts.addAll(pendingToolParts)
-        _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+        _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
 
         // ★ 事务检查点：仅当本轮包含副作用工具时创建，失败可回滚消息历史并补偿
         val roundCheckpointId = createRoundCheckpointIfSideEffect(result.toolCalls, ctx.toolMessages)
@@ -3389,13 +3452,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         }
                         else -> "正在执行: ${tc.name}"
                     }
-                    _state.value = _state.value.copy(streamingPhase = phaseText)
+                    _state.update { it.copy(streamingPhase = phaseText) }
 
                     synchronized(ctx.allToolParts) {
                         val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                         if (pos >= 0) ctx.allToolParts[pos] = runningTp
                     }
-                    _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                    _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
 
                     val toolDef = agentTools.firstOrNull { it.name == tc.name }
                     val toolDesc = toolDef?.description ?: tc.name
@@ -3426,7 +3489,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                             agentUiState.setQuestionRequest(QuestionRequest(questions = questions))
 
-                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_waiting_selection))
+                            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_waiting_selection)) }
 
                             val answers = withTimeout(120_000L) {  // 2 分钟超时保护
                                 agentUiState.questionResponse.first()
@@ -3444,7 +3507,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                             // ★ P4-1 修复：将结果写入 toolExecCache，确保下一轮 LLM 调用能收到用户答案
                             ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
@@ -3462,7 +3525,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = errorTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                         }
                         return@async
                     }
@@ -3489,7 +3552,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 timeoutSeconds = timeoutSeconds,
                             ))
 
-                            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_waiting_confirm, timeoutSeconds))
+                            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_waiting_confirm, timeoutSeconds)) }
 
                             val selectedOption = withTimeout(120_000L) {  // 2 分钟超时保护
                                 agentUiState.confirmationResponse.first()
@@ -3515,7 +3578,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                             // ★ P4-1 修复：将结果写入 toolExecCache，确保下一轮 LLM 调用能收到用户确认
                             ctx.toolExecCache[tc.id] = top.hsyscn.opedrgent.network.ToolResult(toolPart = resultTp)
                         } catch (e: CancellationException) {
@@ -3533,7 +3596,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = errorTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                         }
                         return@async
                     }
@@ -3572,7 +3635,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = resultTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -3585,7 +3648,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = errorTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                         }
                         return@async
                     }
@@ -3604,7 +3667,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                 val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                                 if (pos >= 0) ctx.allToolParts[pos] = blockedTp
                             }
-                            _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                            _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
                             return@async
                         }
                     }
@@ -3651,9 +3714,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             DebugLog.w("ToolCallGuardrail: SESSION_HALT — 严重问题，终止 Agent 循环")
                             guardrailHalted = true
                             lastError = app.getString(R.string.error_tool_protection_fatal)
-                            _state.value = _state.value.copy(
-                                streamingText = _state.value.streamingText + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
-                            )
+                            _state.update {
+                                it.copy(
+                                    streamingText = _state.value.streamingText + "\n\n[工具调用保护] 检测到严重问题，已自动停止。",
+                                )
+                            }
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.AGENT_HALT,
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.TOOL_BLOCK -> {
@@ -3664,9 +3729,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.PARTIAL_ERROR -> {
                             DebugLog.w("ToolCallGuardrail: PARTIAL_ERROR — 部分工具失败，继续返回可用结果")
                             // 不终止会话，仅记录警告；后续循环仍可使用已成功工具结果。
-                            _state.value = _state.value.copy(
-                                streamingText = _state.value.streamingText + "\n\n[工具调用保护] 部分工具失败，将基于已成功结果继续。",
-                            )
+                            _state.update {
+                                it.copy(
+                                    streamingText = _state.value.streamingText + "\n\n[工具调用保护] 部分工具失败，将基于已成功结果继续。",
+                                )
+                            }
                         }
                         top.hsyscn.opedrgent.utils.ToolCallGuardrail.GuardrailAction.ALLOW -> { }
                     }
@@ -3676,7 +3743,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         val pos = ctx.allToolParts.indexOfFirst { it.id == tp.id }
                         if (pos >= 0) ctx.allToolParts[pos] = doneTp
                     }
-                    _state.value = _state.value.copy(streamingToolParts = ctx.allToolParts.toList())
+                    _state.update { it.copy(streamingToolParts = ctx.allToolParts.toList()) }
 
                     val newSources = execResult.addedSources.filter { ctx.usedUrls.add(it) }
                     if (newSources.isNotEmpty()) {
@@ -3689,7 +3756,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
 
                     if (execResult.openBrowserUrl != null) {
-                        _state.value = _state.value.copy(openBrowserUrl = execResult.openBrowserUrl)
+                        _state.update { it.copy(openBrowserUrl = execResult.openBrowserUrl) }
                     }
 
                     val taggedSources = execResult.addedSources.mapNotNull { url ->
@@ -3786,7 +3853,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 lastToolName = "read_url",
             ))
         }
-        _state.value = _state.value.copy(streamingPhase = state.nextPhaseLabel())
+        _state.update { it.copy(streamingPhase = state.nextPhaseLabel()) }
         } catch (e: CancellationException) {
             // 协程取消：结构化并发要求立即传播，不触发回滚（取消不应执行更多副作用）
             throw e
@@ -3903,7 +3970,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // ★ Network Disconnect 检测（Kilo 风格）
         if (top.hsyscn.opedrgent.agent.ConversationUtils.isNetworkDisconnect(e)) {
             DebugLog.w("handleRoundError: network disconnect detected: ${e.message}")
-            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_network_disconnected))
+            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_network_disconnected)) }
             // 网络断开时使用更长的重试延迟
             val networkDelay = 10_000L * (retryCount + 1)
             return if (retryCount < RetryPolicy.MAX_RETRIES) {
@@ -4185,11 +4252,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val fullText = if (priorText.isNotEmpty()) priorText + "\n\n" + contentBuilder.toString() else contentBuilder.toString()
                                                 val fullReason = if (priorReasoning.isNotEmpty()) priorReasoning + "\n" + reasoningBuilder.toString() else reasoningBuilder.toString()
-                                                _state.value = _state.value.copy(
-                                                    streamingText = fullText,
-                                                    streamingReasoning = fullReason,
-                                                    isStreaming = true,
-                                                )
+                                                _state.update {
+                                                    it.copy(
+                                                        streamingText = fullText,
+                                                        streamingReasoning = fullReason,
+                                                        isStreaming = true,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -4202,11 +4271,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val fullText = if (priorText.isNotEmpty()) priorText + "\n\n" + contentBuilder.toString() else contentBuilder.toString()
                                                 val fullReason = if (priorReasoning.isNotEmpty()) priorReasoning + "\n" + reasoningBuilder.toString() else reasoningBuilder.toString()
-                                                _state.value = _state.value.copy(
-                                                    streamingText = fullText,
-                                                    streamingReasoning = fullReason,
-                                                    isStreaming = true,
-                                                )
+                                                _state.update {
+                                                    it.copy(
+                                                        streamingText = fullText,
+                                                        streamingReasoning = fullReason,
+                                                        isStreaming = true,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -4225,9 +4296,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         ),
                                     )
                                     tempToolParts.add(tempTp)
-                                    _state.value = _state.value.copy(
-                                        streamingToolParts = tempToolParts.toList(),
-                                    )
+                                    _state.update {
+                                        it.copy(
+                                            streamingToolParts = tempToolParts.toList(),
+                                        )
+                                    }
                                 }
                             },
                             onDone = { result ->
@@ -4349,11 +4422,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                _state.value = _state.value.copy(
-                                                    streamingText = textSnapshot,
-                                                    streamingReasoning = reasonSnapshot,
-                                                    isStreaming = true,
-                                                )
+                                                _state.update {
+                                                    it.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -4366,11 +4441,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                                 lastFlushTime = now
                                                 val textSnapshot = contentBuilder.toString()
                                                 val reasonSnapshot = reasoningBuilder.toString()
-                                                _state.value = _state.value.copy(
-                                                    streamingText = textSnapshot,
-                                                    streamingReasoning = reasonSnapshot,
-                                                    isStreaming = true,
-                                                )
+                                                _state.update {
+                                                    it.copy(
+                                                        streamingText = textSnapshot,
+                                                        streamingReasoning = reasonSnapshot,
+                                                        isStreaming = true,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -4385,7 +4462,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                                         state = ToolState(status = ToolStateType.PENDING, input = emptyMap(), startTime = System.currentTimeMillis()),
                                     )
                                     tempToolParts.add(tempTp)
-                                    _state.value = _state.value.copy(streamingToolParts = tempToolParts.toList())
+                                    _state.update { it.copy(streamingToolParts = tempToolParts.toList()) }
                                 }
                             },
                             onDone = { result ->
@@ -4505,7 +4582,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             apiSettings.save(baseUrl = baseUrl, apiKey = key, model = model)
             true
         } catch (e: Exception) {
-            _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_save_failed))
+            _state.update { it.copy(error = e.message ?: app.getString(R.string.error_save_failed)) }
             false
         }
     }
@@ -4556,7 +4633,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun toggleDeepThinking(): Boolean {
         val next = !isDeepThinking()
         apiSettings.saveDeepThinking(next)
-        _state.value = _state.value.copy(deepThinkingEnabled = next)
+        _state.update { it.copy(deepThinkingEnabled = next) }
         return next
     }
 
@@ -4564,11 +4641,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun saveDeepResearch(enabled: Boolean) {
         apiSettings.saveDeepResearch(enabled)
-        _state.value = _state.value.copy(deepResearchEnabled = enabled)
+        _state.update { it.copy(deepResearchEnabled = enabled) }
     }
 
     fun setSearchScope(scope: top.hsyscn.opedrgent.ui.components.SearchScope) {
-        _state.value = _state.value.copy(searchScope = scope)
+        _state.update { it.copy(searchScope = scope) }
     }
 
     private suspend fun runLocalModel(sessionId: String) {
@@ -4584,7 +4661,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
         if (preCheck.isCritical) {
             DebugLog.w("runLocalModel: 上下文使用 ${String.format(java.util.Locale.US, "%.0f%%", preCheck.usageRatio * 100)} ≥ 95%，强制压缩")
-            _state.value = _state.value.copy(streamingPhase = app.getString(R.string.phase_compacting))
+            _state.update { it.copy(streamingPhase = app.getString(R.string.phase_compacting)) }
         }
 
         val compressed = if (preCheck.isCritical || preCheck.needsCompression) {
@@ -4614,10 +4691,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             appendLine("--- 请回复 ---")
         }
 
-        _state.value = _state.value.copy(
-            streamingPhase = app.getString(R.string.phase_local_inferencing),
-            contextTokenCount = compressed.tokenCount,
-        )
+        _state.update {
+            it.copy(
+                streamingPhase = app.getString(R.string.phase_local_inferencing),
+                contextTokenCount = compressed.tokenCount,
+            )
+        }
 
         val mapImages = tryFetchLocationMap(recentMessages)
         val bitmaps = mutableListOf<android.graphics.Bitmap>()
@@ -4651,19 +4730,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             enableThinking = enableThinking,
             onDelta = { chunk ->
                 accumulatedText += chunk
-                _state.value = _state.value.copy(
-                    streamingText = accumulatedText,
-                    streamingReasoning = accumulatedReasoning,
-                    streamingPhase = app.getString(R.string.phase_generating),
-                )
+                _state.update {
+                    it.copy(
+                        streamingText = accumulatedText,
+                        streamingReasoning = accumulatedReasoning,
+                        streamingPhase = app.getString(R.string.phase_generating),
+                    )
+                }
             },
             onThinkingDelta = if (enableThinking) {{ thinking ->
                 accumulatedReasoning += thinking
-                _state.value = _state.value.copy(
-                    streamingText = accumulatedText,
-                    streamingReasoning = accumulatedReasoning,
-                    streamingPhase = app.getString(R.string.phase_thinking),
-                )
+                _state.update {
+                    it.copy(
+                        streamingText = accumulatedText,
+                        streamingReasoning = accumulatedReasoning,
+                        streamingPhase = app.getString(R.string.phase_thinking),
+                    )
+                }
             }} else null,
             onComplete = {
                 DebugLog.i("runLocalModel: completed, text=${accumulatedText.length}, reasoning=${accumulatedReasoning.length}, ctx=${String.format(java.util.Locale.US, "%.0f%%", compressed.usageRatio * 100)}")
@@ -4688,17 +4771,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 if (compressed.needsCompression && !preCheck.isCritical) {
                     DebugLog.i("runLocalModel: 上下文使用 ${String.format(java.util.Locale.US, "%.0f%%", compressed.usageRatio * 100)} ≥ 90%，标记需压缩")
-                    _state.value = _state.value.copy(contextCompressionEnabled = true)
+                    _state.update { it.copy(contextCompressionEnabled = true) }
                 }
 
                 setLoading(false)
             },
             onError = { error ->
                 DebugLog.e("runLocalModel: error=$error")
-                _state.value = _state.value.copy(
-                    streamingText = if (accumulatedText.isNotBlank()) accumulatedText else "[本地模型错误] $error",
-                    streamingPhase = app.getString(R.string.phase_error),
-                )
+                _state.update {
+                    it.copy(
+                        streamingText = if (accumulatedText.isNotBlank()) accumulatedText else "[本地模型错误] $error",
+                        streamingPhase = app.getString(R.string.phase_error),
+                    )
+                }
                 if (accumulatedText.isNotBlank()) {
                     val errorParts = buildList {
                         if (accumulatedReasoning.isNotBlank()) {
@@ -4762,7 +4847,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val system = buildSystemPrompt(session)
             val allMessages = session.messages
             val compressed = ContextCompressor.compressWithChunkedFallback(allMessages, system, 16000, generateFn = null)
-            _state.value = _state.value.copy(contextTokenCount = compressed.tokenCount)
+            _state.update { it.copy(contextTokenCount = compressed.tokenCount) }
         }
     }
 
@@ -4883,7 +4968,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun toggleContextCompression() {
         val next = !_state.value.contextCompressionEnabled
-        _state.value = _state.value.copy(contextCompressionEnabled = next)
+        _state.update { it.copy(contextCompressionEnabled = next) }
     }
 
     fun requestLocationPermission(onMissing: () -> Unit) {
@@ -4910,15 +4995,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         currentRunJob = null
         // 保存已生成的部分文本到会话中，避免内容丢失
         savePartialStreamingContent()
-        _state.value = _state.value.copy(
-            isStreaming = false,
-            streamingText = "",
-            streamingReasoning = "",
-            streamingToolParts = emptyList(),
-            activeQuestion = null,
-            loading = false,
-            streamingSessionId = null,
-        )
+        _state.update {
+            it.copy(
+                isStreaming = false,
+                streamingText = "",
+                streamingReasoning = "",
+                streamingToolParts = emptyList(),
+                activeQuestion = null,
+                loading = false,
+                streamingSessionId = null,
+            )
+        }
     }
 
     /**
@@ -5000,7 +5087,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun answerQuestion(answer: String) {
         val q = _state.value.activeQuestion ?: return
         if (answer.isBlank()) return
-        _state.value = _state.value.copy(activeQuestion = null)
+        _state.update { it.copy(activeQuestion = null) }
         val sessionId = _state.value.current?.id ?: return
         val qContent = buildString {
             appendLine("用户回答了问题：${q.prompt}")
@@ -5012,7 +5099,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissQuestion() {
-        _state.value = _state.value.copy(activeQuestion = null)
+        _state.update { it.copy(activeQuestion = null) }
     }
 
     fun saveTts(enabled: Boolean, autoSpeak: Boolean, rate: Float, pitch: Float, localeTag: String, mimoEnabled: Boolean, mimoVoice: String, downloadOnly: Boolean = false) {
@@ -5051,7 +5138,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveDebugMode(enabled: Boolean) {
         apiSettings.saveDebugMode(enabled)
         DebugLog.enabled = enabled
-        _state.value = _state.value.copy(debugModeEnabled = enabled)
+        _state.update { it.copy(debugModeEnabled = enabled) }
     }
 
     fun saveDeepThinking(enabled: Boolean) {
@@ -5155,11 +5242,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         when {
             tts.isCurrentlySpeaking() && !tts.isCurrentlyPaused() -> {
                 tts.pause()
-                _state.value = _state.value.copy(isSpeaking = false)
+                _state.update { it.copy(isSpeaking = false) }
             }
             tts.isCurrentlyPaused() -> {
                 tts.resume()
-                _state.value = _state.value.copy(isSpeaking = true)
+                _state.update { it.copy(isSpeaking = true) }
             }
             else -> {
                 tts.speak(
@@ -5169,14 +5256,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     pitch = apiSettings.getTtsPitch(),
                     mimoVoice = apiSettings.getTtsMimoVoice(),
                 )
-                _state.value = _state.value.copy(isSpeaking = true)
+                _state.update { it.copy(isSpeaking = true) }
             }
         }
     }
 
     fun stopSpeak() {
         tts.stop()
-        _state.value = _state.value.copy(isSpeaking = false)
+        _state.update { it.copy(isSpeaking = false) }
     }
 
     fun suggestEvolution() {
@@ -5198,9 +5285,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 val parsed = parseEvolutionSuggestion(assistant)
-                _state.value = _state.value.copy(evolutionSuggestion = parsed, error = null)
+                _state.update { it.copy(evolutionSuggestion = parsed, error = null) }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_evolution_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_evolution_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -5228,10 +5315,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 store.setNotes(sessionId, assistant)
                 store.addArtifact(sessionId, ArtifactKind.NOTES, assistant)
                 refreshCurrentSession(sessionId)
-        _state.value = _state.value.copy(error = null)
+        _state.update { it.copy(error = null) }
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_organize_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_organize_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -5253,7 +5340,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissEvolution() {
-        _state.value = _state.value.copy(evolutionSuggestion = null)
+        _state.update { it.copy(evolutionSuggestion = null) }
     }
 
     fun acceptEvolutionMemory() {
@@ -5293,9 +5380,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 val parsed = parseAutomationSuggestion(assistant)
-                _state.value = _state.value.copy(automationSuggestion = parsed, error = null)
+                _state.update { it.copy(automationSuggestion = parsed, error = null) }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_automation_suggestion_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_automation_suggestion_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -5303,7 +5390,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissAutomationSuggestion() {
-        _state.value = _state.value.copy(automationSuggestion = null)
+        _state.update { it.copy(automationSuggestion = null) }
     }
 
     fun acceptAutomationSuggestion() {
@@ -5320,7 +5407,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             AutomationKind.RUN_PROMPT -> {
                 val p = s.prompt?.trim().orEmpty()
                 if (p.isBlank()) {
-                    _state.value = _state.value.copy(error = app.getString(R.string.error_automation_prompt_empty))
+                    _state.update { it.copy(error = app.getString(R.string.error_automation_prompt_empty)) }
                     return
                 }
                 automationStore.createPrompt(
@@ -5385,12 +5472,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 val events = parseCalendarEvents(assistant)
                 if (events.isEmpty()) {
-                    _state.value = _state.value.copy(error = app.getString(R.string.error_no_clear_schedule_time), calendarSuggestion = null)
+                    _state.update { it.copy(error = app.getString(R.string.error_no_clear_schedule_time), calendarSuggestion = null) }
                 } else {
-                    _state.value = _state.value.copy(calendarSuggestion = CalendarSuggestion(events = events, raw = assistant), error = null)
+                    _state.update { it.copy(calendarSuggestion = CalendarSuggestion(events = events, raw = assistant), error = null) }
                 }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_calendar_suggestion_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_calendar_suggestion_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -5398,7 +5485,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissCalendarSuggestion() {
-        _state.value = _state.value.copy(calendarSuggestion = null)
+        _state.update { it.copy(calendarSuggestion = null) }
     }
 
     fun exportCalendarIcs(events: List<CalendarEventDraft>): File {
@@ -5826,36 +5913,36 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private fun setLoading(v: Boolean) {
-        _state.value = _state.value.copy(loading = v)
+        _state.update { it.copy(loading = v) }
     }
 
     fun clearError() {
-        _state.value = _state.value.copy(error = null)
+        _state.update { it.copy(error = null) }
     }
 
     fun consumeNavigation() {
-        _state.value = _state.value.copy(navigateToSessionId = null)
+        _state.update { it.copy(navigateToSessionId = null) }
     }
 
     fun consumeOpenWebUrl() {
-        _state.value = _state.value.copy(openWebUrl = null)
+        _state.update { it.copy(openWebUrl = null) }
     }
 
     fun openWeb(url: String) {
         val u = url.trim()
         if (u.isNotEmpty()) {
-            _state.value = _state.value.copy(openWebUrl = u)
+            _state.update { it.copy(openWebUrl = u) }
         }
     }
 
     fun consumeOpenBrowserUrl() {
-        _state.value = _state.value.copy(openBrowserUrl = null)
+        _state.update { it.copy(openBrowserUrl = null) }
     }
 
     fun openBrowser(url: String) {
         val u = url.trim()
         if (u.isNotEmpty()) {
-            _state.value = _state.value.copy(openBrowserUrl = u)
+            _state.update { it.copy(openBrowserUrl = u) }
         }
     }
 
@@ -5895,7 +5982,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val existingSessionId = _state.value.current?.id ?: apiSettings.getLastSessionId()
         val sessionId = existingSessionId ?: store.createSession(app.getString(R.string.clip_default_session_title)).id
         openSession(sessionId)
-        _state.value = _state.value.copy(navigateToSessionId = sessionId)
+        _state.update { it.copy(navigateToSessionId = sessionId) }
         if (url != null) {
             addUrlSource(url)
             saveLinkAsNote(url)
@@ -5932,7 +6019,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
                 if (outcome.fetched.isEmpty()) {
-                    _state.value = _state.value.copy(error = (outcome.warnings + app.getString(R.string.error_no_content_fetched)).joinToString("\n"))
+                    _state.update { it.copy(error = (outcome.warnings + app.getString(R.string.error_no_content_fetched)).joinToString("\n")) }
                     return@launch
                 }
                 outcome.fetched.forEach { fetched ->
@@ -5968,10 +6055,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 refreshCurrentSession(sessionId)
-        _state.value = _state.value.copy(error = null)
+        _state.update { it.copy(error = null) }
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_web_search_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_web_search_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -6019,7 +6106,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (text.isBlank()) throw IllegalStateException("OCR 结果为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_pdf_ocr_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_pdf_ocr_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -6050,10 +6137,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 store.addMessage(sessionId, Role.ASSISTANT, assistant)
                 store.addArtifact(sessionId, ArtifactKind.REPORT, assistant)
                 refreshCurrentSession(sessionId)
-        _state.value = _state.value.copy(error = null)
+        _state.update { it.copy(error = null) }
                 refreshSessions()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_pdf_multimodal_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_pdf_multimodal_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -6083,7 +6170,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (text.isBlank()) throw IllegalStateException("Word 文档内容为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_docx_read_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_docx_read_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -6103,7 +6190,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (text.isBlank()) throw IllegalStateException("文件内容为空")
                 addTextSource(title = name, text = text)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message ?: app.getString(R.string.error_file_read_failed))
+                _state.update { it.copy(error = e.message ?: app.getString(R.string.error_file_read_failed)) }
             } finally {
                 setLoading(false)
             }
@@ -6341,22 +6428,24 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun aiSearch(query: String) {
         if (query.isBlank()) {
-            _state.value = _state.value.copy(aiSearchResults = emptyList(), isAiSearching = false)
+            _state.update { it.copy(aiSearchResults = emptyList(), isAiSearching = false) }
             return
         }
         addSearchHistory(query)
         viewModelScope.launch(Dispatchers.IO) {
-            _state.value = _state.value.copy(isAiSearching = true)
+            _state.update { it.copy(isAiSearching = true) }
             val results = aiSearchEngine.search(query)
-            _state.value = _state.value.copy(
-                aiSearchResults = results,
-                isAiSearching = false,
-            )
+            _state.update {
+                it.copy(
+                    aiSearchResults = results,
+                    isAiSearching = false,
+                )
+            }
         }
     }
 
     fun clearAiSearch() {
-        _state.value = _state.value.copy(aiSearchResults = emptyList(), isAiSearching = false)
+        _state.update { it.copy(aiSearchResults = emptyList(), isAiSearching = false) }
     }
 
     // ==================== WebDAV 云同步 ====================
@@ -6411,13 +6500,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * 与 AgentSwarm 的 LLM 自主调度互补 — 适合结构化任务
      */
     private fun runOrchestration(sessionId: String, userText: String) {
-        _state.value = _state.value.copy(
-            isStreaming = true,
-            streamingText = "正在组建专家团队...",
-            streamingSessionId = sessionId,
-            streamingToolParts = emptyList(),
-            streamingPhase = "",
-        )
+        _state.update {
+            it.copy(
+                isStreaming = true,
+                streamingText = "正在组建专家团队...",
+                streamingSessionId = sessionId,
+                streamingToolParts = emptyList(),
+                streamingPhase = "",
+            )
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -6454,19 +6545,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
                 refreshCurrentSession(sessionId)
-                _state.value = _state.value.copy(
-                    isStreaming = false,
-                    streamingText = "",
-                )
+                _state.update {
+                    it.copy(
+                        isStreaming = false,
+                        streamingText = "",
+                    )
+                }
                 refreshSessions()
             } catch (e: Exception) {
                 DebugLog.e("Orchestration", "Orchestrator 失败: ${e.message}", e)
                 store.addMessage(sessionId, Role.ASSISTANT, "专家协作执行失败: ${e.message}")
                 refreshCurrentSession(sessionId)
-                _state.value = _state.value.copy(
-                    isStreaming = false,
-                    streamingText = "",
-                )
+                _state.update {
+                    it.copy(
+                        isStreaming = false,
+                        streamingText = "",
+                    )
+                }
             }
         }
     }

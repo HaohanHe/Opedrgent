@@ -108,30 +108,61 @@ class KnowledgeGraphStore(context: Context) {
     // ============================================================
 
     fun upsertEdge(edge: GraphEdgeEntity): Long {
-        val existing = findEdge(edge.sourceId, edge.targetId, edge.relationType)
-        return if (existing != null) {
-            val values = ContentValues().apply {
-                put(KnowledgeGraphDatabase.COL_EDGE_WEIGHT, edge.weight)
-                put(KnowledgeGraphDatabase.COL_EDGE_REASON, edge.reason)
-                put(KnowledgeGraphDatabase.COL_EDGE_CREATED_AT, edge.createdAt)
+        // 查-改-写包事务，避免并发丢更新。建表已对 (source_id,target_id,relation_type) 声明 UNIQUE，
+        // 插入改 CONFLICT_IGNORE：两事务都判“不存在”时，后到者冲突回退为更新已存在边，
+        // 不抛 SQLiteConstraintException。
+        db.beginTransaction()
+        return try {
+            val existing = findEdge(edge.sourceId, edge.targetId, edge.relationType)
+            val result = if (existing != null) {
+                val values = ContentValues().apply {
+                    put(KnowledgeGraphDatabase.COL_EDGE_WEIGHT, edge.weight)
+                    put(KnowledgeGraphDatabase.COL_EDGE_REASON, edge.reason)
+                    put(KnowledgeGraphDatabase.COL_EDGE_CREATED_AT, edge.createdAt)
+                }
+                db.update(
+                    KnowledgeGraphDatabase.TABLE_EDGES,
+                    values,
+                    "${KnowledgeGraphDatabase.COL_EDGE_ID}=?",
+                    arrayOf(existing.id.toString()),
+                )
+                existing.id
+            } else {
+                val values = ContentValues().apply {
+                    put(KnowledgeGraphDatabase.COL_EDGE_SOURCE_ID, edge.sourceId)
+                    put(KnowledgeGraphDatabase.COL_EDGE_TARGET_ID, edge.targetId)
+                    put(KnowledgeGraphDatabase.COL_EDGE_RELATION_TYPE, edge.relationType)
+                    put(KnowledgeGraphDatabase.COL_EDGE_WEIGHT, edge.weight)
+                    put(KnowledgeGraphDatabase.COL_EDGE_REASON, edge.reason)
+                    put(KnowledgeGraphDatabase.COL_EDGE_CREATED_AT, edge.createdAt)
+                }
+                val rowId = db.insertWithOnConflict(
+                    KnowledgeGraphDatabase.TABLE_EDGES, null, values,
+                    SQLiteDatabase.CONFLICT_IGNORE,
+                )
+                if (rowId != -1L) {
+                    rowId
+                } else {
+                    val now = findEdge(edge.sourceId, edge.targetId, edge.relationType)
+                        ?: error("edge conflicted but not found: ${edge.sourceId} -> ${edge.targetId}")
+                    val updateValues = ContentValues().apply {
+                        put(KnowledgeGraphDatabase.COL_EDGE_WEIGHT, edge.weight)
+                        put(KnowledgeGraphDatabase.COL_EDGE_REASON, edge.reason)
+                        put(KnowledgeGraphDatabase.COL_EDGE_CREATED_AT, edge.createdAt)
+                    }
+                    db.update(
+                        KnowledgeGraphDatabase.TABLE_EDGES,
+                        updateValues,
+                        "${KnowledgeGraphDatabase.COL_EDGE_ID}=?",
+                        arrayOf(now.id.toString()),
+                    )
+                    now.id
+                }
             }
-            db.update(
-                KnowledgeGraphDatabase.TABLE_EDGES,
-                values,
-                "${KnowledgeGraphDatabase.COL_EDGE_ID}=?",
-                arrayOf(existing.id.toString()),
-            )
-            existing.id
-        } else {
-            val values = ContentValues().apply {
-                put(KnowledgeGraphDatabase.COL_EDGE_SOURCE_ID, edge.sourceId)
-                put(KnowledgeGraphDatabase.COL_EDGE_TARGET_ID, edge.targetId)
-                put(KnowledgeGraphDatabase.COL_EDGE_RELATION_TYPE, edge.relationType)
-                put(KnowledgeGraphDatabase.COL_EDGE_WEIGHT, edge.weight)
-                put(KnowledgeGraphDatabase.COL_EDGE_REASON, edge.reason)
-                put(KnowledgeGraphDatabase.COL_EDGE_CREATED_AT, edge.createdAt)
-            }
-            db.insertOrThrow(KnowledgeGraphDatabase.TABLE_EDGES, null, values)
+            db.setTransactionSuccessful()
+            result
+        } finally {
+            db.endTransaction()
         }
     }
 
@@ -277,26 +308,55 @@ class KnowledgeGraphStore(context: Context) {
     // ============================================================
 
     fun upsertEntity(entity: GraphEntity): Long {
-        val existing = getEntityByName(entity.name)
-        return if (existing != null) {
-            val values = ContentValues().apply {
-                put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
-                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, existing.frequency + 1)
+        // 查后写包事务。kg_entities.name 建表即 UNIQUE；插入改 CONFLICT_IGNORE：
+        // 并发同名实体冲突时回退为“已存在行 frequency+1”的更新，既不抛约束异常也不丢计数。
+        db.beginTransaction()
+        return try {
+            val existing = getEntityByName(entity.name)
+            val result = if (existing != null) {
+                val values = ContentValues().apply {
+                    put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
+                    put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, existing.frequency + 1)
+                }
+                db.update(
+                    KnowledgeGraphDatabase.TABLE_ENTITIES,
+                    values,
+                    "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+                    arrayOf(existing.id.toString()),
+                )
+                existing.id
+            } else {
+                val values = ContentValues().apply {
+                    put(KnowledgeGraphDatabase.COL_ENTITY_NAME, entity.name)
+                    put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
+                    put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, entity.frequency)
+                }
+                val rowId = db.insertWithOnConflict(
+                    KnowledgeGraphDatabase.TABLE_ENTITIES, null, values,
+                    SQLiteDatabase.CONFLICT_IGNORE,
+                )
+                if (rowId != -1L) {
+                    rowId
+                } else {
+                    val now = getEntityByName(entity.name)
+                        ?: error("entity conflicted but not found: ${entity.name}")
+                    val updateValues = ContentValues().apply {
+                        put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
+                        put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, now.frequency + 1)
+                    }
+                    db.update(
+                        KnowledgeGraphDatabase.TABLE_ENTITIES,
+                        updateValues,
+                        "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
+                        arrayOf(now.id.toString()),
+                    )
+                    now.id
+                }
             }
-            db.update(
-                KnowledgeGraphDatabase.TABLE_ENTITIES,
-                values,
-                "${KnowledgeGraphDatabase.COL_ENTITY_ID}=?",
-                arrayOf(existing.id.toString()),
-            )
-            existing.id
-        } else {
-            val values = ContentValues().apply {
-                put(KnowledgeGraphDatabase.COL_ENTITY_NAME, entity.name)
-                put(KnowledgeGraphDatabase.COL_ENTITY_TYPE, entity.entityType)
-                put(KnowledgeGraphDatabase.COL_ENTITY_FREQUENCY, entity.frequency)
-            }
-            db.insertOrThrow(KnowledgeGraphDatabase.TABLE_ENTITIES, null, values)
+            db.setTransactionSuccessful()
+            result
+        } finally {
+            db.endTransaction()
         }
     }
 

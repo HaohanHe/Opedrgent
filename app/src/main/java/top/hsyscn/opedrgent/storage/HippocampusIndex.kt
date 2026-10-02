@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.storage
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -60,11 +61,32 @@ class HippocampusIndex(context: Context) {
     private val db by lazy { HippocampusDatabase.getInstance(context).writableDatabase }
 
     suspend fun upsert(item: IndexedItem) = withContext(Dispatchers.IO) {
-        val existing = findBySource(item.sourceType, item.sourceId)
-        if (existing != null) {
-            update(item.copy(id = existing.id, createdAt = existing.createdAt))
-        } else {
-            insert(item)
+        // 查-改-写包进单事务，避免并发同源先查后插产生重复行；
+        // 插入走 CONFLICT_REPLACE 兜底（(source_type,source_id) 已有唯一索引 idx_source_unique），
+        // 即使两事务都判定“不存在”，也只会落一行、不抛约束异常。
+        // 事务内只做 DB 操作，且全程在同一线程，不调用带 withContext 的 suspend 帮助函数。
+        db.beginTransaction()
+        try {
+            val existing = db.query(
+                HippocampusDatabase.TABLE, null,
+                "${HippocampusDatabase.COL_SOURCE_TYPE}=? AND ${HippocampusDatabase.COL_SOURCE_ID}=?",
+                arrayOf(item.sourceType.name, item.sourceId), null, null, null, "1",
+            ).use { cursorToList(it).firstOrNull() }
+            if (existing != null) {
+                val merged = item.copy(id = existing.id, createdAt = existing.createdAt)
+                db.update(
+                    HippocampusDatabase.TABLE, buildUpdateValues(merged),
+                    "${HippocampusDatabase.COL_ID}=?", arrayOf(existing.id),
+                )
+            } else {
+                db.insertWithOnConflict(
+                    HippocampusDatabase.TABLE, null, item.toContentValues(),
+                    SQLiteDatabase.CONFLICT_REPLACE,
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
     }
 
@@ -103,15 +125,18 @@ class HippocampusIndex(context: Context) {
         put(HippocampusDatabase.COL_UPDATED_AT, updatedAt)
     }
 
+    /** 构建“就地更新”所需的列值（不含 id/created_at，二者保持原值）。非挂起，供事务内复用。 */
+    private fun buildUpdateValues(item: IndexedItem): ContentValues = ContentValues().apply {
+        put(HippocampusDatabase.COL_SCOPE, item.scope.name)
+        put(HippocampusDatabase.COL_TITLE, item.title)
+        put(HippocampusDatabase.COL_SUMMARY, item.summary)
+        put(HippocampusDatabase.COL_KEYWORDS, item.keywords)
+        put(HippocampusDatabase.COL_UPDATED_AT, item.updatedAt)
+    }
+
     private suspend fun update(item: IndexedItem) = withContext(Dispatchers.IO) {
-        val cv = ContentValues().apply {
-            put(HippocampusDatabase.COL_SCOPE, item.scope.name)
-            put(HippocampusDatabase.COL_TITLE, item.title)
-            put(HippocampusDatabase.COL_SUMMARY, item.summary)
-            put(HippocampusDatabase.COL_KEYWORDS, item.keywords)
-            put(HippocampusDatabase.COL_UPDATED_AT, item.updatedAt)
-        }
-        db.update(HippocampusDatabase.TABLE, cv, "${HippocampusDatabase.COL_ID}=?", arrayOf(item.id))
+        db.update(HippocampusDatabase.TABLE, buildUpdateValues(item),
+            "${HippocampusDatabase.COL_ID}=?", arrayOf(item.id))
     }
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {

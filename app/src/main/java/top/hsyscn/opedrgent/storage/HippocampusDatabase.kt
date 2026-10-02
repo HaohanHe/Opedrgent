@@ -90,6 +90,21 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        // onOpen 在 onCreate/onUpgrade 之后回调，此时表已建好，可安全做幂等的并发修复。
+        // 旧库在并发 upsert 下可能已有 (source_type, source_id) 重复行：
+        // 每组保留 rowid 最大（最新插入）的一行，删除其余，避免建唯一索引失败。
+        // 两条语句均幂等，重复执行不报错。
+        db.execSQL(
+            "DELETE FROM $TABLE WHERE rowid NOT IN (" +
+                "SELECT MAX(rowid) FROM $TABLE GROUP BY $COL_SOURCE_TYPE, $COL_SOURCE_ID)"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_source_unique ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)"
+        )
+    }
+
     /** 创建 indexed_items 表的高频查询索引（source_type/source_id/scope/title） */
     private fun createItemIndexes(db: SQLiteDatabase) {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_source ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)")
