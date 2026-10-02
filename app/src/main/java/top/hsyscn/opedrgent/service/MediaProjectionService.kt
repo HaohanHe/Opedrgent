@@ -122,7 +122,16 @@ class MediaProjectionService : Service() {
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {}
+        // 必须在释放前显式 stop()：仅置 null 不会结束投影会话，会泄漏 MediaProjection。
+        // stop() 可能因已停止/已释放而抛异常，内层 try 兜底，不影响服务销毁流程。
+        try {
+            mediaProjection?.stop()
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "mediaProjection.stop() failed: ${e.message}")
+        }
         mediaProjection = null
+        onReady = null
+        onError = null
         DebugLog.i(TAG, "Service destroyed")
     }
 

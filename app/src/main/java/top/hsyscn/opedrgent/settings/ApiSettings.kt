@@ -77,19 +77,24 @@ class ApiSettings(private val context: Context) {
     private fun migrateLegacySecrets() {
         if (prefs.getBoolean(LEGACY_SECRETS_MIGRATED, false)) return
         runCatching {
-            // 1) 先搬迁：仅当 securePrefs 为空、明文非空时搬入
-            for (key in LEGACY_SECRET_KEYS) {
-                val legacy = prefs.getString(key, null)?.trim().orEmpty()
-                val existing = securePrefs.getString(key, null)?.trim().orEmpty()
-                if (legacy.isNotEmpty() && existing.isEmpty()) {
-                    securePrefs.edit().putString(key, legacy).apply()
+            // 1) 先搬迁：仅当 securePrefs 为空、明文非空时搬入；用同步 commit 确保持久化成功后再动明文，
+            //    避免进程在两次异步 apply 之间被杀，导致加密未落盘而 MIGRATED 已置位而丢失密钥。
+            val committed = securePrefs.edit().apply {
+                for (key in LEGACY_SECRET_KEYS) {
+                    val legacy = prefs.getString(key, null)?.trim().orEmpty()
+                    val existing = securePrefs.getString(key, null)?.trim().orEmpty()
+                    if (legacy.isNotEmpty() && existing.isEmpty()) {
+                        putString(key, legacy)
+                    }
                 }
-            }
-            // 2) 无论是否搬迁，都清除明文中的密钥键，并置标志位
+            }.commit()
+            // 仅当加密写盘 commit 成功时，才清除明文中的密钥键并置标志位（同样同步 commit）；
+            // commit 失败或抛异常则保持明文不动、不置标志，下次启动重试。
+            if (!committed) return@runCatching
             prefs.edit().apply {
                 LEGACY_SECRET_KEYS.forEach { remove(it) }
                 putBoolean(LEGACY_SECRETS_MIGRATED, true)
-            }.apply()
+            }.commit()
         }
     }
 

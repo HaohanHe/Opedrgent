@@ -514,6 +514,9 @@ class KnowledgeGraph(
                 store.runInTransaction {
                     store.clearAll(useTransaction = false)
                     store.upsertEntities(allEntities, useTransaction = false)
+                    // 父表(nodes/entities)先于子表(node_entities)写入，满足外键约束：
+                    // 关联行引用的 node_id / entity_id 必须先存在，否则启用 foreign_keys 后抛约束异常。
+                    store.upsertNodes(nodes, useTransaction = false)
                     // 通过已持久化的实体名反查 ID，避免重复 upsert 导致 frequency 被多次累加
                     for ((noteId, entities) in noteRawEntities) {
                         for (entity in entities) {
@@ -527,7 +530,6 @@ class KnowledgeGraph(
                             )
                         }
                     }
-                    store.upsertNodes(nodes, useTransaction = false)
                     store.saveEmbeddings(embeddings, useTransaction = false)
                     store.upsertEdges(edges, useTransaction = false)
                     for (node in nodes) {

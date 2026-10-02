@@ -87,6 +87,13 @@ class KnowledgeGraphDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        // 开启外键约束（等价 PRAGMA foreign_keys=ON，API16+），使 kg_node_entities 上已声明的
+        // ON DELETE CASCADE 真正生效。onConfigure 早于 onCreate/onUpgrade，这里不得查表。
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """

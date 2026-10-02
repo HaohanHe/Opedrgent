@@ -74,6 +74,13 @@ class KbDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB
         }
     }
 
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        // 开启外键约束（等价 PRAGMA foreign_keys=ON，API16+），使 kb_documents.kb_id 上已声明的
+        // ON DELETE CASCADE 真正生效。onConfigure 早于 onCreate/onUpgrade，这里不得查表。
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS $TABLE_KB (
