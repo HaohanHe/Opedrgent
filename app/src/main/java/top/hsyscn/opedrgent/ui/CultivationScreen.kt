@@ -593,7 +593,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
             text = stringResource(R.string.cultivation_start),
             loadingText = stringResource(R.string.cultivation_analyzing),
             loading = state.progressOn(ReflectionLens.CRITIQUE),
-            enabled = !state.isBusy && state.transcript.isNotBlank(),
+            enabled = !state.isBusy && state.transcript.isNotBlank() &&
+                (state.useCloud || readinessSnapshot.llm.state == ReadyState.READY),
             onClick = manager::analyze,
         )
     }

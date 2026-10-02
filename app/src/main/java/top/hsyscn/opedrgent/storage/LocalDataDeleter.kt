@@ -77,7 +77,7 @@ class LocalDataDeleter(private val context: Context) {
         }
 
     /** NOTES：笔记/文件夹数据库 + 知识图谱 + 关联海马索引 + 导出残留。 */
-    private fun deleteNotes(errors: MutableList<String>): Long {
+    private suspend fun deleteNotes(errors: MutableList<String>): Long {
         // 1) 笔记库与文件夹库物理清空：复用单例已打开连接，软删记录一并物理抹除，不可恢复。
         runCatching {
             NoteDatabase.getInstance(context).writableDatabase.delete(NoteDatabase.TABLE_NOTES, null, null)
@@ -100,7 +100,7 @@ class LocalDataDeleter(private val context: Context) {
     }
 
     /** REFLECTIONS：ReflectionStore.clearAll + 海马 deleteAllCultivation（同 CultivationStateManager 口径）。 */
-    private fun deleteReflections(errors: MutableList<String>) {
+    private suspend fun deleteReflections(errors: MutableList<String>) {
         runCatching { ReflectionStore(context).clearAll() }
             .onFailure { errors += "REFLECTIONS/store: ${it.message}" }
         runCatching { hippocampus().deleteAllCultivation() }
@@ -108,7 +108,7 @@ class LocalDataDeleter(private val context: Context) {
     }
 
     /** RECORDINGS：录音/会议临时音频文件 + 海马录音索引。 */
-    private fun deleteRecordings(errors: MutableList<String>): Long {
+    private suspend fun deleteRecordings(errors: MutableList<String>): Long {
         val freed = runCatching { purgeRecordingCache() }
             .onFailure { errors += "RECORDINGS/audio: ${it.message}" }
             .getOrDefault(0L)

@@ -1636,6 +1636,7 @@ private fun IdleModeSelection(
     val isMediumOrExpanded = isAtLeastMediumWidth()
 
     // 端侧 ASR 门控：未就绪且无云端识别后端时，在录音入口给出下载门控卡
+    val context = LocalContext.current
     val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
     LaunchedEffect(Unit) { readinessRepo.refresh() }
     val readinessSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
