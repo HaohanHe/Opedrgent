@@ -271,7 +271,7 @@ class LocalBackupManager(private val appContext: Context) {
             val db = SQLiteDatabase.openDatabase(
                 dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE,
             )
-            db.rawExecSQL("PRAGMA wal_checkpoint(FULL)")
+            db.execSQL("PRAGMA wal_checkpoint(FULL)")
             db.close()
         }
     }
