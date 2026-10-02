@@ -60,6 +60,8 @@ class ModelDownloadManager(private val context: Context) {
     private val activeDownloads = ConcurrentHashMap<String, Job>()
     private val progressFlows = ConcurrentHashMap<String, MutableSharedFlow<DownloadProgress>>()
 
+    private val inventory = LocalModelInventory(context)
+
     private val modelDir: File by lazy {
         val externalDir = context.getExternalFilesDir(null)
         if (externalDir != null) {
@@ -193,6 +195,7 @@ class ModelDownloadManager(private val context: Context) {
 
         if (deleted) {
             DebugLog.i("ModelDownloadManager", "Model deleted: $modelId")
+            inventory.remove(modelId)
         }
         return deleted
     }
@@ -378,6 +381,10 @@ class ModelDownloadManager(private val context: Context) {
             ) {
                 throw Exception("Downloaded file SHA-256 mismatch: ${modelInfo.id}")
             }
+
+            // 下载落定（rename + 体积/可选 SHA 校验通过）后记录每模型本地元信息。
+            // verified 口径：配置了可信上游哈希且已通过该校验；无上游哈希时如实记为 false。
+            inventory.recordDownloaded(modelInfo.id, modelInfo.expectedSha256 != null)
 
             emitProgress(flow, modelInfo.id, DownloadProgress(
                 modelId = modelInfo.id,

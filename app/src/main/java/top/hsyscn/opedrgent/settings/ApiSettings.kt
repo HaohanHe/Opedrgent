@@ -489,6 +489,17 @@ class ApiSettings(private val context: Context) {
             .apply()
     }
 
+
+    // ==================== 启用的本地模型 id（明文非敏感） ====================
+
+    /** 当前启用（选中）的本地 LLM 模型 id；null = 尚未显式选择，由就绪层回落推荐。 */
+    fun getActiveLocalModelId(): String? =
+        prefs.getString("active_local_model_id", null)?.trim()?.takeIf { it.isNotBlank() }
+
+    fun setActiveLocalModelId(id: String) {
+        prefs.edit().putString("active_local_model_id", id.trim()).apply()
+    }
+
     // ==================== 录音时长设置 ====================
 
     /** 获取录音模式最大时长（小时），0 表示无限制 */

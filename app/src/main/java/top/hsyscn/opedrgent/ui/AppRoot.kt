@@ -551,6 +551,7 @@ fun AppRoot(
                         subScreen = "cultivation"
                     },
                 )
+                "localmodels" -> LocalModelManageScreen(onBack = { subScreen = null }),
                 // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
                 "import" -> ImportFileScreen(
                     vm = vm,
@@ -765,6 +766,7 @@ fun AppRoot(
                             hippocampus = hippocampus,
                             showBackButton = false,
                             toOpenSource = { subScreen = "opensource" },
+                            toLocalModels = { subScreen = "localmodels" },
                         )
                     }
                 }

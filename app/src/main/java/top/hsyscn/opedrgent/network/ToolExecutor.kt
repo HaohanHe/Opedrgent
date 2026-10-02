@@ -33,6 +33,7 @@ import top.hsyscn.opedrgent.tools.ToolRegistry
 import top.hsyscn.opedrgent.tools.WebSearchTool
 import top.hsyscn.opedrgent.tools.TodoWriteTool
 import top.hsyscn.opedrgent.tools.RecallTool
+import top.hsyscn.opedrgent.tools.LocalModelTool
 import top.hsyscn.opedrgent.tools.StepRagTool
 import top.hsyscn.opedrgent.tools.StepSearchTool
 import top.hsyscn.opedrgent.tools.StepMobileAgentTool
@@ -140,6 +141,7 @@ class ToolExecutor(
         // ★ 行动项工具：模型可通过 tool_calls 创建 / 更新本地行动项
         register(ActionItemTool(context))
         register(BackupTool(context))
+        register(LocalModelTool(context))
     }
 
     suspend fun execute(

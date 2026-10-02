@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_models_title">Local Models</string>
+    <string name="local_models_subtitle">Manage downloaded on-device language models; several can coexist.</string>
+    <string name="local_models_manage_desc">Download, activate and delete models</string>
+
+    <string name="local_models_size_mb">%1$d MB</string>
+    <string name="local_models_size_gb">%1$.2f GB</string>
+
+    <string name="local_models_downloaded">Downloaded</string>
+    <string name="local_models_not_downloaded">Not downloaded</string>
+    <string name="local_models_active">Active</string>
+
+    <string name="local_models_download">Download</string>
+    <string name="local_models_downloading">Downloading %1$d%%</string>
+    <string name="local_models_set_active">Set active</string>
+    <string name="local_models_delete">Delete</string>
+
+    <string name="local_models_delete_title">Delete model?</string>
+    <string name="local_models_delete_body">This will delete %1$s (about %2$s). This cannot be undone.</string>
+    <string name="local_models_delete_in_use">Switch to another model before deleting this one</string>
+    <string name="local_models_cancel">Cancel</string>
+    <string name="local_models_confirm_delete">Delete</string>
+
+    <string name="local_models_verified_ok">Passed integrity check</string>
+    <string name="local_models_verified_basic">Verified by file size</string>
+
+    <string name="local_models_update_hint_title">Updates available</string>
+    <string name="local_models_downloading_unavailable">You are offline; downloading is unavailable</string>
+
+    <string name="local_models_load_error">Failed to load the model list</string>
+    <string name="local_models_empty">No models available</string>
+</resources>

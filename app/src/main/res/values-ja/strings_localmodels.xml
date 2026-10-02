@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_models_title">ローカルモデル管理</string>
+    <string name="local_models_subtitle">ダウンロード済みのオンデバイス言語モデルを管理します。複数を併存できます。</string>
+    <string name="local_models_manage_desc">モデルのダウンロード・有効化・削除</string>
+
+    <string name="local_models_size_mb">%1$d MB</string>
+    <string name="local_models_size_gb">%1$.2f GB</string>
+
+    <string name="local_models_downloaded">ダウンロード済み</string>
+    <string name="local_models_not_downloaded">未ダウンロード</string>
+    <string name="local_models_active">使用中</string>
+
+    <string name="local_models_download">ダウンロード</string>
+    <string name="local_models_downloading">ダウンロード中 %1$d%%</string>
+    <string name="local_models_set_active">使用中にする</string>
+    <string name="local_models_delete">削除</string>
+
+    <string name="local_models_delete_title">モデルを削除しますか？</string>
+    <string name="local_models_delete_body">%1$s（約%2$s）を削除します。この操作は元に戻せません。</string>
+    <string name="local_models_delete_in_use">削除する前に他のモデルへ切り替えてください</string>
+    <string name="local_models_cancel">キャンセル</string>
+    <string name="local_models_confirm_delete">削除</string>
+
+    <string name="local_models_verified_ok">完全性チェック済み</string>
+    <string name="local_models_verified_basic">ファイルサイズのみ検証</string>
+
+    <string name="local_models_update_hint_title">更新のお知らせ</string>
+    <string name="local_models_downloading_unavailable">オフラインのためダウンロードできません</string>
+
+    <string name="local_models_load_error">モデル一覧の読み込みに失敗しました</string>
+    <string name="local_models_empty">利用可能なモデルがありません</string>
+</resources>

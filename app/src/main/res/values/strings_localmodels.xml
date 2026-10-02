@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_models_title">本地模型管理</string>
+    <string name="local_models_subtitle">管理已下载的端侧大模型，可并存多个。</string>
+    <string name="local_models_manage_desc">多模型的下载、启用与删除</string>
+
+    <string name="local_models_size_mb">%1$d MB</string>
+    <string name="local_models_size_gb">%1$.2f GB</string>
+
+    <string name="local_models_downloaded">已下载</string>
+    <string name="local_models_not_downloaded">未下载</string>
+    <string name="local_models_active">当前启用</string>
+
+    <string name="local_models_download">下载</string>
+    <string name="local_models_downloading">下载中 %1$d%%</string>
+    <string name="local_models_set_active">设为启用</string>
+    <string name="local_models_delete">删除</string>
+
+    <string name="local_models_delete_title">删除模型？</string>
+    <string name="local_models_delete_body">将删除 %1$s（约 %2$s）。此操作不可恢复。</string>
+    <string name="local_models_delete_in_use">请先切换到其他模型再删除</string>
+    <string name="local_models_cancel">取消</string>
+    <string name="local_models_confirm_delete">删除</string>
+
+    <string name="local_models_verified_ok">已通过完整性校验</string>
+    <string name="local_models_verified_basic">已按体积校验</string>
+
+    <string name="local_models_update_hint_title">更新提示</string>
+    <string name="local_models_downloading_unavailable">未连接网络，暂不能下载</string>
+
+    <string name="local_models_load_error">加载模型列表失败</string>
+    <string name="local_models_empty">暂无可用模型</string>
+</resources>

@@ -198,6 +198,7 @@ fun SettingsScreen(
     showBackButton: Boolean = true,
     onInvisiblePartner: () -> Unit = {},
     toOpenSource: () -> Unit = {},
+    toLocalModels: () -> Unit = {},
 ) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.getBaseUrl()) }
     var model by rememberSaveable { mutableStateOf(vm.getModel()) }
@@ -668,6 +669,14 @@ fun SettingsScreen(
                         Spacer(Modifier.width(SpacingTokens.sm))
                         Text(stringResource(R.string.settings_select_model), style = MaterialTheme.typography.bodySmall, color = BubbleBlue)
                     }
+
+                    SettingNavigationRow(
+                        title = stringResource(R.string.local_models_title),
+                        subtitle = stringResource(R.string.local_models_manage_desc),
+                        icon = Icons.Default.Download,
+                        iconTint = BubbleBlue,
+                        onClick = toLocalModels,
+                    )
 
                     val currentInfo = localModelId?.let { AvailableLocalModels.findById(it) }
                     if (isLocalMode && currentInfo != null) {

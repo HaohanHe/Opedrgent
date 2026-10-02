@@ -18,9 +18,11 @@ import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.DownloadStatus
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
+import top.hsyscn.opedrgent.llm.LocalModelInventory
 import top.hsyscn.opedrgent.stt.ModelManager
 import top.hsyscn.opedrgent.stt.ModelType
 import top.hsyscn.opedrgent.utils.DebugLog
+import top.hsyscn.opedrgent.settings.ApiSettings
 
 /** 端侧模型类别。 */
 enum class ModelKind { LLM, ASR, TTS }
@@ -56,6 +58,19 @@ data class ComponentStatus(
         }
 }
 
+/** 单个本地模型的只读视图（目录 + 磁盘下载状态 + 本地元信息 + 启用态）。 */
+data class LocalModelEntry(
+    val id: String,
+    val displayName: String,
+    val sizeMb: Long,
+    val downloaded: Boolean,
+    val active: Boolean,
+    val filePath: String? = null,
+    val downloadedAt: Long? = null,
+    val verified: Boolean = false,
+)
+
+
 /** 一次完整的端侧模型就绪快照。online 仅用于下载提示，不得用于本地推理门控。 */
 data class ModelReadinessSnapshot(
     val llm: ComponentStatus,
@@ -87,6 +102,9 @@ class ModelReadinessRepository private constructor(private val appContext: Conte
 
     private val llmDownloadManager = ModelDownloadManager(appContext)
 
+    private val apiSettings by lazy { ApiSettings(appContext) }
+    private val localModelInventory by lazy { LocalModelInventory(appContext) }
+
     // ── 内部可变状态（由磁盘/下载流推导） ──────────────────────────────
     @Volatile private var llmStatus: ComponentStatus =
         ComponentStatus(ModelKind.LLM, ReadyState.NOT_PRESENT, "本地大模型")
@@ -116,7 +134,13 @@ class ModelReadinessRepository private constructor(private val appContext: Conte
     fun refresh() {
         recommendedLlmId = pickRecommendedLlmId()
         recommendedAsrType = ModelManager.getRecommendedModel(appContext).name
-        if (selectedLlmId == null) selectedLlmId = recommendedLlmId
+        if (selectedLlmId == null) {
+            // 优先恢复上次启用的本地模型 id（仅当该 id 仍在目录中）；否则回落推荐并持久化。
+            val persisted = apiSettings.getActiveLocalModelId()
+                ?.takeIf { AvailableLocalModels.findById(it) != null }
+            selectedLlmId = persisted ?: recommendedLlmId
+            selectedLlmId?.let { apiSettings.setActiveLocalModelId(it) }
+        }
         if (selectedAsrType == null) selectedAsrType = ModelManager.getRecommendedModel(appContext)
         syncLlmFromDisk()
         syncAsrFromDisk()
@@ -144,10 +168,46 @@ class ModelReadinessRepository private constructor(private val appContext: Conte
             return
         }
         selectedLlmId = modelId
+        apiSettings.setActiveLocalModelId(modelId)
         // 先挂流再触发下载，避免错过 QUEUED/DOWNLOADING 事件（SharedFlow replay=1 可补到当前态）
         collectLlm(modelId)
         llmDownloadManager.startDownload(info)
         emitSnapshot()
+    }
+
+    /**
+     * 切换当前启用（选中）的本地 LLM 模型。
+     * 校验 id 在目录中存在 → 持久化启用 → 切流/按磁盘重新同步 → 发快照。
+     * 切到尚未下载的模型时，就绪门控会正确落为 NOT_PRESENT（不伪造 READY）。
+     */
+    fun selectLlm(modelId: String): Boolean {
+        AvailableLocalModels.findById(modelId) ?: return false
+        apiSettings.setActiveLocalModelId(modelId)
+        selectedLlmId = modelId
+        llmCollectJob?.cancel()
+        syncLlmFromDisk()
+        emitSnapshot()
+        return true
+    }
+
+    /** 只读：目录中全部本地模型的下载/启用/元信息视图（供 UI 与模型工具使用）。 */
+    fun listLocalModelEntries(): List<LocalModelEntry> {
+        val downloadedIds = llmDownloadManager.getDownloadedModels().map { it.id }.toSet()
+        val activeId = apiSettings.getActiveLocalModelId()
+        return AvailableLocalModels.MODELS.map { info ->
+            val meta = localModelInventory.get(info.id)
+            val file = llmDownloadManager.getModelFile(info.id)
+            LocalModelEntry(
+                id = info.id,
+                displayName = info.displayName,
+                sizeMb = info.sizeMb,
+                downloaded = info.id in downloadedIds,
+                active = info.id == activeId,
+                filePath = file?.absolutePath,
+                downloadedAt = meta?.downloadedAt,
+                verified = meta?.verified ?: false,
+            )
+        }
     }
 
     /** typeName 对应 stt/ModelType 枚举名。 */
