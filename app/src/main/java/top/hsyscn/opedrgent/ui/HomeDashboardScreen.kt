@@ -239,6 +239,9 @@ fun HomeDashboardScreen(
                         )
                     }
                     item {
+                        ActionReminderCard(onClick = { onOpenSubScreen("actions") })
+                    }
+                    item {
                         FeatureDiscoveryGrid(
                             onInterview = onNavigateToInterview,
                             onEditorTeam = onOpenEditorTeam,

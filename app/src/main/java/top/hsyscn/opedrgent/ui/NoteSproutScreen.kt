@@ -56,6 +56,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.storage.SproutReportRecord
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.ui.components.MarkdownText
+import top.hsyscn.opedrgent.ui.state.MirrorHandoff
 import top.hsyscn.opedrgent.ui.components.DownloadQuotes
 import top.hsyscn.opedrgent.ui.components.LocalFeedbackController
 import top.hsyscn.opedrgent.ui.theme.ElevationTokens
@@ -89,6 +90,7 @@ fun NoteSproutScreen(
     sproutScope: kotlinx.coroutines.CoroutineScope? = null,
     onBack: () -> Unit,
     onEditNote: () -> Unit = {},
+    onSendToCultivation: () -> Unit = {},
 ) {
     val pageScope = rememberCoroutineScope()
     // 优先使用 ViewModel scope（后台执行，退出不中断），否则用页面 scope
@@ -199,6 +201,23 @@ fun NoteSproutScreen(
                                 text = { Text(stringResource(R.string.note_editor_edit)) },
                                 onClick = { showMenu = false; onEditNote() },
                                 leadingIcon = { Icon(Icons.Default.Edit, stringResource(R.string.note_editor_edit)) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("送入批判镜") },
+                                onClick = {
+                                    showMenu = false
+                                    val mirrorText = article?.toMarkdownText(context).orEmpty().trim()
+                                    if (mirrorText.isNotBlank()) {
+                                        MirrorHandoff.post(
+                                            transcript = mirrorText,
+                                            sourceTitle = note.title,
+                                            sourceTypeLabel = "洞察",
+                                        )
+                                        onSendToCultivation()
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, "送入批判镜") },
+                                enabled = article != null,
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.sprout_copy_report)) },

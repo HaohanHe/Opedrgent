@@ -15,6 +15,7 @@ import top.hsyscn.opedrgent.model.ToolState
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.tools.ActionItemTool
 import top.hsyscn.opedrgent.tools.DeepResearchTool
 import top.hsyscn.opedrgent.tools.GenerateReportTool
 import top.hsyscn.opedrgent.tools.InsightSproutTool
@@ -135,6 +136,8 @@ class ToolExecutor(
         register(SatellitePassTool(context, apiSettings))
         // Health Connect 运动健康数据读取工具
         register(HealthTool(context))
+        // ★ 行动项工具：模型可通过 tool_calls 创建 / 更新本地行动项
+        register(ActionItemTool(context))
     }
 
     suspend fun execute(

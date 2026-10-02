@@ -51,6 +51,8 @@ fun NoteActionBottomSheet(
     onDelete: () -> Unit,
     onTogglePin: () -> Unit,
     onSendToChat: () -> Unit,
+    /** 送入批判镜：笔记详情页传入时展示该入口；列表页不传则隐藏。仅导航，不做内容判定。 */
+    onSendToCultivation: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     @Suppress("DEPRECATION")
@@ -255,6 +257,15 @@ fun NoteActionBottomSheet(
                     },
                     modifier = Modifier.clickable { onDismiss(); onSendToChat() },
                 )
+                if (onSendToCultivation != null) {
+                    ListItem(
+                        headlineContent = { Text("送入批判镜") },
+                        leadingContent = {
+                            Icon(Icons.Default.AutoAwesome, "送入批判镜", modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
+                        },
+                        modifier = Modifier.clickable { onDismiss(); onSendToCultivation?.invoke() },
+                    )
+                }
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingContent = {

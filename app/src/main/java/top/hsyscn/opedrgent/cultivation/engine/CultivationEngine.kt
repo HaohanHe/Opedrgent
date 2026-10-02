@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.cultivation.engine
 
 import android.content.Context
+import top.hsyscn.opedrgent.action.ActionStore
 import top.hsyscn.opedrgent.cultivation.mirror.AntiSycophancyGuard
 import top.hsyscn.opedrgent.cultivation.mirror.AntiSycophancyGuard.GuardResult
 import top.hsyscn.opedrgent.cultivation.mirror.ExemplarAnalyzer
@@ -14,6 +15,7 @@ import top.hsyscn.opedrgent.cultivation.mirror.MirrorPromptBuilder
 import top.hsyscn.opedrgent.cultivation.mirror.ReflectionToolProtocol
 import top.hsyscn.opedrgent.cultivation.model.ExemplarReport
 import top.hsyscn.opedrgent.cultivation.model.FeedbackMode
+import top.hsyscn.opedrgent.cultivation.model.FollowUp
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
 import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
 import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
@@ -41,6 +43,7 @@ class CultivationEngine(
 ) {
     private val baselineStore = VirtueBaselineStore(context)
     private val reflectionStore = ReflectionStore(context)
+    private val actionStore = ActionStore.getInstance(context)
     private val analyzer = MirrorAnalyzer()
     private val guard = AntiSycophancyGuard()
     private val exemplarAnalyzer = ExemplarAnalyzer()
@@ -118,7 +121,7 @@ class CultivationEngine(
             DebugLog.w(TAG, "重做后仍未过质量门，不输出低质反馈：${check.violations}")
             return ReflectionOutcome(false, ReflectionLens.CRITIQUE, null, attempts, check.violations, null)
         }
-        return persistCritique(report, attempts, persist)
+        return persistCritique(report, attempts, persist, transcript)
     }
 
     /** 重做一次：先模型自审，自审给修订 JSON 则重解析，否则带确定性违规清单重生成（不再走工具）。 */
@@ -179,21 +182,55 @@ class CultivationEngine(
             }.getOrNull()
             if (second != null) {
                 val check = guard.verifyReport(second, transcript)
-                if (check.passed) return persistCritique(second, attemptsIn + 1, persist)
+                if (check.passed) return persistCritique(second, attemptsIn + 1, persist, transcript)
                 return ReflectionOutcome(false, ReflectionLens.CRITIQUE, null, attemptsIn + 1, check.violations, null)
             }
         }
         return ReflectionOutcome(false, ReflectionLens.CRITIQUE, null, attemptsIn, listOf("分析失败：${error.message}"), null)
     }
 
-    private suspend fun persistCritique(report: MirrorReport, attempts: Int, persist: Boolean): ReflectionOutcome {
+    private suspend fun persistCritique(
+        report: MirrorReport,
+        attempts: Int,
+        persist: Boolean,
+        transcript: String,
+    ): ReflectionOutcome {
         val record = ReflectionRecord(
             lens = ReflectionLens.CRITIQUE,
             critique = report,
             createdAt = report.createdAt,
         )
         val id = if (persist) reflectionStore.insert(record) else null
+        if (id != null) {
+            importFollowUpsToActions(id, ReflectionLens.CRITIQUE, report.followUps, report.overall, transcript)
+        }
         return ReflectionOutcome(true, ReflectionLens.CRITIQUE, record.copy(id = id ?: 0), attempts, emptyList(), id)
+    }
+
+    /**
+     * 复盘落库成功后，把该报告的 followUps 幂等导入行动项库。
+     *
+     * 最小接线：导入失败不影响复盘落库主流程（runCatching 吞掉）；内嵌 FollowUp 仍保留在报告里
+     * 用于展示与复评，行动项库是另一张表，二者状态不自动双向同步——
+     * UI 侧如需"完成行动项同时回写内嵌 FollowUp"，应分别调用 ActionStore.updateStatus 与
+     * ReflectionStore.updateFollowUpStatus，保持单向、低耦合。
+     */
+    private suspend fun importFollowUpsToActions(
+        reflectionId: Long,
+        lens: ReflectionLens,
+        followUps: List<FollowUp>,
+        sourceTitle: String,
+        transcript: String,
+    ) {
+        runCatching {
+            actionStore.importFromReflection(
+                reflectionId = reflectionId,
+                sourceTypeLabel = if (lens == ReflectionLens.EXEMPLAR) "榜样镜复盘" else "批判镜复盘",
+                sourceTitle = sourceTitle.trim().take(60),
+                sourceSnippet = transcript.trim().take(200),
+                followUps = followUps,
+            )
+        }.onFailure { DebugLog.w(TAG, "复盘跟进导入行动项失败（不影响落库）：${it.message}") }
     }
 
     // ===== 榜样镜 =====
@@ -258,6 +295,9 @@ class CultivationEngine(
             createdAt = report.createdAt,
         )
         val id = if (retain) reflectionStore.insert(record) else null
+        if (id != null) {
+            importFollowUpsToActions(id, ReflectionLens.EXEMPLAR, report.followUps, report.situation, transcript)
+        }
         return ReflectionOutcome(true, ReflectionLens.EXEMPLAR, record.copy(id = id ?: 0), attempts, emptyList(), id)
     }
 

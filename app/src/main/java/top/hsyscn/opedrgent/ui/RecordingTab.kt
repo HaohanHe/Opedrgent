@@ -163,6 +163,7 @@ import java.io.FileOutputStream
 import java.util.Date
 import java.util.Locale
 import top.hsyscn.opedrgent.ui.components.SttProgressDialog
+import top.hsyscn.opedrgent.ui.state.MirrorHandoff
 import top.hsyscn.opedrgent.ui.state.SttProgressState
 import top.hsyscn.opedrgent.ui.state.SttUiState
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
@@ -1204,7 +1205,13 @@ fun RecordingTab(
                                         if (mirrorText.isBlank()) {
                                             scope.launch { snackbar.showSnackbar(context.getString(R.string.recording_contact_log_empty_transcript)) }
                                         } else {
-                                            vm.cultivation.loadTranscript(mirrorText)
+                                            // 经统一移交载体带入批判镜：只暂存文本与来源信息，批判镜页进入时预载，不自动分析
+                                            val dateStr = java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(startTime.longValue))
+                                            MirrorHandoff.post(
+                                                transcript = mirrorText,
+                                                sourceTitle = noteTitle.ifBlank { dateStr },
+                                                sourceTypeLabel = "录音",
+                                            )
                                             onNavigateToCultivation()
                                         }
                                     },

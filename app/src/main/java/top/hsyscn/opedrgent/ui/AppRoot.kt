@@ -514,6 +514,13 @@ fun AppRoot(
                         selectedTab = MainTab.SETTINGS
                     },
                 )
+                "actions" -> ActionsScreen(
+                    onBack = { subScreen = null },
+                    onOpenReflection = { id ->
+                        top.hsyscn.opedrgent.ui.state.ReflectionLocator.open(id)
+                        subScreen = "cultivation"
+                    },
+                )
                 // 修复：添加导入文件功能处理（原来点击"导入文件"按钮无响应）
                 "import" -> ImportFileScreen(
                     vm = vm,
@@ -743,6 +750,7 @@ fun AppRoot(
                                     forceReadOnly = true,
                                     onBack = { subScreen = "notes" },
                                     onEdit = { subScreen = "noteEditor_$noteId" },
+                                    onSendToCultivation = { subScreen = "cultivation" },
                                     onSendToChat = { id ->
                                         vm.sendNoteToChat(id)
                                         subScreen = "chat"
@@ -841,6 +849,7 @@ fun AppRoot(
                                         sproutScope = vm.backgroundScope,
                                         onBack = { subScreen = "notes" },
                                         onEditNote = { subScreen = "noteEditor_$noteId" },
+                                        onSendToCultivation = { subScreen = "cultivation" },
                                     )
                                 }
                             }

@@ -84,6 +84,8 @@ import top.hsyscn.opedrgent.modelreadiness.ReadyState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
 import top.hsyscn.opedrgent.ui.state.CultivationStateManager
+import top.hsyscn.opedrgent.ui.state.MirrorHandoff
+import top.hsyscn.opedrgent.ui.state.ReflectionLocator
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
@@ -107,6 +109,30 @@ fun CultivationScreen(
     val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }
     LaunchedEffect(Unit) { readinessRepo.refresh() }
     val readinessSnapshot by readinessRepo.snapshot.collectAsStateWithLifecycle()
+
+    // 跨页移交：录音 / 笔记 / 洞察详情页由用户主动点「送入批判镜」后在此消费。
+    // 只把转写预载进待分析框并小字标注来源，不自动开始分析；无移交内容则保持原样。
+    var handoffSourceLabel by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        MirrorHandoff.consume()?.let { payload ->
+            manager.loadTranscript(payload.transcript)
+            handoffSourceLabel = buildString {
+                append("来源：")
+                append(payload.sourceTypeLabel)
+                if (payload.sourceTitle.isNotBlank()) {
+                    append(" · ")
+                    append(payload.sourceTitle)
+                }
+            }
+        }
+    }
+
+    // 行动项「查看复盘」：定位到该复盘。本阶段切到历史区即可，不做精确滚动。
+    LaunchedEffect(Unit) {
+        if (ReflectionLocator.consume() != null) {
+            tab = CultivationTab.HISTORY
+        }
+    }
 
     // 从设置加载完模型返回时，自动重新探测端侧就绪状态，不让用户手动找刷新
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -188,7 +214,7 @@ fun CultivationScreen(
             }
 
             when (tab) {
-                CultivationTab.MIRROR -> mirrorItems(manager, state, readinessSnapshot.llm.state == ReadyState.READY)
+                CultivationTab.MIRROR -> mirrorItems(manager, state, readinessSnapshot.llm.state == ReadyState.READY, handoffSourceLabel)
                 CultivationTab.BASELINE -> baselineItems(manager, state.editingDimensions)
                 CultivationTab.HISTORY -> historyItems(manager, state.history)
                 CultivationTab.EXEMPLAR -> exemplarItems(manager, state)
@@ -534,6 +560,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
     manager: CultivationStateManager,
     state: CultivationStateManager.CultivationUiState,
     llmReady: Boolean,
+    handoffSourceLabel: String? = null,
 ) {
     item {
         SectionLabel(stringResource(R.string.cultivation_backend_label))
@@ -587,6 +614,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
             modifier = Modifier.heightIn(min = 200.dp),
             label = { Text(stringResource(R.string.cultivation_transcript_hint)) },
         )
+        // 跨页移交来源的克制小字标注（仅展示来源，不触发任何分析）
+        if (!handoffSourceLabel.isNullOrBlank()) {
+            Spacer(Modifier.height(SpacingTokens.xs))
+            Text(
+                handoffSourceLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = themeTextGrey(),
+            )
+        }
     }
 
     item {

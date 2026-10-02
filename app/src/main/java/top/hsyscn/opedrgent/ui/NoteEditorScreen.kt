@@ -34,6 +34,7 @@ import androidx.core.net.toUri
 import top.hsyscn.opedrgent.ui.components.dropContentTarget
 import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
 import top.hsyscn.opedrgent.ui.components.isExpandedWidth
+import top.hsyscn.opedrgent.ui.state.MirrorHandoff
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -108,6 +109,8 @@ fun NoteEditorScreen(
     editorMode: String = "richtext",
     /** 发芽服务（用于重新发芽旧格式报告） */
     sproutService: top.hsyscn.opedrgent.note.SproutService? = null,
+    /** 送入批判镜：笔记详情用户主动触发，把正文与标题经 MirrorHandoff 带入批判镜页。 */
+    onSendToCultivation: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -1102,6 +1105,19 @@ fun NoteEditorScreen(
                     scope.launch { repository.togglePin(noteId) }
                 },
                 onSendToChat = { onSendToChat(noteId) },
+                onSendToCultivation = {
+                    val mirrorText = menuNote.content.trim()
+                    if (mirrorText.isBlank()) {
+                        scope.launch { snackbarHostState.showSnackbar("笔记内容为空，暂无法送入批判镜") }
+                    } else {
+                        MirrorHandoff.post(
+                            transcript = mirrorText,
+                            sourceTitle = menuNote.title,
+                            sourceTypeLabel = "笔记",
+                        )
+                        onSendToCultivation()
+                    }
+                },
             )
         }
 
