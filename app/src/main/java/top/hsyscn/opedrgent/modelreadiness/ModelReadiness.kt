@@ -100,7 +100,7 @@ class ModelReadinessRepository private constructor(private val appContext: Conte
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val llmDownloadManager = ModelDownloadManager(appContext)
+    private val llmDownloadManager = ModelDownloadManager.getInstance(appContext)
 
     private val apiSettings by lazy { ApiSettings(appContext) }
     private val localModelInventory by lazy { LocalModelInventory(appContext) }

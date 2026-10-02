@@ -255,7 +255,7 @@ fun LocalModelManageScreen(onBack: () -> Unit) {
                 TextButton(onClick = {
                     pendingDelete = null
                     scope.launch {
-                        runCatching { ModelDownloadManager(context).deleteModel(target.id) }
+                        runCatching { ModelDownloadManager.getInstance(context).deleteModel(target.id) }
                         repo.refresh()
                         reload()
                     }

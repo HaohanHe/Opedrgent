@@ -364,7 +364,7 @@ class LocalBackupManager(private val appContext: Context) {
     ) {
         // LLM 模型（只读复用 ModelDownloadManager，不触发下载）
         runCatching {
-            val mgr = ModelDownloadManager(context)
+            val mgr = ModelDownloadManager.getInstance(context)
             mgr.getDownloadedModels().forEach { info ->
                 val f = mgr.getModelFile(info.id) ?: return@forEach
                 if (!f.exists()) return@forEach

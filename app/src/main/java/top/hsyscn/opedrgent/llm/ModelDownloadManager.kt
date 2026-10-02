@@ -49,7 +49,18 @@ data class DownloadProgress(
     val totalMb: Float get() = totalBytes / (1024f * 1024f)
 }
 
-class ModelDownloadManager(private val context: Context) {
+class ModelDownloadManager private constructor(private val context: Context) {
+
+    companion object {
+        @Volatile private var instance: ModelDownloadManager? = null
+
+        fun getInstance(context: Context): ModelDownloadManager =
+            instance ?: synchronized(this) {
+                instance ?: create(context.applicationContext).also { instance = it }
+            }
+
+        private fun create(appContext: Context): ModelDownloadManager = ModelDownloadManager(appContext)
+    }
 
     private val httpClient = HttpClients.download.newBuilder()
         .followRedirects(true)
@@ -232,10 +243,15 @@ class ModelDownloadManager(private val context: Context) {
         return modelDir.listFiles()?.sumOf { it.length() }?.div(1024 * 1024) ?: 0
     }
 
+    /**
+     * 已废弃为「关闭本实例」语义：本类现为进程级单例，随进程存活。
+     *
+     * 共享的 scope / activeDownloads / progressFlows 不应被任一调用方单点关闭，
+     * 否则其它调用方将永久失效。现保留方法签名仅为兼容历史调用，不再取消共享 scope、
+     * 不清空活动下载表，实际为空操作；如需取消全部活动下载请改用 [cancelAll]。
+     */
     fun release() {
-        activeDownloads.values.forEach { it.cancel() }
-        activeDownloads.clear()
-        scope.cancel()
+        // no-op：进程级单例随进程存活，不应被单点释放。
     }
 
     /**
@@ -247,19 +263,16 @@ class ModelDownloadManager(private val context: Context) {
     }
 
     /**
-     * 取消全部活动下载并取消自建 scope，彻底释放本实例资源。
+     * 已废弃为「彻底释放本实例资源」语义：本类现为进程级单例，随进程存活。
      *
-     * 供 throwaway 实例（删除模型 / 备份 / 清除数据等一次性流程）在完成操作后调用，
-     * 避免每次 new 出来的独立 scope 无人取消而泄漏。
+     * 历史上供 throwaway 实例在用完后关闭自建 scope；收敛为单例后，scope 为全局共享资源，
+     * 任一调用方都不得取消它（否则所有后续下载永久失效），也不应清空共享的 progressFlows。
      *
-     * 根因仍在：多个 ModelDownloadManager 实例各自持有独立的 scope / activeDownloads /
-     * progressFlows，互不可见；本方法只清理「当前这个实例」的资源。跨实例的活动下载与进度流
-     * 仍需各调用方在各自实例上负责关闭；后续若统一收敛为单例可从根本上消除该问题。
+     * 现保留方法签名，仅委托 [cancelAll] 取消全部活动下载（全局生效，符合预期）；
+     * 不取消共享 scope、不清空进度流。真正的全局资源由进程生命周期托管。
      */
     fun close() {
         cancelAll()
-        activeDownloads.clear()
-        scope.cancel()
     }
 
     private suspend fun doDownload(modelInfo: LocalModelInfo, downloadUrl: String, flow: MutableSharedFlow<DownloadProgress>) {

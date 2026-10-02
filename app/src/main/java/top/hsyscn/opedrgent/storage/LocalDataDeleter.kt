@@ -127,7 +127,7 @@ class LocalDataDeleter(private val context: Context) {
     /** DOWNLOADED_MODELS：逐个删除本地 LLM 模型（含 .tmp）+ 清空 STT 模型目录。 */
     private fun deleteDownloadedModels(errors: MutableList<String>): Long {
         var freed = 0L
-        val mdm = ModelDownloadManager(context)
+        val mdm = ModelDownloadManager.getInstance(context)
         for (model in AvailableLocalModels.MODELS) {
             runCatching {
                 freed += (mdm.getModelFile(model.id)?.length() ?: 0L) + mdm.getPartialBytes(model.id)

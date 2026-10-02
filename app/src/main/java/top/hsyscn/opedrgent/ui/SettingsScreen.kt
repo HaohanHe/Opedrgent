@@ -248,7 +248,7 @@ fun SettingsScreen(
     var showMemoryWarning by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val localEngine = remember { LocalLlmEngine.getInstance(context) }
-    val downloadManager = remember { ModelDownloadManager(context) }
+    val downloadManager = remember { ModelDownloadManager.getInstance(context) }
     var isLocalMode by rememberSaveable { mutableStateOf(vm.isLocalModelEnabled()) }
     var localModelId by rememberSaveable { mutableStateOf(vm.getLocalModelId()) }
     var providerMenuExpanded by rememberSaveable { mutableStateOf(false) }
