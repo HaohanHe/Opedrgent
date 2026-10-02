@@ -117,6 +117,11 @@ class SproutReportStore(context: Context) {
             arrayOf(noteId.toString()))
     }
 
+    /** 清空全部发芽报告（清除 NOTES 分类时复用，避免孤儿报告）。 */
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
+        db.delete(SproutReportDatabase.TABLE, null, null)
+    }
+
     /** 获取全部报告（按时间倒序） */
     suspend fun getAll(limit: Int = 50): List<SproutReportRecord> = withContext(Dispatchers.IO) {
         val cursor = db.query(

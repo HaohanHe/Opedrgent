@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import top.hsyscn.opedrgent.action.ActionStore
 import top.hsyscn.opedrgent.cultivation.store.ReflectionStore
 import top.hsyscn.opedrgent.llm.AvailableLocalModels
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
@@ -93,18 +94,24 @@ class LocalDataDeleter(private val context: Context) {
             hippocampus().deleteAllByType(SourceType.NOTE)
             hippocampus().deleteAllByType(SourceType.SPROUT)
         }.onFailure { errors += "NOTES/hippocampus: ${it.message}" }
+        // 3.5) 发芽报告库（sprout_reports.db）：按笔记派生，随 NOTES 一并清空，避免孤儿报告。
+        runCatching { SproutReportStore(context).clearAll() }
+            .onFailure { errors += "NOTES/sprout-reports: ${it.message}" }
         // 4) 导出残留（应用私有 Documents）。
         return runCatching { purgeNoteExports() }
             .onFailure { errors += "NOTES/exports: ${it.message}" }
             .getOrDefault(0L)
     }
 
-    /** REFLECTIONS：ReflectionStore.clearAll + 海马 deleteAllCultivation（同 CultivationStateManager 口径）。 */
+    /** REFLECTIONS：ReflectionStore.clearAll + 海马 deleteAllCultivation + 复盘导入的行动项清理（同 CultivationStateManager 口径）。 */
     private suspend fun deleteReflections(errors: MutableList<String>) {
         runCatching { ReflectionStore(context).clearAll() }
             .onFailure { errors += "REFLECTIONS/store: ${it.message}" }
         runCatching { hippocampus().deleteAllCultivation() }
             .onFailure { errors += "REFLECTIONS/hippocampus: ${it.message}" }
+        // 复盘已整体抹除，由复盘导入的行动项（source_reflection_id>0）来源悬空；手动创建项（=0）保留。
+        runCatching { ActionStore.getInstance(context).deleteReflectionSourced() }
+            .onFailure { errors += "REFLECTIONS/actions: ${it.message}" }
     }
 
     /** RECORDINGS：录音/会议临时音频文件 + 海马录音索引。 */

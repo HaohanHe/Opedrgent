@@ -238,6 +238,30 @@ class ModelDownloadManager(private val context: Context) {
         scope.cancel()
     }
 
+    /**
+     * 取消本实例全部正在进行的下载（复用 [cancelDownload]，会丢弃对应 .tmp 断点临时文件）。
+     * 仅清空活动任务、不取消 scope —— 供仍需复用本实例、只想取消全部下载时使用。
+     */
+    fun cancelAll() {
+        activeDownloads.keys.toList().forEach { cancelDownload(it) }
+    }
+
+    /**
+     * 取消全部活动下载并取消自建 scope，彻底释放本实例资源。
+     *
+     * 供 throwaway 实例（删除模型 / 备份 / 清除数据等一次性流程）在完成操作后调用，
+     * 避免每次 new 出来的独立 scope 无人取消而泄漏。
+     *
+     * 根因仍在：多个 ModelDownloadManager 实例各自持有独立的 scope / activeDownloads /
+     * progressFlows，互不可见；本方法只清理「当前这个实例」的资源。跨实例的活动下载与进度流
+     * 仍需各调用方在各自实例上负责关闭；后续若统一收敛为单例可从根本上消除该问题。
+     */
+    fun close() {
+        cancelAll()
+        activeDownloads.clear()
+        scope.cancel()
+    }
+
     private suspend fun doDownload(modelInfo: LocalModelInfo, downloadUrl: String, flow: MutableSharedFlow<DownloadProgress>) {
         ModelDownloadService.start(context, modelInfo.displayName)
 

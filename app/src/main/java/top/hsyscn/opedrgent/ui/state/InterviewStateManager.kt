@@ -578,10 +578,22 @@ class InterviewStateManager(
      */
     private fun launchInterviewTimer() {
         scope.launch {
-            while (_interviewState.value.phase == InterviewPhase.IN_PROGRESS) {
+            // 常驻计时协程：不随 phase 离开 IN_PROGRESS 而结束。
+            // - IN_PROGRESS / EVALUATING：每秒按面试开始时间戳累加 elapsedSeconds（墙钟连续，多轮文字问答不冻结）。
+            //   文字回答 sendInterviewAnswer 会先置 EVALUATING、评估完再恢复 IN_PROGRESS；
+            //   旧实现的 while(phase==IN_PROGRESS) 会在 EVALUATING 时退出协程，恢复后无人重启 -> 计时冻结。
+            //   现改为挂起等待下一秒轮询，phase 离开 IN_PROGRESS 时不退出协程。
+            // - 终态 COMPLETED（面试结束）或 SETUP（已重置）：退出协程正确停止、不泄漏。
+            while (true) {
                 delay(1000L)
-                val elapsed = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt()
-                _interviewState.value = _interviewState.value.copy(elapsedSeconds = elapsed)
+                when (_interviewState.value.phase) {
+                    InterviewPhase.COMPLETED,
+                    InterviewPhase.SETUP -> break
+                    else -> {
+                        val elapsed = ((System.currentTimeMillis() - interviewStartTime) / 1000).toInt()
+                        _interviewState.value = _interviewState.value.copy(elapsedSeconds = elapsed)
+                    }
+                }
             }
         }
     }

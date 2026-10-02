@@ -16,6 +16,7 @@ import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.MemoryScope
 import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
+import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -277,6 +278,9 @@ class NoteRepository(
         memoryStore?.removeNoteMemory(id)
         // 同步清理海马体索引
         hippocampus?.deleteBySource(HippoSourceType.NOTE, id.toString())
+        // 同步清理该笔记派生的发芽报告，避免孤儿报告指向已删笔记
+        runCatching { SproutReportStore(context).deleteByNoteId(id) }
+            .onFailure { DebugLog.e("NoteRepository", "cleanup sprout reports failed: ${it.message}", it) }
         _changeTrigger.value = System.currentTimeMillis()
     }
 

@@ -111,6 +111,20 @@ class ActionStore private constructor(context: Context) {
         }
     }
 
+    /**
+     * 删除所有由复盘导入的行动项（source_reflection_id > 0）。
+     *
+     * 用于"清除反思"分类：ReflectionStore.clearAll 会抹掉全部复盘记录，
+     * 这些导入来源随之悬空；手动创建的行动项（source_reflection_id = 0）保留不误伤。
+     */
+    suspend fun deleteReflectionSourced() = withContext(Dispatchers.IO) {
+        db.delete(
+            ActionDatabase.TABLE_ACTION,
+            "${ActionDatabase.AC_SOURCE_REFLECTION_ID} > 0",
+            null,
+        )
+    }
+
     private fun toValues(item: ActionItem): ContentValues = ContentValues().apply {
         put(ActionDatabase.AC_TITLE, item.title)
         put(ActionDatabase.AC_KIND, item.kind.name)
