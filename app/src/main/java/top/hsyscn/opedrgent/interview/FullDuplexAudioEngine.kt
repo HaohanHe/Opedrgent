@@ -20,6 +20,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.tts.TtsPlayer
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -833,6 +834,7 @@ class FullDuplexAudioEngine(
             record = try {
                 createAudioRecord().also { audioRecord = it }
             } catch (e: Exception) {
+                CrashReporter.logError(TAG, "AudioRecord 重建失败", e)
                 DebugLog.e(TAG, "AudioRecord 重建失败: ${e.message}", e)
                 notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "采集管线重建失败: ${e.message}")
                 return
@@ -858,6 +860,7 @@ class FullDuplexAudioEngine(
                         failRecordingPipeline("录音权限缺失: ${e.message}")
                         break
                     } catch (e: Exception) {
+                        CrashReporter.logError(TAG, "录音读取异常", e)
                         DebugLog.e(TAG, "录音读取异常: ${e.message}", e)
                         if (!tryRestartRecording(record!!)) {
                             failRecordingPipeline("采集管线失败: ${e.message}")

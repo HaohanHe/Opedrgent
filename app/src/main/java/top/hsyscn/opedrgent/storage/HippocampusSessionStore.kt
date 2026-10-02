@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.interview.HippocampusMemory
 import top.hsyscn.opedrgent.interview.InterviewConfig
@@ -90,6 +91,8 @@ class HippocampusSessionStore(context: Context) {
             )
             DebugLog.i(TAG, "会话已持久化: $sessionId (轮次=${report.totalTurns}, 漂移率=${"%.1f".format(report.driftRate * 100)}%)")
         } catch (e: Exception) {
+            // 写失败不致命：记录后丢弃本次写入，不使持有协程崩溃
+            CrashReporter.logError(TAG, "保存会话失败", e)
             DebugLog.e(TAG, "保存会话失败: ${e.message}", e)
         }
     }
@@ -98,72 +101,101 @@ class HippocampusSessionStore(context: Context) {
      * 查询所有历史会话（按结束时间倒序）。
      */
     suspend fun getAll(limit: Int = 100): List<SessionSummary> = withContext(Dispatchers.IO) {
-        val cursor = db.query(
-            HippocampusDatabase.TABLE_SESSIONS, null, null, null, null, null,
-            "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
-        )
-        cursorToList(cursor)
+        runCatching {
+            val cursor = db.query(
+                HippocampusDatabase.TABLE_SESSIONS, null, null, null, null, null,
+                "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
+            )
+            cursorToList(cursor)
+        }.getOrElse {
+            CrashReporter.logError(TAG, "getAll 查询失败", it)
+            emptyList()
+        }
     }
 
     /**
      * 按面试类型筛选历史会话。
      */
     suspend fun getByType(type: InterviewType, limit: Int = 50): List<SessionSummary> = withContext(Dispatchers.IO) {
-        val cursor = db.query(
-            HippocampusDatabase.TABLE_SESSIONS, null,
-            "${HippocampusDatabase.COL_INTERVIEW_TYPE}=?", arrayOf(type.name),
-            null, null, "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
-        )
-        cursorToList(cursor)
+        runCatching {
+            val cursor = db.query(
+                HippocampusDatabase.TABLE_SESSIONS, null,
+                "${HippocampusDatabase.COL_INTERVIEW_TYPE}=?", arrayOf(type.name),
+                null, null, "${HippocampusDatabase.COL_ENDED_AT} DESC", limit.toString(),
+            )
+            cursorToList(cursor)
+        }.getOrElse {
+            CrashReporter.logError(TAG, "getByType 查询失败", it)
+            emptyList()
+        }
     }
 
     /**
      * 关键词搜索历史会话（在目标/岗位/公司/摘要中匹配）。
      */
     suspend fun search(keyword: String, limit: Int = 30): List<SessionSummary> = withContext(Dispatchers.IO) {
-        val pattern = "%$keyword%"
-        val sql = """SELECT * FROM ${HippocampusDatabase.TABLE_SESSIONS}
-            WHERE ${HippocampusDatabase.COL_PRIMARY_GOAL} LIKE ?
-            OR ${HippocampusDatabase.COL_POSITION} LIKE ?
-            OR ${HippocampusDatabase.COL_COMPANY} LIKE ?
-            OR ${HippocampusDatabase.COL_SESSION_SUMMARY} LIKE ?
-            OR ${HippocampusDatabase.COL_KEY_TOPICS} LIKE ?
-            ORDER BY ${HippocampusDatabase.COL_ENDED_AT} DESC LIMIT ?"""
-        val cursor = db.rawQuery(sql, arrayOf(pattern, pattern, pattern, pattern, pattern, limit.toString()))
-        cursorToList(cursor)
+        runCatching {
+            val pattern = "%$keyword%"
+            val sql = """SELECT * FROM ${HippocampusDatabase.TABLE_SESSIONS}
+                WHERE ${HippocampusDatabase.COL_PRIMARY_GOAL} LIKE ?
+                OR ${HippocampusDatabase.COL_POSITION} LIKE ?
+                OR ${HippocampusDatabase.COL_COMPANY} LIKE ?
+                OR ${HippocampusDatabase.COL_SESSION_SUMMARY} LIKE ?
+                OR ${HippocampusDatabase.COL_KEY_TOPICS} LIKE ?
+                ORDER BY ${HippocampusDatabase.COL_ENDED_AT} DESC LIMIT ?"""
+            val cursor = db.rawQuery(sql, arrayOf(pattern, pattern, pattern, pattern, pattern, limit.toString()))
+            cursorToList(cursor)
+        }.getOrElse {
+            CrashReporter.logError(TAG, "search 查询失败", it)
+            emptyList()
+        }
     }
 
     /**
      * 获取单条会话详情（含完整轮次记录）。
      */
     suspend fun getById(sessionId: String): SessionDetail? = withContext(Dispatchers.IO) {
-        val cursor = db.query(
-            HippocampusDatabase.TABLE_SESSIONS, null,
-            "${HippocampusDatabase.COL_SESSION_ID}=?", arrayOf(sessionId),
-            null, null, null, "1",
-        )
-        val summary = cursorToList(cursor).firstOrNull() ?: return@withContext null
-        // 二次查询拿完整 turn_records（summary 已包含，直接复用）
-        toDetail(summary)
+        runCatching {
+            val cursor = db.query(
+                HippocampusDatabase.TABLE_SESSIONS, null,
+                "${HippocampusDatabase.COL_SESSION_ID}=?", arrayOf(sessionId),
+                null, null, null, "1",
+            )
+            val summary = cursorToList(cursor).firstOrNull() ?: return@runCatching null
+            // 二次查询拿完整 turn_records（summary 已包含，直接复用）
+            toDetail(summary)
+        }.getOrElse {
+            CrashReporter.logError(TAG, "getById 查询失败", it)
+            null
+        }
     }
 
     /**
      * 删除指定会话。
      */
     suspend fun delete(sessionId: String) = withContext(Dispatchers.IO) {
-        db.delete(
-            HippocampusDatabase.TABLE_SESSIONS,
-            "${HippocampusDatabase.COL_SESSION_ID}=?",
-            arrayOf(sessionId),
-        )
+        runCatching {
+            db.delete(
+                HippocampusDatabase.TABLE_SESSIONS,
+                "${HippocampusDatabase.COL_SESSION_ID}=?",
+                arrayOf(sessionId),
+            )
+        }.onFailure {
+            CrashReporter.logError(TAG, "delete 失败", it)
+        }
     }
 
     /**
      * 统计会话总数。
      */
     suspend fun count(): Int = withContext(Dispatchers.IO) {
-        val cursor = db.rawQuery("SELECT COUNT(*) FROM ${HippocampusDatabase.TABLE_SESSIONS}", null)
-        cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        runCatching {
+            val cursor = db.rawQuery("SELECT COUNT(*) FROM ${HippocampusDatabase.TABLE_SESSIONS}", null)
+            cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        }.getOrElse {
+            CrashReporter.logError(TAG, "count 查询失败", it)
+            0
+        }
     }
 
     // ==================== 序列化 ====================

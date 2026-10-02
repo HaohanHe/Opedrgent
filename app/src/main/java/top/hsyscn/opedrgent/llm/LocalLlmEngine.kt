@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -219,6 +220,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: Exception) {
             val errorMsg = e.message ?: "Unknown error"
             val causeMsg = e.cause?.message?.let { " (cause: $it)" } ?: ""
+            CrashReporter.logError(TAG, "Failed to load model", e)
             DebugLog.e(TAG, "Failed to load model: $errorMsg$causeMsg", e)
             e.stackTrace.take(8).forEach { trace ->
                 DebugLog.e(TAG, "    at $trace")
@@ -308,6 +310,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: CancellationException) {
             onError("Cancelled")
         } catch (e: Exception) {
+            CrashReporter.logError(TAG, "generateStream error", e)
             DebugLog.e(TAG, "Stream error: ${e.message}", e)
             onError(e.message ?: "Unknown error")
         }
@@ -356,6 +359,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: CancellationException) {
             LocalLlmResponse(text = "[Cancelled]", latencyMs = 0)
         } catch (e: Exception) {
+            CrashReporter.logError(TAG, "Generate error", e)
             DebugLog.e(TAG, "Generate error: ${e.message}", e)
             LocalLlmResponse(text = "[Error] ${e.message}", latencyMs = 0)
         }
@@ -383,6 +387,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
+            CrashReporter.logError(TAG, "StreamFlow error", e)
             DebugLog.e(TAG, "StreamFlow error: ${e.message}", e)
             emit("[Error] ${e.message}")
         }

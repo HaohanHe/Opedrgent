@@ -9,6 +9,7 @@ import org.json.JSONObject
 import top.hsyscn.opedrgent.llm.ModelDownloadManager
 import top.hsyscn.opedrgent.stt.ModelManager
 import top.hsyscn.opedrgent.stt.ModelType
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 import java.io.InputStream
@@ -88,6 +89,8 @@ class LocalBackupManager(private val appContext: Context) {
         val created = System.currentTimeMillis()
         val (vc, vn) = appVersion()
 
+        // 最外层兜底：写入/SAF 流拷贝异常先记录（技术信息），再上抛给调用方决定如何清理半成品流
+        try {
         ZipOutputStream(out).use { zip ->
             // ---- 1. 数据库 ----
             val dbNames = context.databaseList().filter { it.endsWith(".db") }
@@ -129,13 +132,17 @@ class LocalBackupManager(private val appContext: Context) {
             progress(1f)
             manifest
         }
+        } catch (e: Exception) {
+            CrashReporter.logError(TAG, "backupTo write failed", e)
+            throw e
+        }
     }
 
     suspend fun createLocal(includeModels: Boolean = false): BackupResult = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, BACKUP_DIR)
+        val file = File(dir, "opedrgent_backup_${System.currentTimeMillis()}.zip")
         runCatching {
-            val dir = File(context.filesDir, BACKUP_DIR)
             dir.mkdirs()
-            val file = File(dir, "opedrgent_backup_${System.currentTimeMillis()}.zip")
             val manifest = file.outputStream().use { backupTo(it, includeModels) { } }
             BackupResult(
                 ok = true,
@@ -144,7 +151,10 @@ class LocalBackupManager(private val appContext: Context) {
                 components = manifest.entries.map { it.component }.distinct(),
             )
         }.getOrElse { e ->
+            // 技术信息记录（不含用户内容/密钥），再清理半成品归档，避免损坏文件被误当有效备份
+            CrashReporter.logError(TAG, "createLocal failed", e)
             DebugLog.e(TAG, "createLocal failed: ${e.message}", e)
+            runCatching { if (file.exists()) file.delete() }
             BackupResult(false, "", 0, emptyList(), e.message ?: "备份失败")
         }
     }
@@ -238,6 +248,7 @@ class LocalBackupManager(private val appContext: Context) {
         try {
             result = applyRestore(tempZip, manifest, progress)
         } catch (e: Exception) {
+            CrashReporter.logError(TAG, "restore apply failed, rolling back", e)
             DebugLog.e(TAG, "restore apply failed, rolling back: ${e.message}", e)
             if (rollbackOk) restoreSnapshot(rollbackDir)
             result = RestoreResult(false, RestoreCode.IO_ERROR, "恢复失败已回滚: ${e.message}", emptyList(), 0, false)

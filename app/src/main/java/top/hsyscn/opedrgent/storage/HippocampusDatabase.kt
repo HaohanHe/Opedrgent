@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.storage
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import top.hsyscn.opedrgent.utils.CrashReporter
 
 class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
     context, DATABASE_NAME, null, DATABASE_VERSION,
@@ -54,6 +55,7 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         @Synchronized
         fun closeAndReset() {
             runCatching { INSTANCE?.close() }
+                .onFailure { CrashReporter.logWarn("HippocampusDatabase", "close() failed: ${it.message ?: "unknown"}") }
             INSTANCE = null
         }
     }

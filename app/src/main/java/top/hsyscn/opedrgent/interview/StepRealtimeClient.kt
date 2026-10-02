@@ -21,6 +21,7 @@ import okio.ByteString
 import org.json.JSONObject
 import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.settings.ApiSettings
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.Base64
 import java.util.UUID
@@ -251,17 +252,28 @@ class StepRealtimeClient(
 
                 val listener = object : WebSocketListener() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
-                        DebugLog.i("$TAG: WebSocket 已连接")
-                        // 连接成功，清零重连计数
-                        reconnectAttempts = 0
-                        _stateEvent.tryEmit(StepState.CONNECTED)
+                        // WebSocket 回调运行在 OkHttp 线程：任何未捕获异常都会终止连接线程，这里统一兜底
+                        try {
+                            DebugLog.i("$TAG: WebSocket 已连接")
+                            // 连接成功，清零重连计数
+                            reconnectAttempts = 0
+                            _stateEvent.tryEmit(StepState.CONNECTED)
 
-                        // 连接成功后立即发送 session 配置
-                        sendSessionConfig(webSocket)
+                            // 连接成功后立即发送 session 配置
+                            sendSessionConfig(webSocket)
+                        } catch (e: Exception) {
+                            CrashReporter.logError(TAG, "onOpen 处理异常", e)
+                            DebugLog.e("$TAG: onOpen 处理异常: ${e.message}", e)
+                        }
                     }
 
                     override fun onMessage(webSocket: WebSocket, text: String) {
-                        handleServerEvent(text)
+                        try {
+                            handleServerEvent(text)
+                        } catch (e: Exception) {
+                            CrashReporter.logError(TAG, "onMessage 处理异常", e)
+                            DebugLog.e("$TAG: onMessage 处理异常: ${e.message}", e)
+                        }
                     }
 
                     override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
@@ -269,6 +281,7 @@ class StepRealtimeClient(
                     }
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        CrashReporter.logError(TAG, "WebSocket 失败", t)
                         DebugLog.e("$TAG: WebSocket 失败: ${t.message}", t)
                         // 仅当失败的就是当前 socket 时才清空引用，避免误清掉重连后的新连接
                         if (this@StepRealtimeClient.webSocket === webSocket) {
