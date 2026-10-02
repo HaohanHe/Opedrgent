@@ -44,8 +44,9 @@ class SystemAudioRecorder(private val context: Context) {
                 .build()
 
             if (recorder.state == AudioRecord.STATE_INITIALIZED) {
-                recorder.startRecording()
+                // 先绑定字段再 startRecording()：start 抛异常时 catch 可通过字段安全释放已构造的 recorder，避免泄漏
                 audioRecord = recorder
+                recorder.startRecording()
                 isRecording = true
                 DebugLog.i("SystemAudioRecorder", "System audio recording started")
                 recorder
@@ -58,6 +59,13 @@ class SystemAudioRecorder(private val context: Context) {
             // 构建/启动失败：记录技术信息，返回 null 让调用方回到未录音安全态（不残留录音中标志）
             CrashReporter.logError("SystemAudioRecorder", "Failed to start system audio recording", e)
             DebugLog.e("SystemAudioRecorder", "Failed to start system audio recording: ${e.message}", e)
+            // startRecording() 抛异常时字段已指向已构造但未成功启动的 recorder，安全释放避免泄漏；
+            // build() 自身抛异常时字段仍为 null，release 为空操作，不会误伤旧会话
+            try {
+                audioRecord?.release()
+            } catch (releaseErr: Exception) {
+                CrashReporter.logWarn("SystemAudioRecorder", "release() after start failure: ${releaseErr.message}")
+            }
             audioRecord = null
             isRecording = false
             null

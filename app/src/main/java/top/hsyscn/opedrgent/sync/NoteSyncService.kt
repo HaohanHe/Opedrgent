@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.sync
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -28,6 +30,8 @@ class NoteSyncService(
     companion object {
         private const val TAG = "NoteSyncService"
         private const val PREFS_NAME = "opedrgent_webdav"
+        // 独立加密 prefs（与 ApiSettings 的 opedrgent_secure 互不读写），仅承载 WebDAV 凭据。
+        private const val SECURE_PREFS_NAME = "opedrgent_webdav_secure"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_USERNAME = "username"
         private const val KEY_PASSWORD = "password"
@@ -35,6 +39,12 @@ class NoteSyncService(
         private const val KEY_LAST_SYNC_MS = "last_sync_ms"
         private const val NOTE_FILE_PREFIX = "note_"
         private const val NOTE_FILE_SUFFIX = ".json"
+
+        /** 旧版本曾明文存放于 opedrgent_webdav 的凭据字段（仅这些参与迁移与清理）。 */
+        private val LEGACY_SECRET_KEYS = listOf(KEY_USERNAME, KEY_PASSWORD)
+
+        /** 迁移完成标志位（存于明文 prefs，非敏感）。 */
+        private const val WEBDAV_SECURE_MIGRATED = "webdav_secure_migrated"
     }
 
     @Serializable
@@ -91,21 +101,69 @@ class NoteSyncService(
     )
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // 非敏感项（server_url / remote_path / last_sync_ms）仍留明文 prefs。
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // 敏感凭据（username / password）写入独立加密 prefs；MasterKey 构建方式对齐 ApiSettings。
+    private val securePrefs by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            SECURE_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
+
+    init {
+        migrateLegacySecrets()
+    }
+
+    /**
+     * 幂等迁移：把旧版本以明文存于 opedrgent_webdav 的 username/password 搬入加密 prefs。
+     *
+     * 规则：securePrefs 中该字段为空而明文 prefs 非空时才搬迁；成功后清除明文 username/password 并置标志位。
+     * 失败安全：加密/Keystore 不可用导致异常时不置标志、也不删明文，下次启动重试，
+     * 避免在无法加密落地时误删明文而丢失凭据。全程不打印任何凭据内容。
+     */
+    private fun migrateLegacySecrets() {
+        if (prefs.getBoolean(WEBDAV_SECURE_MIGRATED, false)) return
+        runCatching {
+            // 1) 先搬迁：仅当 securePrefs 为空、明文非空时搬入
+            for (key in LEGACY_SECRET_KEYS) {
+                val legacy = prefs.getString(key, null).orEmpty()
+                val existing = securePrefs.getString(key, null).orEmpty()
+                if (legacy.isNotEmpty() && existing.isEmpty()) {
+                    securePrefs.edit().putString(key, legacy).apply()
+                }
+            }
+            // 2) 搬迁完成后，清除明文中的凭据字段，并置标志位
+            prefs.edit().apply {
+                LEGACY_SECRET_KEYS.forEach { remove(it) }
+                putBoolean(WEBDAV_SECURE_MIGRATED, true)
+            }.apply()
+        }
+    }
 
     fun getConfig(): WebDavConfig = WebDavConfig(
         serverUrl = prefs.getString(KEY_SERVER_URL, "") ?: "",
-        username = prefs.getString(KEY_USERNAME, "") ?: "",
-        password = prefs.getString(KEY_PASSWORD, "") ?: "",
+        username = securePrefs.getString(KEY_USERNAME, "") ?: "",
+        password = securePrefs.getString(KEY_PASSWORD, "") ?: "",
         remotePath = prefs.getString(KEY_REMOTE_PATH, "/opedrgent/notes/") ?: "/opedrgent/notes/",
     )
 
     fun saveConfig(config: WebDavConfig) {
         prefs.edit()
             .putString(KEY_SERVER_URL, config.serverUrl)
+            .putString(KEY_REMOTE_PATH, config.remotePath)
+            .apply()
+        // 凭据写入加密 prefs
+        securePrefs.edit()
             .putString(KEY_USERNAME, config.username)
             .putString(KEY_PASSWORD, config.password)
-            .putString(KEY_REMOTE_PATH, config.remotePath)
             .apply()
     }
 

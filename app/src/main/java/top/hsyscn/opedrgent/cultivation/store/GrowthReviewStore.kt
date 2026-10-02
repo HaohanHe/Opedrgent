@@ -128,8 +128,9 @@ class GrowthReviewStore(context: Context) {
 
 /**
  * 成长回顾库：独立文件 growth_review.db，与 cultivation.db 解耦（后续清除/迁移互不影响）。
+ * 类公开仅为允许备份/恢复层调用 companion.closeAndReset()；构造器仍私有，单例由 getInstance 把持。
  */
-private class GrowthReviewDatabase private constructor(context: Context) : SQLiteOpenHelper(
+class GrowthReviewDatabase private constructor(context: Context) : SQLiteOpenHelper(
     context.applicationContext, DATABASE_NAME, null, DATABASE_VERSION,
 ) {
     companion object {
@@ -151,6 +152,13 @@ private class GrowthReviewDatabase private constructor(context: Context) : SQLit
             instance ?: synchronized(this) {
                 instance ?: GrowthReviewDatabase(context).also { instance = it }
             }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { instance?.close() }
+            instance = null
+        }
     }
 
     override fun onCreate(db: SQLiteDatabase) {

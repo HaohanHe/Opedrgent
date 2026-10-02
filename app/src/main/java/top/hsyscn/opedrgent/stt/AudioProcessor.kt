@@ -5,6 +5,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.os.Build
 import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.BufferedInputStream
@@ -109,7 +110,7 @@ object AudioProcessor {
             }
 
             val (trackIndex, format) = trackResult
-            val durationUs = format.getLong(MediaFormat.KEY_DURATION, -1L)
+            val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
             val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
 
             val metadata = buildMetadataFromFormat(format, durationMs)
@@ -144,7 +145,7 @@ object AudioProcessor {
             }
 
             val (_, format) = trackResult
-            val durationUs = format.getLong(MediaFormat.KEY_DURATION, -1L)
+            val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
             val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
             val metadata = buildMetadataFromFormat(format, durationMs)
             extractor.release()
@@ -719,11 +720,35 @@ object AudioProcessor {
         return null
     }
 
+    /**
+     * 安全读取 MediaFormat 整型字段。
+     * MediaFormat.getInteger(String, Int) 默认值重载为 API29(Q) 新增，minSdk26 旧机直调会 NoSuchMethodError。
+     * Q+ 走默认值重载；旧机退到单参数 getInteger(String)（API16）并 try/catch 兜底默认值。
+     */
+    private fun safeFormatInt(format: MediaFormat, key: String, default: Int): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return format.getInteger(key, default)
+        }
+        return runCatching { format.getInteger(key) }.getOrDefault(default)
+    }
+
+    /**
+     * 安全读取 MediaFormat 长整型字段。
+     * MediaFormat.getLong(...) 均为 API29(Q) 新增，旧机无此方法；直接用默认值避免 NoSuchMethodError。
+     */
+    private fun safeFormatLong(format: MediaFormat, key: String, default: Long): Long {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return format.getLong(key, default)
+        }
+        DebugLog.w(TAG, "旧系统(API<29)不支持 MediaFormat.getLong($key)，使用默认值 $default")
+        return default
+    }
+
     private fun buildMetadataFromFormat(format: MediaFormat, durationMs: Long): AudioMetadata {
         return AudioMetadata(
             durationMs = durationMs,
-            sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE),
-            channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS),
+            sampleRate = safeFormatInt(format, MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE),
+            channels = safeFormatInt(format, MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS),
             bitDepth = TARGET_BIT_DEPTH,
             format = format.getString(MediaFormat.KEY_MIME) ?: "audio/unknown",
         )
@@ -821,9 +846,9 @@ object AudioProcessor {
             extractor.release()
             return null
         }
-        val srcSampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE)
-        val srcChannels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS)
-        val durationUs = format.getLong(MediaFormat.KEY_DURATION, -1L)
+        val srcSampleRate = safeFormatInt(format, MediaFormat.KEY_SAMPLE_RATE, TARGET_SAMPLE_RATE)
+        val srcChannels = safeFormatInt(format, MediaFormat.KEY_CHANNEL_COUNT, TARGET_CHANNELS)
+        val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
         val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
 
         val codec = try {

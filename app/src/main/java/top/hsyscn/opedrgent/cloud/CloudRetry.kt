@@ -27,6 +27,10 @@ object CloudRetry {
     private const val MAX_BACKOFF_MILLIS: Long = 30_000L
     private const val BASE_BACKOFF_MILLIS: Long = 500L
 
+    /** 退避移位位数上限：避免 500L shl attempt 在 attempt 很大时溢出 Long（符号位被占用产生负值/0）。
+     *  超过该位数时指数退避早已被 [MAX_BACKOFF_MILLIS] 截断，钳制在此即可。 */
+    private const val MAX_SHIFT_BITS: Int = 30
+
     /**
      * 解析响应的 Retry-After 头，返回等待毫秒数；无法解析时返回 null。
      *
@@ -65,7 +69,10 @@ object CloudRetry {
         if (retryAfter != null && retryAfter > 0) {
             return min(retryAfter, MAX_BACKOFF_MILLIS)
         }
-        val exp = (BASE_BACKOFF_MILLIS shl attempt).coerceAtMost(MAX_BACKOFF_MILLIS)
+        // attempt 很大时直接移位会溢出 Long（符号位被占用产生负值/0），先把移位位数钳制到安全范围；
+        // 指数退避本就会被 30s 上限截断，无需继续放大。
+        val shift = attempt.coerceIn(0, MAX_SHIFT_BITS)
+        val exp = (BASE_BACKOFF_MILLIS shl shift).coerceAtMost(MAX_BACKOFF_MILLIS)
         val jitter = Random.nextLong(0, 250)
         return (exp + jitter).coerceAtMost(MAX_BACKOFF_MILLIS)
     }

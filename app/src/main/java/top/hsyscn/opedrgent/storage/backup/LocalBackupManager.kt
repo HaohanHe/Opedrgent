@@ -515,6 +515,7 @@ class LocalBackupManager(private val appContext: Context) {
         runCatching { top.hsyscn.opedrgent.storage.HippocampusDatabase.closeAndReset() }
         runCatching { top.hsyscn.opedrgent.storage.KbDatabase.closeAndReset() }
         runCatching { top.hsyscn.opedrgent.storage.SproutReportDatabase.closeAndReset() }
+        runCatching { top.hsyscn.opedrgent.cultivation.store.GrowthReviewDatabase.closeAndReset() }
     }
 
     private fun writeSettingsFromJson(json: JSONObject): Int {

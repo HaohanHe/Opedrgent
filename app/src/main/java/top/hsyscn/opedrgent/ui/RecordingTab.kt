@@ -572,43 +572,50 @@ fun RecordingTab(
                             delay(100)
                             continue
                         }
-                        val read = recorder.read(buffer, 0, buffer.size)
-                        if (read > 0) {
-                            // 手动复制到预分配字节缓冲，避免 toByteArray() 每次分配新数组
-                            for (i in 0 until read) {
-                                val s = buffer[i]
-                                byteBuffer[i * 2] = (s.toInt() and 0xFF).toByte()
-                                byteBuffer[i * 2 + 1] = (s.toInt() shr 8 and 0xFF).toByte()
-                            }
-                            fos.write(byteBuffer, 0, read * 2)
-
-                            // 计算 RMS 振幅（用于 UI 波形显示）
-                            var sum = 0L
-                            for (i in 0 until read) {
-                                sum += buffer[i].toLong() * buffer[i].toLong()
-                            }
-                            val rms = kotlin.math.sqrt(sum.toDouble() / read).toFloat()
-                            val now = System.currentTimeMillis()
-                            // 节流：每 150ms 更新一次 UI 状态，避免高频 recomposition
-                            if (now - lastAmplitudeUpdate > 150) {
-                                vm.recordingAmplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
-                                lastAmplitudeUpdate = now
-                            }
-
-                            if (vm.recordingIsStreamingActive) {
+                        try {
+                            val read = recorder.read(buffer, 0, buffer.size)
+                            if (read > 0) {
+                                // 手动复制到预分配字节缓冲，避免 toByteArray() 每次分配新数组
                                 for (i in 0 until read) {
-                                    floatBuffer[i] = buffer[i] / 32768.0f
+                                    val s = buffer[i]
+                                    byteBuffer[i * 2] = (s.toInt() and 0xFF).toByte()
+                                    byteBuffer[i * 2 + 1] = (s.toInt() shr 8 and 0xFF).toByte()
                                 }
-                                // 语音识别统一使用 16kHz，必要时重采样
-                                val asrSamples = if (sampleRate == 16000) {
-                                    floatBuffer.copyOfRange(0, read)
-                                } else {
-                                    top.hsyscn.opedrgent.stt.AudioProcessor.resample(
-                                        floatBuffer.copyOfRange(0, read), sampleRate, 16000
-                                    )
+                                fos.write(byteBuffer, 0, read * 2)
+
+                                // 计算 RMS 振幅（用于 UI 波形显示）
+                                var sum = 0L
+                                for (i in 0 until read) {
+                                    sum += buffer[i].toLong() * buffer[i].toLong()
                                 }
-                                feedAudioToEngine(vm.asrManager.getCachedEngine(), asrSamples)
+                                val rms = kotlin.math.sqrt(sum.toDouble() / read).toFloat()
+                                val now = System.currentTimeMillis()
+                                // 节流：每 150ms 更新一次 UI 状态，避免高频 recomposition
+                                if (now - lastAmplitudeUpdate > 150) {
+                                    vm.recordingAmplitude = (rms / Short.MAX_VALUE).coerceIn(0f, 1f)
+                                    lastAmplitudeUpdate = now
+                                }
+
+                                if (vm.recordingIsStreamingActive) {
+                                    for (i in 0 until read) {
+                                        floatBuffer[i] = buffer[i] / 32768.0f
+                                    }
+                                    // 语音识别统一使用 16kHz，必要时重采样
+                                    val asrSamples = if (sampleRate == 16000) {
+                                        floatBuffer.copyOfRange(0, read)
+                                    } else {
+                                        top.hsyscn.opedrgent.stt.AudioProcessor.resample(
+                                            floatBuffer.copyOfRange(0, read), sampleRate, 16000
+                                        )
+                                    }
+                                    feedAudioToEngine(vm.asrManager.getCachedEngine(), asrSamples)
+                                }
                             }
+                        } catch (e: Exception) {
+                            // read/状态异常（如 recorder 被释放或底层读取失败）：记录后安全退出读取循环，
+                            // 绝不使异常逃出 viewModelScope；正常停止由 while 条件置 DONE/PROCESSING 退出，不受此捕获影响
+                            DebugLog.e("RecordingTab", "录音读取循环异常，安全停止读取: ${e.message}", e)
+                            break
                         }
                     }
                 }
@@ -754,26 +761,14 @@ fun RecordingTab(
         }
     }
 
-    // Cleanup
+    // Cleanup：录音核心对象（AudioRecord / 前台服务 / 系统内录 / 流式识别）由 ViewModel 持有，
+    // 切 Tab 仅销毁本 Composable，录音须在后台继续。因此这里不在 onDispose 释放这些资源，
+    // 否则切 Tab 会 stop/release AudioRecord，而后台读取循环仍对已释放的 recorder.read() 导致崩溃/中断。
+    // 真正释放只发生在用户显式停止 / 录音结束路径（onDone / onCancel / 返回确认对话框 / 自动时长停止）。
+    // 组合私有的悬浮窗回调反注册已在上方 DisposableEffect(Unit) 中处理。
     DisposableEffect(Unit) {
         onDispose {
-            try {
-                audioRecord.value?.stop()
-                audioRecord.value?.release()
-            } catch (_: Exception) {}
-            try {
-                systemAudioRecorder?.stopRecording()
-            } catch (_: Exception) {}
-            try {
-                vm.asrManager.stopStreaming()
-            } catch (_: Exception) {}
-            try {
-                FloatingWindowService.stop(context)
-            } catch (_: Exception) {}
-            try {
-                RecordingForegroundService.stop(context)
-            } catch (_: Exception) {}
-            MediaProjectionService.stop(context)
+            // 切 Tab 不释放录音资源，实现“切 Tab 继续录音”
         }
     }
 

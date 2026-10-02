@@ -128,47 +128,63 @@ class SmartSummaryGenerator(
                 contentType = "录音笔记",
             )
 
-            // SummarySections
+            // SummarySections：单项损坏跳过不导致整份总结失败（与 decisions/openQuestions/people 一致）
             val sectionsJson = json.optJSONArray("summarySections") ?: JSONArray()
-            val summarySections = (0 until sectionsJson.length()).map { i ->
-                val sec = sectionsJson.getJSONObject(i)
-                val contentArr = sec.optJSONArray("content") ?: JSONArray()
-                SmartSummary.SummarySection(
-                    title = sec.optString("title", ""),
-                    content = (0 until contentArr.length()).map { contentArr.getString(it) },
-                )
+            val summarySections = buildList {
+                for (i in 0 until sectionsJson.length()) {
+                    val sec = runCatching { sectionsJson.getJSONObject(i) }.getOrNull() ?: continue
+                    val contentArr = sec.optJSONArray("content") ?: JSONArray()
+                    add(
+                        SmartSummary.SummarySection(
+                            title = sec.optString("title", ""),
+                            content = (0 until contentArr.length()).map { contentArr.optString(it, "") },
+                        )
+                    )
+                }
             }
 
-            // Chapters
+            // Chapters：单项损坏跳过
             val chaptersJson = json.optJSONArray("chapters") ?: JSONArray()
-            val chapters = (0 until chaptersJson.length()).map { i ->
-                val ch = chaptersJson.getJSONObject(i)
-                SmartSummary.ChapterItem(
-                    timestampSec = ch.optLong("timestampSec", 0L),
-                    timestampFormatted = ch.optString("timestampFormatted", "00:00:00"),
-                    title = ch.optString("title", ""),
-                    summary = ch.optString("summary", ""),
-                )
+            val chapters = buildList {
+                for (i in 0 until chaptersJson.length()) {
+                    val ch = runCatching { chaptersJson.getJSONObject(i) }.getOrNull() ?: continue
+                    add(
+                        SmartSummary.ChapterItem(
+                            timestampSec = ch.optLong("timestampSec", 0L),
+                            timestampFormatted = ch.optString("timestampFormatted", "00:00:00"),
+                            title = ch.optString("title", ""),
+                            summary = ch.optString("summary", ""),
+                        )
+                    )
+                }
             }
 
-            // Quotes
+            // Quotes：单项损坏跳过
             val quotesJson = json.optJSONArray("quotes") ?: JSONArray()
-            val quotes = (0 until quotesJson.length()).map { i ->
-                val q = quotesJson.getJSONObject(i)
-                SmartSummary.QuoteItem(
-                    text = q.optString("text", ""),
-                    category = q.optString("category", ""),
-                )
+            val quotes = buildList {
+                for (i in 0 until quotesJson.length()) {
+                    val q = runCatching { quotesJson.getJSONObject(i) }.getOrNull() ?: continue
+                    add(
+                        SmartSummary.QuoteItem(
+                            text = q.optString("text", ""),
+                            category = q.optString("category", ""),
+                        )
+                    )
+                }
             }
 
-            // ActionItems
+            // ActionItems：单项损坏跳过
             val actionsJson = json.optJSONArray("actionItems") ?: JSONArray()
-            val actionItems = (0 until actionsJson.length()).map { i ->
-                val a = actionsJson.getJSONObject(i)
-                SmartSummary.ActionItem(
-                    assignee = a.optString("assignee", ""),
-                    task = a.optString("task", ""),
-                )
+            val actionItems = buildList {
+                for (i in 0 until actionsJson.length()) {
+                    val a = runCatching { actionsJson.getJSONObject(i) }.getOrNull() ?: continue
+                    add(
+                        SmartSummary.ActionItem(
+                            assignee = a.optString("assignee", ""),
+                            task = a.optString("task", ""),
+                        )
+                    )
+                }
             }
 
             // Decisions：仅收录明确达成的决定/结论；数组缺失回退空列表，单项损坏跳过不导致整体失败
