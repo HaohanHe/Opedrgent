@@ -89,6 +89,7 @@ import top.hsyscn.opedrgent.ui.state.ReflectionLocator
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
 import top.hsyscn.opedrgent.ui.theme.themeBgGray
+import top.hsyscn.opedrgent.ui.theme.themeTextDark
 import top.hsyscn.opedrgent.ui.theme.themeTextGrey
 import java.text.SimpleDateFormat
 import java.util.Date

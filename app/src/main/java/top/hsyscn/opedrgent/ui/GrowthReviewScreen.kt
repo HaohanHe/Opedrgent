@@ -211,9 +211,9 @@ private fun FilterChipRow(
     Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
         OutlinedButton(
             onClick = onSelectWeek,
-            shape = ShapeTokens.pill,
+            shape = ShapeTokens.pillShape,
         ) { Text(stringResource(R.string.growth_review_tab_week)) }
-        OutlinedButton(onClick = onSelectMonth, shape = ShapeTokens.pill) {
+        OutlinedButton(onClick = onSelectMonth, shape = ShapeTokens.pillShape) {
             Text(stringResource(R.string.growth_review_tab_month))
         }
     }
