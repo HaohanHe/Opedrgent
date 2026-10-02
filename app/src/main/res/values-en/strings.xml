@@ -688,4 +688,88 @@
     <string name="cultivation_exemplar_highlights">What you already did well</string>
     <string name="cultivation_exemplar_improvements">What could be better</string>
     <string name="cultivation_exemplar_takeaway">Takeaway: %1$s</string>
+
+    <!-- R7 Follow-ups -->
+    <string name="actions_title">Follow-ups</string>
+    <string name="actions_empty_title">No follow-ups yet</string>
+    <string name="actions_empty_hint">To-dos captured from your reflections and conversations land here quietly, without nagging.</string>
+    <string name="actions_group_pending">Open</string>
+    <string name="actions_group_shelved">Shelved</string>
+    <string name="actions_group_done">Done</string>
+    <string name="actions_shelve">Shelve</string>
+    <string name="actions_reopen">Reopen</string>
+    <string name="actions_view_source">View source</string>
+    <string name="actions_view_review">Open reflection</string>
+    <string name="actions_kind_saying">Alternative phrasing</string>
+    <string name="actions_kind_next_step">Next step</string>
+    <string name="actions_kind_general">Action</string>
+    <string name="actions_source_fallback_title">Source context</string>
+    <string name="actions_source_fallback_snippet">(no excerpt)</string>
+    <string name="actions_pending_banner">%1$d follow-up open</string>
+    <string name="actions_view">View</string>
+
+    <!-- Send-to-mirror handoff -->
+    <string name="handoff_send_to_mirror">Send to mirror</string>
+    <string name="handoff_empty_note">The note is empty; there is nothing to send to the mirror yet.</string>
+    <string name="handoff_source_prefix">Source: </string>
+    <string name="handoff_source_recording">Recording</string>
+    <string name="handoff_source_note">Note</string>
+    <string name="handoff_source_insight">Insight</string>
+
+    <!-- R9 Lens & cognitive cultivation -->
+    <string name="cultivation_lens_label">Lens</string>
+    <string name="cultivation_lens_critique">Speech &amp; conduct mirror</string>
+    <string name="cultivation_lens_cognitive">Cognitive bias</string>
+    <string name="cultivation_cognitive_note">Cognitive-bias names are only reference knowledge for the model; whether a bias applies is judged from the full context and verbatim evidence. No keyword matching, no labels.</string>
+    <string name="cultivation_cognitive_ref">Reference: %1$s</string>
+    <string name="cultivation_alternative_view">Alternative view: %1$s</string>
+    <string name="cultivation_starter_hint">Starter template (check to load; edit freely after loading)</string>
+    <string name="cultivation_starter_load">Load selected dimensions</string>
+    <string name="cultivation_starter_disclaimer">The template is only scaffolding. Analysis draws on the full context and verbatim evidence, never keyword-matches against the template text.</string>
+    <string name="cultivation_replace_title">Dimensions already in the editor</string>
+    <string name="cultivation_replace_message">Choose Replace to clear the existing dimensions and load the template, or Append to keep them and add the new ones.</string>
+    <string name="cultivation_replace">Replace</string>
+    <string name="cultivation_append">Append</string>
+    <string name="cultivation_exemplar_add_hint">Exemplars to learn from (add more than one)</string>
+    <string name="cultivation_exemplar_try">Try: </string>
+    <string name="cultivation_exemplar_bracketed_name">[%1$s]</string>
+    <string name="cultivation_exemplar_disclaimer">The following is a perspective simulation: it extrapolates from the person&apos;s well-known public ideas and conduct. It is not their own words, nor a historical citation.</string>
+    <string name="cultivation_exemplar_suggestion_1">Luo Zhenyu</string>
+    <string name="cultivation_exemplar_suggestion_2">Liu Run</string>
+    <string name="cultivation_exemplar_suggestion_3">Cao Chong</string>
+    <string name="cultivation_exemplar_suggestion_4">Confucius</string>
+    <string name="cultivation_exemplar_suggestion_5">Laozi (Daoism)</string>
+    <string name="cultivation_exemplar_suggestion_6">Wang Yangming</string>
+    <string name="cultivation_exemplar_suggestion_7">Zeng Guofan</string>
+
+    <!-- Smart summary extra sections -->
+    <string name="summary_key_decisions">Key decisions</string>
+    <string name="summary_basis">Basis: %1$s</string>
+    <string name="summary_open_questions">Open questions</string>
+    <string name="summary_followup_owner">Owner: %1$s</string>
+    <string name="summary_people">People involved</string>
+    <string name="summary_person_with_role">%1$s (%2$s)</string>
+
+    <!-- CultivationStateManager user-facing feedback -->
+    <string name="cultivation_cloud_no_api">No cloud API configured yet, so analysis stays on-device. You can configure it in Settings first.</string>
+    <string name="cultivation_new_dimension">New dimension</string>
+    <string name="cultivation_error_dim_name">Enter at least one valid dimension name.</string>
+    <string name="cultivation_baseline_saved">Ideal-person baseline saved on this device.</string>
+    <string name="cultivation_baseline_save_failed">Save failed: %1$s</string>
+    <string name="cultivation_error_no_transcript">Paste or enter your own speech transcript first.</string>
+    <string name="cultivation_repassed_info">The first result failed self-check; it was re-run and passed.</string>
+    <string name="cultivation_quality_gate_cognitive">This cognitive reflection fell below the quality bar, so no low-quality result is shown. Adjust the transcript and try again.</string>
+    <string name="cultivation_quality_gate_critique">This analysis fell below the quality bar, so no low-quality feedback is shown. Add to your baseline or adjust the transcript and try again.</string>
+    <string name="cultivation_analysis_failed">Analysis failed: %1$s</string>
+    <string name="cultivation_error_no_exemplar">Add at least one exemplar to reflect with.</string>
+    <string name="cultivation_error_no_transcript_exemplar">Paste or enter your own speech transcript first (the mirror tab shares the same text).</string>
+    <string name="cultivation_exemplar_partial_done">%1$d of %2$d exemplars completed; the rest fell below the quality bar.</string>
+    <string name="cultivation_exemplar_quality_gate">The exemplar mirror fell below the quality bar this time, so no low-quality result is shown. Adjust the transcript or try an exemplar with more to go on.</string>
+    <string name="cultivation_exemplar_failed">Exemplar reflection failed: %1$s</string>
+    <string name="cultivation_history_cleared">Local cultivation history cleared.</string>
+
+    <!-- Action source labels (fixed vocabulary written by data layer; mapped at render) -->
+    <string name="action_source_critique">Mirror review</string>
+    <string name="action_source_cognitive">Cognitive review</string>
+    <string name="action_source_exemplar">Exemplar review</string>
 </resources>

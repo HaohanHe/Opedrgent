@@ -1108,12 +1108,12 @@ fun NoteEditorScreen(
                 onSendToCultivation = {
                     val mirrorText = menuNote.content.trim()
                     if (mirrorText.isBlank()) {
-                        scope.launch { snackbarHostState.showSnackbar("笔记内容为空，暂无法送入批判镜") }
+                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.handoff_empty_note)) }
                     } else {
                         MirrorHandoff.post(
                             transcript = mirrorText,
                             sourceTitle = menuNote.title,
-                            sourceTypeLabel = "笔记",
+                            sourceType = MirrorHandoff.SourceType.NOTE,
                         )
                         onSendToCultivation()
                     }

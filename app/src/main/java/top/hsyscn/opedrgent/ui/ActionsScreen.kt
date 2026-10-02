@@ -46,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import top.hsyscn.opedrgent.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -101,10 +103,10 @@ fun ActionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("行动跟进", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.actions_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -129,13 +131,13 @@ fun ActionsScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    "暂无行动项",
+                    stringResource(R.string.actions_empty_title),
                     style = MaterialTheme.typography.titleMedium,
                     color = themeTextGrey(),
                 )
                 Spacer(Modifier.height(SpacingTokens.sm))
                 Text(
-                    "复盘或对话中沉淀的待办会汇总到这里，保持克制、不打扰。",
+                    stringResource(R.string.actions_empty_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
@@ -151,7 +153,7 @@ fun ActionsScreen(
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
         ) {
             actionGroup(
-                title = "待处理",
+                title = stringResource(R.string.actions_group_pending),
                 list = items.filter { it.status == ActionStatus.OPEN },
                 actingId = actingId,
                 onOpenDetail = { detail = it },
@@ -160,7 +162,7 @@ fun ActionsScreen(
                 onReopen = { changeStatus(it, ActionStatus.OPEN) },
             )
             actionGroup(
-                title = "已搁置",
+                title = stringResource(R.string.actions_group_shelved),
                 list = items.filter { it.status == ActionStatus.DEFERRED },
                 actingId = actingId,
                 onOpenDetail = { detail = it },
@@ -169,7 +171,7 @@ fun ActionsScreen(
                 onReopen = { changeStatus(it, ActionStatus.OPEN) },
             )
             actionGroup(
-                title = "已完成",
+                title = stringResource(R.string.actions_group_done),
                 list = items.filter { it.status == ActionStatus.DONE },
                 actingId = actingId,
                 onOpenDetail = { detail = it },
@@ -245,8 +247,9 @@ private fun ActionRow(
                 )
                 KindChip(item.kind)
             }
+            val sourceLabel = if (item.sourceTypeLabel.isBlank()) "" else actionSourceLabel(item.sourceTypeLabel)
             val sourceLine = buildString {
-                if (item.sourceTypeLabel.isNotBlank()) append(item.sourceTypeLabel)
+                if (sourceLabel.isNotBlank()) append(sourceLabel)
                 if (item.sourceTitle.isNotBlank()) {
                     if (isNotEmpty()) append(" · ")
                     append(item.sourceTitle)
@@ -270,7 +273,7 @@ private fun ActionRow(
                         ) {
                             Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("完成")
+                            Text(stringResource(R.string.action_done))
                         }
                         OutlinedButton(
                             onClick = onDefer,
@@ -279,7 +282,7 @@ private fun ActionRow(
                         ) {
                             Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(SpacingTokens.xs))
-                            Text("搁置")
+                            Text(stringResource(R.string.actions_shelve))
                         }
                     }
                     ActionStatus.DEFERRED, ActionStatus.DONE -> {
@@ -288,13 +291,13 @@ private fun ActionRow(
                             enabled = !acting,
                             shape = ShapeTokens.smallShape,
                         ) {
-                            Text("重新打开")
+                            Text(stringResource(R.string.actions_reopen))
                         }
                     }
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onOpenDetail, enabled = !acting) {
-                    Text("查看来源")
+                    Text(stringResource(R.string.actions_view_source))
                 }
             }
         }
@@ -302,11 +305,19 @@ private fun ActionRow(
 }
 
 @Composable
+private fun actionSourceLabel(raw: String): String = when (raw) {
+    "批判镜复盘" -> stringResource(R.string.action_source_critique)
+    "认知镜复盘" -> stringResource(R.string.action_source_cognitive)
+    "榜样镜复盘" -> stringResource(R.string.action_source_exemplar)
+    else -> raw
+}
+
+@Composable
 private fun KindChip(kind: ActionKind) {
     val label = when (kind) {
-        ActionKind.SAYING -> "替代说法"
-        ActionKind.NEXT_STEP -> "下一步"
-        ActionKind.GENERAL -> "行动"
+        ActionKind.SAYING -> stringResource(R.string.actions_kind_saying)
+        ActionKind.NEXT_STEP -> stringResource(R.string.actions_kind_next_step)
+        ActionKind.GENERAL -> stringResource(R.string.actions_kind_general)
     }
     Text(
         label,
@@ -327,14 +338,14 @@ private fun ActionSourceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(item.sourceTitle.ifBlank { "来源情境" }) },
+        title = { Text(item.sourceTitle.ifBlank { stringResource(R.string.actions_source_fallback_title) }) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
                 if (item.sourceTypeLabel.isNotBlank()) {
-                    Text(item.sourceTypeLabel, style = MaterialTheme.typography.labelMedium, color = themeTextGrey())
+                    Text(actionSourceLabel(item.sourceTypeLabel), style = MaterialTheme.typography.labelMedium, color = themeTextGrey())
                 }
                 Text(
-                    item.sourceSnippet.ifBlank { "（无摘录）" },
+                    item.sourceSnippet.ifBlank { stringResource(R.string.actions_source_fallback_snippet) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -346,10 +357,10 @@ private fun ActionSourceDialog(
                     TextButton(onClick = onOpenReflection) {
                         Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(SpacingTokens.xs))
-                        Text("查看复盘")
+                        Text(stringResource(R.string.actions_view_review))
                     }
                 }
-                TextButton(onClick = onDismiss) { Text("关闭") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
             }
         },
     )
@@ -380,14 +391,14 @@ fun ActionReminderCard(onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "$openCount 项跟进待处理",
+                stringResource(R.string.actions_pending_banner, openCount),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                "查看",
+                stringResource(R.string.actions_view),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )

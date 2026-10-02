@@ -11,22 +11,25 @@ package top.hsyscn.opedrgent.ui.state
  */
 object MirrorHandoff {
 
-    /** 一次移交的载荷：待分析文本 + 来源标题 + 来源类型标签（如 录音 / 笔记 / 洞察）。 */
+    /** 一次移交的载荷：待分析文本 + 来源标题 + 来源类型枚举（录音 / 笔记 / 洞察）。 */
     data class Payload(
         val transcript: String,
         val sourceTitle: String,
-        val sourceTypeLabel: String,
+        val sourceType: SourceType,
     )
+
+    /** 来源类型枚举：渲染处在批判镜页按类型映射到对应三语字符串，不在此携带文案。 */
+    enum class SourceType { RECORDING, NOTE, INSIGHT }
 
     @Volatile
     private var payload: Payload? = null
 
     /** 来源页提交待分析文本。重复 post 会覆盖上一次未消费的移交。 */
-    fun post(transcript: String, sourceTitle: String, sourceTypeLabel: String) {
+    fun post(transcript: String, sourceTitle: String, sourceType: SourceType) {
         payload = Payload(
             transcript = transcript,
             sourceTitle = sourceTitle,
-            sourceTypeLabel = sourceTypeLabel,
+            sourceType = sourceType,
         )
     }
 

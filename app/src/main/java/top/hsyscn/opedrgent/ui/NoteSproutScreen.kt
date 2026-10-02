@@ -203,7 +203,7 @@ fun NoteSproutScreen(
                                 leadingIcon = { Icon(Icons.Default.Edit, stringResource(R.string.note_editor_edit)) },
                             )
                             DropdownMenuItem(
-                                text = { Text("送入批判镜") },
+                                text = { Text(stringResource(R.string.handoff_send_to_mirror)) },
                                 onClick = {
                                     showMenu = false
                                     val mirrorText = article?.toMarkdownText(context).orEmpty().trim()
@@ -211,12 +211,12 @@ fun NoteSproutScreen(
                                         MirrorHandoff.post(
                                             transcript = mirrorText,
                                             sourceTitle = note.title,
-                                            sourceTypeLabel = "洞察",
+                                            sourceType = MirrorHandoff.SourceType.INSIGHT,
                                         )
                                         onSendToCultivation()
                                     }
                                 },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, "送入批判镜") },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, stringResource(R.string.handoff_send_to_mirror)) },
                                 enabled = article != null,
                             )
                             DropdownMenuItem(

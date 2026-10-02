@@ -684,4 +684,88 @@
     <string name="cultivation_exemplar_highlights">あなたが既にできた点</string>
     <string name="cultivation_exemplar_improvements">改善できる点</string>
     <string name="cultivation_exemplar_takeaway">心構え：%1$s</string>
+
+    <!-- R7 フォローアップ -->
+    <string name="actions_title">フォローアップ</string>
+    <string name="actions_empty_title">フォローアップはまだありません</string>
+    <string name="actions_empty_hint">振り返りや会話から生まれたやるべきことを、静かにここに集めます。</string>
+    <string name="actions_group_pending">未完了</string>
+    <string name="actions_group_shelved">保留中</string>
+    <string name="actions_group_done">完了</string>
+    <string name="actions_shelve">保留する</string>
+    <string name="actions_reopen">再開する</string>
+    <string name="actions_view_source">出典を見る</string>
+    <string name="actions_view_review">振り返りを開く</string>
+    <string name="actions_kind_saying">言い換え</string>
+    <string name="actions_kind_next_step">次の手順</string>
+    <string name="actions_kind_general">アクション</string>
+    <string name="actions_source_fallback_title">出典の文脈</string>
+    <string name="actions_source_fallback_snippet">（抜粋なし）</string>
+    <string name="actions_pending_banner">未完了のフォローアップ %1$d件</string>
+    <string name="actions_view">見る</string>
+
+    <!-- 批判鏡への引き継ぎ -->
+    <string name="handoff_send_to_mirror">批判鏡へ送る</string>
+    <string name="handoff_empty_note">ノートが空です。批判鏡に送る内容がありません。</string>
+    <string name="handoff_source_prefix">出典：</string>
+    <string name="handoff_source_recording">録音</string>
+    <string name="handoff_source_note">ノート</string>
+    <string name="handoff_source_insight">洞察</string>
+
+    <!-- R9 レンズと認知の修練 -->
+    <string name="cultivation_lens_label">レンズ</string>
+    <string name="cultivation_lens_critique">言動の批判鏡</string>
+    <string name="cultivation_lens_cognitive">認知の修練</string>
+    <string name="cultivation_cognitive_note">認知バイアス名はモデルの参考知識にすぎません。該当するかは文脈と逐字の証拠から判断し、キーワード判定やレッテル貼りは行いません。</string>
+    <string name="cultivation_cognitive_ref">参考：%1$s</string>
+    <string name="cultivation_alternative_view">別の視点：%1$s</string>
+    <string name="cultivation_starter_hint">スタートテンプレート（チェックして読み込み。読み込み後は自由に編集可）</string>
+    <string name="cultivation_starter_load">選択した項目を読み込む</string>
+    <string name="cultivation_starter_disclaimer">テンプレートは足場にすぎません。分析は文脈と逐字の証拠に基づき、テンプレートの文言でキーワード判定することはありません。</string>
+    <string name="cultivation_replace_title">編集領域に項目があります</string>
+    <string name="cultivation_replace_message">「置き換え」で既存の項目を消してテンプレートを読み込みます。「追加」で既存を残して新しい項目を加えます。</string>
+    <string name="cultivation_replace">置き換え</string>
+    <string name="cultivation_append">追加</string>
+    <string name="cultivation_exemplar_add_hint">手本とする人物（複数追加可）</string>
+    <string name="cultivation_exemplar_try">例：</string>
+    <string name="cultivation_exemplar_bracketed_name">【%1$s】</string>
+    <string name="cultivation_exemplar_disclaimer">以下は視点シミュレーションです。その人物の公的な思想と行動様式から推演したもので、本人の言葉でも史実の引用でもありません。</string>
+    <string name="cultivation_exemplar_suggestion_1">羅振宇</string>
+    <string name="cultivation_exemplar_suggestion_2">劉潤</string>
+    <string name="cultivation_exemplar_suggestion_3">曹沖</string>
+    <string name="cultivation_exemplar_suggestion_4">孔子</string>
+    <string name="cultivation_exemplar_suggestion_5">老子（道家）</string>
+    <string name="cultivation_exemplar_suggestion_6">王陽明</string>
+    <string name="cultivation_exemplar_suggestion_7">曽国藩</string>
+
+    <!-- スマートサマリの追加セクション -->
+    <string name="summary_key_decisions">重要な決定</string>
+    <string name="summary_basis">根拠：%1$s</string>
+    <string name="summary_open_questions">未解決の質問</string>
+    <string name="summary_followup_owner">担当者：%1$s</string>
+    <string name="summary_people">登場人物</string>
+    <string name="summary_person_with_role">%1$s（%2$s）</string>
+
+    <!-- CultivationStateManager の利用者向けフィードバック -->
+    <string name="cultivation_cloud_no_api">クラウド API が未設定のため、端末ローカル分析のままです。設定から先に構成できます。</string>
+    <string name="cultivation_new_dimension">新しい項目</string>
+    <string name="cultivation_error_dim_name">有効な項目名を1つ以上入力してください。</string>
+    <string name="cultivation_baseline_saved">理想像の基準を端末内に保存しました。</string>
+    <string name="cultivation_baseline_save_failed">保存に失敗しました：%1$s</string>
+    <string name="cultivation_error_no_transcript">まず自分の音声文字起こしを貼り付け、または入力してください。</string>
+    <string name="cultivation_repassed_info">初回結果はセルフチェックを通りませんでした。再実行して通過しました。</string>
+    <string name="cultivation_quality_gate_cognitive">今回の認知の振り返りは品質基準に未達のため、低品質な結果は表示していません。文字起こしを調整して再試行してください。</string>
+    <string name="cultivation_quality_gate_critique">今回の分析は品質基準に未達のため、低品質な結果は表示していません。基準を補足するか文字起こしを調整して再試行してください。</string>
+    <string name="cultivation_analysis_failed">分析に失敗しました：%1$s</string>
+    <string name="cultivation_error_no_exemplar">手本とする人物を1人以上追加してください。</string>
+    <string name="cultivation_error_no_transcript_exemplar">まず自分の音声文字起こしを貼り付け、または入力してください（批判鏡と同じものを共有できます）。</string>
+    <string name="cultivation_exemplar_partial_done">%1$d/%2$d人の照合が完了。残りは品質基準に未達です。</string>
+    <string name="cultivation_exemplar_quality_gate">今回の模範鏡は品質基準に未達のため、低品質な結果は表示していません。文字起こしを調整するか、より情報量のある人物で再試行してください。</string>
+    <string name="cultivation_exemplar_failed">模範鏡の分析に失敗しました：%1$s</string>
+    <string name="cultivation_history_cleared">端末内の修練記録を消去しました。</string>
+
+    <!-- アクション出典ラベル（データ層が書き込む固定語彙。描画時にマッピング） -->
+    <string name="action_source_critique">批判鏡の振り返り</string>
+    <string name="action_source_cognitive">認知鏡の振り返り</string>
+    <string name="action_source_exemplar">模範鏡の振り返り</string>
 </resources>

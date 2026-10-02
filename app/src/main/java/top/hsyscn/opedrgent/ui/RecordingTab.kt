@@ -1212,7 +1212,7 @@ fun RecordingTab(
                                             MirrorHandoff.post(
                                                 transcript = mirrorText,
                                                 sourceTitle = dateStr,
-                                                sourceTypeLabel = "录音",
+                                                sourceType = MirrorHandoff.SourceType.RECORDING,
                                             )
                                             onNavigateToCultivation()
                                         }
@@ -2759,14 +2759,14 @@ private fun DecisionsCard(decisions: List<top.hsyscn.opedrgent.stt.SmartSummary.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Assignment, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("关键决策", style = MaterialTheme.typography.titleMedium, color = themeTextDark())
+                Text(stringResource(R.string.summary_key_decisions), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             decisions.forEach { d ->
                 Column(modifier = Modifier.padding(vertical = SpacingTokens.xs)) {
                     Text("· ${d.text}", style = MaterialTheme.typography.bodyMedium, color = themeTextDark())
                     d.context.forEach { c ->
-                        Text("依据：$c", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                        Text(stringResource(R.string.summary_basis, c), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                     }
                 }
             }
@@ -2785,14 +2785,14 @@ private fun OpenQuestionsCard(questions: List<top.hsyscn.opedrgent.stt.SmartSumm
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.HelpOutline, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("待解答疑问", style = MaterialTheme.typography.titleMedium, color = themeTextDark())
+                Text(stringResource(R.string.summary_open_questions), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             questions.forEach { q ->
                 Column(modifier = Modifier.padding(vertical = SpacingTokens.xs)) {
                     Text("· ${q.text}", style = MaterialTheme.typography.bodyMedium, color = themeTextDark())
                     if (q.owner.isNotBlank()) {
-                        Text("跟进人：${q.owner}", style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                        Text(stringResource(R.string.summary_followup_owner, q.owner), style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
                     }
                 }
             }
@@ -2811,11 +2811,11 @@ private fun PeopleCard(people: List<top.hsyscn.opedrgent.stt.SmartSummary.Person
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Group, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
-                Text("涉及人物", style = MaterialTheme.typography.titleMedium, color = themeTextDark())
+                Text(stringResource(R.string.summary_people), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }
             Spacer(Modifier.height(SpacingTokens.sm))
             people.forEach { p ->
-                val line = if (p.role.isNotBlank()) "${p.name}（${p.role}）" else p.name
+                val line = if (p.role.isNotBlank()) stringResource(R.string.summary_person_with_role, p.name, p.role) else p.name
                 Text("· $line", style = MaterialTheme.typography.bodyMedium, color = themeTextDark(), modifier = Modifier.padding(vertical = SpacingTokens.xxs))
             }
         }

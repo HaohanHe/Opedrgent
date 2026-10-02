@@ -23,6 +23,7 @@ import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
 import top.hsyscn.opedrgent.storage.SourceType
+import top.hsyscn.opedrgent.R
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.UUID
@@ -148,7 +149,7 @@ class CultivationStateManager(
     /** 云端必须用户显式打开；这里只翻转开关，真正联网发生在点击分析时。 */
     fun setUseCloud(useCloud: Boolean) {
         if (useCloud && apiSettings.getApiConfig() == null) {
-            _state.update { it.copy(error = "尚未配置云端 API，将保持端侧本地分析；可先在设置中配置。") }
+            _state.update { it.copy(error = app.getString(R.string.cultivation_cloud_no_api)) }
             return
         }
         _state.update { it.copy(useCloud = useCloud) }
@@ -177,7 +178,7 @@ class CultivationStateManager(
     fun addDimension() = _state.update {
         it.copy(
             baselineDirty = true,
-            editingDimensions = it.editingDimensions + VirtueDimension("新维度", emptyList(), emptyList()),
+            editingDimensions = it.editingDimensions + VirtueDimension(app.getString(R.string.cultivation_new_dimension), emptyList(), emptyList()),
         )
     }
 
@@ -211,7 +212,7 @@ class CultivationStateManager(
             }
         }.filter { it.name.isNotBlank() }
         if (dims.isEmpty()) {
-            _state.update { it.copy(error = "请至少填写一个有效维度名称") }
+            _state.update { it.copy(error = app.getString(R.string.cultivation_error_dim_name)) }
             return
         }
         coroutineScope.launch {
@@ -225,8 +226,8 @@ class CultivationStateManager(
                 updatedAt = now,
             )
             runCatching { engine.saveBaseline(baseline) }
-                .onSuccess { _state.update { it.copy(baselineDirty = false, info = "理想人格基准已保存（本地）") } }
-                .onFailure { e -> _state.update { it.copy(error = "保存失败：${e.message}") } }
+                .onSuccess { _state.update { it.copy(baselineDirty = false, info = app.getString(R.string.cultivation_baseline_saved)) } }
+                .onFailure { e -> _state.update { it.copy(error = app.getString(R.string.cultivation_baseline_save_failed, e.message ?: "")) } }
             refresh()
         }
     }
@@ -237,7 +238,7 @@ class CultivationStateManager(
         val current = _state.value
         val transcript = current.transcript.trim()
         if (transcript.isBlank()) {
-            _state.update { it.copy(error = "请先粘贴或录入本人语音转写文本") }
+            _state.update { it.copy(error = app.getString(R.string.cultivation_error_no_transcript)) }
             return
         }
         if (current.isBusy) return
@@ -290,7 +291,7 @@ class CultivationStateManager(
                             phase = ReflectionPhase.Idle,
                             result = outcome.record,
                             history = history,
-                            info = if (outcome.attempts > 1) "首次结果未过自检，已重做后通过" else null,
+                            info = if (outcome.attempts > 1) app.getString(R.string.cultivation_repassed_info) else null,
                         )
                     }
                 } else {
@@ -303,9 +304,9 @@ class CultivationStateManager(
                             ),
                             history = history,
                             error = if (lens == ReflectionLens.COGNITIVE)
-                                "本次认知反思未达到质量门槛，未展示低质结果。可调整转写后重试。"
+                                app.getString(R.string.cultivation_quality_gate_cognitive)
                             else
-                                "本次分析未达到质量门槛，未展示低质反馈。可补充基准或调整转写后重试。",
+                                app.getString(R.string.cultivation_quality_gate_critique),
                         )
                     }
                 }
@@ -313,7 +314,7 @@ class CultivationStateManager(
                 throw e
             } catch (e: Exception) {
                 DebugLog.e("Cultivation", "分析失败", e)
-                _state.update { it.copy(phase = ReflectionPhase.Idle, error = "分析失败：${e.message}") }
+                _state.update { it.copy(phase = ReflectionPhase.Idle, error = app.getString(R.string.cultivation_analysis_failed, e.message ?: "")) }
             }
         }
     }
@@ -322,12 +323,12 @@ class CultivationStateManager(
         val current = _state.value
         val names = current.exemplarNames.map { it.trim() }.filter { it.isNotBlank() }
         if (names.isEmpty()) {
-            _state.update { it.copy(error = "请至少添加一位对标的榜样") }
+            _state.update { it.copy(error = app.getString(R.string.cultivation_error_no_exemplar)) }
             return
         }
         val transcript = current.transcript.trim()
         if (transcript.isBlank()) {
-            _state.update { it.copy(error = "请先粘贴或录入本人语音转写文本（可与批判镜共用同一段）") }
+            _state.update { it.copy(error = app.getString(R.string.cultivation_error_no_transcript_exemplar)) }
             return
         }
         if (current.isBusy) return
@@ -370,7 +371,7 @@ class CultivationStateManager(
                         }
                         succeeded.add(outcome.record)
                     } else {
-                        outcome.violations.forEach { v -> failures += "【$name】$v" }
+                        outcome.violations.forEach { v -> failures += app.getString(R.string.cultivation_exemplar_bracketed_name, name) + v }
                     }
                     // 每次调用后刷新历史，使后续榜样可看到刚落库的记录。
                     val refreshed = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
@@ -384,7 +385,7 @@ class CultivationStateManager(
                             exemplarResults = succeeded,
                             history = history,
                             info = if (failures.isNotEmpty())
-                                "已完成 ${succeeded.size}/${names.size} 位榜样，其余未过质量门槛" else null,
+                                app.getString(R.string.cultivation_exemplar_partial_done, succeeded.size, names.size) else null,
                         )
                     }
                 } else {
@@ -392,7 +393,7 @@ class CultivationStateManager(
                         it.copy(
                             phase = ReflectionPhase.Blocked(ReflectionLens.EXEMPLAR, failures, 0),
                             history = history,
-                            error = "榜样镜本次未达到质量门槛，未展示低质结果。可调整转写，或换一位信息更充分的榜样后重试。",
+                            error = app.getString(R.string.cultivation_exemplar_quality_gate),
                         )
                     }
                 }
@@ -400,7 +401,7 @@ class CultivationStateManager(
                 throw e
             } catch (e: Exception) {
                 DebugLog.e("Cultivation", "榜样镜分析失败", e)
-                _state.update { it.copy(phase = ReflectionPhase.Idle, error = "榜样镜分析失败：${e.message}") }
+                _state.update { it.copy(phase = ReflectionPhase.Idle, error = app.getString(R.string.cultivation_exemplar_failed, e.message ?: "")) }
             }
         }
     }
@@ -445,7 +446,7 @@ class CultivationStateManager(
         coroutineScope.launch {
             runCatching { engine.reports().clearAll() }
             runCatching { hippocampusProvider()?.deleteAllCultivation() }
-            _state.update { it.copy(history = emptyList(), result = null, exemplarResults = emptyList(), info = "本地修炼记录已清除") }
+            _state.update { it.copy(history = emptyList(), result = null, exemplarResults = emptyList(), info = app.getString(R.string.cultivation_history_cleared)) }
         }
     }
 

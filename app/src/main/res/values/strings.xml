@@ -718,4 +718,88 @@
     <string name="cultivation_exemplar_highlights">你已做到的亮点</string>
     <string name="cultivation_exemplar_improvements">还能怎么优化</string>
     <string name="cultivation_exemplar_takeaway">榜样心法：%1$s</string>
+
+    <!-- R7 行动跟进 -->
+    <string name="actions_title">行动跟进</string>
+    <string name="actions_empty_title">暂无行动项</string>
+    <string name="actions_empty_hint">复盘或对话中沉淀的待办会汇总到这里，保持克制、不打扰。</string>
+    <string name="actions_group_pending">待处理</string>
+    <string name="actions_group_shelved">已搁置</string>
+    <string name="actions_group_done">已完成</string>
+    <string name="actions_shelve">搁置</string>
+    <string name="actions_reopen">重新打开</string>
+    <string name="actions_view_source">查看来源</string>
+    <string name="actions_view_review">查看复盘</string>
+    <string name="actions_kind_saying">替代说法</string>
+    <string name="actions_kind_next_step">下一步</string>
+    <string name="actions_kind_general">行动</string>
+    <string name="actions_source_fallback_title">来源情境</string>
+    <string name="actions_source_fallback_snippet">（无摘录）</string>
+    <string name="actions_pending_banner">%1$d 项跟进待处理</string>
+    <string name="actions_view">查看</string>
+
+    <!-- 跨页送入批判镜移交 -->
+    <string name="handoff_send_to_mirror">送入批判镜</string>
+    <string name="handoff_empty_note">笔记内容为空，暂无法送入批判镜</string>
+    <string name="handoff_source_prefix">来源：</string>
+    <string name="handoff_source_recording">录音</string>
+    <string name="handoff_source_note">笔记</string>
+    <string name="handoff_source_insight">洞察</string>
+
+    <!-- R9 透镜与认知修炼 -->
+    <string name="cultivation_lens_label">透镜</string>
+    <string name="cultivation_lens_critique">言行批判镜</string>
+    <string name="cultivation_lens_cognitive">认知修炼</string>
+    <string name="cultivation_cognitive_note">认知偏差名称仅作为模型的参考知识，是否成立由模型结合完整语境、凭逐字证据判断，不做关键词命中、不贴标签。</string>
+    <string name="cultivation_cognitive_ref">参考：%1$s</string>
+    <string name="cultivation_alternative_view">替代视角：%1$s</string>
+    <string name="cultivation_starter_hint">起始模板（可勾选后载入，载入后仍可任意改写）</string>
+    <string name="cultivation_starter_load">载入所选维度</string>
+    <string name="cultivation_starter_disclaimer">模板只是脚手架，分析由模型结合完整语境与逐字证据进行，不会按模板文字做关键词判定。</string>
+    <string name="cultivation_replace_title">编辑区已有维度</string>
+    <string name="cultivation_replace_message">选择「替换」将清空现有维度并载入所选模板；选择「追加」则保留现有维度并追加新维度。</string>
+    <string name="cultivation_replace">替换</string>
+    <string name="cultivation_append">追加</string>
+    <string name="cultivation_exemplar_add_hint">对标榜样，可添加多位</string>
+    <string name="cultivation_exemplar_try">试试：</string>
+    <string name="cultivation_exemplar_bracketed_name">【%1$s】</string>
+    <string name="cultivation_exemplar_disclaimer">以下为视角模拟：依据该人物公开、通行的思想与行事风格推演，非本人原话，亦不代表史实引用。</string>
+    <string name="cultivation_exemplar_suggestion_1">罗振宇</string>
+    <string name="cultivation_exemplar_suggestion_2">刘润</string>
+    <string name="cultivation_exemplar_suggestion_3">曹冲</string>
+    <string name="cultivation_exemplar_suggestion_4">孔子</string>
+    <string name="cultivation_exemplar_suggestion_5">老子（道家）</string>
+    <string name="cultivation_exemplar_suggestion_6">王阳明</string>
+    <string name="cultivation_exemplar_suggestion_7">曾国藩</string>
+
+    <!-- 智能总结新增小节 -->
+    <string name="summary_key_decisions">关键决策</string>
+    <string name="summary_basis">依据：%1$s</string>
+    <string name="summary_open_questions">待解答疑问</string>
+    <string name="summary_followup_owner">跟进人：%1$s</string>
+    <string name="summary_people">涉及人物</string>
+    <string name="summary_person_with_role">%1$s（%2$s）</string>
+
+    <!-- CultivationStateManager 用户可见反馈 -->
+    <string name="cultivation_cloud_no_api">尚未配置云端 API，将保持端侧本地分析；可先在设置中配置。</string>
+    <string name="cultivation_new_dimension">新维度</string>
+    <string name="cultivation_error_dim_name">请至少填写一个有效维度名称</string>
+    <string name="cultivation_baseline_saved">理想人格基准已保存（本地）</string>
+    <string name="cultivation_baseline_save_failed">保存失败：%1$s</string>
+    <string name="cultivation_error_no_transcript">请先粘贴或录入本人语音转写文本</string>
+    <string name="cultivation_repassed_info">首次结果未过自检，已重做后通过</string>
+    <string name="cultivation_quality_gate_cognitive">本次认知反思未达到质量门槛，未展示低质结果。可调整转写后重试。</string>
+    <string name="cultivation_quality_gate_critique">本次分析未达到质量门槛，未展示低质反馈。可补充基准或调整转写后重试。</string>
+    <string name="cultivation_analysis_failed">分析失败：%1$s</string>
+    <string name="cultivation_error_no_exemplar">请至少添加一位对标的榜样</string>
+    <string name="cultivation_error_no_transcript_exemplar">请先粘贴或录入本人语音转写文本（可与批判镜共用同一段）</string>
+    <string name="cultivation_exemplar_partial_done">已完成 %1$d/%2$d 位榜样，其余未过质量门槛</string>
+    <string name="cultivation_exemplar_quality_gate">榜样镜本次未达到质量门槛，未展示低质结果。可调整转写，或换一位信息更充分的榜样后重试。</string>
+    <string name="cultivation_exemplar_failed">榜样镜分析失败：%1$s</string>
+    <string name="cultivation_history_cleared">本地修炼记录已清除</string>
+
+    <!-- 行动项来源标签（数据层写入的固定词表，渲染处按类型映射） -->
+    <string name="action_source_critique">批判镜复盘</string>
+    <string name="action_source_cognitive">认知镜复盘</string>
+    <string name="action_source_exemplar">榜样镜复盘</string>
 </resources>

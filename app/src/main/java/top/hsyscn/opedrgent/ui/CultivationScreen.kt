@@ -117,8 +117,12 @@ fun CultivationScreen(
         MirrorHandoff.consume()?.let { payload ->
             manager.loadTranscript(payload.transcript)
             handoffSourceLabel = buildString {
-                append("来源：")
-                append(payload.sourceTypeLabel)
+                append(context.getString(R.string.handoff_source_prefix))
+                append(when (payload.sourceType) {
+                    MirrorHandoff.SourceType.RECORDING -> context.getString(R.string.handoff_source_recording)
+                    MirrorHandoff.SourceType.NOTE -> context.getString(R.string.handoff_source_note)
+                    MirrorHandoff.SourceType.INSIGHT -> context.getString(R.string.handoff_source_insight)
+                })
                 if (payload.sourceTitle.isNotBlank()) {
                     append(" · ")
                     append(payload.sourceTitle)
@@ -290,7 +294,7 @@ private fun IosSegmented(
                 Box(
                     Modifier
                         .weight(1f)
-                        .height(36.dp)
+                        .height(44.dp)
                         .clip(RoundedCornerShape(7.dp))
                         .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
                         .clickable { onSelect(index) },
@@ -568,11 +572,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
     handoffSourceLabel: String? = null,
 ) {
     item {
-        SectionLabel("透镜")
+        SectionLabel(stringResource(R.string.cultivation_lens_label))
         IosGroup {
             IosRow {
                 IosSegmented(
-                    options = listOf("言行批判镜", "认知修炼"),
+                    options = listOf(stringResource(R.string.cultivation_lens_critique), stringResource(R.string.cultivation_lens_cognitive)),
                     selectedIndex = if (state.lens == ReflectionLens.COGNITIVE) 1 else 0,
                     onSelect = {
                         manager.setLens(if (it == 1) ReflectionLens.COGNITIVE else ReflectionLens.CRITIQUE)
@@ -580,7 +584,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
                 )
                 if (state.lens == ReflectionLens.COGNITIVE) {
                     Text(
-                        "认知偏差名称仅作为模型的参考知识，是否成立由模型结合完整语境、凭逐字证据判断，不做关键词命中、不贴标签。",
+                        stringResource(R.string.cultivation_cognitive_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = themeTextGrey(),
                     )
@@ -701,7 +705,7 @@ private fun CritiqueReportCard(manager: CultivationStateManager, record: Reflect
                         if (isCognitive && issue.referenceName.isNotBlank()) {
                             // 仅中性小字呈现参考偏差名，不渲染成标签/判定
                             Text(
-                                "参考：${issue.referenceName}",
+                                stringResource(R.string.cultivation_cognitive_ref, issue.referenceName),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = themeTextGrey(),
                             )
@@ -718,7 +722,7 @@ private fun CritiqueReportCard(manager: CultivationStateManager, record: Reflect
                         }
                         if (issue.alternative.isNotBlank()) {
                             Text(
-                                if (isCognitive) "替代视角：${issue.alternative}"
+                                if (isCognitive) stringResource(R.string.cultivation_alternative_view, issue.alternative)
                                 else stringResource(R.string.cultivation_alternative, issue.alternative),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
@@ -853,7 +857,7 @@ private fun StarterTemplateCard(
     IosGroup {
         IosRow {
             Text(
-                "起始模板（可勾选后载入，载入后仍可任意改写）",
+                stringResource(R.string.cultivation_starter_hint),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -889,11 +893,11 @@ private fun StarterTemplateCard(
                 shape = ShapeTokens.smallShape,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("载入所选维度")
+                Text(stringResource(R.string.cultivation_starter_load))
             }
 
             Text(
-                "模板只是脚手架，分析由模型结合完整语境与逐字证据进行，不会按模板文字做关键词判定。",
+                stringResource(R.string.cultivation_starter_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 color = themeTextGrey(),
             )
@@ -903,21 +907,21 @@ private fun StarterTemplateCard(
     if (showReplaceDialog) {
         AlertDialog(
             onDismissRequest = { showReplaceDialog = false },
-            title = { Text("编辑区已有维度") },
-            text = { Text("选择「替换」将清空现有维度并载入所选模板；选择「追加」则保留现有维度并追加新维度。") },
+            title = { Text(stringResource(R.string.cultivation_replace_title)) },
+            text = { Text(stringResource(R.string.cultivation_replace_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     showReplaceDialog = false
                     onLoad(checked.toList().sorted(), true)
-                }) { Text("替换") }
+                }) { Text(stringResource(R.string.cultivation_replace)) }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { showReplaceDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showReplaceDialog = false }) { Text(stringResource(R.string.action_cancel)) }
                     TextButton(onClick = {
                         showReplaceDialog = false
                         onLoad(checked.toList().sorted(), false)
-                    }) { Text("追加") }
+                    }) { Text(stringResource(R.string.cultivation_append)) }
                 }
             },
         )
@@ -1046,7 +1050,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyItems(
                 }
                 val summary = record.critique?.overall?.take(160)
                     ?: record.exemplar?.let { e ->
-                        "【${e.exemplar}】" + e.takeaway.ifBlank { e.situation }.take(150)
+                        stringResource(R.string.cultivation_exemplar_bracketed_name, e.exemplar) + e.takeaway.ifBlank { e.situation }.take(150)
                     }.orEmpty()
                 Text(summary, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
             }
@@ -1108,7 +1112,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
                         value = inputName,
                         onValueChange = { inputName = it },
                         modifier = Modifier.weight(1f),
-                        label = { Text("对标榜样，可添加多位") },
+                        label = { Text(stringResource(R.string.cultivation_exemplar_add_hint)) },
                         singleLine = true,
                     )
                     Spacer(Modifier.width(SpacingTokens.sm))
@@ -1118,7 +1122,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
                             manager.addExemplar(name)
                             inputName = ""
                         }
-                    }) { Text("添加") }
+                    }) { Text(stringResource(R.string.action_add)) }
                 }
 
                 // 已选榜样 chips
@@ -1136,12 +1140,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
 
                 // 建议榜样 chips
                 Text(
-                    "试试：",
+                    stringResource(R.string.cultivation_exemplar_try),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.sm)) {
-                    listOf("罗振宇", "刘润", "曹冲", "孔子", "老子（道家）", "王阳明", "曾国藩").forEach { suggestion ->
+                    listOf(
+                        stringResource(R.string.cultivation_exemplar_suggestion_1),
+                        stringResource(R.string.cultivation_exemplar_suggestion_2),
+                        stringResource(R.string.cultivation_exemplar_suggestion_3),
+                        stringResource(R.string.cultivation_exemplar_suggestion_4),
+                        stringResource(R.string.cultivation_exemplar_suggestion_5),
+                        stringResource(R.string.cultivation_exemplar_suggestion_6),
+                        stringResource(R.string.cultivation_exemplar_suggestion_7),
+                    ).forEach { suggestion ->
                         AssistChip(
                             onClick = { manager.addExemplar(suggestion) },
                             label = { Text(suggestion) },
@@ -1216,7 +1228,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.exemplarItems(
                 tonalElevation = 0.dp,
             ) {
                 Text(
-                    "以下为视角模拟：依据该人物公开、通行的思想与行事风格推演，非本人原话，亦不代表史实引用。",
+                    stringResource(R.string.cultivation_exemplar_disclaimer),
                     modifier = Modifier.padding(SpacingTokens.md),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeTextGrey(),
