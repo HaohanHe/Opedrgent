@@ -145,6 +145,11 @@ fun ActionsScreen(
             return@Scaffold
         }
 
+        // 这三个标题需在 @Composable 作用域内解析：LazyListScope 内容 lambda 不是 Composable 上下文。
+        val groupPendingTitle = stringResource(R.string.actions_group_pending)
+        val groupShelvedTitle = stringResource(R.string.actions_group_shelved)
+        val groupDoneTitle = stringResource(R.string.actions_group_done)
+
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
@@ -153,7 +158,7 @@ fun ActionsScreen(
             verticalArrangement = Arrangement.spacedBy(SpacingTokens.lg),
         ) {
             actionGroup(
-                title = stringResource(R.string.actions_group_pending),
+                title = groupPendingTitle,
                 list = items.filter { it.status == ActionStatus.OPEN },
                 actingId = actingId,
                 onOpenDetail = { detail = it },
@@ -162,7 +167,7 @@ fun ActionsScreen(
                 onReopen = { changeStatus(it, ActionStatus.OPEN) },
             )
             actionGroup(
-                title = stringResource(R.string.actions_group_shelved),
+                title = groupShelvedTitle,
                 list = items.filter { it.status == ActionStatus.DEFERRED },
                 actingId = actingId,
                 onOpenDetail = { detail = it },
@@ -171,7 +176,7 @@ fun ActionsScreen(
                 onReopen = { changeStatus(it, ActionStatus.OPEN) },
             )
             actionGroup(
-                title = stringResource(R.string.actions_group_done),
+                title = groupDoneTitle,
                 list = items.filter { it.status == ActionStatus.DONE },
                 actingId = actingId,
                 onOpenDetail = { detail = it },

@@ -733,7 +733,7 @@
     <string name="cultivation_exemplar_add_hint">Exemplars to learn from (add more than one)</string>
     <string name="cultivation_exemplar_try">Try: </string>
     <string name="cultivation_exemplar_bracketed_name">[%1$s]</string>
-    <string name="cultivation_exemplar_disclaimer">The following is a perspective simulation: it extrapolates from the person&apos;s well-known public ideas and conduct. It is not their own words, nor a historical citation.</string>
+    <string name="cultivation_exemplar_disclaimer">The following is a perspective simulation: it extrapolates from the person\'s well-known public ideas and conduct. It is not their own words, nor a historical citation.</string>
     <string name="cultivation_exemplar_suggestion_1">Luo Zhenyu</string>
     <string name="cultivation_exemplar_suggestion_2">Liu Run</string>
     <string name="cultivation_exemplar_suggestion_3">Cao Chong</string>
