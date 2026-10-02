@@ -852,19 +852,19 @@ class FullDuplexAudioEngine(
                 loop@ while (isActive && isRecording.get()) {
                     val readSize: Int
                     try {
-                        readSize = record.read(buffer, 0, buffer.size)
+                        readSize = record!!.read(buffer, 0, buffer.size)
                     } catch (e: SecurityException) {
                         // 重建 AudioRecord 所需录音权限缺失
                         failRecordingPipeline("录音权限缺失: ${e.message}")
                         break
                     } catch (e: Exception) {
                         DebugLog.e(TAG, "录音读取异常: ${e.message}", e)
-                        if (!tryRestartRecording(record)) {
+                        if (!tryRestartRecording(record!!)) {
                             failRecordingPipeline("采集管线失败: ${e.message}")
                             break
                         }
                         record = audioRecord ?: break
-                        runCatching { record.startRecording() }
+                        runCatching { record!!.startRecording() }
                         continue@loop
                     }
 
@@ -878,7 +878,7 @@ class FullDuplexAudioEngine(
 
                         readSize == AudioRecord.ERROR_INVALID_OPERATION -> {
                             DebugLog.w(TAG, "AudioRecord 操作无效，尝试重启采集管线")
-                            if (!tryRestartRecording(record)) {
+                            if (!tryRestartRecording(record!!)) {
                                 failRecordingPipeline("采集管线操作无效")
                                 break
                             }
@@ -895,7 +895,7 @@ class FullDuplexAudioEngine(
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "录音线程被取消")
             } finally {
-                runCatching { record.stop() }
+                runCatching { record!!.stop() }
                 DebugLog.d(TAG, "录音线程结束")
             }
         }
@@ -990,7 +990,7 @@ class FullDuplexAudioEngine(
                     try {
                         while (offset < data.size && isActive && isRecording.get() && !bargeInDetected) {
                             val writeSize = kotlin.math.min(data.size - offset, 3200)  // 每次 100ms
-                            track.write(data, offset, writeSize)
+                            track!!.write(data, offset, writeSize)
                             offset += writeSize
                             playRestartAttempts = 0
 
@@ -1004,7 +1004,7 @@ class FullDuplexAudioEngine(
                         throw e
                     } catch (e: Exception) {
                         DebugLog.e(TAG, "播放写入异常: ${e.message}", e)
-                        if (!tryRestartPlayback(track)) {
+                        if (!tryRestartPlayback(track!!)) {
                             notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "播放管线失败: ${e.message}")
                             playQueue.clear()
                             isPlaying.set(false)
@@ -1029,7 +1029,7 @@ class FullDuplexAudioEngine(
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "播放线程被取消")
             } finally {
-                runCatching { track.stop() }
+                runCatching { track!!.stop() }
                 isPlaying.set(false)
                 DebugLog.d(TAG, "播放线程结束")
             }

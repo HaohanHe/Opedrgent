@@ -188,7 +188,7 @@ fun CultivationScreen(
             }
 
             when (tab) {
-                CultivationTab.MIRROR -> mirrorItems(manager, state)
+                CultivationTab.MIRROR -> mirrorItems(manager, state, readinessSnapshot.llm.state == ReadyState.READY)
                 CultivationTab.BASELINE -> baselineItems(manager, state.editingDimensions)
                 CultivationTab.HISTORY -> historyItems(manager, state.history)
                 CultivationTab.EXEMPLAR -> exemplarItems(manager, state)
@@ -533,6 +533,7 @@ private fun LocalModelNeededCard(onManage: () -> Unit) {
 private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
     manager: CultivationStateManager,
     state: CultivationStateManager.CultivationUiState,
+    llmReady: Boolean,
 ) {
     item {
         SectionLabel(stringResource(R.string.cultivation_backend_label))
@@ -594,7 +595,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
             loadingText = stringResource(R.string.cultivation_analyzing),
             loading = state.progressOn(ReflectionLens.CRITIQUE),
             enabled = !state.isBusy && state.transcript.isNotBlank() &&
-                (state.useCloud || readinessSnapshot.llm.state == ReadyState.READY),
+                (state.useCloud || llmReady),
             onClick = manager::analyze,
         )
     }
