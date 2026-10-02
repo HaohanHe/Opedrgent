@@ -29,7 +29,8 @@
     <include domain="sharedpref" path="opedrgent_user" />
     <include domain="sharedpref" path="opedrgent_locale" />
     <include domain="sharedpref" path="note_search_history" />
-    <include domain="sharedpref" path="voiceprint_prefs" />
+    <!-- 声纹生物特征模板显式排除：声纹 embedding 属生物特征，换机后需重新注册，禁止随备份流转。 -->
+    <exclude domain="sharedpref" path="voiceprint_prefs" />
     <include domain="sharedpref" path="vocabulary" />
 
     <!-- 会话数据需要备份：卸载重装后可恢复 -->

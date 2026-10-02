@@ -197,18 +197,14 @@ class RequestLoggingInterceptor : okhttp3.Interceptor {
         
         // 记录请求信息（仅DEBUG级别）
         if (DebugLog.isDebugEnabled()) {
+            val rawQuery = request.url.query
             DebugLog.d(
                 ">>> ${request.method} ${request.url.host}${request.url.encodedPath}" +
-                if (request.url.query != null) "?${request.url.query}" else ""
+                if (rawQuery != null) "?${redactQuery(rawQuery)}" else ""
             )
             
             request.headers.forEach { header ->
-                if (!header.first.equals("Authorization", ignoreCase = true) && 
-                    !header.first.equals("Cookie", ignoreCase = true)) {
-                    DebugLog.d("    ${header.first}: ${header.second.take(50)}")
-                } else {
-                    DebugLog.d("    ${header.first}: [REDACTED]")
-                }
+                DebugLog.d("    ${header.first}: ${redactHeader(header.first, header.second)}")
             }
         }
         
@@ -242,5 +238,48 @@ class RequestLoggingInterceptor : okhttp3.Interceptor {
         }
         
         return response
+    }
+
+    /**
+     * 敏感请求头名单（字段名匹配，忽略大小写）。命中则掩码，不打印完整凭据。
+     * 仅用于日志脱敏，不影响实际发出的请求头。
+     */
+    private val sensitiveHeaders = setOf(
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "x-goog-api-key",
+        "api-key",
+        "x-api-key",
+    )
+
+    /** URL query 中需要掩码的参数名片段（归一化为小写后子串匹配）。 */
+    private val sensitiveQueryKeys = setOf(
+        "key", "api_key", "apikey", "token", "secret",
+    )
+
+    private fun redactHeader(name: String, value: String): String {
+        if (sensitiveHeaders.any { name.equals(it, ignoreCase = true) }) {
+            return maskSecret(value)
+        }
+        return value.take(50)
+    }
+
+    private fun maskSecret(value: String): String {
+        if (value.length <= 8) return "****"
+        return value.take(4) + "****" + value.takeLast(4)
+    }
+
+    private fun redactQuery(query: String): String {
+        // 解析 query 参数名，逐项掩码敏感值后再拼接；不改动实际请求 URL。
+        return query.split("&").joinToString("&") { pair ->
+            val idx = pair.indexOf('=')
+            if (idx < 0) return@joinToString pair
+            val k = pair.substring(0, idx)
+            val v = pair.substring(idx + 1)
+            val norm = k.lowercase().replace('-', '_')
+            val masked = sensitiveQueryKeys.any { norm.contains(it) }
+            if (masked) "$k=" + maskSecret(v) else pair
+        }
     }
 }

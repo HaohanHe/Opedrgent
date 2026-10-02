@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   网络安全配置：
+   - base-config 默认拒绝明文（cleartextTrafficPermitted="false"），符合 targetSdk 35 对远端连接的默认收紧。
+   - 仅对回环/本机/模拟器宿主机地址放行明文，用于连接本地推理服务：
+       * 127.0.0.1 / localhost   -> Ollama (localhost:11434)、LM Studio (localhost:1234) 等本机预设
+       * 10.0.2.2                ->  Android 模拟器访问宿主机 localhost 的固定别名
+   - 不对任意远端域名放行明文。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
