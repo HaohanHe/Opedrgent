@@ -146,18 +146,29 @@
     <string name="onboarding_next">下一步</string>
     <string name="onboarding_prev">上一页</string>
     <string name="onboarding_get_started">进入 Opedrgent</string>
-    <string name="onboarding_page_welcome_title">欢迎来到 Opedrgent</string>
-    <string name="onboarding_page_welcome_subtitle">你的本地优先、可扩展 AI 助手。对话、笔记、知识图谱、全双工语音与动态技能协同生长，让 AI 成为你的外脑。</string>
-    <string name="onboarding_page_chat_title">随时对话</string>
-    <string name="onboarding_page_chat_subtitle">支持多轮对话、工具调用、联网搜索与深度研究。需要时 AI 会主动确认，不会擅自执行敏感操作。</string>
-    <string name="onboarding_page_notes_title">笔记与知识图谱</string>
-    <string name="onboarding_page_notes_subtitle">记录灵感、会议、图片与链接。保存后系统会自动构建知识图谱，帮你发现笔记之间的隐藏联系。</string>
-    <string name="onboarding_page_sprout_title">思想空间洞察</string>
-    <string name="onboarding_page_sprout_subtitle">对任意笔记触发洞察，AI 将从多个视角深度分析，生成知识关联、洞察与行动建议。支持基于上一次结果继续深化。</string>
-    <string name="onboarding_page_interview_title">全双工语音访谈</string>
-    <string name="onboarding_page_interview_subtitle">支持实时全双工语音对话，硬件 AEC 回声消除、VAD 语音检测与智能打断。可用于模拟面试、口语练习与深度访谈。</string>
-    <string name="onboarding_page_offline_title">本地优先，隐私可控</string>
-    <string name="onboarding_page_offline_subtitle">数据默认保存在设备本地。可加载 Gemma 4 等本地模型实现完全离线运行，也可以按需配置云端 API。</string>
+    <!-- Onboarding pages: 记录 -> 洞察 -> 三面透镜镜鉴 -> 行动与回看（全程本机处理） -->
+    <string name="onboarding_page_record_title">随手记录</string>
+    <string name="onboarding_page_record_subtitle">用语音或笔记记录日常情境，语音转写在本机完成。</string>
+    <string name="onboarding_page_insight_title">本地洞察</string>
+    <string name="onboarding_page_insight_subtitle">本地模型从转写中提炼主题、关键决策、待办、疑问与涉及人物。</string>
+    <string name="onboarding_page_lenses_title">三面透镜镜鉴</string>
+    <string name="onboarding_page_lenses_subtitle">言行批判镜看你怎么说，认知修炼看你怎么想，榜样镜看理想中的他者会怎么做。</string>
+    <string name="onboarding_page_action_title">行动与回看</string>
+    <string name="onboarding_page_action_subtitle">建议落成可跟进的待办，可标记完成或搁置；随时回看原始情境与复盘，全程在本机处理。</string>
+    <string name="onboarding_privacy_on_device">数据默认仅保存在本设备。</string>
+    <string name="onboarding_privacy_cloud_optin">云端能力默认关闭；仅在你主动配置并使用时，才会向你所选的第三方端点发送内容。</string>
+    <string name="onboarding_privacy_policy_link">查看隐私政策</string>
+    <string name="privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
+
+    <!-- OnboardingBaselineScreen -->
+    <string name="onboarding_baseline_title">建立你的人格基准</string>
+    <string name="onboarding_baseline_subtitle">从一份起始模板开始，写下你希望如何行事。它只是供你参照的脚手架，不做自动判定，日后可在批判镜中随时修改。</string>
+    <string name="onboarding_baseline_load_template">载入起始模板</string>
+    <string name="onboarding_baseline_dimension_label">维度名称</string>
+    <string name="onboarding_baseline_do_hint">希望做到的事（每行一条）</string>
+    <string name="onboarding_baseline_later">稍后设置</string>
+    <string name="onboarding_baseline_save">保存并继续</string>
+    <string name="onboarding_baseline_error_empty">请至少保留一个已填写名称的维度</string>
 
     <!-- MainViewModel / AppRoot UI messages -->
     <string name="error_api_key_required">请先在设置里填写 API Key</string>

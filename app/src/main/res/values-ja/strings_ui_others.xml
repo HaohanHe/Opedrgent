@@ -146,18 +146,29 @@
     <string name="onboarding_next">次へ</string>
     <string name="onboarding_prev">前へ</string>
     <string name="onboarding_get_started">Opedrgent を始める</string>
-    <string name="onboarding_page_welcome_title">Opedrgent へようこそ</string>
-    <string name="onboarding_page_welcome_subtitle">ローカル優先で拡張可能な AI アシスタント。対話、ノート、ナレッジグラフ、全二重音声、動的スキルが共に成長し、AI をあなたの外脳にします。</string>
-    <string name="onboarding_page_chat_title">いつでも対話</string>
-    <string name="onboarding_page_chat_subtitle">複数回対話、ツール呼び出し、ウェブ検索、深掘り調査に対応。必要に応じて AI が能動的に確認し、センシティブな操作を勝手に実行することはありません。</string>
-    <string name="onboarding_page_notes_title">ノートとナレッジグラフ</string>
-    <string name="onboarding_page_notes_subtitle">インスピレーション、会議、画像、リンクを記録。保存すると自動的にナレッジグラフが構築され、ノート間の隠れたつながりを見つけられます。</string>
-    <string name="onboarding_page_sprout_title">思考空間のインサイト</string>
-    <string name="onboarding_page_sprout_subtitle">任意のノートでインサイトをトリガーすると、AI が多角的に深く分析し、知識のつながり、洞察、行動提案を生成します。前回の結果をもとに、さらに深めることもできます。</string>
-    <string name="onboarding_page_interview_title">全二重音声インタビュー</string>
-    <string name="onboarding_page_interview_subtitle">リアルタイム全二重音声対話、ハードウェア AEC エコーキャンセル、VAD 音声検出、スマートバージインに対応。模擬面接、スピーキング練習、ディープインタビューに最適です。</string>
-    <string name="onboarding_page_offline_title">ローカル優先、プライバシー管理</string>
-    <string name="onboarding_page_offline_subtitle">データはデフォルトでデバイスにローカル保存されます。Gemma 4 などのローカルモデルを読み込めば完全オフラインで動作し、必要に応じてクラウド API も設定できます。</string>
+    <!-- Onboarding pages: 記録 -> インサイト -> 三つのレンズ -> 行動と振り返り（端末内処理） -->
+    <string name="onboarding_page_record_title">思いついたら記録</string>
+    <string name="onboarding_page_record_subtitle">日常の場面を音声やノートで記録。音声の文字起こしは端末内で完結します。</string>
+    <string name="onboarding_page_insight_title">端末内でインサイト</string>
+    <string name="onboarding_page_insight_subtitle">ローカルモデルが書き起こしから、テーマ・重要な決定・やること・疑問・関わる人を抽出します。</string>
+    <string name="onboarding_page_lenses_title">三つのレンズで自己対照</string>
+    <string name="onboarding_page_lenses_subtitle">言動の鏡は話し方を、認識のレンズは考え方を、手本の鏡は「理想の他者ならどうするか」を映します。</string>
+    <string name="onboarding_page_action_title">行動と振り返り</string>
+    <string name="onboarding_page_action_subtitle">提案は追跡できるやることリストになり、完了や保留をマークできます。元の場面と振り返りはいつでも見直せ、すべて端末内で処理されます。</string>
+    <string name="onboarding_privacy_on_device">データはデフォルトでこの端末にのみ保存されます。</string>
+    <string name="onboarding_privacy_cloud_optin">クラウド機能はデフォルトでオフです。設定して使う場合にのみ、選んだサードパーティのエンドポイントへ送信されます。</string>
+    <string name="onboarding_privacy_policy_link">プライバシーポリシーを表示</string>
+    <string name="privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
+
+    <!-- OnboardingBaselineScreen -->
+    <string name="onboarding_baseline_title">あなたの人格ベースラインを設定</string>
+    <string name="onboarding_baseline_subtitle">スターターテンプレートから、どう行動したいかを書き出しましょう。参照用の雛形にすぎず自動判定は行いません。後からでも反省の鏡で編集できます。</string>
+    <string name="onboarding_baseline_load_template">スターターテンプレートを読み込む</string>
+    <string name="onboarding_baseline_dimension_label">項目名</string>
+    <string name="onboarding_baseline_do_hint">心がけたいこと（1 行に 1 つ）</string>
+    <string name="onboarding_baseline_later">あとで設定</string>
+    <string name="onboarding_baseline_save">保存して進む</string>
+    <string name="onboarding_baseline_error_empty">名前が入力された項目を 1 つ以上残してください。</string>
 
     <!-- MainViewModel / AppRoot UI messages -->
     <string name="error_api_key_required">先に設定で API Key を入力してください</string>

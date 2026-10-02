@@ -146,18 +146,29 @@
     <string name="onboarding_next">Next</string>
     <string name="onboarding_prev">Previous</string>
     <string name="onboarding_get_started">Enter Opedrgent</string>
-    <string name="onboarding_page_welcome_title">Welcome to Opedrgent</string>
-    <string name="onboarding_page_welcome_subtitle">Your local-first, extensible AI assistant. Chat, notes, knowledge graph, full-duplex voice, and dynamic skills grow together — making AI your external brain.</string>
-    <string name="onboarding_page_chat_title">Chat Anytime</string>
-    <string name="onboarding_page_chat_subtitle">Supports multi-turn conversation, tool invocation, web search, and deep research. When needed, the AI will proactively confirm and will not perform sensitive operations without permission.</string>
-    <string name="onboarding_page_notes_title">Notes &amp; Knowledge Graph</string>
-    <string name="onboarding_page_notes_subtitle">Capture inspirations, meetings, images, and links. After saving, the system automatically builds a knowledge graph to help you discover hidden connections between notes.</string>
-    <string name="onboarding_page_sprout_title">Thought Space Insight</string>
-    <string name="onboarding_page_sprout_subtitle">Trigger an insight on any note, and the AI will deeply analyze from multiple perspectives, generating knowledge connections, insights, and action suggestions. You can go deeper using prior results.</string>
-    <string name="onboarding_page_interview_title">Full-Duplex Voice Interview</string>
-    <string name="onboarding_page_interview_subtitle">Supports real-time full-duplex voice conversation with hardware AEC echo cancellation, VAD voice detection, and smart barge-in. Ideal for mock interviews, speaking practice, and in-depth conversations.</string>
-    <string name="onboarding_page_offline_title">Local First, Privacy Controllable</string>
-    <string name="onboarding_page_offline_subtitle">Data is stored on-device by default. Load local models such as Gemma 4 for fully offline operation, or configure cloud APIs on demand.</string>
+    <!-- Onboarding pages: Record -> Insight -> Three lenses -> Act and revisit (on-device) -->
+    <string name="onboarding_page_record_title">Capture as you go</string>
+    <string name="onboarding_page_record_subtitle">Record everyday moments by voice or notes; voice transcription happens on-device.</string>
+    <string name="onboarding_page_insight_title">On-device insight</string>
+    <string name="onboarding_page_insight_subtitle">A local model extracts themes, key decisions, to-dos, open questions, and people involved from your transcripts.</string>
+    <string name="onboarding_page_lenses_title">Three mirrors for self-review</string>
+    <string name="onboarding_page_lenses_subtitle">The conduct mirror reviews how you speak, the cognition lens reviews how you think, and the exemplar mirror asks what an ideal other would do.</string>
+    <string name="onboarding_page_action_title">Act and revisit</string>
+    <string name="onboarding_page_action_subtitle">Suggestions become trackable to-dos you can mark done or on hold, with the original context and reviews always one tap away. All processing stays on-device.</string>
+    <string name="onboarding_privacy_on_device">By default, your data stays only on this device.</string>
+    <string name="onboarding_privacy_cloud_optin">Cloud features are off by default; content is sent to the third-party endpoint you choose only after you configure and use it.</string>
+    <string name="onboarding_privacy_policy_link">View privacy policy</string>
+    <string name="privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
+
+    <!-- OnboardingBaselineScreen -->
+    <string name="onboarding_baseline_title">Set your personal baseline</string>
+    <string name="onboarding_baseline_subtitle">Start from a starter template and write down how you want to act. It is only a scaffold for your reference, makes no automatic judgments, and can be edited later in the reflection mirror.</string>
+    <string name="onboarding_baseline_load_template">Load starter template</string>
+    <string name="onboarding_baseline_dimension_label">Dimension name</string>
+    <string name="onboarding_baseline_do_hint">What you want to do (one per line)</string>
+    <string name="onboarding_baseline_later">Set up later</string>
+    <string name="onboarding_baseline_save">Save and continue</string>
+    <string name="onboarding_baseline_error_empty">Please keep at least one dimension with a name.</string>
 
     <!-- MainViewModel / AppRoot UI messages -->
     <string name="error_api_key_required">Please fill in the API Key in Settings first</string>

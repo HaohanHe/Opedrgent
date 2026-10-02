@@ -352,6 +352,36 @@ fun AppRoot(
         return
     }
 
+    // 初始人格基准建立门：onboarding 完成后、端侧模型准备前出现一次；可跳过，日后在批判镜内编辑基准。
+    val baselineSetupDone by BaselineSetupDataStore.isDone(context).collectAsStateWithLifecycle(initialValue = null)
+    val isBaselineSetupLoading = baselineSetupDone == null
+    if (isBaselineSetupLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (baselineSetupDone == false) {
+        var isBaselineClosing by remember { mutableStateOf(false) }
+        AnimatedVisibility(
+            visible = !isBaselineClosing,
+            exit = fadeOut(animationSpec = tween(300)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            OnboardingBaselineScreen(
+                onFinished = {
+                    isBaselineClosing = true
+                    scope.launch { BaselineSetupDataStore.markDone(context) }
+                },
+            )
+        }
+        return
+    }
+
     // 端侧模型首次准备门：LLM/ASR 未就绪且用户未选「稍后」时引导下载；
     // 已就绪或已 deferred 直接进入主应用（deferred 后由各功能面内联门控卡承接）。
     val readinessRepo = remember { ModelReadinessRepository.getInstance(context) }

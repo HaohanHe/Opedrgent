@@ -1,5 +1,8 @@
 package top.hsyscn.opedrgent.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -22,7 +25,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -39,6 +41,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -58,7 +61,7 @@ import top.hsyscn.opedrgent.ui.components.isAtLeastMediumWidth
  * 设计原则：
  * - 价值优先：30 秒内讲清核心能力
  * - 可跳过：右上角始终提供跳过入口
- * - 渐进式：5 页轻量引导，每页一个主题
+ * - 渐进式：4 页轻量引导，每页一个主题
  * - 无阻塞：完成引导前不要求登录或权限
  * - 流畅体验：支持滑动手势、丰富动画、响应式过渡
  */
@@ -72,46 +75,33 @@ fun OnboardingScreen(
 
     val pages = listOf(
         OnboardingPage(
-            icon = Icons.Default.Spa,
-            title = stringResource(R.string.onboarding_page_welcome_title),
-            subtitle = stringResource(R.string.onboarding_page_welcome_subtitle),
+            icon = Icons.Default.Mic,
+            title = stringResource(R.string.onboarding_page_record_title),
+            subtitle = stringResource(R.string.onboarding_page_record_subtitle),
             gradientStart = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
             gradientEnd = Color.Transparent,
         ),
         OnboardingPage(
-            icon = Icons.AutoMirrored.Filled.Chat,
-            title = stringResource(R.string.onboarding_page_chat_title),
-            subtitle = stringResource(R.string.onboarding_page_chat_subtitle),
+            icon = Icons.Default.AutoAwesome,
+            title = stringResource(R.string.onboarding_page_insight_title),
+            subtitle = stringResource(R.string.onboarding_page_insight_subtitle),
             gradientStart = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
             gradientEnd = Color.Transparent,
         ),
         OnboardingPage(
-            icon = Icons.Default.Book,
-            title = stringResource(R.string.onboarding_page_notes_title),
-            subtitle = stringResource(R.string.onboarding_page_notes_subtitle),
+            icon = Icons.Default.Visibility,
+            title = stringResource(R.string.onboarding_page_lenses_title),
+            subtitle = stringResource(R.string.onboarding_page_lenses_subtitle),
             gradientStart = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
             gradientEnd = Color.Transparent,
         ),
         OnboardingPage(
-            icon = Icons.Default.AutoAwesome,
-            title = stringResource(R.string.onboarding_page_sprout_title),
-            subtitle = stringResource(R.string.onboarding_page_sprout_subtitle),
-            gradientStart = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-            gradientEnd = Color.Transparent,
-        ),
-        OnboardingPage(
-            icon = Icons.Default.Mic,
-            title = stringResource(R.string.onboarding_page_interview_title),
-            subtitle = stringResource(R.string.onboarding_page_interview_subtitle),
+            icon = Icons.Default.CheckCircle,
+            title = stringResource(R.string.onboarding_page_action_title),
+            subtitle = stringResource(R.string.onboarding_page_action_subtitle),
             gradientStart = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
             gradientEnd = Color.Transparent,
-        ),
-        OnboardingPage(
-            icon = Icons.Default.Lock,
-            title = stringResource(R.string.onboarding_page_offline_title),
-            subtitle = stringResource(R.string.onboarding_page_offline_subtitle),
-            gradientStart = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f),
-            gradientEnd = Color.Transparent,
+            privacyFooter = true,
         ),
     )
 
@@ -445,6 +435,11 @@ private fun OnboardingPageContent(
             )
         }
 
+        // 隐私透明小字与隐私政策入口（仅末屏展示）
+        if (page.privacyFooter) {
+            PrivacyFooter()
+        }
+
         // 页码提示（第 X / Y 页）
         Spacer(modifier = Modifier.height(SpacingTokens.lg))
         Text(
@@ -461,4 +456,53 @@ private data class OnboardingPage(
     val subtitle: String,
     val gradientStart: Color,
     val gradientEnd: Color,
+    val privacyFooter: Boolean = false,
 )
+
+/**
+ * 末屏隐私透明小字与隐私政策入口：
+ * 数据默认仅存本机；云端默认关闭，仅在用户主动配置使用时才发送。
+ * 点击用系统可处理的视图打开隐私政策；无机能打开时静默兜底，不崩溃。
+ */
+@Composable
+private fun PrivacyFooter() {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(modifier = Modifier.height(SpacingTokens.md))
+        Text(
+            text = stringResource(R.string.onboarding_privacy_on_device),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(SpacingTokens.xs))
+        Text(
+            text = stringResource(R.string.onboarding_privacy_cloud_optin),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = { openPrivacyPolicy(context) }) {
+            Text(
+                text = stringResource(R.string.onboarding_privacy_policy_link),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+private fun openPrivacyPolicy(context: Context) {
+    val intent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse(context.getString(R.string.privacy_policy_url)),
+    )
+    val canOpen = runCatching {
+        intent.resolveActivity(context.packageManager) != null
+    }.getOrDefault(false)
+    if (canOpen) {
+        runCatching { context.startActivity(intent) }
+    }
+}
