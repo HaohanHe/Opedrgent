@@ -49,6 +49,12 @@
 -keepclassmembers class top.hsyscn.opedrgent.network.WebFetchResult { <init>(); <fields>; }
 -keepclassmembers class top.hsyscn.opedrgent.network.MapTileFetcher$MapResult { <init>(); <fields>; }
 
+# Gson: only confirmed reflective Gson user is TodoWriteTool.
+# gson.toJson(List<TodoItem>) reflects over field names; loadTodos reads them back as
+# map["content"]/["status"]/["priority"]. Keep TodoItem field names so persisted JSON
+# keys survive obfuscation (otherwise reload silently loses content). No blanket Gson keep.
+-keepclassmembers class top.hsyscn.opedrgent.tools.TodoWriteTool$TodoItem { <fields>; }
+
 # Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
