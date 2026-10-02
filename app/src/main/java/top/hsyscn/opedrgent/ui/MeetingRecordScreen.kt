@@ -1132,6 +1132,49 @@ private fun SmartSummaryContent(result: MeetingTranscriptResult) {
                 )
             }
         }
+
+        // 关键决策（空则隐藏）
+        if (summary.decisions.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "关键决策", style = MaterialTheme.typography.headlineLarge)
+            }
+            items(summary.decisions, key = { it.text + "_" + it.context.hashCode() }) { d ->
+                Spacer(Modifier.height(SpacingTokens.sm))
+                Text(text = "• ${d.text}", style = MaterialTheme.typography.bodyLarge)
+                d.context.forEach { c ->
+                    Text(text = "依据：$c", style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
+                }
+            }
+        }
+
+        // 待解答疑问（空则隐藏）
+        if (summary.openQuestions.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "待解答疑问", style = MaterialTheme.typography.headlineLarge)
+            }
+            items(summary.openQuestions, key = { it.text + "_" + it.owner }) { q ->
+                Spacer(Modifier.height(SpacingTokens.sm))
+                Text(text = "• ${q.text}", style = MaterialTheme.typography.bodyLarge)
+                if (q.owner.isNotBlank()) {
+                    Text(text = "跟进人：${q.owner}", style = MaterialTheme.typography.bodyMedium, color = themeTextGrey())
+                }
+            }
+        }
+
+        // 涉及人物（空则隐藏）
+        if (summary.people.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(SpacingTokens.md))
+                Text(text = "涉及人物", style = MaterialTheme.typography.headlineLarge)
+            }
+            items(summary.people, key = { it.name + "_" + it.role }) { p ->
+                Spacer(Modifier.height(SpacingTokens.sm))
+                val line = if (p.role.isNotBlank()) "${p.name}（${p.role}）" else p.name
+                Text(text = "• $line", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
     }
 }
 

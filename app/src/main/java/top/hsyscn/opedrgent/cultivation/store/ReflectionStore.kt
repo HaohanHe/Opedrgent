@@ -200,7 +200,9 @@ class ReflectionStore(context: Context) {
             r.issues.forEach { i ->
                 put(JSONObject().put("quote", i.quote).put("baselineRef", i.baselineRef)
                     .put("impact", i.impact).put("alternative", i.alternative)
-                    .put("dimension", i.dimension))
+                    .put("dimension", i.dimension)
+                    // referenceName 仅认知镜按需非空；言行镜恒为空，统一随信封落库/读出。
+                    .put("referenceName", i.referenceName))
             }
         })
         .put("nextStep", r.nextStep)
@@ -237,6 +239,7 @@ class ReflectionStore(context: Context) {
                     impact = jo.optString("impact", ""),
                     alternative = jo.optString("alternative", ""),
                     dimension = jo.optString("dimension", ""),
+                    referenceName = jo.optString("referenceName", ""),
                 )
             },
             nextStep = o.optString("nextStep", ""),

@@ -7,13 +7,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 批判镜长期趋势聚合（冻结契约：UI 层按此处签名写图，不得改名）。
+ * 长期趋势聚合（冻结契约：UI 层按此处签名写图，不得改名）。
  *
  * 立场与 [ReflectionInsights] 一致：这里只对模型已经产出的结构化字段做确定性、字符串级计数，
  * 不对用户语义做任何新判断——不做关键词命中、不做语义聚类、不贴标签。
  *
+ * 统计范围：言行批判镜（CRITIQUE）与认知修炼镜（COGNITIVE）的 ANALYZE 记录，二者共用同一存储信封。
  * 趋势维度只来自模型在每条 issue 上自行归纳的 [MirrorIssue.dimension]：
  * - 它不是任何内置词表，也与“起始模板”[BaselineTemplates] 毫无关系（模板只是用户可改的脚手架）；
+ *   认知镜下它是模型自归纳的“认知维度名”，同样不是固定词表；
  * - 维度名只有在归一化（trim / 去句末标点 / lowercase）后文本完全一致才合并，措辞不同就分别呈现，
  *   把“是否同一种行为”的判断留给模型在下次复盘中结合长期上下文完成。
  */
@@ -57,9 +59,11 @@ data class TrendInsights(
         private const val TOP_N = 6
 
         fun from(records: List<ReflectionRecord>): TrendInsights {
-            // 只取批判镜且正常分析路由（ANALYZE）的记录；SUPPORT/CRISIS 不产出 issue 与跟进。
+            // 合格记录：言行批判镜或认知修炼镜，且正常分析路由（ANALYZE）。两面透镜都走同一
+            // 存储信封 ReflectionRecord.critique，issue.dimension 同口径聚合；SUPPORT/CRISIS 不产出 issue。
             val qualifying = records.filter {
-                it.lens == ReflectionLens.CRITIQUE && it.route == MirrorRoute.ANALYZE
+                (it.lens == ReflectionLens.CRITIQUE || it.lens == ReflectionLens.COGNITIVE) &&
+                    it.route == MirrorRoute.ANALYZE
             }
             if (qualifying.isEmpty()) {
                 return TrendInsights(TrendGranularity.WEEK, emptyList(), null)

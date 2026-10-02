@@ -92,6 +92,12 @@ data class MirrorIssue(
     val impact: String,
     val alternative: String,
     val dimension: String = "",
+    /**
+     * 仅认知镜按需填写：仅当某参考认知偏差确实在完整语境中支撑了用户结论时才填其参考名（见
+     * CognitiveBiasCatalog），否则留空。它不是判定词表命中结果——批判镜恒为空；认知镜也不得为填而填。
+     * 工程不据此做任何匹配，仅随报告落库与展示。放在末尾、默认空，保持既有具名构造点不变。
+     */
+    val referenceName: String = "",
 )
 
 /** 用户对单条问题的标记（需求卡 N5）。 */

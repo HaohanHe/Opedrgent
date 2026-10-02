@@ -170,6 +170,8 @@ fun CultivationScreen(
                 CultivationHeader(
                     tab = tab,
                     onBack = onBack,
+                    // 认知镜不使用理想人格基准：MIRROR 且选了认知透镜时隐藏基准入口
+                    showBaseline = !(tab == CultivationTab.MIRROR && state.lens == ReflectionLens.COGNITIVE),
                     onOpenBaseline = {
                         manager.startBaselineEdit()
                         tab = CultivationTab.BASELINE
@@ -233,6 +235,7 @@ private fun CultivationHeader(
     onOpenBaseline: () -> Unit,
     onOpenHistory: () -> Unit,
     onBackToMirror: () -> Unit,
+    showBaseline: Boolean = true,
 ) {
     val titleRes = when (tab) {
         CultivationTab.BASELINE -> R.string.cultivation_tab_baseline
@@ -251,8 +254,10 @@ private fun CultivationHeader(
         )
         when (tab) {
             CultivationTab.MIRROR, CultivationTab.EXEMPLAR -> {
-                IconButton(onClick = onOpenBaseline) {
-                    Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.cultivation_tab_baseline))
+                if (showBaseline) {
+                    IconButton(onClick = onOpenBaseline) {
+                        Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.cultivation_tab_baseline))
+                    }
                 }
                 IconButton(onClick = onOpenHistory) {
                     Icon(Icons.Filled.History, contentDescription = stringResource(R.string.cultivation_tab_history))
@@ -563,6 +568,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
     handoffSourceLabel: String? = null,
 ) {
     item {
+        SectionLabel("透镜")
+        IosGroup {
+            IosRow {
+                IosSegmented(
+                    options = listOf("言行批判镜", "认知修炼"),
+                    selectedIndex = if (state.lens == ReflectionLens.COGNITIVE) 1 else 0,
+                    onSelect = {
+                        manager.setLens(if (it == 1) ReflectionLens.COGNITIVE else ReflectionLens.CRITIQUE)
+                    },
+                )
+                if (state.lens == ReflectionLens.COGNITIVE) {
+                    Text(
+                        "认知偏差名称仅作为模型的参考知识，是否成立由模型结合完整语境、凭逐字证据判断，不做关键词命中、不贴标签。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeTextGrey(),
+                    )
+                }
+            }
+        }
+    }
+
+    item {
         SectionLabel(stringResource(R.string.cultivation_backend_label))
         IosGroup {
             IosRow {
@@ -629,14 +656,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
         PrimaryButton(
             text = stringResource(R.string.cultivation_start),
             loadingText = stringResource(R.string.cultivation_analyzing),
-            loading = state.progressOn(ReflectionLens.CRITIQUE),
+            loading = state.progressOn(state.lens),
             enabled = !state.isBusy && state.transcript.isNotBlank() &&
                 (state.useCloud || llmReady),
             onClick = manager::analyze,
         )
     }
 
-    state.blockedOn(ReflectionLens.CRITIQUE)?.let { blocked ->
+    state.blockedOn(state.lens)?.let { blocked ->
         item {
             NoticeCard {
                 Text(stringResource(R.string.cultivation_below_bar), fontWeight = FontWeight.SemiBold)
@@ -653,6 +680,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mirrorItems(
 @Composable
 private fun CritiqueReportCard(manager: CultivationStateManager, record: ReflectionRecord) {
     val report = record.critique ?: return
+    // 认知镜与言行镜共用本卡：仅在标签与参考名展示上区分，不做任何判定。
+    val isCognitive = record.lens == ReflectionLens.COGNITIVE
     SectionLabel(stringResource(R.string.cultivation_title))
     IosGroup {
         IosRow {
@@ -669,6 +698,14 @@ private fun CritiqueReportCard(manager: CultivationStateManager, record: Reflect
                     if (index > 0) Hairline()
                     IosRow {
                         QuoteBlock(issue.quote)
+                        if (isCognitive && issue.referenceName.isNotBlank()) {
+                            // 仅中性小字呈现参考偏差名，不渲染成标签/判定
+                            Text(
+                                "参考：${issue.referenceName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
                         if (issue.baselineRef.isNotBlank()) {
                             Text(
                                 stringResource(R.string.cultivation_ref, issue.baselineRef),
@@ -681,7 +718,8 @@ private fun CritiqueReportCard(manager: CultivationStateManager, record: Reflect
                         }
                         if (issue.alternative.isNotBlank()) {
                             Text(
-                                stringResource(R.string.cultivation_alternative, issue.alternative),
+                                if (isCognitive) "替代视角：${issue.alternative}"
+                                else stringResource(R.string.cultivation_alternative, issue.alternative),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary,

@@ -4,6 +4,8 @@ import android.content.Context
 import top.hsyscn.opedrgent.action.ActionStore
 import top.hsyscn.opedrgent.cultivation.mirror.AntiSycophancyGuard
 import top.hsyscn.opedrgent.cultivation.mirror.AntiSycophancyGuard.GuardResult
+import top.hsyscn.opedrgent.cultivation.mirror.CognitiveAnalyzer
+import top.hsyscn.opedrgent.cultivation.mirror.CognitivePromptBuilder
 import top.hsyscn.opedrgent.cultivation.mirror.ExemplarAnalyzer
 import top.hsyscn.opedrgent.cultivation.mirror.ExemplarGuard
 import top.hsyscn.opedrgent.cultivation.mirror.ExemplarPromptBuilder
@@ -48,6 +50,7 @@ class CultivationEngine(
     private val guard = AntiSycophancyGuard()
     private val exemplarAnalyzer = ExemplarAnalyzer()
     private val exemplarGuard = ExemplarGuard()
+    private val cognitiveAnalyzer = CognitiveAnalyzer()
     private val tools = ReflectionToolMediator(reflectionStore, hippocampusProvider)
 
     /** 一次修炼会话的统一结果；[success] 为 false 时 [record] 为空，调用方展示“未达质量门槛”。 */
@@ -225,7 +228,11 @@ class CultivationEngine(
         runCatching {
             actionStore.importFromReflection(
                 reflectionId = reflectionId,
-                sourceTypeLabel = if (lens == ReflectionLens.EXEMPLAR) "榜样镜复盘" else "批判镜复盘",
+                sourceTypeLabel = when (lens) {
+                    ReflectionLens.EXEMPLAR -> "榜样镜复盘"
+                    ReflectionLens.COGNITIVE -> "认知镜复盘"
+                    ReflectionLens.CRITIQUE -> "批判镜复盘"
+                },
                 sourceTitle = sourceTitle.trim().take(60),
                 sourceSnippet = transcript.trim().take(200),
                 followUps = followUps,
@@ -299,6 +306,81 @@ class CultivationEngine(
             importFollowUpsToActions(id, ReflectionLens.EXEMPLAR, report.followUps, report.situation, transcript)
         }
         return ReflectionOutcome(true, ReflectionLens.EXEMPLAR, record.copy(id = id ?: 0), attempts, emptyList(), id)
+    }
+
+    // ===== 认知修炼镜 =====
+
+    /**
+     * 认知镜：对一段本人转写做“怎么想”的反思（认知偏差与替代视角），并统一落库。
+     *
+     * 与言行批判镜共用：有界工具 Loop [toolGuidedFinal]、反讨好质量门 [guard]（逐字引用核验 +
+     * 是否给了替代视角）、统一存储信封 [ReflectionRecord.critique]、followUps 导入行动项。
+     * 区别：认知镜不要求理想人格基准；报告 lens=COGNITIVE，issue.baselineRef 恒空、issue.referenceName
+     * 由模型按需填写。
+     *
+     * @param persist 是否落库，默认落；false 时只返回内存记录
+     */
+    suspend fun reflectCognitive(
+        backend: MirrorLlmBackend,
+        transcript: String,
+        sessionId: String,
+        transcriptId: String,
+        mode: FeedbackMode = FeedbackMode.STANDARD,
+        historyHint: String? = null,
+        persist: Boolean = true,
+    ): ReflectionOutcome {
+        if (transcript.isBlank()) return fail(ReflectionLens.COGNITIVE, "转写内容为空")
+        val openFollowUps = reflectionStore.openFollowUps().map { it.follow.text }
+
+        var attempts = 0
+        attempts++
+        var report = runCatching {
+            val system = CognitivePromptBuilder.systemPrompt(mode)
+            val baseUser = CognitivePromptBuilder.userPrompt(transcript, historyHint, openFollowUps)
+            toolGuidedFinal(backend, system, baseUser, transcript) { raw ->
+                cognitiveAnalyzer.parse(raw, sessionId, transcriptId, mode, backend)
+            }
+        }.getOrElse { e ->
+            DebugLog.w(TAG, "认知镜首次生成失败：${e.message}")
+            return ReflectionOutcome(false, ReflectionLens.COGNITIVE, null, attempts, listOf("认知镜分析失败：${e.message}"), null)
+        }
+        var check = guard.verifyReport(report, transcript)
+
+        // 至多重做一次：带确定性违规清单重新生成（认知镜无基准，跳过模型自审里依赖基准的部分）
+        if (!check.passed) {
+            DebugLog.w(TAG, "认知镜首次未过质量门：${check.violations}")
+            attempts++
+            val system = CognitivePromptBuilder.systemPrompt(mode)
+            val user = buildString {
+                append(CognitivePromptBuilder.userPrompt(transcript, historyHint, openFollowUps))
+                appendLine()
+                appendLine("你上一版输出存在以下需要修正的事实性问题，请只依据转写重新输出一份符合协议的 JSON：")
+                check.violations.forEach { appendLine("- $it") }
+            }
+            runCatching {
+                val raw = backend.complete(system, user)
+                cognitiveAnalyzer.parse(raw, sessionId, transcriptId, mode, backend)
+            }.onSuccess {
+                report = it
+                check = guard.verifyReport(it, transcript)
+            }
+        }
+
+        if (!check.passed) {
+            DebugLog.w(TAG, "认知镜重做后仍未过质量门，不输出低质结果：${check.violations}")
+            return ReflectionOutcome(false, ReflectionLens.COGNITIVE, null, attempts, check.violations, null)
+        }
+
+        val record = ReflectionRecord(
+            lens = ReflectionLens.COGNITIVE,
+            critique = report,
+            createdAt = report.createdAt,
+        )
+        val id = if (persist) reflectionStore.insert(record) else null
+        if (id != null) {
+            importFollowUpsToActions(id, ReflectionLens.COGNITIVE, report.followUps, report.overall, transcript)
+        }
+        return ReflectionOutcome(true, ReflectionLens.COGNITIVE, record.copy(id = id ?: 0), attempts, emptyList(), id)
     }
 
     // ===== 有界工具 Loop =====

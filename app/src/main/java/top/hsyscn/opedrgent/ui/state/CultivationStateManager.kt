@@ -48,6 +48,8 @@ class CultivationStateManager(
         val localModelId: String? = null,
         val useCloud: Boolean = false,
         val mode: FeedbackMode = FeedbackMode.STANDARD,
+        /** 当前选择的反思透镜：CRITIQUE=言行批判，COGNITIVE=认知修炼；analyze() 据此分发。 */
+        val lens: ReflectionLens = ReflectionLens.CRITIQUE,
         val transcript: String = "",
         val phase: ReflectionPhase = ReflectionPhase.Idle,
         val activeBaseline: VirtueBaseline? = null,
@@ -122,6 +124,9 @@ class CultivationStateManager(
     }
 
     fun setMode(mode: FeedbackMode) = _state.update { it.copy(mode = mode) }
+
+    /** 切换本次反思使用的透镜（言行批判 / 认知修炼）；不触发分析，仅选择。 */
+    fun setLens(lens: ReflectionLens) = _state.update { it.copy(lens = lens) }
 
     fun setExemplarWhy(why: String) = _state.update { it.copy(exemplarWhy = why) }
 
@@ -246,7 +251,7 @@ class CultivationStateManager(
 
         _state.update {
             it.copy(
-                phase = ReflectionPhase.Reflecting(ReflectionLens.CRITIQUE),
+                phase = ReflectionPhase.Reflecting(current.lens),
                 error = null,
                 info = null,
                 result = null,
@@ -256,14 +261,25 @@ class CultivationStateManager(
             try {
                 val sessionId = MANUAL_SESSION
                 val transcriptId = UUID.randomUUID().toString()
-                val outcome = engine.analyze(
-                    backend = backend,
-                    transcript = transcript,
-                    sessionId = sessionId,
-                    transcriptId = transcriptId,
-                    mode = current.mode,
-                    historyHint = buildHistoryHint(transcript),
-                )
+                val lens = current.lens
+                val outcome = when (lens) {
+                    ReflectionLens.COGNITIVE -> engine.reflectCognitive(
+                        backend = backend,
+                        transcript = transcript,
+                        sessionId = sessionId,
+                        transcriptId = transcriptId,
+                        mode = current.mode,
+                        historyHint = buildHistoryHint(transcript),
+                    )
+                    else -> engine.analyze(
+                        backend = backend,
+                        transcript = transcript,
+                        sessionId = sessionId,
+                        transcriptId = transcriptId,
+                        mode = current.mode,
+                        historyHint = buildHistoryHint(transcript),
+                    )
+                }
                 val history = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
                 if (outcome.success && outcome.record != null) {
                     outcome.record.critique?.let { rpt ->
@@ -281,12 +297,15 @@ class CultivationStateManager(
                     _state.update {
                         it.copy(
                             phase = ReflectionPhase.Blocked(
-                                ReflectionLens.CRITIQUE,
+                                lens,
                                 outcome.violations,
                                 outcome.attempts,
                             ),
                             history = history,
-                            error = "本次分析未达到质量门槛，未展示低质反馈。可补充基准或调整转写后重试。",
+                            error = if (lens == ReflectionLens.COGNITIVE)
+                                "本次认知反思未达到质量门槛，未展示低质结果。可调整转写后重试。"
+                            else
+                                "本次分析未达到质量门槛，未展示低质反馈。可补充基准或调整转写后重试。",
                         )
                     }
                 }

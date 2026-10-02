@@ -174,6 +174,9 @@ data class MeetingSegment(
  *   - 章节概要 (时间戳链接+段落摘要)
  *   - 金句精选 (引用+分类标签)
  *   - 待办事项 (任务分配)
+ *   - 关键决策 (已达成的决定/结论)
+ *   - 待解答疑问 (提出但未解决、需跟进的问题)
+ *   - 涉及人物 (参与者称呼及角色)
  */
 data class SmartSummary(
     /** 录音信息 */
@@ -186,6 +189,12 @@ data class SmartSummary(
     val quotes: List<QuoteItem>,
     /** 待办事项 */
     val actionItems: List<ActionItem>,
+    /** 关键决策：明确达成的决定/结论，无内容为空列表 */
+    val decisions: List<DecisionItem> = emptyList(),
+    /** 待解答疑问：会议中提出但未解决、需后续跟进的问题，无内容为空列表 */
+    val openQuestions: List<OpenQuestionItem> = emptyList(),
+    /** 涉及人物：转写中可辨识的参与者称呼及角色，无内容为空列表 */
+    val people: List<PersonItem> = emptyList(),
 ) {
     data class MetaInfo(
         val duration: String = "",          // 如 "约 0小时 19分钟"
@@ -213,5 +222,20 @@ data class SmartSummary(
     data class ActionItem(
         val assignee: String,              // 负责人
         val task: String,                  // 任务描述
+    )
+
+    data class DecisionItem(
+        val text: String,                  // 决策内容（明确达成的决定/结论）
+        val context: List<String> = emptyList(), // 决策依据/背景（可选，无则空列表）
+    )
+
+    data class OpenQuestionItem(
+        val text: String,                  // 待解答问题（提出但未解决、需后续跟进）
+        val owner: String = "",           // 跟进负责人/指向（可选，无法确定留空）
+    )
+
+    data class PersonItem(
+        val name: String,                  // 称呼/姓名
+        val role: String = "",             // 角色/职责（如 主持人/产品/客户，无法确定留空）
     )
 }

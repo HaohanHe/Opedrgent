@@ -19,6 +19,9 @@ import top.hsyscn.opedrgent.utils.DebugLog
  *   3. 章节概要 (ChapterItem) — 时间戳链接 + 章节摘要
  *   4. 金句精选 (QuoteItem) — 引用原文 + 分类标签
  *   5. 待办事项 (ActionItem) — 负责人 + 任务描述
+ *   6. 关键决策 (DecisionItem) — 已达成的决定/结论 + 可选依据
+ *   7. 待解答疑问 (OpenQuestionItem) — 提出但未解决的问题 + 可选跟进人
+ *   8. 涉及人物 (PersonItem) — 参与者称呼 + 可选角色
  *
  * 使用方式:
  * ```kotlin
@@ -168,12 +171,58 @@ class SmartSummaryGenerator(
                 )
             }
 
+            // Decisions：仅收录明确达成的决定/结论；数组缺失回退空列表，单项损坏跳过不导致整体失败
+            val decisions = buildList {
+                val arr = json.optJSONArray("decisions") ?: return@buildList
+                for (i in 0 until arr.length()) {
+                    val d = runCatching { arr.getJSONObject(i) }.getOrNull() ?: continue
+                    val ctxArr = d.optJSONArray("context") ?: JSONArray()
+                    add(
+                        SmartSummary.DecisionItem(
+                            text = d.optString("text", ""),
+                            context = (0 until ctxArr.length()).map { ctxArr.optString(it, "") },
+                        )
+                    )
+                }
+            }
+
+            // OpenQuestions：会议中提出但未解决、需后续跟进的问题
+            val openQuestions = buildList {
+                val arr = json.optJSONArray("openQuestions") ?: return@buildList
+                for (i in 0 until arr.length()) {
+                    val q = runCatching { arr.getJSONObject(i) }.getOrNull() ?: continue
+                    add(
+                        SmartSummary.OpenQuestionItem(
+                            text = q.optString("text", ""),
+                            owner = q.optString("owner", ""),
+                        )
+                    )
+                }
+            }
+
+            // People：转写中可辨识的参与者称呼及其角色
+            val people = buildList {
+                val arr = json.optJSONArray("people") ?: return@buildList
+                for (i in 0 until arr.length()) {
+                    val p = runCatching { arr.getJSONObject(i) }.getOrNull() ?: continue
+                    add(
+                        SmartSummary.PersonItem(
+                            name = p.optString("name", ""),
+                            role = p.optString("role", ""),
+                        )
+                    )
+                }
+            }
+
             SmartSummary(
                 metaInfo = metaInfo,
                 summarySections = summarySections,
                 chapters = chapters,
                 quotes = quotes,
                 actionItems = actionItems,
+                decisions = decisions,
+                openQuestions = openQuestions,
+                people = people,
             )
         }.onFailure { e ->
             DebugLog.e(TAG, "JSON 解析失败: ${e.message}\n原始响应前200字: ${rawResponse.take(200)}", e)
@@ -268,6 +317,24 @@ class SmartSummaryGenerator(
       "assignee": "负责人（如 '主持人' / '张三' 或 '待定'）",
       "task": "具体任务描述"
     }
+  ],
+  "decisions": [
+    {
+      "text": "关键决策内容（仅收录会议中明确达成的决定/结论，正在讨论但未拍板的不要收录）",
+      "context": ["该决策的依据或背景（可选，无则返回空数组 []）"]
+    }
+  ],
+  "openQuestions": [
+    {
+      "text": "待解答/遗留问题（会议中提出但尚未解决、需要后续跟进的问题）",
+      "owner": "跟进负责人/指向（可选，无法确定时返回空字符串 \"\"）"
+    }
+  ],
+  "people": [
+    {
+      "name": "涉及人物的称呼或姓名（如 '张三' / '主持人' / '客户'）",
+      "role": "角色/职责（如 主持人 / 产品 / 客户 / 面试官，无法确定时返回空字符串 \"\"）"
+    }
   ]
 }
 
@@ -276,6 +343,9 @@ class SmartSummaryGenerator(
 - summarySections: 按 2-4 个主题维度组织，每个 section 包含 1-3 个段落
 - chapters: 3-8 个关键时间节点，每个对应一个话题转折点
 - quotes: 3-6 条最有价值的原话引用，覆盖不同分类
-- actionItems: 提取明确的行动项，无则返回空数组"""
+- actionItems: 提取明确的行动项，无则返回空数组
+- decisions: 仅收录会议中明确达成的决定或结论，未拍板的讨论不臆造，由你结合语境判断，无则返回空数组
+- openQuestions: 收录会议中提出但尚未解决、需后续跟进的问题，由你结合语境判断，无则返回空数组
+- people: 收录转写中可辨识的参与者称呼及其角色，无法确定角色时留空字符串，由你结合语境判断，无则返回空数组"""
     }
 }

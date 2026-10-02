@@ -140,6 +140,8 @@ class MirrorAnalyzer {
                 impact = o.optString("impact", "").trim(),
                 alternative = o.optString("alternative", "").trim(),
                 dimension = o.optString("dimension", "").trim(),
+                // 认知镜会填 referenceName；言行镜不产出该字段，读出恒为空，不影响既有行为。
+                referenceName = o.optString("referenceName", "").trim(),
             )
         }
     }
