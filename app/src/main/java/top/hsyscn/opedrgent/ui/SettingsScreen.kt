@@ -1985,6 +1985,12 @@ fun SettingsScreen(
                 snackbar = snackbar,
             )
 
+            // ── 备份与恢复 ──
+            BackupRestoreGroup(
+                scope = scope,
+                snackbar = snackbar,
+            )
+
             // ── 导入导出 ──
             Box(modifier = Modifier.onGloballyPositioned { coordinates ->
                 sectionOffsets[SettingsSection.IMPORT_EXPORT] = coordinates.positionInParent().y.toInt()
@@ -2713,6 +2719,276 @@ private fun DataManagementGroup(
             },
             dismissButton = {
                 TextButton(onClick = { confirmAll = false }) { Text("取消") }
+            },
+        )
+    }
+}
+
+// 备份与恢复：本地归档导出 / 导入。仅用 SAF，不申请宽泛存储权限。
+// 调用冻结的 LocalBackupManager API（见 top.hsyscn.opedrgent.storage.backup）。
+@Composable
+private fun BackupRestoreGroup(
+    scope: CoroutineScope,
+    snackbar: SnackbarHostState,
+) {
+    val context = LocalContext.current
+    // 是否同时备份已下载模型；默认关闭（体积大）。
+    var includeModels by rememberSaveable { mutableStateOf(false) }
+    var backingUp by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf(false) }
+    // 0..1 为确定进度；<0 表示无进度。
+    var backupProgress by remember { mutableStateOf(-1f) }
+    // 待强确认的恢复归档及其展示信息。
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingRestoreName by remember { mutableStateOf("") }
+    var pendingRestoreMb by remember { mutableStateOf(-1.0) }
+    val busy = backingUp || restoring
+
+    fun bytesToMb(bytes: Long): Double = bytes / (1024.0 * 1024.0)
+
+    fun queryDisplayName(uri: Uri): String = runCatching {
+        context.contentResolver.query(
+            uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null,
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else uri.lastPathSegment.orEmpty() }
+            ?: uri.lastPathSegment.orEmpty()
+    }.getOrDefault(uri.lastPathSegment.orEmpty())
+
+    fun querySizeBytes(uri: Uri): Long = runCatching {
+        context.contentResolver.query(
+            uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null,
+        )?.use { c ->
+            if (c.moveToFirst()) c.getLong(c.getColumnIndexOrThrow(android.provider.OpenableColumns.SIZE)) else -1L
+        } ?: -1L
+    }.getOrDefault(-1L)
+
+    // SAF：让用户选择导出位置，拿到 Uri 后通过 backupTo 写入。
+    val createDocLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        backingUp = true
+        backupProgress = 0f
+        scope.launch {
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        top.hsyscn.opedrgent.storage.backup.LocalBackupManager
+                            .getInstance(context)
+                            .backupTo(out, includeModels) { frac ->
+                                backupProgress = frac.coerceIn(0f, 1f)
+                            }
+                    } ?: error("openOutputStream returned null")
+                }.mapCatching { querySizeBytes(uri) }
+            }
+            res.onSuccess { bytes ->
+                snackbar.showSnackbar(context.getString(R.string.backup_done_size, bytesToMb(bytes)))
+            }.onFailure {
+                snackbar.showSnackbar(context.getString(R.string.backup_failed))
+            }
+            backupProgress = -1f
+            backingUp = false
+        }
+    }
+
+    // SAF：选择备份归档，先 inspect 预检；通过后弹强确认。
+    val openDocLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        restoring = true
+        scope.launch {
+            val usable = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        top.hsyscn.opedrgent.storage.backup.LocalBackupManager
+                            .getInstance(context).inspect(input)
+                    }
+                }.isSuccess
+            }
+            restoring = false
+            if (usable) {
+                pendingRestoreName = queryDisplayName(uri)
+                val sz = querySizeBytes(uri)
+                pendingRestoreMb = if (sz > 0) bytesToMb(sz) else -1.0
+                pendingRestoreUri = uri
+            } else {
+                snackbar.showSnackbar(context.getString(R.string.backup_err_corrupted))
+            }
+        }
+    }
+
+    fun launchCreateToUserLocation() {
+        val ts = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+            .format(java.util.Date())
+        createDocLauncher.launch("opedrgent_backup_$ts.zip")
+    }
+
+    // 次要入口：保存到应用私有目录。
+    fun runCreateLocal() {
+        backingUp = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    top.hsyscn.opedrgent.storage.backup.LocalBackupManager
+                        .getInstance(context).createLocal(includeModels)
+                }.getOrNull()
+            }
+            backingUp = false
+            when {
+                result == null || !result.ok ->
+                    snackbar.showSnackbar(context.getString(R.string.backup_failed))
+                else ->
+                    snackbar.showSnackbar(context.getString(R.string.backup_done_size, bytesToMb(result.sizeBytes)))
+            }
+        }
+    }
+
+    fun runRestore(uri: Uri) {
+        restoring = true
+        pendingRestoreUri = null
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        top.hsyscn.opedrgent.storage.backup.LocalBackupManager
+                            .getInstance(context)
+                            .restoreFrom(input, allowDowngrade = false)
+                    }
+                }.getOrNull()
+            }
+            restoring = false
+            when {
+                result == null ->
+                    snackbar.showSnackbar(context.getString(R.string.backup_err_io_error))
+                result.ok -> {
+                    val count = result.restoredDatabases.size + result.restoredPrefKeys
+                    val msg = if (result.requiresRestart) R.string.restore_done_restart else R.string.restore_done
+                    snackbar.showSnackbar(context.getString(msg, count))
+                }
+                else -> {
+                    val msgRes = when (result.code) {
+                        top.hsyscn.opedrgent.storage.backup.RestoreCode.CORRUPTED -> R.string.backup_err_corrupted
+                        top.hsyscn.opedrgent.storage.backup.RestoreCode.UNSUPPORTED_VERSION -> R.string.backup_err_unsupported_version
+                        top.hsyscn.opedrgent.storage.backup.RestoreCode.SHA_MISMATCH -> R.string.backup_err_sha_mismatch
+                        top.hsyscn.opedrgent.storage.backup.RestoreCode.INSUFFICIENT_STORAGE -> R.string.backup_err_insufficient_storage
+                        top.hsyscn.opedrgent.storage.backup.RestoreCode.IO_ERROR -> R.string.backup_err_io_error
+                        else -> R.string.backup_failed
+                    }
+                    snackbar.showSnackbar(context.getString(msgRes))
+                }
+            }
+        }
+    }
+
+    SettingGroup(title = stringResource(R.string.backup_group_title)) {
+        Column(modifier = Modifier.padding(vertical = SpacingTokens.sm)) {
+            SettingSwitchRow(
+                title = stringResource(R.string.backup_include_models),
+                subtitle = stringResource(R.string.backup_include_models_hint),
+                icon = Icons.Default.Download,
+                checked = includeModels,
+                onCheckedChange = { includeModels = it },
+                enabled = !busy,
+                showDivider = true,
+            )
+            SettingRow(
+                title = stringResource(R.string.backup_create),
+                subtitle = stringResource(R.string.backup_create_hint),
+                icon = Icons.Default.Save,
+                showDivider = true,
+                onClick = { if (!busy) launchCreateToUserLocation() },
+                trailing = {
+                    if (backingUp) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(SpacingTokens.lg),
+                            strokeWidth = SizeTokens.progressTrackHeight,
+                        )
+                    } else {
+                        TextButton(onClick = { launchCreateToUserLocation() }, enabled = !busy) {
+                            Text(stringResource(R.string.backup_create_pick), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+            )
+            SettingRow(
+                title = stringResource(R.string.backup_save_private),
+                subtitle = stringResource(R.string.backup_save_private_hint),
+                showDivider = true,
+                onClick = { if (!busy) runCreateLocal() },
+                trailing = {
+                    if (backingUp) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(SpacingTokens.lg),
+                            strokeWidth = SizeTokens.progressTrackHeight,
+                        )
+                    } else {
+                        TextButton(onClick = { runCreateLocal() }, enabled = !busy) {
+                            Text(stringResource(R.string.backup_save_private_btn), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+            )
+            SettingRow(
+                title = stringResource(R.string.backup_restore),
+                subtitle = stringResource(R.string.backup_restore_hint),
+                icon = Icons.Default.Refresh,
+                showDivider = false,
+                onClick = { if (!busy) openDocLauncher.launch(arrayOf("application/zip", "*/*")) },
+                trailing = {
+                    if (restoring) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(SpacingTokens.lg),
+                            strokeWidth = SizeTokens.progressTrackHeight,
+                        )
+                    } else {
+                        TextButton(
+                            onClick = { openDocLauncher.launch(arrayOf("application/zip", "*/*")) },
+                            enabled = !busy,
+                        ) {
+                            Text(stringResource(R.string.backup_restore), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+            )
+            if (backingUp && backupProgress >= 0f) {
+                LinearProgressIndicator(
+                    progress = { backupProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SpacingTokens.lg, vertical = SpacingTokens.sm),
+                )
+            }
+        }
+    }
+
+    pendingRestoreUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingRestoreUri = null },
+            title = { Text(stringResource(R.string.backup_restore_confirm_title)) },
+            text = {
+                Column {
+                    if (pendingRestoreName.isNotBlank()) {
+                        val summary = if (pendingRestoreMb >= 0)
+                            stringResource(R.string.backup_restore_summary, pendingRestoreName, pendingRestoreMb)
+                        else pendingRestoreName
+                        Text(text = summary, style = MaterialTheme.typography.bodySmall, color = themeTextGrey())
+                        Spacer(Modifier.height(SpacingTokens.sm))
+                    }
+                    Text(
+                        stringResource(R.string.backup_restore_confirm_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { runRestore(uri) }) {
+                    Text(stringResource(R.string.backup_restore), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestoreUri = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }

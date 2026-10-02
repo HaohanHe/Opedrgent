@@ -649,4 +649,28 @@
     <string name="stt_send_to_llm_confidence">置信度</string>
     <string name="stt_send_to_llm_model">模型</string>
     <string name="stt_send_to_llm_request">请帮我总结要点、提取待办或润色表达。</string>
+    <!-- 备份与恢复 -->
+    <string name="backup_group_title">备份与恢复</string>
+    <string name="backup_include_models">同时备份已下载模型</string>
+    <string name="backup_include_models_hint">体积较大，会显著增加备份耗时与文件大小</string>
+    <string name="backup_create">创建本地备份</string>
+    <string name="backup_create_hint">通过系统文件选择器导出备份归档</string>
+    <string name="backup_create_pick">选位置</string>
+    <string name="backup_save_private">保存到应用私有目录</string>
+    <string name="backup_save_private_hint">仅本应用可见，便于本机快速恢复</string>
+    <string name="backup_save_private_btn">保存</string>
+    <string name="backup_restore">从备份恢复</string>
+    <string name="backup_restore_hint">选择备份归档并恢复当前数据</string>
+    <string name="backup_restore_confirm_title">从备份恢复？</string>
+    <string name="backup_restore_summary">所选备份：%1$s（%2$.1f MB）</string>
+    <string name="backup_restore_confirm_body">将覆盖当前所有本地数据。加密的云端密钥绑定本机、不会随备份迁移，恢复后需重新配置。恢复完成后请重启应用。</string>
+    <string name="backup_done_size">备份完成（%1$.1f MB）</string>
+    <string name="restore_done">恢复完成，已恢复 %1$d 项</string>
+    <string name="restore_done_restart">恢复完成，已恢复 %1$d 项，请重启应用后生效</string>
+    <string name="backup_failed">备份失败，请重试</string>
+    <string name="backup_err_corrupted">备份文件已损坏或无法识别</string>
+    <string name="backup_err_unsupported_version">备份版本与当前应用不兼容</string>
+    <string name="backup_err_sha_mismatch">备份校验失败，文件可能已损坏或被篡改</string>
+    <string name="backup_err_insufficient_storage">存储空间不足，无法完成恢复</string>
+    <string name="backup_err_io_error">读写失败，请检查存储后重试</string>
 </resources>

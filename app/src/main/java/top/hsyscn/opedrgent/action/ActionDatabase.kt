@@ -37,6 +37,13 @@ class ActionDatabase private constructor(context: Context) : SQLiteOpenHelper(
             instance ?: synchronized(this) {
                 instance ?: ActionDatabase(context).also { instance = it }
             }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例，使下次 getInstance 重建。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { instance?.close() }
+            instance = null
+        }
     }
 
     override fun onCreate(db: android.database.sqlite.SQLiteDatabase) {

@@ -47,6 +47,13 @@ class CultivationDatabase private constructor(context: Context) : SQLiteOpenHelp
             instance ?: synchronized(this) {
                 instance ?: CultivationDatabase(context).also { instance = it }
             }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { instance?.close() }
+            instance = null
+        }
     }
 
     override fun onCreate(db: android.database.sqlite.SQLiteDatabase) {

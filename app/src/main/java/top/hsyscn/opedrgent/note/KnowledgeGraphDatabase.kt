@@ -69,6 +69,22 @@ class KnowledgeGraphDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_MIG_VERSION = "version"
         const val COL_MIG_MIGRATED_AT = "migrated_at"
         const val COL_MIG_SOURCE = "source"
+
+        // 单例（供备份/恢复 closeAndReset 钩子统一管理）
+        @Volatile
+        private var INSTANCE: KnowledgeGraphDatabase? = null
+
+        fun getInstance(ctx: Context): KnowledgeGraphDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: KnowledgeGraphDatabase(ctx.applicationContext).also { INSTANCE = it }
+            }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { INSTANCE?.close() }
+            INSTANCE = null
+        }
     }
 
     override fun onCreate(db: SQLiteDatabase) {

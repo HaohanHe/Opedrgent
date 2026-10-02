@@ -649,4 +649,28 @@
     <string name="stt_send_to_llm_confidence">Confidence</string>
     <string name="stt_send_to_llm_model">Model</string>
     <string name="stt_send_to_llm_request">Please help me summarize key points, extract action items, or polish the expression.</string>
+    <!-- Backup & Restore -->
+    <string name="backup_group_title">Backup &amp; Restore</string>
+    <string name="backup_include_models">Include downloaded models</string>
+    <string name="backup_include_models_hint">Large; significantly increases backup time and file size</string>
+    <string name="backup_create">Create local backup</string>
+    <string name="backup_create_hint">Export a backup archive via the system file picker</string>
+    <string name="backup_create_pick">Choose location</string>
+    <string name="backup_save_private">Save to app-private storage</string>
+    <string name="backup_save_private_hint">Visible only to this app; for quick on-device restore</string>
+    <string name="backup_save_private_btn">Save</string>
+    <string name="backup_restore">Restore from backup</string>
+    <string name="backup_restore_hint">Choose a backup archive to restore current data</string>
+    <string name="backup_restore_confirm_title">Restore from backup?</string>
+    <string name="backup_restore_summary">Selected backup: %1$s (%2$.1f MB)</string>
+    <string name="backup_restore_confirm_body">This overwrites all current local data. Encrypted cloud keys are bound to this device and are not included in the backup, so they must be reconfigured afterward. Please restart the app once restore finishes.</string>
+    <string name="backup_done_size">Backup complete (%1$.1f MB)</string>
+    <string name="restore_done">Restore complete — %1$d item(s) restored</string>
+    <string name="restore_done_restart">Restore complete — %1$d item(s) restored. Please restart the app to apply.</string>
+    <string name="backup_failed">Backup failed. Please try again.</string>
+    <string name="backup_err_corrupted">The backup file is corrupted or unrecognized</string>
+    <string name="backup_err_unsupported_version">The backup version is not compatible with this app</string>
+    <string name="backup_err_sha_mismatch">Backup verification failed; the file may be corrupted or tampered with</string>
+    <string name="backup_err_insufficient_storage">Not enough storage space to complete the restore</string>
+    <string name="backup_err_io_error">Read/write failed. Please check storage and try again.</string>
 </resources>

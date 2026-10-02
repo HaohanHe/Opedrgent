@@ -50,6 +50,13 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: NoteDatabase(ctx.applicationContext).also { INSTANCE = it }
             }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { INSTANCE?.close() }
+            INSTANCE = null
+        }
     }
 
     override fun onCreate(db: SQLiteDatabase) {

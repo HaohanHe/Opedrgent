@@ -57,6 +57,23 @@ private const val DOC_LAST_SYNCED_AT = "last_synced_at"
 
 class KbDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
+    companion object {
+        @Volatile
+        private var INSTANCE: KbDatabase? = null
+
+        fun getInstance(ctx: Context): KbDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: KbDatabase(ctx.applicationContext).also { INSTANCE = it }
+            }
+
+        /** 备份/恢复钩子：关闭句柄并释放单例。 */
+        @Synchronized
+        fun closeAndReset() {
+            runCatching { INSTANCE?.close() }
+            INSTANCE = null
+        }
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS $TABLE_KB (
@@ -130,7 +147,7 @@ class KnowledgeBase(private val context: Context) {
         private const val TAG = "KnowledgeBase"
     }
 
-    private val db: SQLiteDatabase by lazy { KbDatabase(context).writableDatabase }
+    private val db: SQLiteDatabase by lazy { KbDatabase.getInstance(context).writableDatabase }
 
     // ---- 初始化 ----
 

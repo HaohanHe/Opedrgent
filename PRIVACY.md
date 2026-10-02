@@ -88,6 +88,13 @@ You can delete individual items at any time. Through the app's data-management o
 
 Exported files are written to Opedrgent's private export directory and leave the device only when you explicitly choose to share them with another app.
 
+### Backup and Restore
+
+- The app can create a local backup archive (`.zip`) of your on-device content database together with non-sensitive app settings. The archive is produced entirely on-device and leaves the device only when you explicitly choose a destination through the system file picker (Storage Access Framework); no network transfer is involved.
+- You can optionally include already-downloaded models in the backup; this is off by default and makes the archive noticeably larger.
+- Your encrypted cloud API Keys and base URLs are **not** included in the backup. They are protected by an Android Keystore master key bound to this device, so they cannot be exported or restored onto another device; after restoring on a new device you will need to re-enter your cloud configuration.
+- When restoring, the archive is verified for integrity and version compatibility before any data is written; if verification fails the restore is aborted and your existing data is left unchanged. A successful restore overwrites the current local data and typically requires restarting the app.
+
 ## Cloud Services
 
 ### Local-First by Default
@@ -236,6 +243,13 @@ Opedrgent 采用本地优先设计。你创建的内容——笔记、复盘与�
 - 对话可复制或以 Markdown 分享，也可保存为上下文归档包，将会话连同相关记忆、笔记与引用一并打包。
 
 导出文件写入 Opedrgent 私有的导出目录，仅在你主动选择分享给其他应用时才会离开设备。
+
+### 备份与恢复
+
+- 应用可将你的端侧内容数据库连同非敏感应用设置打包为本地备份归档（`.zip`）。备份全程在本机生成，仅在你通过系统文件选择器（存储访问框架）主动选择保存位置时才会导出，过程不涉及任何网络传输。
+- 你可选择将已下载模型一并纳入备份；该选项默认关闭，开启会显著增大归档体积。
+- 加密的云端 API Key 与 base URL **不**纳入备份。它们由绑定本机的 Android Keystore 主密钥保护，无法导出或迁移到其他设备；在新设备上恢复后，你需要重新配置云端连接。
+- 恢复前会先校验归档的完整性与版本兼容性，再写入任何数据；校验失败即中止恢复，原有数据保持不变。恢复成功会覆盖当前本地数据，且通常需要重启应用。
 
 ## Contact
 

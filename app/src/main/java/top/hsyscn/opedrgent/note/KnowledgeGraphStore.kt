@@ -24,7 +24,7 @@ class KnowledgeGraphStore(context: Context) {
         private const val LEGACY_TFIDF_PROVIDER = "legacy-tfidf"
     }
 
-    private val db: SQLiteDatabase by lazy { KnowledgeGraphDatabase(context).writableDatabase }
+    private val db: SQLiteDatabase by lazy { KnowledgeGraphDatabase.getInstance(context).writableDatabase }
 
     // ============================================================
     // 节点 CRUD
