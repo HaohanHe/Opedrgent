@@ -305,7 +305,7 @@ object StepFileParserClient {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                client.newCall(request).execute().isSuccessful
+                client.newCall(request).execute().use { it.isSuccessful }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "删除文件异常: ${e.message}", e)
                 false
@@ -405,7 +405,7 @@ object StepFileParserClient {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                client.newCall(request).execute().isSuccessful || client.newCall(request).execute().code == 404
+                client.newCall(request).execute().use { it.isSuccessful } || client.newCall(request).execute().use { it.code == 404 }
             } catch (_: Exception) { false }
         }
 }

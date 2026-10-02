@@ -218,6 +218,11 @@ class LocalLlmEngine private constructor(private val context: Context) {
             DebugLog.w(TAG, "Model loading cancelled")
             false
         } catch (e: Exception) {
+            // Release a partially-initialized Engine so the mmap'd weights
+            // are not leaked (hundreds of MB) until the next loadModel/unload.
+            runCatching { engine?.close() }
+            engine = null
+            conversation = null
             val errorMsg = e.message ?: "Unknown error"
             val causeMsg = e.cause?.message?.let { " (cause: $it)" } ?: ""
             CrashReporter.logError(TAG, "Failed to load model", e)

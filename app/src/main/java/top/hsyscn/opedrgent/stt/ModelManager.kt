@@ -566,58 +566,59 @@ object ModelManager {
     ): DownloadResult {
         try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
 
-            if (!response.isSuccessful) {
-                return DownloadResult.Failed("HTTP ${response.code}")
-            }
-
-            val body = response.body ?: return DownloadResult.Failed("响应体为空")
-
-            localFile.sink().buffer().use { sink ->
-                val source = body.source()
-                val buffer = ByteArray(8192)
-                var totalRead = 0L
-                var lastProgressTime = System.currentTimeMillis()
-                var lastProgressBytes = 0L
-                var lastEmitTime = 0L
-
-                while (true) {
-                    val read = source.read(buffer)
-                    if (read == -1) break
-                    sink.write(buffer, 0, read)
-                    totalRead += read
-
-                    val now = System.currentTimeMillis()
-                    // 每 300ms 上报一次进度（用累计字节数算，避免跨文件跳动）
-                    if (now - lastEmitTime >= 300) {
-                        val cumulativeRead = alreadyDownloadedBytes + totalRead
-                        val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                        emit(DownloadProgress.Downloading(progress))
-                        lastEmitTime = now
-                    }
-
-                    if (totalRead > lastProgressBytes) {
-                        lastProgressTime = now
-                        lastProgressBytes = totalRead
-                    } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
-                        DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据")
-                        localFile.delete()
-                        return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
-                    }
+                if (!response.isSuccessful) {
+                    return DownloadResult.Failed("HTTP ${response.code}")
                 }
-                // 最终上报一次
-                val cumulativeRead = alreadyDownloadedBytes + totalRead
-                val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                emit(DownloadProgress.Downloading(progress))
-            }
 
-            if (localFile.length() < 1024) {
-                localFile.delete()
-                return DownloadResult.Failed("文件过小 (${localFile.length()} B)")
-            }
+                val body = response.body ?: return DownloadResult.Failed("响应体为空")
 
-            return DownloadResult.Success(localFile)
+                localFile.sink().buffer().use { sink ->
+                    val source = body.source()
+                    val buffer = ByteArray(8192)
+                    var totalRead = 0L
+                    var lastProgressTime = System.currentTimeMillis()
+                    var lastProgressBytes = 0L
+                    var lastEmitTime = 0L
+
+                    while (true) {
+                        val read = source.read(buffer)
+                        if (read == -1) break
+                        sink.write(buffer, 0, read)
+                        totalRead += read
+
+                        val now = System.currentTimeMillis()
+                        // 每 300ms 上报一次进度（用累计字节数算，避免跨文件跳动）
+                        if (now - lastEmitTime >= 300) {
+                            val cumulativeRead = alreadyDownloadedBytes + totalRead
+                            val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                            emit(DownloadProgress.Downloading(progress))
+                            lastEmitTime = now
+                        }
+
+                        if (totalRead > lastProgressBytes) {
+                            lastProgressTime = now
+                            lastProgressBytes = totalRead
+                        } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
+                            DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据")
+                            localFile.delete()
+                            return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
+                        }
+                    }
+                    // 最终上报一次
+                    val cumulativeRead = alreadyDownloadedBytes + totalRead
+                    val progress = (cumulativeRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                    emit(DownloadProgress.Downloading(progress))
+                }
+
+                if (localFile.length() < 1024) {
+                    localFile.delete()
+                    return DownloadResult.Failed("文件过小 (${localFile.length()} B)")
+                }
+
+                return DownloadResult.Success(localFile)
+            }
         } catch (e: Exception) {
             if (localFile.exists()) localFile.delete()
             return DownloadResult.Failed(e.message ?: "未知异常")

@@ -183,7 +183,7 @@ class LocalBackupManager(private val appContext: Context) {
     ): RestoreResult = withContext(Dispatchers.IO) {
         // 1. 落到临时 zip（随机读）
         val tempZip = File(context.cacheDir, "restore_${System.currentTimeMillis()}.zip")
-        runCatching { input.copyTo(tempZip.outputStream()) }.onFailure {
+        runCatching { tempZip.outputStream().use { os -> input.copyTo(os) } }.onFailure {
             tempZip.delete()
             return@withContext RestoreResult(false, RestoreCode.IO_ERROR, "无法读取归档: ${it.message}", emptyList(), 0, false)
         }
@@ -279,11 +279,11 @@ class LocalBackupManager(private val appContext: Context) {
     /** 对主库做 WAL checkpoint，尽量把 -wal 合并进主库，失败兜底。 */
     private fun checkpointWal(dbFile: File) {
         runCatching {
-            val db = SQLiteDatabase.openDatabase(
+            SQLiteDatabase.openDatabase(
                 dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE,
-            )
-            db.execSQL("PRAGMA wal_checkpoint(FULL)")
-            db.close()
+            ).use { db ->
+                db.execSQL("PRAGMA wal_checkpoint(FULL)")
+            }
         }
     }
 
@@ -476,10 +476,25 @@ class LocalBackupManager(private val appContext: Context) {
                         val dbName = entry.path.removePrefix("databases/")
                             .removeSuffix(".db3") + ".db"
                         val target = dbFile(dbName)
+                        // Zip Slip 防护：canonical 化后必须仍位于 app 私有 databases 根目录内，
+                        // 拒绝 ../ 穿越 / 符号链接逃逸；不满足直接抛错使整体恢复失败并回滚。
+                        val dbRoot = target.parentFile
+                            ?: throw java.io.IOException("无法定位 databases 目录")
+                        val canonicalRoot = dbRoot.canonicalFile
+                        val canonicalTarget = try {
+                            target.canonicalFile
+                        } catch (e: Exception) {
+                            target.absoluteFile
+                        }
+                        if (!canonicalTarget.path.startsWith(canonicalRoot.path + File.separator)) {
+                            throw java.io.IOException("非法归档路径(穿越): ${entry.path}")
+                        }
                         File(target.parentFile, "$dbName-wal").delete()
                         File(target.parentFile, "$dbName-shm").delete()
                         target.parentFile?.mkdirs()
-                        zf.getInputStream(ze).use { it.copyTo(target.outputStream()) }
+                        zf.getInputStream(ze).use { osIn ->
+                            target.outputStream().use { osOut -> osIn.copyTo(osOut) }
+                        }
                         restored += dbName
                     }
                     entry.path == "preferences/settings.json" -> {
