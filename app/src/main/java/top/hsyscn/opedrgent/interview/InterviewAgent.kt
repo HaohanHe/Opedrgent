@@ -232,6 +232,8 @@ object InterviewAgent {
         appendLine("【能力与边界】")
         appendLine("- 你需要根据候选人的回答质量，自主决定是继续追问、进入下一题还是结束面试")
         appendLine("- 追问深度、问题难度递进、时间分配等全部由你根据实际情况灵活掌握")
+        appendLine("- 始终围绕既定目标推进；若候选人明显跑题，请先承接他刚说的内容，再用一句自然的话引回目标，只在明显跑题时温和拉回一次，轻度偏离不要打断对方")
+        appendLine("- 不要编造候选人未提供的信息或背景")
         appendLine("- 不要给候选人提示或透露评分标准")
         appendLine("- 保持角色一致性，不要出戏")
         appendLine()
@@ -467,6 +469,41 @@ object InterviewAgent {
         )
 
         return extractContentFromJsonResponse(response)
+    }
+
+    /**
+     * 长静音时生成一句温和的引导（邀请参与者继续或补充）。
+     *
+     * 内容由模型结合当前场景与目标自由生成，不使用固定话术硬塞；
+     * 生成失败或服务不可用时返回空串，编排层据此不发声、不打扰。
+     *
+     * @param llmClient LLM 客户端
+     * @param apiConfig API 配置
+     * @param config 面试配置（用于带入场景与目标）
+     * @return 一句温和引导；失败返回空串
+     */
+    suspend fun generateIdleNudge(
+        llmClient: LlmClient,
+        apiConfig: ApiConfig,
+        config: InterviewConfig,
+    ): String {
+        DebugLog.i(TAG, "生成长静音温和引导")
+
+        val systemPrompt = buildUnifiedPrompt(config)
+        val userPrompt =
+            "对方已经沉默了一段时间。请用一句简短、自然、温和的话邀请对方继续或补充，" +
+            "保持你的角色与当前目标，语气不要生硬，不要重复刚才的问题。" +
+            "只输出这句引导本身，不要 JSON，不要多余解释。"
+
+        val raw = callLlm(
+            llmClient = llmClient,
+            config = apiConfig,
+            systemPrompt = systemPrompt,
+            userMessage = userPrompt,
+        ).trim()
+
+        // 服务不可用时 callLlm 会返回兜底提示，这里不把它当作要播报的引导
+        return if (raw.contains("AI 服务暂时不可用")) "" else raw.ifBlank { "" }
     }
 
     /**

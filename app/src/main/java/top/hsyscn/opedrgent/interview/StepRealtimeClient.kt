@@ -25,6 +25,7 @@ import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 阶跃星辰 Realtime API 客户端 — WebSocket 双向实时语音。
@@ -75,6 +76,15 @@ class StepRealtimeClient(
             "elegantgentle-female" to "高雅女声",
             "livelybreezy-female" to "活力女声",
         )
+
+        /** 断线自动重连最大次数（有限次，避免无限重连耗电/刷屏） */
+        const val MAX_RECONNECT_ATTEMPTS = 5
+
+        /** 重连初始退避毫秒数（随后指数增长） */
+        const val RECONNECT_BASE_BACKOFF_MS = 1000L
+
+        /** 重连退避上限毫秒数 */
+        const val RECONNECT_MAX_BACKOFF_MS = 10_000L
     }
 
     // ==================== 内部状态 ====================
@@ -96,6 +106,17 @@ class StepRealtimeClient(
     private var referenceAudioBase64: String? = null
     /** 副语言感知开关 — 仅 stepaudio-2.5-realtime 支持 */
     private var enableParalinguistic: Boolean = true
+
+    // ==================== 断线重连状态 ====================
+
+    /** 是否由用户主动断开（主动断开不触发自动重连） */
+    private val userInitiatedDisconnect = AtomicBoolean(false)
+
+    /** 当前已连续重连次数（连接成功后清零） */
+    private var reconnectAttempts = 0
+
+    /** 退避重连协程 */
+    private var reconnectJob: Job? = null
 
     // ==================== 事件流 ====================
 
@@ -153,8 +174,7 @@ class StepRealtimeClient(
             return
         }
 
-        disconnect() // 先断开已有连接
-
+        // 先保存连接参数（重连时复用）
         currentApiKey = apiKey
         currentModel = model
         currentVoice = voice
@@ -163,19 +183,77 @@ class StepRealtimeClient(
         // 保存参考音频 Base64（用于音色复刻）
         referenceAudioBase64 = referenceAudio?.let { Base64.getEncoder().encodeToString(it) }
 
+        // 清理旧连接与旧重连任务
+        connectionJob?.cancel()
+        reconnectJob?.cancel()
+        connectionJob = null
+        reconnectJob = null
+        webSocket?.close(1000, "重新连接")
+        webSocket = null
+
+        userInitiatedDisconnect.set(false)
+        reconnectAttempts = 0
+
         DebugLog.i("$TAG: 正在连接 $WS_URL (model=$model, voice=$voice, clone=${referenceAudio != null})")
         _stateEvent.tryEmit(StepState.CONNECTING)
 
+        openConnection()
+    }
+
+    /**
+     * 断开连接（用户主动结束）。
+     *
+     * 会标记为主动断开，此后的 onFailure/onClosed 不再触发自动重连。
+     */
+    fun disconnect() {
+        userInitiatedDisconnect.set(true)
+        reconnectJob?.cancel()
+        reconnectJob = null
+        connectionJob?.cancel()
+        connectionJob = null
+        webSocket?.close(1000, "用户断开")
+        // close() 可能因网络不通而迟迟不回 onClosed，这里再兜底 cancel() 立即释放
+        webSocket?.cancel()
+        webSocket = null
+        _stateEvent.tryEmit(StepState.DISCONNECTED)
+    }
+
+    /**
+     * 重连失败后供用户一键重试。
+     *
+     * 重置退避计数并立即用上次保存的参数重新建立连接；
+     * 若当前已连接则直接返回。
+     */
+    fun retry() {
+        if (currentApiKey.isBlank()) {
+            _errorEvent.tryEmit("尚无连接参数，无法重连")
+            return
+        }
+        if (isConnected) return
+        userInitiatedDisconnect.set(false)
+        reconnectAttempts = 0
+        _stateEvent.tryEmit(StepState.CONNECTING)
+        openConnection()
+    }
+
+    /**
+     * 建立一次 WebSocket 连接（可被 connect / 退避重连 / retry 复用）。
+     *
+     * 连接参数均来自已保存的 current* 字段，重连时无需外部再传。
+     */
+    private fun openConnection() {
         connectionJob = scope.launch(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
                     .url(WS_URL)
-                    .header("Authorization", "Bearer $apiKey")
+                    .header("Authorization", "Bearer $currentApiKey")
                     .build()
 
                 val listener = object : WebSocketListener() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
                         DebugLog.i("$TAG: WebSocket 已连接")
+                        // 连接成功，清零重连计数
+                        reconnectAttempts = 0
                         _stateEvent.tryEmit(StepState.CONNECTED)
 
                         // 连接成功后立即发送 session 配置
@@ -192,36 +270,79 @@ class StepRealtimeClient(
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                         DebugLog.e("$TAG: WebSocket 失败: ${t.message}", t)
-                        _stateEvent.tryEmit(StepState.DISCONNECTED)
-                        _errorEvent.tryEmit("连接失败: ${t.message}")
+                        // 仅当失败的就是当前 socket 时才清空引用，避免误清掉重连后的新连接
+                        if (this@StepRealtimeClient.webSocket === webSocket) {
+                            this@StepRealtimeClient.webSocket = null
+                        }
+                        handleDroppedConnection("连接失败: ${t.message}")
                     }
 
                     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                         DebugLog.i("$TAG: WebSocket 已关闭: $code $reason")
-                        _stateEvent.tryEmit(StepState.DISCONNECTED)
+                        if (this@StepRealtimeClient.webSocket === webSocket) {
+                            this@StepRealtimeClient.webSocket = null
+                        }
+                        handleDroppedConnection("连接关闭: $reason")
                     }
                 }
 
                 webSocket = httpClient.newWebSocket(request, listener)
 
+            } catch (e: CancellationException) {
+                return@launch
             } catch (e: Exception) {
-                if (e is CancellationException) return@launch
                 DebugLog.e("$TAG: 连接异常: ${e.message}", e)
-                _stateEvent.tryEmit(StepState.DISCONNECTED)
-                _errorEvent.tryEmit("连接异常: ${e.message}")
+                handleDroppedConnection("连接异常: ${e.message}")
             }
         }
     }
 
     /**
-     * 断开连接。
+     * 被动掉线统一处理：主动断开则只报 DISCONNECTED；否则按退避策略自动重连。
      */
-    fun disconnect() {
-        connectionJob?.cancel()
-        connectionJob = null
-        webSocket?.close(1000, "用户断开")
-        webSocket = null
-        _stateEvent.tryEmit(StepState.DISCONNECTED)
+    private fun handleDroppedConnection(reason: String) {
+        if (userInitiatedDisconnect.get()) {
+            _stateEvent.tryEmit(StepState.DISCONNECTED)
+            return
+        }
+        // 仅在当前确无连接时才进入重连，避免旧 socket 的迟到回调在新连接存活时触发多余重连
+        if (webSocket != null) {
+            DebugLog.d(TAG, "检测到非当前连接的关闭回调，忽略: $reason")
+            return
+        }
+        // 被动掉线：尝试有限次退避重连
+        scheduleReconnect(reason)
+    }
+
+    /**
+     * 有限次 + 指数退避的自动重连。
+     *
+     * 重连成功由 onOpen 清零计数；达到上限后进入 RECONNECT_FAILED，
+     * 由上层决定回落本地全双工管线或提示用户一键 [retry]。
+     */
+    private fun scheduleReconnect(reason: String) {
+        if (userInitiatedDisconnect.get()) return
+        if (!scope.isActive) return
+
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            DebugLog.e("$TAG: 重连已达上限($MAX_RECONNECT_ATTEMPTS)，放弃自动重连")
+            _stateEvent.tryEmit(StepState.RECONNECT_FAILED)
+            _errorEvent.tryEmit("实时语音连接已断开，多次重连失败")
+            return
+        }
+
+        val attempt = reconnectAttempts
+        reconnectAttempts += 1
+        val backoff = (RECONNECT_BASE_BACKOFF_MS * (1L shl attempt)).coerceAtMost(RECONNECT_MAX_BACKOFF_MS)
+
+        DebugLog.w("$TAG: 掉线($reason)，${backoff}ms 后进行第 ${attempt + 1}/$MAX_RECONNECT_ATTEMPTS 次重连")
+        _stateEvent.tryEmit(StepState.RECONNECTING)
+
+        reconnectJob = scope.launch(Dispatchers.IO) {
+            delay(backoff)
+            if (userInitiatedDisconnect.get()) return@launch
+            openConnection()
+        }
     }
 
     /**
@@ -525,6 +646,10 @@ class StepRealtimeClient(
         CONNECTING,
         /** 已连接，等待输入 */
         CONNECTED,
+        /** 正在自动重连中（退避等待） */
+        RECONNECTING,
+        /** 多次重连失败，需回落本地管线或用户一键 retry() */
+        RECONNECT_FAILED,
         /** 用户正在说话（VAD 检测到） */
         USER_SPEAKING,
         /** AI 正在思考/处理 */

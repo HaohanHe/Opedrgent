@@ -247,127 +247,47 @@ class HippocampusMemory(
     private val turnHistory = Collections.synchronizedList(mutableListOf<TurnRecord>())
 
     /**
-     * 检测当前轮次是否存在主题漂移。
+     * 记录一轮对话（跑题判定已交由模型完成）。
      *
-     * 检测策略（多维度融合）：
-     * 1. **关键词匹配**：用户回答和 AI 回复是否包含关键话题词
-     * 2. **语义相关性**：使用简单的 TF-IDF / Jaccard 相似度估算
-     * 3. **历史趋势**：连续 N 轮低相关度 → 判定为持续漂移
-     * 4. **禁止词触发**：命中 forbiddenTopics → 立即标记严重漂移
+     * 设计变更：是否跑题必须由模型结合完整转写与既定目标判断，
+     * 本类不再做关键词命中 / 禁止词触发 / Jaccard 相似度等本地规则判定，
+     * 也不再据此下发"警告/立即纠正"式干预。这里仅如实记录本轮对话，
+     * 供结束后的轮次日志与漂移报告使用。
      *
      * @param turnIndex 当前轮次（从0开始）
      * @param userMessage 用户消息
      * @param aiResponse AI 上一轮回复
-     * @return 漂移检测结果
+     * @return 中性记录结果（不再据此触发干预）
      */
     fun detectDrift(turnIndex: Int, userMessage: String, aiResponse: String): DriftResult {
-        val anchor = goalAnchor ?: return DriftResult(false, DriftLevel.NONE, "", "", 1.0f)
-        val combinedText = "$userMessage $aiResponse".lowercase()
+        // 无目标锚定时不记录
+        goalAnchor ?: return DriftResult(false, DriftLevel.NONE, "", "", 1.0f)
 
-        // ===== 维度1：禁止词触发（最高优先级）=====
-        for (forbidden in anchor.forbiddenTopics) {
-            if (combinedText.contains(forbidden)) {
-                DebugLog.w(TAG, "检测到禁止话题关键词: $forbidden")
-                return DriftResult(
-                    isDrifting = true,
-                    driftLevel = DriftLevel.SEVERE,
-                    driftReason = "检测到禁止话题关键词: 「$forbidden」",
-                    suggestedCorrection = "立即回到${anchor.primaryGoal}的正轨",
-                    relevanceScore = 0.1f,
-                )
-            }
-        }
-
-        // ===== 维度2：关键词匹配得分（中文优化：字符级部分匹配）=====
-        var matchedScore = 0f
-        val matchedTopicNames = mutableListOf<String>()
-        for (topic in anchor.keyTopics) {
-            // 精确匹配优先
-            if (combinedText.contains(topic.lowercase())) {
-                matchedScore += 1.0f
-                matchedTopicNames.add(topic)
-            } else if (topic.length >= 2) {
-                // 中文模糊匹配：话题中 >= 50% 的字符出现在文本中，算部分匹配（权重 0.5）
-                val topicChars = topic.lowercase().toSet()
-                val matchedChars = topicChars.count { combinedText.contains(it) }
-                if (matchedChars.toFloat() / topicChars.size >= 0.5f) {
-                    matchedScore += 0.5f  // 部分匹配算半分
-                    matchedTopicNames.add(topic)
-                }
-            }
-        }
-        val keywordScore = if (anchor.keyTopics.isNotEmpty()) {
-            matchedScore / anchor.keyTopics.size.toFloat()
-        } else 1.0f
-
-        val goalKeywords = extractKeywords(anchor.primaryGoal, MAX_KEYWORDS)
-            .filter { it.length >= 2 }
-            .filterNot { STOPWORDS.contains(it.lowercase()) }
-        val jaccardScore = if (goalKeywords.isNotEmpty()) {
-            val matched = goalKeywords.count { kw ->
-                combinedText.contains(kw.lowercase())
-            }
-            matched.toFloat() / goalKeywords.size.toFloat()
-        } else 1.0f
-
-        // ===== 维度4：历史趋势（连续低分检测）=====
-        val recentScores = turnHistory.takeLast(3).map { it.driftResult.relevanceScore }
-        val trendDeclining = recentScores.size >= 3 &&
-            recentScores[0] > recentScores[1] && recentScores[1] > recentScores[2]
-
-        // ===== 综合评分 =====
-        val finalScore = keywordScore * 0.5f + jaccardScore * 0.3f +
-            (if (trendDeclining) 0.0f else 0.2f) // 趋势惩罚
-
-        // ===== 判定漂移等级 =====
-        val driftLevel = when {
-            finalScore >= 0.7f -> DriftLevel.NONE
-            finalScore >= 0.5f -> DriftLevel.MILD
-            finalScore >= 0.3f -> DriftLevel.MODERATE
-            finalScore >= 0.1f -> DriftLevel.SEVERE
-            else -> DriftLevel.OFF_TOPIC
-        }
-
+        // 仅记录轮次，不做关键词/词表命中式判定
         val result = DriftResult(
-            isDrifting = driftLevel != DriftLevel.NONE,
-            driftLevel = driftLevel,
-            driftReason = when (driftLevel) {
-                DriftLevel.NONE -> "对话聚焦良好"
-                DriftLevel.MILD -> "轻微偏移，已覆盖话题: ${matchedTopicNames.joinToString("/")}"
-                DriftLevel.MODERATE -> "明显偏离，关键词覆盖率仅 ${"%.0f".format(keywordScore * 100)}%"
-                DriftLevel.SEVERE -> "严重跑偏，几乎未触及任何关键话题"
-                DriftLevel.OFF_TOPIC -> "完全离题"
-            },
-            suggestedCorrection = if (matchedTopicNames.isNotEmpty())
-                "建议回到以下话题: ${matchedTopicNames.first()}"
-            else
-                "建议重新聚焦于: ${anchor.primaryGoal}",
-            relevanceScore = finalScore,
+            isDrifting = false,
+            driftLevel = DriftLevel.NONE,
+            driftReason = "跑题判定由模型结合完整对话与目标完成",
+            suggestedCorrection = "",
+            relevanceScore = 1.0f,
         )
-
-        // 记录历史
         turnHistory.add(TurnRecord(turnIndex, userMessage, aiResponse, result))
 
-        if (result.isDrifting) {
-            DebugLog.d(TAG, "第${turnIndex}轮检测到漂移 [${result.driftLevel.name}]: ${result.driftReason}")
-        }
-
+        DebugLog.d(TAG, "记录第${turnIndex}轮对话（漂移判定交由模型）")
         return result
     }
 
     // ==================== 注意力提醒 ====================
 
     /**
-     * 准备本轮对话的注意力上下文。
+     * 准备本轮对话的注意力上下文（持续把目标带给模型）。
      *
-     * 这是海马体的**核心输出**——一段注入到 LLM system prompt 中的文本，
-     * 让 AI 在每轮回复时都保持对目标的感知。
+     * 这是海马体的**核心输出**——一段注入到 LLM system 提示中的文本，
+     * 让 AI 在每轮回复时都保持对目标的感知，避免长对话后目标被上下文窗口冲刷。
      *
-     * 根据漂移检测结果动态调整：
-     * - 无漂移 → 轻量提醒（1-2句）
-     * - 轻微漂移 → 温和引导（提示当前进度）
-     * - 明显漂移 → 强力纠偏（明确指出偏离 + 建议回归方向）
-     * - 严重漂移 → 紧急干预（重申目标 + 要求立即回到正轨）
+     * 与旧实现的区别：不再根据本地关键词/相似度把对话切成 MILD/MODERATE/SEVERE/OFF_TOPIC
+     * 并下发"注意/警告/必须立即纠正"式硬干预。是否跑题、是否拉回、何时拉回，
+     * 全部交由模型结合完整转写与目标自行判断；这里只给出"保持目标、温和拉回"的行为要求。
      *
      * @param turnIndex 当前轮次
      * @param userMessage 用户消息
@@ -376,60 +296,27 @@ class HippocampusMemory(
      */
     fun prepareTurnContext(turnIndex: Int, userMessage: String, lastAiResponse: String): String {
         val anchor = goalAnchor ?: return ""
-        val drift = detectDrift(turnIndex, userMessage, lastAiResponse)
 
-        // 基础锚定信息（自然语言风格，随轮次变化）
+        // 基础锚定信息（自然语言风格，随轮次变化），持续携带目标
         val baseAnchor = when {
             turnIndex == 0 -> "当前任务：${anchor.primaryGoal}。需要覆盖的重点：${anchor.keyTopics.take(5).joinToString("、")}。"
             turnIndex <= 2 -> "（第${turnIndex + 1}轮）记住核心目标：${anchor.primaryGoal}"
             else -> "目标回顾：${anchor.primaryGoal}"
         }
 
-        // 根据漂移等级动态调整提醒强度（自然对话风格，不用【】标记）
-        val driftReminder = when (drift.driftLevel) {
-            DriftLevel.NONE -> ""
-            DriftLevel.MILD -> {
-                val covered = extractMatchedTopics(drift)
-                "\n提示：当前话题略有偏移（已触及: $covered）。下一轮请自然地回到主线方向。"
-            }
-            DriftLevel.MODERATE -> """
-                |
-                |注意：对话正在偏离核心目标。
-                |偏离原因：${drift.driftReason}
-                |建议方向：${drift.suggestedCorrection}
-                |请在回复中主动将话题引导回来。
-            """.trimMargin()
-            DriftLevel.SEVERE -> """
-                |
-                |警告：对话已严重跑偏！
-                |你的任务是：${anchor.primaryGoal}
-                |还没聊到的重点：${anchor.keyTopics.take(3).joinToString("、")}
-                |请立即停止当前话题，用专业的方式回归正轨。
-            """.trimMargin()
-            DriftLevel.OFF_TOPIC -> """
-                |
-                |严重警告：完全离题了。
-                |回到正题：${anchor.primaryGoal}
-                |下一句话必须是针对候选人的专业提问或评价，不要继续闲聊。
-            """.trimMargin()
-        }
+        // 把"是否跑题、是否拉回"的判断交给模型：只在明显偏离时自然承接再引回一次，
+        // 轻度偏离不打断，不生硬纠正，不编造。
+        val guidance = """
+            |
+            |【目标保持】请始终围绕上述目标自然推进。若你结合完整对话判断参与者已明显跑题，
+            |请先承接他刚刚说的内容，再用一句自然的话把话题引回目标；只在明显跑题时这样做一次，
+            |轻度偏离不要打断对方，也不要生硬地纠正。不要编造参与者没有提到的信息。
+        """.trimMargin()
 
-        // 上下文保护：每隔几轮重新注入关键信息
+        // 上下文保护：每隔几轮重新注入关键信息（仅供模型参考，不打断对话）
         val protectedCtx = getProtectedContext(turnIndex)?.let { "\n关键信息回顾：$it" } ?: ""
 
-        return baseAnchor + driftReminder + protectedCtx
-    }
-
-    /**
-     * 提取漂移结果中已匹配的话题名称。
-     */
-    private fun extractMatchedTopics(drift: DriftResult): String {
-        // 从历史记录中获取最近一轮的匹配话题
-        val lastRecord = turnHistory.lastOrNull() ?: return "无"
-        val anchor = goalAnchor ?: return "无"
-        val combinedText = "${lastRecord.userMessage} ${lastRecord.aiResponse}".lowercase()
-
-        return anchor.keyTopics.filter { combinedText.contains(it.lowercase()) }.joinToString("/")
+        return baseAnchor + guidance + protectedCtx
     }
 
     // ==================== 上下文保护 ====================

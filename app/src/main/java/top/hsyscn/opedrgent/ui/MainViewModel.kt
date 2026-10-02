@@ -6311,6 +6311,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun setBargeInDetected(detected: Boolean) = interview.setBargeInDetected(detected)
     suspend fun speakAsInterviewer(text: String) = interview.speakAsInterviewer(text)
     fun saveInterviewReportToNote() = interview.saveInterviewReportToNote()
+    fun retryInterviewConnection() = interview.retryInterviewConnection()
 
     // ==================== AI 笔记搜索 ====================
 

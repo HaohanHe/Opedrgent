@@ -22,6 +22,8 @@ import top.hsyscn.opedrgent.tts.MimoTtsClient.StyleControl
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
+import android.net.ConnectivityManager
+import android.net.Network
 
 /**
  * 语音对话状态枚举（兼容旧接口）。
@@ -100,6 +102,12 @@ class VoiceConversationEngine(
 
         /** 默认 TTS 场景 */
         val DEFAULT_TTS_SCENARIO = TtsScenario.INTERVIEW
+
+        /** 断网提示节流间隔（毫秒），避免反复刷屏 */
+        private const val OFFLINE_HINT_COOLDOWN_MS = 8000L
+
+        /** 长静音温和引导冷却间隔（毫秒），避免机械反复硬塞 */
+        private const val IDLE_NUDGE_COOLDOWN_MS = 20_000L
     }
 
     // ==================== 全双工引擎 ====================
@@ -179,6 +187,31 @@ class VoiceConversationEngine(
     @Volatile
     private var currentInterviewConfig: InterviewConfig? = null
 
+    // ==================== 断网 / 回声 / 插话 编排状态 ====================
+
+    /** 当前网络是否可用（断网时暂停推进 LLM 回合，但不拆本地音频管线） */
+    @Volatile
+    private var networkAvailable = true
+
+    /** 本次播放是否被引擎确认为真人 barge-in（连续帧确认）；否则播放期语音视为回声丢弃 */
+    @Volatile
+    private var bargeInConfirmed = false
+
+    /** 上次断网提示时间戳（节流） */
+    @Volatile
+    private var lastOfflineHintMs = 0L
+
+    /** 上次长静音引导时间戳（冷却） */
+    @Volatile
+    private var lastIdleNudgeMs = 0L
+
+    /** 网络回调（start 注册 / stop 注销） */
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    /** 外部状态提示回调（克制、非语音） */
+    @Volatile
+    private var onStatusHintRef: ((String) -> Unit)? = null
+
     // ==================== 公开 API：全双工模式（推荐）====================
 
     /**
@@ -208,6 +241,8 @@ class VoiceConversationEngine(
         onPartialUserText: (String) -> Unit = {},
         onStateChange: (FullDuplexAudioEngine.DuplexState) -> Unit,
         onBargeIn: () -> Unit = {},
+        onStatusHint: (String) -> Unit = {},
+        onIdleNudge: (suspend () -> String)? = null,
         getAiResponse: suspend (userInput: String?) -> String,
         interviewConfig: InterviewConfig? = null,
         hippo: HippocampusMemory? = null,
@@ -242,6 +277,13 @@ class VoiceConversationEngine(
         turnCounter = 0
         lastAiResponse = ""
 
+        // 编排状态复位：记录外部提示回调、清掉插话/断网残留标记
+        onStatusHintRef = onStatusHint
+        bargeInConfirmed = false
+        networkAvailable = true
+        lastOfflineHintMs = 0L
+        lastIdleNudgeMs = 0L
+
         try {
             // 步骤1：初始化 ASR 管理器
             asrManager = AsrManager(context, apiSettings, forceLocal = true)
@@ -249,6 +291,12 @@ class VoiceConversationEngine(
 
             // 步骤2：连接全双工音频引擎
             duplexEngine.connect()
+
+            // 会话开始：切换 TTS 到通话路由（与 VOICE_COMMUNICATION 采集对齐 AEC 参考通路，防回声自激）
+            runCatching { ttsPlayer.setCallRoute(true) }
+
+            // 监听系统网络状态：断网时克制提示并暂停推进，恢复后自然续跑
+            registerNetworkCallback()
 
             // 注册全双工引擎回调
             setupDuplexCallbacks(
@@ -267,6 +315,8 @@ class VoiceConversationEngine(
                     }
                 },
                 onBargeIn = onBargeIn,
+                onStatusHint = onStatusHint,
+                onIdleNudge = onIdleNudge,
                 getAiResponse = getAiResponse,
             )
 
@@ -276,8 +326,8 @@ class VoiceConversationEngine(
             // 步骤3：启动全双工音频管线
             duplexEngine.start()
 
-            // 步骤4：获取第一句话的 AI 回复（开场白）
-            if (conversationActive.get()) {
+            // 步骤4：获取第一句话的 AI 回复（开场白；断网时不强行生成，等待恢复）
+            if (conversationActive.get() && networkAvailable) {
                 val openingLine = withContext(Dispatchers.IO) {
                     getAiResponse(null)
                 }
@@ -292,6 +342,8 @@ class VoiceConversationEngine(
                         voiceId = DEFAULT_INTERVIEWER_VOICE,
                     )
                 }
+            } else if (conversationActive.get()) {
+                onStatusHint("当前无网络，连接恢复后自动继续")
             }
 
             // 步骤5：保持运行直到停止信号
@@ -379,6 +431,13 @@ class VoiceConversationEngine(
 
         // 停止 ASR
         stopListening()
+
+        // 关闭通话音频路由（与会话开始的 setCallRoute(true) 配对，避免重复/遗漏）
+        runCatching { ttsPlayer.setCallRoute(false) }
+
+        // 注销网络监听并清掉外部提示回调
+        unregisterNetworkCallback()
+        onStatusHintRef = null
 
         // 断开全双工引擎
         duplexEngine.disconnect()
@@ -486,6 +545,32 @@ class VoiceConversationEngine(
     fun getCurrentDuplexState(): FullDuplexAudioEngine.DuplexState = duplexEngine.state
 
     /**
+     * 重试通话连接：从管线失败后回落的 CONNECTED 状态重新拉起采集/播放，回到 LISTENING。
+     *
+     * 复用全双工引擎既有的 [FullDuplexAudioEngine.start]（引擎在原生对象缺失时按 connect 同口径重建）；
+     * 编排层只做在途处理复位，不直接操作原生音频。
+     *
+     * @return true 表示已发起重新拉起；false 表示会话未在进行中，无需重试
+     */
+    fun retryPipeline(): Boolean {
+        if (!conversationActive.get()) {
+            DebugLog.w(TAG, "重试连接：会话未在进行中，忽略")
+            return false
+        }
+        // 复位在途处理，避免残留 loading
+        asrProcessingJob?.cancel()
+        isProcessing.set(false)
+        return try {
+            duplexEngine.start()
+            DebugLog.i(TAG, "已重新拉起采集/播放管线")
+            true
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "重新拉起管线失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
      * 获取当前海马体实例（如果已启用）。
      *
      * @return 海马体实例，如果未启用则返回 null
@@ -522,6 +607,8 @@ class VoiceConversationEngine(
         onPartialUserText: (String) -> Unit,
         onLegacyStateChange: (ConversationState) -> Unit,
         onBargeIn: () -> Unit,
+        onStatusHint: (String) -> Unit,
+        onIdleNudge: (suspend () -> String)?,
         getAiResponse: suspend (userInput: String?) -> String,
     ) {
         // 1. 语音检测回调（VAD 判定为一句话结束）
@@ -529,21 +616,60 @@ class VoiceConversationEngine(
             handleUserSpeechDetected(pcmData, scenario, onAiSpeak, onUserSpeak, onPartialUserText, onLegacyStateChange, onBargeIn, getAiResponse)
         }
 
-        // 2. 插话回调
+        // 2. 插话回调（引擎已按播放期连续帧确认真人打断，更抗回声）
         duplexEngine.onBargeIn {
             DebugLog.i(TAG, "用户打断了 AI！")
             onBargeIn.invoke()
 
-            // 停止当前 TTS 播放
+            // 标记为真人打断：随后 VAD 缓冲送来的语音内容将被采纳，而非当作回声丢弃
+            bargeInConfirmed = true
+
+            // 丢弃在途的生成/播放：取消进行中的回合处理，停掉当前 TTS，自然回到倾听
+            asrProcessingJob?.cancel()
             stopCurrentTts()
 
             // 重置插话标志以便下次检测
             duplexEngine.resetBargeIn()
         }
 
+        // 2b. 引擎管线事件（冻结名称：PIPELINE_RESTARTED / PIPELINE_FAILED / IDLE_TIMEOUT）
+        duplexEngine.onEngineEvent { event ->
+            when (event.kind) {
+                EngineEvent.Kind.PIPELINE_RESTARTED -> {
+                    // 静默记录，仅在有具体信息时给一条轻提示
+                    DebugLog.w(TAG, "音频管线已重启: ${event.message}")
+                    if (event.message.isNotBlank()) onStatusHint("音频管线已重启")
+                }
+                EngineEvent.Kind.PIPELINE_FAILED -> {
+                    DebugLog.e(TAG, "音频管线失败: ${event.message}")
+                    // 让会话一致回到可继续：清掉在途处理、不残留 loading
+                    asrProcessingJob?.cancel()
+                    isProcessing.set(false)
+                    onStatusHint("音频出现异常，已恢复，可继续说话")
+                    if (conversationActive.get()) {
+                        onLegacyStateChange(ConversationState.LISTENING)
+                    }
+                }
+                EngineEvent.Kind.IDLE_TIMEOUT -> {
+                    // 长静音：由模型决定是否给一句温和引导，不机械硬塞固定话术
+                    DebugLog.i(TAG, "长静音 ${event.silenceMs}ms，请求模型生成温和引导")
+                    maybeEmitIdleNudge(onIdleNudge, onAiSpeak, scenario)
+                }
+                else -> {
+                    DebugLog.d(TAG, "未处理引擎事件: ${event.kind}")
+                }
+            }
+        }
+
         // 3. 状态变化回调（同步到 UI）
         duplexEngine.onStateChanged { duplexState ->
             DebugLog.d(TAG, "全双工状态: $duplexState")
+
+            // 新一轮 AI 播报开始时，清掉上一轮的插话确认标记：
+            // 此后播放期再出现的语音若未经引擎确认为真人打断，一律按回声丢弃
+            if (duplexState == FullDuplexAudioEngine.DuplexState.AI_SPEAKING) {
+                bargeInConfirmed = false
+            }
 
             // 映射到旧状态
             when (duplexState) {
@@ -577,6 +703,12 @@ class VoiceConversationEngine(
     ) {
         if (!conversationActive.get()) return
 
+        // 播放期且未经引擎确认为真人打断：判为回声/残余 TTS，直接丢弃，不入对话历史、不推进回合
+        if (duplexEngine.state == FullDuplexAudioEngine.DuplexState.AI_SPEAKING && !bargeInConfirmed) {
+            DebugLog.d(TAG, "播放期疑似回声/残余 TTS，丢弃该段语音")
+            return
+        }
+
         DebugLog.i(TAG, "收集到用户语音 (${pcmData.size} bytes)，开始 ASR 识别...")
 
         // 标记正在处理用户输入
@@ -598,6 +730,17 @@ class VoiceConversationEngine(
                 }
 
                 DebugLog.d(TAG, "ASR 结果: '${recognizedText.take(100)}'")
+
+                // 断网时：暂停推进回合，不把异常当作用户发言，也不硬塞报错台词
+                if (!networkAvailable) {
+                    DebugLog.w(TAG, "断网中，暂停推进本回合")
+                    emitOfflineHint()
+                    isProcessing.set(false)
+                    if (conversationActive.get()) {
+                        onLegacyStateChange(ConversationState.LISTENING)
+                    }
+                    return@launch
+                }
 
                 // 通知 UI：用户说的话
                 onUserSpeak(recognizedText)
@@ -968,6 +1111,84 @@ class VoiceConversationEngine(
 
         // 同时停止全双工引擎的播放
         duplexEngine.stopAiSpeaking()
+    }
+
+    /**
+     * 注册系统网络状态监听。
+     *
+     * 断网时给一条克制提示并暂停推进 LLM 回合；网络恢复后提示并自然续跑。
+     * 本地全双工采集/播放/AEC 不依赖网络，断网不会被拆除。
+     */
+    private fun registerNetworkCallback() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                val wasOffline = !networkAvailable
+                networkAvailable = true
+                DebugLog.i(TAG, "网络已恢复")
+                if (wasOffline && conversationActive.get()) {
+                    onStatusHintRef?.invoke("网络已恢复")
+                }
+            }
+
+            override fun onLost(network: Network) {
+                networkAvailable = false
+                DebugLog.w(TAG, "网络连接已断开")
+                if (conversationActive.get()) {
+                    onStatusHintRef?.invoke("网络连接已断开，正在等待恢复")
+                }
+            }
+        }
+        networkCallback = callback
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
+    }
+
+    /** 注销系统网络状态监听。 */
+    private fun unregisterNetworkCallback() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val cb = networkCallback ?: return
+        networkCallback = null
+        runCatching { cm.unregisterNetworkCallback(cb) }
+    }
+
+    /** 节流的断网提示，避免反复刷屏。 */
+    private fun emitOfflineHint() {
+        val now = System.currentTimeMillis()
+        if (now - lastOfflineHintMs < OFFLINE_HINT_COOLDOWN_MS) return
+        lastOfflineHintMs = now
+        onStatusHintRef?.invoke("网络连接已断开，正在等待恢复")
+    }
+
+    /**
+     * 长静音后的温和引导：由模型决定说什么（不机械硬塞固定话术），并做冷却节流。
+     */
+    private fun maybeEmitIdleNudge(
+        onIdleNudge: (suspend () -> String)?,
+        onAiSpeak: (String) -> Unit,
+        scenario: TtsScenario,
+    ) {
+        if (onIdleNudge == null) return
+        if (!conversationActive.get()) return
+        val now = System.currentTimeMillis()
+        if (now - lastIdleNudgeMs < IDLE_NUDGE_COOLDOWN_MS) return
+        lastIdleNudgeMs = now
+
+        engineScope.launch(Dispatchers.IO) {
+            val nudge = try {
+                onIdleNudge()
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "生成温和引导失败: ${e.message}")
+                ""
+            }
+            if (!conversationActive.get() || nudge.isBlank()) return@launch
+            onAiSpeak(nudge)
+            duplexEngine.aiSpeakText(
+                text = nudge,
+                ttsPlayer = ttsPlayer,
+                scenario = scenario,
+                voiceId = DEFAULT_INTERVIEWER_VOICE,
+            )
+        }
     }
 
     /**

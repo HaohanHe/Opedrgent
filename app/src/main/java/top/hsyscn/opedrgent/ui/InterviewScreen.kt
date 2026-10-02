@@ -741,9 +741,9 @@ private fun InterviewSessionScreen(
     val infiniteTransition = rememberInfiniteTransition(label = "bargein_blink")
     val bargeInAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 0.2f,
+        targetValue = 0.4f,
         animationSpec = infiniteRepeatable(
-            tween(400),
+            tween(500),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "bargein_alpha",
@@ -868,6 +868,14 @@ private fun InterviewSessionScreen(
                     }
                 }
             }
+
+            // ── 会话状态提示横幅（非阻断；不遮挡控制栏与结束按钮）──
+            // statusHint 由编排层写入（断网/恢复、管线或云端重连中/失败等），
+            // 为 null 时横幅自动消失，可手动关闭；失败态点击「重试」回调 vm.retryInterviewConnection()。
+            StatusHintBanner(
+                hint = interviewState.statusHint,
+                onRetry = { vm.retryInterviewConnection() },
+            )
 
             // ── 全双工状态指示条 ──
             DuplexStatusBar(
@@ -1180,6 +1188,102 @@ private fun ThinkingIndicator() {
  * 根据全双工引擎状态显示实时状态文字。
  * 插话（BargeIn）发生时闪烁提示。
  */
+// ── 会话状态提示横幅（非阻断） ──
+
+/**
+ * 会话中的克制状态提示横幅。
+ *
+ * 承载编排层写入的 `InterviewUiState.statusHint`：网络断开/恢复、音频管线或云端
+ * 重连中/失败等。设计遵循 Apple HIG——清晰、克制、层级分明、不阻断。
+ *
+ * - 嵌入在对话区与全双工状态条之间，不悬浮、不遮挡底部控制栏与「结束」按钮；
+ * - [hint] 为 null/空白时整体消失（恢复后横幅自动消失），并提供手动关闭入口；
+ * - 仅当 [onRetry] 非空（表示失败且可重试）时才出现「重试」小按钮，避免无响应的僵尸按钮；
+ *   此处依据「是否提供重试回调」这一结构化信号区分失败态，不对文案做关键词判定；
+ * - 长文案自动折行，窄屏不溢出。
+ */
+@Composable
+private fun StatusHintBanner(
+    hint: String?,
+    onRetry: (() -> Unit)? = null,
+) {
+    if (hint.isNullOrBlank()) return
+
+    // 手动关闭后，仅在提示文案变化时重新出现
+    var dismissedHint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(hint) { dismissedHint = null }
+    if (hint == dismissedHint) return
+
+    // 有重试回调视为失败态（错误底色），否则为一般提示/重连中（克制的警示底色）
+    val isFailure = onRetry != null
+    val containerColor = if (isFailure) themeErrorBackground() else themeWarningBg()
+    val accentColor = if (isFailure) MaterialTheme.colorScheme.error else themeWarning()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.xs)
+            .clip(ShapeTokens.mediumShape)
+            .background(containerColor)
+            .padding(horizontal = SpacingTokens.md, vertical = SpacingTokens.sm),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 左侧状态点
+            Box(
+                modifier = Modifier
+                    .size(SizeTokens.iconXs)
+                    .clip(CircleShape)
+                    .background(accentColor),
+            )
+            Spacer(Modifier.width(SpacingTokens.sm))
+
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = themeTextDark(),
+                modifier = Modifier.weight(1f),
+            )
+
+            // 重试（仅失败态且提供回调时出现）
+            if (onRetry != null) {
+                Spacer(Modifier.width(SpacingTokens.sm))
+                TextButton(
+                    onClick = onRetry,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = SpacingTokens.sm,
+                        vertical = SpacingTokens.xs,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(SizeTokens.iconSm),
+                    )
+                    Spacer(Modifier.width(SpacingTokens.xs))
+                    Text(
+                        text = stringResource(R.string.action_retry),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = accentColor,
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(SpacingTokens.xs))
+            // 手动关闭
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.cd_close),
+                tint = themeTextGrey(),
+                modifier = Modifier
+                    .size(SizeTokens.iconMd)
+                    .clip(CircleShape)
+                    .clickable { dismissedHint = hint },
+            )
+        }
+    }
+}
+
 @Composable
 private fun DuplexStatusBar(
     duplexState: FullDuplexAudioEngine.DuplexState?,

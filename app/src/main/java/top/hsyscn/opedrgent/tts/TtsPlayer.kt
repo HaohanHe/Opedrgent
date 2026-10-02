@@ -41,6 +41,13 @@ class TtsPlayer(
     private var currentPlayerJob: Job? = null
     private val playerCancelled = AtomicBoolean(false)
 
+    /**
+     * 通话路由开关：true 时后续播放走 USAGE_VOICE_COMMUNICATION，与全双工采集 AEC 参考通路对齐。
+     * 仅在构建 AudioTrack / 设置平台 TTS AudioAttributes 时读取，按次懒构建无需重建实例。
+     */
+    @Volatile
+    private var callRouteEnabled = false
+
     init {
         tts = TextToSpeech(appContext, this)
     }
@@ -99,6 +106,19 @@ class TtsPlayer(
         }
         engine.setSpeechRate(rate.coerceIn(0.5f, 2.0f))
         engine.setPitch(pitch.coerceIn(0.5f, 2.0f))
+
+        // 本地平台 TTS 同样按通话路由选择 AudioAttributes，确保 forceLocal 路径也进入 AEC 参考通路。
+        runCatching {
+            engine.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(
+                        if (callRouteEnabled) AudioAttributes.USAGE_VOICE_COMMUNICATION
+                        else AudioAttributes.USAGE_MEDIA
+                    )
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+        }
 
         val utteranceId = UUID.randomUUID().toString()
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -254,10 +274,17 @@ class TtsPlayer(
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val bufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
+        // 通话路由：全双工会话期间走 VOICE_COMMUNICATION，与采集 AEC 参考通路对齐；否则默认 MEDIA。
+        val usage = if (callRouteEnabled) {
+            AudioAttributes.USAGE_VOICE_COMMUNICATION
+        } else {
+            AudioAttributes.USAGE_MEDIA
+        }
+
         val audioTrack = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setUsage(usage)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
@@ -386,6 +413,23 @@ class TtsPlayer(
 
     fun isCurrentlySpeaking(): Boolean = isSpeaking.get()
     fun isCurrentlyPaused(): Boolean = isPaused.get()
+
+    /**
+     * 切换 TTS 播放的音频路由。
+     *
+     * - enabled=true：后续播放使用 USAGE_VOICE_COMMUNICATION + CONTENT_TYPE_SPEECH，
+     *   与全双工采集（VOICE_COMMUNICATION 音源）对齐硬件 AEC 参考通路，避免 TTS 播放被
+     *   自身 ASR 拾取形成回声自激。
+     * - enabled=false：恢复默认 USAGE_MEDIA（非通话场景）。
+     *
+     * 幂等、线程安全。AudioTrack 为按次懒构建，开关在构建前读取即生效；不改变合成与缓冲逻辑。
+     * 默认 false（MEDIA）。
+     */
+    fun setCallRoute(enabled: Boolean) {
+        if (callRouteEnabled == enabled) return
+        callRouteEnabled = enabled
+        DebugLog.i("TtsPlayer: callRoute=${if (enabled) "VOICE_COMMUNICATION" else "MEDIA"}")
+    }
 
     fun shutdown() {
         stop()

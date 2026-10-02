@@ -62,6 +62,8 @@ class InterviewStateManager(
         val duplexState: FullDuplexAudioEngine.DuplexState? = null,
         val isMuted: Boolean = false,
         val bargeInDetected: Boolean = false,
+        // 编排层的克制状态提示（断网/管线异常/长静音引导等，非对话气泡）
+        val statusHint: String? = null,
     )
 
     private val _interviewState = MutableStateFlow(InterviewUiState())
@@ -170,6 +172,18 @@ class InterviewStateManager(
                     },
                     onBargeIn = {
                         _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+                    },
+                    onStatusHint = { hint ->
+                        // 克制的状态提示（断网/管线重启/失败恢复等），非对话气泡
+                        _interviewState.value = _interviewState.value.copy(statusHint = hint)
+                    },
+                    onIdleNudge = {
+                        // 长静音：由模型生成一句温和引导，不机械硬塞固定话术
+                        withContext(Dispatchers.IO) {
+                            InterviewAgent.generateIdleNudge(
+                                llmClient = llm, apiConfig = apiConfig, config = config,
+                            )
+                        }
                     },
                     getAiResponse = { userInput ->
                         withContext(Dispatchers.IO) {
@@ -410,6 +424,39 @@ class InterviewStateManager(
     fun stopInterviewSpeaking() {
         tts.stop()
         _interviewState.value = _interviewState.value.copy(isSpeaking = false)
+    }
+
+    /**
+     * 重试通话连接（供通话界面在 PIPELINE_FAILED / 重连失败后调用）。
+     *
+     * 仅当会话已开始、且管线处于失败/暂停态（引擎回落到 CONNECTED）时生效；
+     * 正常进行中（LISTENING/AI_SPEAKING）或忙时忽略。复用引擎既有 start 能力重新拉起采集/播放，
+     * 通过 statusHint 反馈「正在重新连接…」，成功后清空，失败再给克制提示。不做关键词判定。
+     */
+    fun retryInterviewConnection() {
+        val currentState = _interviewState.value
+        if (currentState.phase != InterviewPhase.IN_PROGRESS) return
+        val engine = voiceEngine ?: return
+
+        val duplex = engine.getCurrentDuplexState()
+        // 正常进行中不重试
+        if (duplex == FullDuplexAudioEngine.DuplexState.LISTENING ||
+            duplex == FullDuplexAudioEngine.DuplexState.AI_SPEAKING ||
+            duplex == FullDuplexAudioEngine.DuplexState.MUTED
+        ) {
+            return
+        }
+
+        scope.launch {
+            _interviewState.value = _interviewState.value.copy(statusHint = "正在重新连接…")
+            val ok = engine.retryPipeline()
+            _interviewState.value = if (ok) {
+                // 成功：清掉失败提示；后续 LISTENING 由引擎 onStateChanged 驱动
+                _interviewState.value.copy(statusHint = null)
+            } else {
+                _interviewState.value.copy(statusHint = "重新连接未成功，请检查网络后再试")
+            }
+        }
     }
 
     /**

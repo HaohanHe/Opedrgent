@@ -79,6 +79,25 @@ import java.util.concurrent.atomic.AtomicBoolean
  * engine.disconnect()
  * ```
  */
+/**
+ * 引擎事件（冻结契约，供 Agent 编排层与 UI 监听）。
+ *
+ * - [Kind.PIPELINE_RESTARTED]：采集/播放管线发生一次自恢复重建。
+ * - [Kind.PIPELINE_FAILED]：管线自恢复次数耗尽或权限缺失，已回落到可恢复状态，等待上层重试。
+ * - [Kind.IDLE_TIMEOUT]：LISTENING 状态连续无有效语音超过阈值，仅上抛，由上层决定后续动作。
+ */
+data class EngineEvent(
+    val kind: Kind,
+    val message: String = "",
+    val silenceMs: Long = 0L,
+) {
+    enum class Kind {
+        PIPELINE_RESTARTED,
+        PIPELINE_FAILED,
+        IDLE_TIMEOUT,
+    }
+}
+
 class FullDuplexAudioEngine(
     private val context: Context,
 ) {
@@ -109,6 +128,27 @@ class FullDuplexAudioEngine(
 
         /** 音频缓冲区大小（毫秒） */
         const val BUFFER_SIZE_MS = 20  // 20ms 一帧
+
+        /**
+         * Barge-in 连续确认帧数：AI 说话期间需连续这么多帧能量超阈值才判定为用户插话。
+         * 按 20ms/帧，12 帧约 240ms（落在 200–300ms 区间），真开口仍可即时打断。
+         */
+        const val BARGE_IN_CONFIRM_FRAMES = 12
+
+        /**
+         * Barge-in 播放期能量阈值：高于普通 [VAD_ENERGY_THRESHOLD]，
+         * 用于压制 AEC 残余回声/瞬态噪声造成的误打断。
+         */
+        const val BARGE_IN_PLAYBACK_ENERGY_THRESHOLD = 500f
+
+        /** Barge-in 冷却时长：触发后短时间内不重复触发。 */
+        const val BARGE_IN_COOLDOWN_MS = 1500L
+
+        /** 采集/播放管线异常后允许的最大自恢复重建次数。 */
+        const val MAX_RESTART_ATTEMPTS = 3
+
+        /** LISTENING 状态连续无有效语音超过该时长则上抛一次 IDLE_TIMEOUT。 */
+        const val IDLE_TIMEOUT_MS = 25_000L
     }
 
     // ==================== 状态管理 ====================
@@ -173,6 +213,24 @@ class FullDuplexAudioEngine(
     @Volatile
     private var bargeInDetected = false
 
+    // Barge-in 连续确认与冷却
+    private var bargeInConfirmFrames = 0
+    @Volatile
+    private var lastBargeInTriggerMs = 0L
+
+    // 管线自恢复计数
+    private var recordRestartAttempts = 0
+    private var playRestartAttempts = 0
+
+    // 长静音看门狗
+    @Volatile
+    private var lastSpeechSeenMs = 0L
+    @Volatile
+    private var idleTimeoutFired = false
+
+    // 引擎事件监听
+    private val engineEventListeners = mutableListOf<(EngineEvent) -> Unit>()
+
     // 协程作用域
     private val engineScope = CoroutineScope(Dispatchers.IO)
 
@@ -201,60 +259,11 @@ class FullDuplexAudioEngine(
         }
 
         try {
-            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
-
-            if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
-                throw IllegalStateException("设备不支持指定的音频参数 (sampleRate=$SAMPLE_RATE)")
-            }
-
-            // 录音：使用 VOICE_COMMUNICATION（硬件 AEC + AGC）
-            audioRecord = AudioRecord(
-                AUDIO_SOURCE,
-                SAMPLE_RATE,
-                CHANNEL_CONFIG,
-                AUDIO_FORMAT,
-                bufferSize.coerceAtLeast(SAMPLE_RATE * BUFFER_SIZE_MS / 1000 * 2)
-            )
-
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                throw IllegalStateException("AudioRecord 初始化失败")
-            }
-
-            // 播放：Music 流类型（确保和录音不冲突）
-            val playBufferSize = AudioTrack.getMinBufferSize(
-                SAMPLE_RATE,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AUDIO_FORMAT
-            )
-
-            if (playBufferSize == AudioTrack.ERROR || playBufferSize == AudioTrack.ERROR_BAD_VALUE) {
-                throw IllegalStateException("设备不支持播放参数")
-            }
-
-            audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AUDIO_FORMAT)
-                        .setSampleRate(SAMPLE_RATE)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
-                .setBufferSizeInBytes(playBufferSize.coerceAtLeast(SAMPLE_RATE * BUFFER_SIZE_MS / 1000 * 2))
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
-
-            if (audioTrack?.state != AudioTrack.STATE_INITIALIZED) {
-                throw IllegalStateException("AudioTrack 初始化失败")
-            }
+            audioRecord = createAudioRecord()
+            audioTrack = createAudioTrack()
 
             changeState(DuplexState.CONNECTED)
-            DebugLog.i(TAG, "音频通道已连接 (recordBuf=${bufferSize}, playBuf=${playBufferSize})")
+            DebugLog.i(TAG, "音频通道已连接")
 
         } catch (e: IllegalStateException) {
             releaseResources()
@@ -266,9 +275,83 @@ class FullDuplexAudioEngine(
     }
 
     /**
+     * 按 connect 同口径构建 AudioRecord（VOICE_COMMUNICATION 音源，硬件 AEC）。
+     * 采集管线自恢复重建时复用。
+     *
+     * @throws SecurityException 录音权限缺失
+     * @throws IllegalStateException 设备不支持指定音频参数
+     */
+    private fun createAudioRecord(): AudioRecord {
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("缺少 RECORD_AUDIO 权限")
+        }
+
+        val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+        if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
+            throw IllegalStateException("设备不支持指定的音频参数 (sampleRate=$SAMPLE_RATE)")
+        }
+
+        val rec = AudioRecord(
+            AUDIO_SOURCE,
+            SAMPLE_RATE,
+            CHANNEL_CONFIG,
+            AUDIO_FORMAT,
+            bufferSize.coerceAtLeast(SAMPLE_RATE * BUFFER_SIZE_MS / 1000 * 2)
+        )
+        if (rec.state != AudioRecord.STATE_INITIALIZED) {
+            rec.release()
+            throw IllegalStateException("AudioRecord 初始化失败")
+        }
+        return rec
+    }
+
+    /**
+     * 按 connect 同口径构建 AudioTrack（USAGE_VOICE_COMMUNICATION + SPEECH）。
+     * 播放管线自恢复重建时复用。
+     */
+    private fun createAudioTrack(): AudioTrack {
+        val playBufferSize = AudioTrack.getMinBufferSize(
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AUDIO_FORMAT
+        )
+        if (playBufferSize == AudioTrack.ERROR || playBufferSize == AudioTrack.ERROR_BAD_VALUE) {
+            throw IllegalStateException("设备不支持播放参数")
+        }
+
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AUDIO_FORMAT)
+                    .setSampleRate(SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(playBufferSize.coerceAtLeast(SAMPLE_RATE * BUFFER_SIZE_MS / 1000 * 2))
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+
+        if (track.state != AudioTrack.STATE_INITIALIZED) {
+            track.release()
+            throw IllegalStateException("AudioTrack 初始化失败")
+        }
+        return track
+    }
+
+    /**
      * 断开连接（释放所有资源）。
      *
      * 会自动先调用 [stop] 停止所有活动。
+     *
+     * 注意：本引擎不持有 [TtsPlayer]，不会自动恢复其播放路由。会话结束时
+     * 上层需对曾传入 [aiSpeakText] 的 TtsPlayer 调用 `setCallRoute(false)`，
+     * 将播放从 USAGE_VOICE_COMMUNICATION 切回默认 USAGE_MEDIA。
      */
     fun disconnect() {
         DebugLog.i(TAG, "断开音频通道")
@@ -304,6 +387,12 @@ class FullDuplexAudioEngine(
 
         isRecording.set(true)
         bargeInDetected = false
+        bargeInConfirmFrames = 0
+        lastBargeInTriggerMs = 0L
+        recordRestartAttempts = 0
+        playRestartAttempts = 0
+        idleTimeoutFired = false
+        lastSpeechSeenMs = System.currentTimeMillis()
 
         // 启动录音线程
         startRecording()
@@ -338,8 +427,18 @@ class FullDuplexAudioEngine(
         runCatching { audioTrack?.stop() }
         playQueue.clear()
 
+        // 复位 barge-in / 看门狗 / 自恢复计数，保证 stop 后 start 干净重启
+        bargeInConfirmFrames = 0
+        lastBargeInTriggerMs = 0L
+        recordRestartAttempts = 0
+        playRestartAttempts = 0
+        idleTimeoutFired = false
+
         // 重置 VAD 状态
         resetVadState()
+
+        // 停在"已连接"态，等待 start 重新进入 LISTENING
+        changeState(DuplexState.CONNECTED)
     }
 
     /**
@@ -369,8 +468,16 @@ class FullDuplexAudioEngine(
     /**
      * AI 说话（文本版本，内部调用 TTS 合成后播放）。
      *
-     * 使用 [TtsPlayer] 将文本合成为 PCM 音频，
-     * 然后通过 [aiSpeak] 写入播放队列。
+     * 使用 [TtsPlayer] 将文本合成为 PCM 音频并由其播放。
+     *
+     * ## TTS 通话路由约定
+     *
+     * 本方法进入时会调用 [TtsPlayer.setCallRoute](true)，使 TTS 播放走
+     * USAGE_VOICE_COMMUNICATION，与本引擎 VOICE_COMMUNICATION 采集的硬件 AEC 参考通路对齐，
+     * 避免 TTS 被自身 ASR 拾取造成回声自激。引擎不持有 TtsPlayer，因此 **不会在 finally 关闭路由**：
+     * 上层（Agent 编排层）必须在整段面试会话结束、调用 [disconnect] 之前或之后，
+     * 对同一个 [TtsPlayer] 调用 `setCallRoute(false)` 以恢复非通话的 MEDIA 播放路径。
+     * 重复进入本方法时该调用幂等，无需额外判断。
      *
      * @param text 要合成的文本
      * @param ttsPlayer TTS 播放器实例
@@ -389,6 +496,9 @@ class FullDuplexAudioEngine(
             onComplete?.invoke()
             return
         }
+
+        // 确保 TTS 播放进入通话路由（与采集 AEC 参考对齐）；幂等，会话结束由上层统一关闭。
+        ttsPlayer.setCallRoute(true)
 
         DebugLog.i(TAG, "AI 说话: '${text.take(50)}...'")
 
@@ -481,9 +591,38 @@ class FullDuplexAudioEngine(
 
     /**
      * 重置插话标志（在处理完插事后调用）。
+     *
+     * 同时复位连续确认计数与冷却时间，供下一轮 AI 说话重新检测。
      */
     fun resetBargeIn() {
         bargeInDetected = false
+        bargeInConfirmFrames = 0
+        lastBargeInTriggerMs = 0L
+    }
+
+    /**
+     * 注册引擎事件监听器（管线自恢复 / 失败 / 长静音看门狗）。
+     *
+     * 回调在采集/播放协程线程触发，监听方如需更新 UI 请自行切主线程。
+     */
+    fun onEngineEvent(listener: (EngineEvent) -> Unit) {
+        synchronized(engineEventListeners) {
+            engineEventListeners.add(listener)
+        }
+    }
+
+    private fun notifyEvent(kind: EngineEvent.Kind, message: String = "", silenceMs: Long = 0L) {
+        val event = EngineEvent(kind, message, silenceMs)
+        DebugLog.i(TAG, "引擎事件: kind=$kind, msg=$message, silenceMs=$silenceMs")
+        synchronized(engineEventListeners) {
+            engineEventListeners.forEach { listener ->
+                try {
+                    listener.invoke(event)
+                } catch (e: Exception) {
+                    DebugLog.e(TAG, "引擎事件监听器异常: ${e.message}", e)
+                }
+            }
+        }
     }
 
     // ==================== 回调注册 ====================
@@ -541,6 +680,13 @@ class FullDuplexAudioEngine(
 
         val energy = calculateRmsEnergy(audioData, size)
 
+        // AI 说话期间：barge-in 走独立的连续确认逻辑（不进入普通 VAD 状态机），
+        // 连续多帧强能量才判定用户插话，压制 AEC 残余回声/瞬态噪声误触发。
+        if (_state == DuplexState.AI_SPEAKING) {
+            handleBargeInConfirmation(energy, audioData, size)
+            return
+        }
+
         when {
             // 从静音切换到语音
             !vadIsSpeechActive && energy > VAD_ENERGY_THRESHOLD -> {
@@ -557,12 +703,13 @@ class FullDuplexAudioEngine(
                 }
                 vadSilenceStartMs = 0
 
+                // 检测到有效语音：复位长静音看门狗
+                lastSpeechSeenMs = System.currentTimeMillis()
+                idleTimeoutFired = false
+
                 DebugLog.d(TAG, "VAD: 开始检测到语音 (energy=$energy)")
 
-                // 如果 AI 正在说话，这是插话！
-                if (_state == DuplexState.AI_SPEAKING) {
-                    handleBargeIn()
-                } else if (_state == DuplexState.CONNECTED) {
+                if (_state == DuplexState.CONNECTED) {
                     changeState(DuplexState.LISTENING)
                 }
             }
@@ -572,6 +719,8 @@ class FullDuplexAudioEngine(
                 synchronized(this) {
                     currentSpeechBuffer.write(audioData, 0, size)
                 }
+                // 语音持续期间刷新看门狗
+                lastSpeechSeenMs = System.currentTimeMillis()
             }
 
             // 从语音切换到静音候选
@@ -594,6 +743,8 @@ class FullDuplexAudioEngine(
                         data
                     }
                     vadSilenceStartMs = 0
+                    // 一句话结束，刷新看门狗起点
+                    lastSpeechSeenMs = System.currentTimeMillis()
 
                     DebugLog.i(TAG, "VAD: 检测到一段语音结束 (${speechData.size} bytes)")
 
@@ -609,6 +760,42 @@ class FullDuplexAudioEngine(
                     leadingSilenceFrameCount++
                 }
             }
+        }
+    }
+
+    /**
+     * AI 说话期间的 barge-in 连续确认。
+     *
+     * 需连续 [BARGE_IN_CONFIRM_FRAMES] 帧能量高于 [BARGE_IN_PLAYBACK_ENERGY_THRESHOLD]
+     * 才判定用户插话；中途任一帧不达标即清零。触发后进入 [BARGE_IN_COOLDOWN_MS] 冷却，
+     * 冷却期内不重复触发。确认通过后转入 LISTENING 并把当前帧作为用户语音首帧缓冲。
+     */
+    private fun handleBargeInConfirmation(energy: Float, audioData: ByteArray, size: Int) {
+        val now = System.currentTimeMillis()
+        val inCooldown = lastBargeInTriggerMs != 0L && (now - lastBargeInTriggerMs < BARGE_IN_COOLDOWN_MS)
+
+        if (energy > BARGE_IN_PLAYBACK_ENERGY_THRESHOLD && !inCooldown) {
+            bargeInConfirmFrames++
+            if (bargeInConfirmFrames >= BARGE_IN_CONFIRM_FRAMES) {
+                bargeInConfirmFrames = 0
+                lastBargeInTriggerMs = now
+
+                handleBargeIn()
+
+                // 转入听用户说话，并以当前帧开启用户语音缓冲
+                changeState(DuplexState.LISTENING)
+                vadIsSpeechActive = true
+                synchronized(this) {
+                    currentSpeechBuffer.reset()
+                    currentSpeechBuffer.write(audioData, 0, size)
+                }
+                vadSilenceStartMs = 0L
+                lastSpeechSeenMs = now
+                idleTimeoutFired = false
+            }
+        } else {
+            // 任一帧不达标（或冷却中）即清零，避免残余回声累积误触发
+            bargeInConfirmFrames = 0
         }
     }
 
@@ -640,13 +827,19 @@ class FullDuplexAudioEngine(
      * 启动录音线程（持续采集）。
      */
     private fun startRecording() {
-        val record = audioRecord ?: run {
-            DebugLog.e(TAG, "AudioRecord 未初始化")
-            return
+        var record = audioRecord
+        if (record == null) {
+            // 管线曾彻底失败并释放了 AudioRecord：按 connect 同口径重建，支持上层重试
+            record = try {
+                createAudioRecord().also { audioRecord = it }
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "AudioRecord 重建失败: ${e.message}", e)
+                notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "采集管线重建失败: ${e.message}")
+                return
+            }
         }
 
         resetVadState()
-
         record.startRecording()
 
         recordJob = engineScope.launch {
@@ -656,21 +849,51 @@ class FullDuplexAudioEngine(
             val buffer = ByteArray(bufferSize)
 
             try {
-                while (isActive && isRecording.get()) {
-                    val readSize = record.read(buffer, 0, buffer.size)
-
-                    if (readSize > 0) {
-                        // VAD 处理
-                        processVadFrame(buffer, readSize)
-                    } else if (readSize == AudioRecord.ERROR_INVALID_OPERATION) {
-                        DebugLog.w(TAG, "AudioRecord 操作无效")
+                loop@ while (isActive && isRecording.get()) {
+                    val readSize: Int
+                    try {
+                        readSize = record.read(buffer, 0, buffer.size)
+                    } catch (e: SecurityException) {
+                        // 重建 AudioRecord 所需录音权限缺失
+                        failRecordingPipeline("录音权限缺失: ${e.message}")
                         break
+                    } catch (e: Exception) {
+                        DebugLog.e(TAG, "录音读取异常: ${e.message}", e)
+                        if (!tryRestartRecording(record)) {
+                            failRecordingPipeline("采集管线失败: ${e.message}")
+                            break
+                        }
+                        record = audioRecord ?: break
+                        runCatching { record.startRecording() }
+                        continue@loop
+                    }
+
+                    when {
+                        readSize > 0 -> {
+                            // 成功读到数据即复位重启计数
+                            recordRestartAttempts = 0
+                            processVadFrame(buffer, readSize)
+                            checkIdleTimeout()
+                        }
+
+                        readSize == AudioRecord.ERROR_INVALID_OPERATION -> {
+                            DebugLog.w(TAG, "AudioRecord 操作无效，尝试重启采集管线")
+                            if (!tryRestartRecording(record)) {
+                                failRecordingPipeline("采集管线操作无效")
+                                break
+                            }
+                            record = audioRecord ?: break
+                            runCatching { record.startRecording() }
+                        }
+
+                        else -> {
+                            // ERROR / ERROR_BAD_VALUE 等，短暂让出 CPU 后继续
+                            delay(10L)
+                        }
                     }
                 }
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "录音线程被取消")
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "录音线程异常: ${e.message}", e)
             } finally {
                 runCatching { record.stop() }
                 DebugLog.d(TAG, "录音线程结束")
@@ -679,12 +902,70 @@ class FullDuplexAudioEngine(
     }
 
     /**
+     * 采集管线有限次自恢复：stop/release 当前 AudioRecord → 按 connect 同口径重建 → 返回是否成功。
+     * 成功上抛 [EngineEvent.Kind.PIPELINE_RESTARTED]；次数耗尽返回 false（由调用方上抛 PIPELINE_FAILED）。
+     */
+    private fun tryRestartRecording(old: AudioRecord): Boolean {
+        recordRestartAttempts++
+        if (recordRestartAttempts > MAX_RESTART_ATTEMPTS) {
+            DebugLog.e(TAG, "采集管线重启次数耗尽 ($recordRestartAttempts)")
+            return false
+        }
+        DebugLog.w(TAG, "采集管线重启 attempt=$recordRestartAttempts/$MAX_RESTART_ATTEMPTS")
+        runCatching { old.stop() }
+        runCatching { old.release() }
+        if (old === audioRecord) audioRecord = null
+        return try {
+            val rec = createAudioRecord()
+            audioRecord = rec
+            notifyEvent(EngineEvent.Kind.PIPELINE_RESTARTED, "采集管线已重建 (attempt=$recordRestartAttempts)")
+            true
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "采集管线重建失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 采集管线彻底失败：上抛 PIPELINE_FAILED，停止采集并回落到可恢复的 CONNECTED，等待上层重试。
+     */
+    private fun failRecordingPipeline(message: String) {
+        notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, message)
+        isRecording.set(false)
+        if (_state == DuplexState.LISTENING || _state == DuplexState.AI_SPEAKING) {
+            changeState(DuplexState.CONNECTED)
+        }
+    }
+
+    /**
+     * 长静音看门狗：LISTENING 状态连续无有效语音达到 [IDLE_TIMEOUT_MS] 时上抛一次 IDLE_TIMEOUT。
+     * 检测到语音后复位，可再次触发；引擎本身不据此说话。
+     */
+    private fun checkIdleTimeout() {
+        if (_state != DuplexState.LISTENING) return
+        if (vadIsSpeechActive) return
+        if (idleTimeoutFired) return
+        val silentFor = System.currentTimeMillis() - lastSpeechSeenMs
+        if (silentFor >= IDLE_TIMEOUT_MS) {
+            idleTimeoutFired = true
+            notifyEvent(EngineEvent.Kind.IDLE_TIMEOUT, "长静音超时", silentFor)
+        }
+    }
+
+    /**
      * 启动播放线程（从队列取数据写入 AudioTrack）。
      */
     private fun startPlayback() {
-        val track = audioTrack ?: run {
-            DebugLog.e(TAG, "AudioTrack 未初始化")
-            return
+        var track = audioTrack
+        if (track == null) {
+            // 播放管线曾彻底失败并释放了 AudioTrack：按 connect 同口径重建，支持上层重试
+            track = try {
+                createAudioTrack().also { audioTrack = it }
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "AudioTrack 重建失败: ${e.message}", e)
+                notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "播放管线重建失败: ${e.message}")
+                return
+            }
         }
 
         track.play()
@@ -693,45 +974,90 @@ class FullDuplexAudioEngine(
             DebugLog.d(TAG, "播放线程启动")
 
             try {
-                while (isActive && isRecording.get()) {
+                loop@ while (isActive && isRecording.get()) {
                     val data = playQueue.poll()
 
-                    if (data != null && data.isNotEmpty()) {
-                        isPlaying.set(true)
+                    if (data == null || data.isEmpty()) {
+                        // 队列空了，短暂休眠避免忙等
+                        delay(20L)
+                        continue@loop
+                    }
 
-                        // 分块写入 AudioTrack（避免一次性写入过多导致延迟）
-                        var offset = 0
+                    isPlaying.set(true)
+
+                    // 分块写入 AudioTrack（避免一次性写入过多导致延迟）
+                    var offset = 0
+                    try {
                         while (offset < data.size && isActive && isRecording.get() && !bargeInDetected) {
                             val writeSize = kotlin.math.min(data.size - offset, 3200)  // 每次 100ms
                             track.write(data, offset, writeSize)
                             offset += writeSize
+                            playRestartAttempts = 0
 
                             // 小延迟让出 CPU
                             if (offset < data.size) {
                                 delay(10L)
                             }
                         }
-
-                        isPlaying.set(false)
-
-                        // 检查队列是否空了（AI 说完了）
-                        if (playQueue.isEmpty() && _state == DuplexState.AI_SPEAKING && !bargeInDetected) {
-                            changeState(DuplexState.LISTENING)
+                    } catch (e: CancellationException) {
+                        // 协程取消必须向上抛，不能被异常恢复逻辑吞掉
+                        throw e
+                    } catch (e: Exception) {
+                        DebugLog.e(TAG, "播放写入异常: ${e.message}", e)
+                        if (!tryRestartPlayback(track)) {
+                            notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "播放管线失败: ${e.message}")
+                            playQueue.clear()
+                            isPlaying.set(false)
+                            // 无法恢复时不卡在 AI_SPEAKING，回落到 LISTENING
+                            if (_state == DuplexState.AI_SPEAKING) {
+                                changeState(DuplexState.LISTENING)
+                            }
+                            break
                         }
-                    } else {
-                        // 队列空了，短暂休眠避免忙等
-                        delay(20L)
+                        track = audioTrack ?: break
+                        runCatching { track.play() }
+                        // 丢弃写入到一半的分片，继续消费队列后续数据
+                    }
+
+                    isPlaying.set(false)
+
+                    // 检查队列是否空了（AI 说完了）
+                    if (playQueue.isEmpty() && _state == DuplexState.AI_SPEAKING && !bargeInDetected) {
+                        changeState(DuplexState.LISTENING)
                     }
                 }
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "播放线程被取消")
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "播放线程异常: ${e.message}", e)
             } finally {
                 runCatching { track.stop() }
                 isPlaying.set(false)
                 DebugLog.d(TAG, "播放线程结束")
             }
+        }
+    }
+
+    /**
+     * 播放管线有限次自恢复：stop/release 当前 AudioTrack → 按 connect 同口径重建。
+     * 成功上抛 [EngineEvent.Kind.PIPELINE_RESTARTED]；次数耗尽返回 false。
+     */
+    private fun tryRestartPlayback(old: AudioTrack): Boolean {
+        playRestartAttempts++
+        if (playRestartAttempts > MAX_RESTART_ATTEMPTS) {
+            DebugLog.e(TAG, "播放管线重启次数耗尽 ($playRestartAttempts)")
+            return false
+        }
+        DebugLog.w(TAG, "播放管线重启 attempt=$playRestartAttempts/$MAX_RESTART_ATTEMPTS")
+        runCatching { old.stop() }
+        runCatching { old.release() }
+        if (old === audioTrack) audioTrack = null
+        return try {
+            val t = createAudioTrack()
+            audioTrack = t
+            notifyEvent(EngineEvent.Kind.PIPELINE_RESTARTED, "播放管线已重建 (attempt=$playRestartAttempts)")
+            true
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "播放管线重建失败: ${e.message}", e)
+            false
         }
     }
 
@@ -808,6 +1134,8 @@ class FullDuplexAudioEngine(
             currentSpeechBuffer.reset()
         }
         bargeInDetected = false
+        bargeInConfirmFrames = 0
+        idleTimeoutFired = false
     }
 
     /**
