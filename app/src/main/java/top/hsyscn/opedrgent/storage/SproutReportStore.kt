@@ -6,6 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteOpenHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.hsyscn.opedrgent.utils.SqliteMigrations
 
 /**
  * 发芽报告数据库 — 独立持久化每份发芽报告（参照opedrgent设计）
@@ -64,8 +65,24 @@ class SproutReportDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: android.database.sqlite.SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE")
-        onCreate(db)
+        SqliteMigrations.runUpgrade(db, oldVersion, newVersion, mapOf(
+            // 未来：1 -> { d -> SqliteMigrations.addColumnIfMissing(d, TABLE, "new_col", "TEXT") }
+        ))
+        // 兜底：确保当前表存在（CREATE TABLE IF NOT EXISTS），不影响已有数据
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE (
+                $COL_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_SOURCE_NOTE_ID INTEGER NOT NULL DEFAULT 0,
+                $COL_SOURCE_TITLE TEXT NOT NULL DEFAULT '',
+                $COL_MARKDOWN_REPORT TEXT NOT NULL DEFAULT '',
+                $COL_SUMMARY TEXT NOT NULL DEFAULT '',
+                $COL_MODEL_USED TEXT NOT NULL DEFAULT '',
+                $COL_CREATED_AT INTEGER NOT NULL,
+                $COL_WORD_COUNT INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_note ON $TABLE($COL_SOURCE_NOTE_ID)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_created ON $TABLE($COL_CREATED_AT DESC)")
     }
 }
 

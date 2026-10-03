@@ -22,3 +22,6 @@ app/build/
 app/release/*.apk
 app/release/baselineProfiles/
 temp_aar.zip
+# 外部平台版权文档（仓库外，防御性忽略）
+reference-docs/
+*.llms.txt

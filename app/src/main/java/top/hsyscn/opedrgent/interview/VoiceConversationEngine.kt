@@ -655,9 +655,6 @@ class VoiceConversationEngine(
                     DebugLog.i(TAG, "长静音 ${event.silenceMs}ms，请求模型生成温和引导")
                     maybeEmitIdleNudge(onIdleNudge, onAiSpeak, scenario)
                 }
-                else -> {
-                    DebugLog.d(TAG, "未处理引擎事件: ${event.kind}")
-                }
             }
         }
 
@@ -889,6 +886,7 @@ class VoiceConversationEngine(
                 }
         }
 
+        // 降级路径：给流式 ASR 最多约 1.5s 产出最终结果，超时即取消并按已收到文本返回
         delay(1500L)
 
         asrJob?.cancel()

@@ -12,6 +12,7 @@ import org.json.JSONObject
 import top.hsyscn.opedrgent.cultivation.model.growth.GrowthEvidence
 import top.hsyscn.opedrgent.cultivation.model.growth.GrowthPeriodType
 import top.hsyscn.opedrgent.cultivation.model.growth.GrowthReview
+import top.hsyscn.opedrgent.utils.SqliteMigrations
 
 /**
  * 周期成长回顾持久化：全本地，不引入 Room，风格对齐 CultivationDatabase——
@@ -91,7 +92,8 @@ class GrowthReviewStore(context: Context) {
             strengths = o.optJSONArray("strengths").toStringList(),
             focus = o.optJSONArray("focus").toStringList(),
             evidence = o.optJSONArray("evidence").let { arr ->
-                (0 until arr.length()).mapNotNull { i ->
+                if (arr == null) emptyList()
+                else (0 until arr.length()).mapNotNull { i ->
                     val jo = arr.optJSONObject(i) ?: return@mapNotNull null
                     val dim = jo.optString("dimension", "").trim()
                     val quote = jo.optString("quote", "").trim()
@@ -179,8 +181,23 @@ class GrowthReviewDatabase private constructor(context: Context) : SQLiteOpenHel
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 实验阶段：本地回顾数据可重建，升级时重建表；正式版改为增量迁移。
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_GROWTH_REVIEW")
-        onCreate(db)
+        SqliteMigrations.runUpgrade(db, oldVersion, newVersion, mapOf(
+            // 未来：1 -> { d -> SqliteMigrations.addColumnIfMissing(d, TABLE_GROWTH_REVIEW, "new_col", "TEXT") }
+        ))
+        // 兜底：确保当前表存在（CREATE TABLE IF NOT EXISTS），不影响已有数据
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_GROWTH_REVIEW (
+                $GR_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $GR_PERIOD_TYPE TEXT NOT NULL DEFAULT 'WEEK',
+                $GR_PERIOD_START INTEGER NOT NULL,
+                $GR_PERIOD_END INTEGER NOT NULL,
+                $GR_PAYLOAD_JSON TEXT NOT NULL DEFAULT '{}',
+                $GR_CREATED_AT INTEGER NOT NULL,
+                UNIQUE($GR_PERIOD_TYPE, $GR_PERIOD_START)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_growth_review_start ON $TABLE_GROWTH_REVIEW($GR_PERIOD_START DESC)")
     }
 }

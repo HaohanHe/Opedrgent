@@ -111,6 +111,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)
+    // Robolectric：在 JVM 上用真实 SQLite 运行数据库迁移测试（android-all 运行时从 Maven 仓库获取）
+    testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

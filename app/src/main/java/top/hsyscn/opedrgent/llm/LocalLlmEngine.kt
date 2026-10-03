@@ -59,6 +59,14 @@ data class LlmInferenceConfig(
     val supportsAudio: Boolean = false,
 )
 
+/**
+ * 端侧 LLM 加载与推理引擎（单例，进程内一份）。
+ *
+ * 生命周期：[loadModel] 成功后进入 Ready，[unload] 关闭 Engine 并释放 mmap 权重；
+ * [state] 用 @Volatile 暴露给 UI 观察。线程：[loadModel] 跑在 Dispatchers.Default，
+ * [generate]/[generateStream] 跑在 Dispatchers.IO；原生推理经 suspendCancellableCoroutine
+ * 桥接，协程取消时调用 conv.cancelProcess()。本类只做模型加载/推理，不做关键词或业务意图判定。
+ */
 class LocalLlmEngine private constructor(private val context: Context) {
 
     @Volatile var state: LocalLlmState = LocalLlmState.Uninitialized
@@ -75,6 +83,10 @@ class LocalLlmEngine private constructor(private val context: Context) {
     val currentModelId: String? get() = (state as? LocalLlmState.Ready)?.modelName
 
     @OptIn(ExperimentalApi::class)
+    /**
+     * 加载并初始化本地模型：先做文件完整性与可用内存预检，选 GPU 后端不可用时自动回退 CPU。
+     * @return true=就绪可推理；false=失败（[state] 置为 Error），半初始化 Engine 已关闭以免权重泄漏
+     */
     suspend fun loadModel(
         modelPath: String,
         modelInfo: LocalModelInfo,
@@ -235,6 +247,10 @@ class LocalLlmEngine private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * 流式推理（回调式）。sessionId 与上次不同会先重建 conversation，隔离上一段对话历史。
+     * onDelta/onComplete/onError 在推理线程触发，调用方需自行切回 UI 线程；取消不回调 onError。
+     */
     suspend fun generateStream(
         sessionId: String,
         prompt: String,
@@ -251,6 +267,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
             return
         }
 
+        // conversation 跨轮累积上下文；切会话必须重建，避免上一段对话串到新会话
         if (lastSessionId != null && lastSessionId != sessionId) {
             DebugLog.i(TAG, "Session changed ($lastSessionId → $sessionId), resetting conversation")
             resetConversation()
@@ -417,6 +434,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         return Contents.of(contents)
     }
 
+    /** 用上次的 ConversationConfig 重建一轮空对话（清掉多轮历史），不重新加载模型。 */
     fun resetConversation() {
         try {
             val config = cachedConfig ?: return
@@ -428,6 +446,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         }
     }
 
+    /** 卸载当前模型并关闭 Engine，释放 mmap 权重；之后 [isReady] 为 false。 */
     fun unload() {
         try {
             conversation = null

@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import top.hsyscn.opedrgent.utils.SqliteMigrations
 
 /**
  * 文件夹数据库（原生 SQLite 实现）。
@@ -65,7 +66,22 @@ class FolderDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 未来版本升级时处理数据迁移
+        SqliteMigrations.runUpgrade(db, oldVersion, newVersion, mapOf(
+            // 未来：1 -> { d -> SqliteMigrations.addColumnIfMissing(d, TABLE_FOLDERS, "new_col", "TEXT") }
+        ))
+        // 兜底：确保当前表存在（CREATE TABLE IF NOT EXISTS），不影响已有数据
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_FOLDERS (
+                $COL_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_NAME TEXT NOT NULL,
+                $COL_PARENT_ID INTEGER,
+                $COL_CREATED_AT INTEGER NOT NULL,
+                $COL_UPDATED_AT INTEGER NOT NULL,
+                $COL_IS_DELETED INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_folders_parent ON $TABLE_FOLDERS($COL_PARENT_ID)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_folders_name ON $TABLE_FOLDERS($COL_NAME)")
     }
 
     /** 从 Cursor 构建 Folder 对象 */

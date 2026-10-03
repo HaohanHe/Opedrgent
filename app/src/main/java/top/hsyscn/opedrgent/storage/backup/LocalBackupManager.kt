@@ -79,6 +79,14 @@ class LocalBackupManager(private val appContext: Context) {
 
     private val context: Context get() = appContext.applicationContext
 
+    /**
+     * 把当前应用数据备份为标准 zip 写入调用方提供的 [out]。
+     *
+     * 全程在 [Dispatchers.IO] 执行；[out] 的打开/关闭/清理由调用方负责。
+     * @param includeModels 是否附带模型文件（只读复用，不触发下载）
+     * @param progress 进度回调 0f..1f（数据库拷贝约占 0..0.9，收尾归 1）
+     * @return 归档 manifest；写入异常直接上抛，半成品流由调用方决定清理
+     */
     suspend fun backupTo(
         out: OutputStream,
         includeModels: Boolean = false,
@@ -138,6 +146,11 @@ class LocalBackupManager(private val appContext: Context) {
         }
     }
 
+    /**
+     * 在应用私有 filesDir/backups 下创建一个带时间戳的本地备份 zip。
+     *
+     * 失败时清理半成品归档，避免损坏文件被误当有效备份；结果用 [BackupResult.ok] 表示成败。
+     */
     suspend fun createLocal(includeModels: Boolean = false): BackupResult = withContext(Dispatchers.IO) {
         val dir = File(context.filesDir, BACKUP_DIR)
         val file = File(dir, "opedrgent_backup_${System.currentTimeMillis()}.zip")
@@ -176,6 +189,14 @@ class LocalBackupManager(private val appContext: Context) {
         throw java.io.IOException("归档中缺少 manifest.json")
     }
 
+    /**
+     * 从 [input] 读取备份归档并恢复到本机（先落临时 zip，校验通过后才动手）。
+     *
+     * 流水线：拷贝临时 zip → 解析 manifest/版本校验 → 逐条大小+sha256 校验 → 剩余空间预检 →
+     * 先快照当前库作为回滚点 → 逐条覆盖；任一步失败都会删除临时 zip，并在已动手后自动 [restoreSnapshot] 回滚。
+     * @param allowDowngrade 是否允许从更旧版本 app 的备份强制恢复
+     * @return 恢复结果码；成功时 [RestoreResult.requiresRestart] 为 true（建议重启生效）
+     */
     suspend fun restoreFrom(
         input: InputStream,
         progress: (Float) -> Unit = {},
@@ -229,6 +250,8 @@ class LocalBackupManager(private val appContext: Context) {
         val needed = manifest.entries
             .filter { it.path.startsWith("databases/") || it.path == "preferences/settings.json" }
             .sumOf { it.sizeBytes }
+        // StatFs 探测失败时按“可用空间无限”处理：跳过空间预检，宁可后续拷贝时再报 IO 失败，
+        // 也不因探测异常误拦一次合法恢复（fail-open）
         val free = runCatching { StatFs(context.filesDir.absolutePath).availableBytes }.getOrDefault(Long.MAX_VALUE)
         if (needed > free) {
             tempZip.delete()

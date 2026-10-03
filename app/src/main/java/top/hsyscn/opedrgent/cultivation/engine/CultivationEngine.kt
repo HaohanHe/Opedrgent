@@ -192,6 +192,7 @@ class CultivationEngine(
         return ReflectionOutcome(false, ReflectionLens.CRITIQUE, null, attemptsIn, listOf("分析失败：${error.message}"), null)
     }
 
+    /** 批判镜报告落库：[persist]=true 时写入 [reflectionStore] 并把 followUps 导入行动项库；返回统一结果。 */
     private suspend fun persistCritique(
         report: MirrorReport,
         attempts: Int,
@@ -226,6 +227,7 @@ class CultivationEngine(
         transcript: String,
     ) {
         runCatching {
+            // 标题/摘要仅用于行动项库列表展示，截长避免单条过长
             actionStore.importFromReflection(
                 reflectionId = reflectionId,
                 sourceTypeLabel = when (lens) {
@@ -429,12 +431,20 @@ class CultivationEngine(
         ReflectionOutcome(false, lens, null, 0, listOf(reason), null)
 
     // 对外暴露存储操作，便于上层 UI/用例直接复用，不再另写一套
+
+    /** 返回当前生效的理想人格基准；尚未建立时为 null。挂起函数，磁盘 IO 在 store 内执行。 */
     suspend fun activeBaseline(): VirtueBaseline? = baselineStore.getActive()
+
+    /** 把 [baseline] 设为 active 并持久化，返回其行 id。 */
     suspend fun saveBaseline(baseline: VirtueBaseline): Long = baselineStore.saveAsActive(baseline)
 
     /** 统一会话存储；保留 reports() 命名以减少上层改动。 */
     fun reflections(): ReflectionStore = reflectionStore
+
+    /** 与 [reflections] 返回同一实例，历史命名别名。 */
     fun reports(): ReflectionStore = reflectionStore
+
+    /** 理想人格基准存储（读 active / 设 active）。 */
     fun baselines(): VirtueBaselineStore = baselineStore
 
     companion object {

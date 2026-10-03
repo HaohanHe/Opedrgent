@@ -3,16 +3,138 @@
 Opedrgent uses or references the following open source software projects.
 Each project is listed with its name, copyright holder, and applicable license.
 
+This file is organised into three parts:
+
+- **A. Bundled / linked open-source dependencies** — Gradle artifacts declared in
+  `gradle/libs.versions.toml` and `app/build.gradle.kts` that are packaged into the APK.
+- **B. Architecture & design references** — upstream projects whose design, patterns or
+  UX the implementation draws inspiration from; their source code is *not* redistributed.
+- **C. Model & data assets** — model weights and corpora downloaded at runtime. They are
+  *not* bundled in this repository and are *not* covered by the MIT license of Opedrgent's
+  own source code.
+
 ---
 
-## Sherpa-ONNX
+## A. Bundled / Linked Open Source Dependencies
 
-Copyright (c) k2-fsa
+Versions below are pinned by `gradle/libs.versions.toml` (Opedrgent v1.2.1, versionCode 4).
+
+### AndroidX / Jetpack — Apache License 2.0
+
+Copyright (c) The Android Open Source Project.
+Source: https://developer.android.com/jetpack
+
+- `androidx.core:core-ktx:1.15.0` — Kotlin extensions for core platform APIs.
+- `androidx.lifecycle:lifecycle-runtime-ktx:2.8.7` — lifecycle-aware coroutine integration.
+- `androidx.lifecycle:lifecycle-viewmodel-ktx` — ViewModel for screens.
+  (No explicit `version.ref` in `libs.versions.toml`; resolved alongside the 2.8.7 lifecycle family — verify against the effective Gradle resolution result if a precise pin is required.)
+- `androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7` — ViewModel ↔ Compose integration.
+- `androidx.lifecycle:lifecycle-runtime-compose:2.8.7` — lifecycle awareness inside Compose.
+- `androidx.activity:activity-compose:1.9.3` — `ComponentActivity` ↔ Compose integration.
+- Jetpack Compose via `androidx.compose:compose-bom:2026.04.01`:
+  `androidx.compose.ui:ui`, `androidx.compose.ui:ui-graphics`,
+  `androidx.compose.ui:ui-tooling-preview`, `androidx.compose.material3:material3`,
+  `androidx.compose.material3:material3-window-size-class`,
+  `androidx.compose.material:material-icons-extended`,
+  `androidx.compose.runtime:runtime-livedata` — declarative UI toolkit.
+- `androidx.navigation:navigation-compose:2.8.4` — Compose navigation graph.
+- `androidx.work:work-runtime-ktx:2.10.0` — WorkManager for deferrable background jobs.
+- `androidx.security:security-crypto:1.1.0-alpha06` — Keystore-backed encrypted SharedPreferences.
+- `androidx.datastore:datastore-preferences:1.1.2` — typed, async key-value storage.
+- `androidx.media3:media3-exoplayer:1.6.1` — audio/media playback engine.
+- `androidx.health.connect:connect-client:1.1.0` — Health Connect client for fitness/health records.
+
+### Kotlin / kotlinx — Apache License 2.0
+
+Copyright (c) JetBrains s.r.o. and the Kotlin Programming Language contributors.
+Sources:
+https://github.com/JetBrains/kotlin ,
+https://github.com/Kotlin/kotlinx.coroutines ,
+https://github.com/Kotlin/kotlinx.serialization
+
+- `org.jetbrains.kotlin:kotlin-reflect:2.3.0` — Kotlin reflection runtime.
+- `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0` — `Dispatchers.Main` for Android.
+- `org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0` — bridge between Google Play services `Task<T>` and coroutines.
+- `org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3` — Kotlin multiplatform JSON serialization.
+
+### Networking & HTML parsing
+
+- `com.squareup.okhttp3:okhttp:4.12.0` — HTTP client.
+  Copyright (c) Square, Inc. **License:** Apache License 2.0.
+  Source: https://github.com/square/okhttp
+- `org.jsoup:jsoup:1.18.1` — HTML parsing / DOM / select.
+  **License:** MIT License.
+  Source: https://github.com/jhy/jsoup
+
+### Google ML Kit & on-device inference
+
+- `com.google.mlkit:text-recognition:16.0.1` and `com.google.mlkit:text-recognition-chinese:16.0.1`
+  — on-device OCR (Latin script and Chinese script). The Maven artifacts themselves are
+  **Apache License 2.0**; use of the ML Kit APIs is additionally governed by the
+  **Google APIs Terms of Service** (https://developers.google.com/ml-kit/terms).
+  Source: https://github.com/googlesamples/mlkit
+- `com.google.android.gms:play-services-tasks:18.1.0` — asynchronous `Task` API used to
+  bridge Google Play services calls. **License:** Apache License 2.0 (SDK); runtime
+  behaviour is provided by Google Play services and is subject to the Google APIs Terms
+  of Service (https://developers.google.com/android/terms).
+- `com.google.ai.edge.litertlm:litertlm-android:0.12.0` — LiteRT-LM on-device LLM
+  inference engine (prompt / LoRA loading for Gemma-class models).
+  **License:** Apache License 2.0.
+  Source: https://github.com/google-ai-edge/LiteRT
+- `com.google.android.gms:play-services-tflite-java:16.4.0`,
+  `com.google.android.gms:play-services-tflite-gpu:16.4.0`,
+  `com.google.android.gms:play-services-tflite-support:16.4.0` — TensorFlow Lite runtime
+  delivered through Google Play services (Java bindings, GPU delegate, support library).
+  **License:** Apache License 2.0 (SDK artifacts); the on-device runtime itself is
+  provided by Google Play services under the Google APIs Terms of Service.
+  Source: https://www.tensorflow.org/lite/android
+
+### Speech recognition & ONNX runtime
+
+#### Sherpa-ONNX 1.13.1
+
+Copyright (c) k2-fsa. Coordinates: `com.github.k2-fsa:sherpa-onnx:1.13.1` (resolved via JitPack).
 
 **License:** Apache License 2.0
 
-> Used for: Offline speech recognition engine (SenseVoice model inference).
+> Used for: Offline speech recognition engine (SenseVoice / Paraformer model inference).
 > Source: https://github.com/k2-fsa/sherpa-onnx
+
+#### ONNX Runtime Android 1.21.0
+
+Copyright (c) Microsoft Corporation. Coordinates: `com.microsoft.onnxruntime:onnxruntime-android:1.21.0`.
+
+**License:** MIT License
+
+> Used for: ONNX model inference on device (PP-OCRv6 OCR; also supplies the native
+> runtime that Sherpa-ONNX links against — both AARs ship `libonnxruntime.so`, the build
+> picks the first occurrence).
+> Source: https://github.com/microsoft/onnxruntime
+
+### Utilities
+
+- `org.apache.commons:commons-compress:1.27.0` — archive (tar / zip) extraction used to
+  unpack downloaded model bundles. **License:** Apache License 2.0.
+  Source: https://github.com/apache/commons-compress
+
+> Test-only dependencies (`junit:junit:4.13.2`,
+> `org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0`, `org.json:json:20240303`,
+> `com.squareup.okhttp3:mockwebserver:4.12.0`, AndroidX test ext / Espresso / Compose
+> `ui-test-junit4`, debug-only `androidx.compose.ui:ui-tooling` and `ui-test-manifest`)
+> are NOT packaged into the release APK and are listed here for traceability only; each
+> remains under its own upstream license.
+>
+> `com.google.mlkit:genai:0.3.0` is currently commented out in `app/build.gradle.kts`
+> (no public Maven publication as of this writing) and is therefore NOT on the runtime
+> classpath — no notice is required yet.
+
+---
+
+## B. Architecture & Design References
+
+The following upstream projects were used as design / UX / architecture references only.
+No source code from these projects is redistributed in Opedrgent; they are listed here
+for attribution and provenance.
 
 ## MiMo Code
 
@@ -56,7 +178,7 @@ Copyright (c) GPT Mobile contributors
 Copyright (c) 2026 Kilo Code
 Copyright (c) 2025 opencode
 
-**License:** MIT License
+**License:** MIT
 
 > Used for: Terminal-based AI agent UI patterns, ink rendering engine reference.
 > Source: https://github.com/kilocode/kilocode
@@ -108,6 +230,29 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
 
 ---
 
+## C. Model & Data Assets (Downloaded at Runtime)
+
+The following assets are **not bundled in this repository** and are **not covered by the
+MIT license** of Opedrgent's own source code. They are fetched on demand by the app at
+runtime (typically over Wi-Fi) and remain under their own upstream terms.
+
+- **Gemma models** (e.g. Gemma 2 / Gemma 3, pulled through the LiteRT-LM / LiteRT model
+  downloader). Governed by the **Gemma Terms of Use**.
+  Copyright Google LLC. Terms: https://ai.google.dev/gemma/terms
+- **Sherpa-ONNX speech models** (e.g. SenseVoice, Paraformer, streaming zipformer
+  variants) downloaded at runtime for offline ASR. Each model artifact carries its own
+  license from its upstream publisher — e.g. SenseVoice © Alibaba / FunAudioLLM
+  (Apache-2.0); Paraformer / Whisper / other zipformer model cards on Hugging Face list
+  their individual terms. Always read the model card before redistribution.
+  Index: https://k2-fsa.github.io/sherpa/onnx/models/
+- **ONNX OCR models** (e.g. PP-OCRv6 / PaddleOCR family) downloaded on demand; see the
+  upstream model card for the exact license.
+
+By downloading or using any of the above, the user accepts the corresponding upstream
+terms. The MIT grant in `LICENSE` applies only to Opedrgent's own source code.
+
+---
+
 ## Full License Texts
 
 ### Apache License 2.0
@@ -127,8 +272,8 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
       "Licensor" shall mean the copyright owner or entity authorized by the
       copyright owner that is granting the License.
 
-      "Legal Entity" shall mean the union of all acting entities involved in
-      the Agreement, such as an individual, corporation, or nonprofit
+      "Legal Entity" shall mean the union of all acting entities involved in the
+      Agreement, such as an individual, corporation, or nonprofit
       organization.
 
       "You" (or "Your") shall mean an individual or Legal Entity exercising
@@ -157,8 +302,8 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
 
       "Contribution" shall mean any work of authorship, including the original
       version of the Work and any modifications or additions to that Work or
-      Derivative Works thereof, that is intentionally submitted to the Licensor
-      for inclusion in the Work by the copyright owner or by an individual or
+      Derivative Works, that is intentionally submitted to the Licensor for
+      inclusion in the Work by the copyright owner or by an individual or
       Legal Entity authorized to submit on behalf of the copyright owner. For
       the purposes of this definition, "submitted" means any form of electronic,
       verbal, or written communication sent to the Licensor or its representatives,
@@ -170,7 +315,7 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
 
       "Contributor" shall mean Licensor and any individual or Legal Entity on
       behalf of whom a Contribution has been received by the Licensor and
-      subsequently incorporated into the Work.
+      subsequently incorporated within the Work.
 
    2. Grant of Copyright License. Subject to the terms and conditions of this
       License, each Contributor hereby grants You a perpetual, worldwide,
@@ -220,11 +365,11 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
           file are for informational purposes only and do not modify the License.
 
    5. Submission of Contributions. Unless You explicitly state otherwise, any
-      Contribution intentionally submitted for inclusion in the Work by You to
-      the Licensor shall be under the terms and conditions of this License,
-      without any additional terms or conditions. Notwithstanding the above,
-      nothing herein shall supersede or modify the terms of any separate license
-      agreement you may have executed regarding such Contributions.
+      Contribution intentionally submitted for inclusion in the Work by You to the
+      Licensor shall be under the terms of this License, without any additional
+      terms or conditions. Notwithstanding the above, nothing herein shall supersede
+      or modify the terms of any separate license agreement you may have executed
+      regarding such Contributions.
 
    6. Trademarks. This License does not grant permission to use the trade names,
       trademarks, service marks, or product names of the Licensor, except as
@@ -245,10 +390,10 @@ Copyright (c) 2023- Open WebUI Inc. [Created by Timothy Jaeryang Baek]
       applicable law (such as deliberate and grossly negligent acts) or agreed to
       in writing, shall any Contributor be liable to You for damages, including
       any direct, indirect, special, incidental, or consequential damages of any
-      character arising as a result of this License or out of the use or inability
-      to use the Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all other
-      commercial damages or losses), even if such Contributor has been advised
+      character arising as a result of this License or out of the use or
+      inability to use the Work (including but not limited to damages for loss of
+      goodwill, work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor has been advised
       of the possibility of such damages.
 
    9. Accepting Warranty or Additional Liability. While redistributing the Work
@@ -319,4 +464,5 @@ Full text available at: https://www.gnu.org/licenses/lgpl-3.0.html
 
 ---
 
-*This file was auto-generated for Opedrgent v1.0. Last updated: June 17, 2026.*
+*This file was last reviewed on October 3, 2026. Versions are taken from
+`gradle/libs.versions.toml` for Opedrgent v1.2.1 (versionCode 4).*

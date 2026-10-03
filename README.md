@@ -139,7 +139,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 
 ### 许可证
 
-MIT，见 [LICENSE](LICENSE)。
+本仓库源码以 MIT 发布，见 [LICENSE](LICENSE)。第三方开源依赖与运行期下载的模型/数据资产（Gemma、Sherpa-ONNX 语音模型等）另有各自协议，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；上述 MIT 授权不覆盖运行期下载的模型权重。
 
 ---
 
@@ -278,7 +278,7 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 
 ### ライセンス
 
-MIT ライセンスです。詳細は [LICENSE](LICENSE) を参照してください。
+リポジトリ本体のソースコードは MIT ライセンスです。詳細は [LICENSE](LICENSE) を参照してください。サードパーティの依存ライブラリ、および実行時にダウンロードされるモデル/データ資産（Gemma、Sherpa-ONNX の音声モデルなど）はそれぞれ別のライセンスに従います。[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) をご確認ください。上記 MIT ライセンスは、実行時にダウンロードされるモデル重みを含みません。
 
 ---
 
@@ -417,4 +417,4 @@ Note: system JDK 25 or newer is incompatible with Gradle 8.x. You must use the A
 
 ### License
 
-MIT, see [LICENSE](LICENSE).
+The source code of this repository is released under the MIT license — see [LICENSE](LICENSE). Third-party open-source dependencies and runtime-downloaded model/data assets (Gemma, Sherpa-ONNX speech models, etc.) are governed by their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The MIT grant above does NOT cover model weights downloaded at runtime.
