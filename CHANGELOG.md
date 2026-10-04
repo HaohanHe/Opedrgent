@@ -2,6 +2,14 @@
 
 ## 1.2.1（首次公开发布 / First public source release）
 
+### 端侧引擎与原生工具 / On-device Engine & Native Tools
+
+- **原生工具调用**：端侧会话接入 LiteRT-LM 受约束解码，新增 `LocalOpenApiToolAdapter`（ToolBinding→OpenApiTool）与 `LocalToolCatalog`；离线工具（TodoWrite、Recall、ActionItem、本地模型管理）由模型自主 tool_calls，不做关键词命中。  
+  **Native tool calling**: On-device conversations now use LiteRT-LM constrained decoding via a new `LocalOpenApiToolAdapter` and `LocalToolCatalog`; offline tools (TodoWrite, Recall, ActionItem, local model management) are invoked by the model, with no keyword matching.
+- **原生资源释放**：重置 / 卸载 / 重载前显式 `close()` 旧 Conversation，引擎会话强类型化，`enable_thinking` 改为布尔，视觉后端 GPU 不可用时回退 CPU。  
+  **Native resource cleanup**: The previous Conversation is explicitly closed before reset/unload/reload, the engine conversation is strongly typed, `enable_thinking` is boolean, and the vision backend falls back to CPU when GPU is unavailable.
+- **模型清单收敛**：移除无法匿名下载的条目，仅保留已实测可断点续传的三个模型；新增真机一键自检 androidTest。  
+  **Model catalog**: Removed entries that are not anonymously downloadable, keeping only three verified resumable models; added an on-device one-tap smoke androidTest.
 ### 稳定性与健壮性 / Stability & Robustness
 
 - **录音生命周期**：修复切换 Tab 导致录音中断或崩溃、`AudioRecord` 未释放；语音管线异常自恢复、退避溢出修正。  
@@ -30,8 +38,8 @@
 
 ### 测试 / Testing
 
-- 单元测试扩充至 **27 个测试类 / 238 个用例**，全部通过：新增 Robolectric 测试（真实 SQLite 迁移、全双工状态机与权限门、模型就绪门控、备份安全失败与回滚）、故障注入测试，以及 6 组 TLE 的 SGP4 发布向量对照。  
-  Expanded to **27 test classes / 238 cases, all passing**, adding Robolectric tests (real SQLite migrations, full-duplex state machine and permission gates, readiness gating, backup failure/rollback), fault-injection tests, and SGP4 published-vector checks across 6 TLEs.
+- 单元测试扩充至 **28 个测试类 / 243 个用例**，全部通过：新增 Robolectric 测试（真实 SQLite 迁移、全双工状态机与权限门、模型就绪门控、备份安全失败与回滚）、故障注入测试，以及 6 组 TLE 的 SGP4 发布向量对照。  
+  Expanded to **28 test classes / 243 cases, all passing**, adding Robolectric tests (real SQLite migrations, full-duplex state machine and permission gates, readiness gating, backup failure/rollback), fault-injection tests, and SGP4 published-vector checks across 6 TLEs.
 
 ### 开源治理 / Open-source Governance
 
