@@ -2,11 +2,37 @@
 
 [中文](#中文) ｜ [日本語](#日本語) ｜ [English](#english)
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+![Platform: Android](https://img.shields.io/badge/Platform-Android-brightgreen.svg)
+![minSdk 26](https://img.shields.io/badge/minSdk-26%20(Android%208.0)-green.svg)
+![targetSdk 35](https://img.shields.io/badge/targetSdk-35-green.svg)
+![Kotlin 2.3.0](https://img.shields.io/badge/Kotlin-2.3.0-purple.svg)
+![Gradle 8.14.5](https://img.shields.io/badge/Gradle-8.14.5-important.svg)
+![versionName 1.2.1](https://img.shields.io/badge/versionName-1.2.1-orange.svg)
+
+> 截图与演示占位：仓库尚未收录产品截图或演示 GIF，此处不嵌入任何外部图片链接。素材就绪后请放入 `docs/screenshots/` 并在本处引用，例如 `![首页](docs/screenshots/home.png)`、`![演示](docs/screenshots/demo.gif)`。
+> スクリーンショット / デモのプレースホルダ：リポジトリに製品スクリーンショットやデモ GIF は未収録のため、外部画像リンクは埋め込んでいません。素材が用意でき次第 `docs/screenshots/` に配置し、ここから参照してください（例：`![ホーム](docs/screenshots/home.png)`、`![デモ](docs/screenshots/demo.gif)`）。
+> Screenshot / demo placeholder: the repository does not yet contain any product screenshots or demo GIFs, so no external image URLs are embedded here. Once assets are ready, place them under `docs/screenshots/` and reference them here, e.g. `![home screen](docs/screenshots/home.png)` and `![demo](docs/screenshots/demo.gif)`.
+
 ---
 
 ## 中文
 
 Opedrgent 是一个跑在 Android 手机本地的 AI Agent 应用，用 Kotlin + Jetpack Compose 写成。它的核心立场是「端侧优先」：LLM 可以走云端 OpenAI 兼容接口，也可以用 LiteRT-LM 在手机上本地跑；ASR 默认用 Sherpa-ONNX 离线模型，TTS、Embedding、笔记、记忆全部存在本机 SQLite，不强制依赖任何云服务。除了通用聊天和工具调用，还做了面向业余无线电的 Ham 模式（卫星过境预测、ADIF 日志）和面试/会议场景的全双工语音引擎。
+
+### 快速开始
+
+前置要求：JDK 21（必须用 Android Studio 自带 JBR）、Android SDK（compileSdk 36）、arm64-v8a 设备。
+
+```bash
+git clone https://github.com/HaohanHe/Opedrgent.git
+cd Opedrgent
+# Windows 下把 JAVA_HOME 指到 Android Studio 自带 JBR
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+./gradlew assembleDebug
+```
+
+产物位于 `app/build/outputs/apk/debug/app-debug.apk`。首次构建需联网访问 Maven Central 与 JitPack；零障碍命令行复现与代理配置见 [构建指南](docs/wiki/Building.md)。
 
 ### 核心功能
 
@@ -131,21 +157,36 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 
 ### 文档
 
-- [使用说明书](docs/wiki/User-Manual.md)
-- [常见问题 FAQ](docs/wiki/FAQ.md)
-- [Wiki 首页](docs/wiki/Home.md)
-- [构建指南](docs/wiki/Building.md)
-- [隐私说明](PRIVACY.md)、[第三方声明](THIRD_PARTY_NOTICES.md)、[路线图](ROADMAP.md)
+- Wiki 首页：[Home](docs/wiki/Home.md)
+- 入门：[使用说明书](docs/wiki/User-Manual.md)、[常见问题 FAQ](docs/wiki/FAQ.md)、[构建指南](docs/wiki/Building.md)
+- 功能与设计：[Features](docs/wiki/Features.md)、[架构](docs/wiki/Architecture.md)、[工具系统](docs/wiki/Tool-System.md)、[记忆系统](docs/wiki/Memory-System.md)、[洞察系统](docs/wiki/Insight-Sprout.md)、[技能系统](docs/wiki/Skill-System.md)
+- 权限与数据：[权限用途](docs/wiki/Permissions.md)、[云端服务](docs/wiki/Cloud-Services.md)
+- 修炼与复盘：[个人修炼](docs/wiki/Cultivation.md)、[认知修炼](docs/wiki/Cognitive.md)、[行动跟进](docs/wiki/Actions.md)、[送入批判镜](docs/wiki/Mirror-Handoff.md)
+- 根目录：[隐私说明](PRIVACY.md)、[第三方声明](THIRD_PARTY_NOTICES.md)、[路线图](ROADMAP.md)、[更新日志](CHANGELOG.md)
 
 ### 许可证
 
-本仓库源码以 MIT 发布，见 [LICENSE](LICENSE)。第三方开源依赖与运行期下载的模型/数据资产（Gemma、Sherpa-ONNX 语音模型等）另有各自协议，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；上述 MIT 授权不覆盖运行期下载的模型权重。
+本仓库源码以 GNU General Public License v3.0 发布，见 [LICENSE](LICENSE)。第三方开源依赖与运行期下载的模型/数据资产（Gemma、Sherpa-ONNX 语音模型等）另有各自协议，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；上述 GPL-3.0 授权不覆盖运行期下载的模型权重。
 
 ---
 
 ## 日本語
 
 Opedrgent は Android スマホ上でローカルに動く AI エージェントアプリです。Kotlin と Jetpack Compose で書かれています。「端末優先」を立場としており、LLM は OpenAI 互換のクラウド API でも、LiteRT-LM で端末内ローカル実行でも選べます。ASR はデフォルトで Sherpa-ONNX のオフラインモデルを使い、TTS、Embedding、ノート、メモリはすべて端末内 SQLite に保存され、特定のクラウドサービスに依存しません。汎用のチャットやツール呼び出しに加え、アマチュア無線向けの Ham モード（衛星通過予測、ADIF ログ）や、面接・会議向けの全二重音声エンジンを実装しています。
+
+### クイックスタート
+
+前提：JDK 21（Android Studio 同梱 JBR 必須）、Android SDK（compileSdk 36）、arm64-v8a デバイス。
+
+```bash
+git clone https://github.com/HaohanHe/Opedrgent.git
+cd Opedrgent
+# Windows では JAVA_HOME を Android Studio 同梱 JBR に向ける
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+./gradlew assembleDebug
+```
+
+APK は `app/build/outputs/apk/debug/app-debug.apk` に出力されます。初回ビルドには Maven Central / JitPack への接続が必要です。ゼロからのコマンドライン再現やプロキシ設定は [ビルドガイド](docs/wiki/Building.md) を参照してください。
 
 ### 主要な機能
 
@@ -270,21 +311,36 @@ $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 
 ### ドキュメント
 
-- [使用マニュアル](docs/wiki/User-Manual.md)
-- [FAQ](docs/wiki/FAQ.md)
-- [Wiki ホーム](docs/wiki/Home.md)
-- [ビルドガイド](docs/wiki/Building.md)
-- [プライバシー](PRIVACY.md)、[サードパーティ表示](THIRD_PARTY_NOTICES.md)、[ロードマップ](ROADMAP.md)
+- Wiki ホーム：[Home](docs/wiki/Home.md)
+- 入門：[使用マニュアル](docs/wiki/User-Manual.md)、[FAQ](docs/wiki/FAQ.md)、[ビルドガイド](docs/wiki/Building.md)
+- 機能と設計：[Features](docs/wiki/Features.md)、[アーキテクチャ](docs/wiki/Architecture.md)、[ツールシステム](docs/wiki/Tool-System.md)、[メモリシステム](docs/wiki/Memory-System.md)、[インサイトシステム](docs/wiki/Insight-Sprout.md)、[スキルシステム](docs/wiki/Skill-System.md)
+- 権限とデータ：[権限の用途](docs/wiki/Permissions.md)、[クラウドサービス](docs/wiki/Cloud-Services.md)
+- 修練と振り返り：[自己修練](docs/wiki/Cultivation.md)、[認知修練](docs/wiki/Cognitive.md)、[アクション追跡](docs/wiki/Actions.md)、[批判鏡への受け渡し](docs/wiki/Mirror-Handoff.md)
+- リポジトリ直下：[プライバシー](PRIVACY.md)、[サードパーティ表示](THIRD_PARTY_NOTICES.md)、[ロードマップ](ROADMAP.md)、[更新履歴](CHANGELOG.md)
 
 ### ライセンス
 
-リポジトリ本体のソースコードは MIT ライセンスです。詳細は [LICENSE](LICENSE) を参照してください。サードパーティの依存ライブラリ、および実行時にダウンロードされるモデル/データ資産（Gemma、Sherpa-ONNX の音声モデルなど）はそれぞれ別のライセンスに従います。[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) をご確認ください。上記 MIT ライセンスは、実行時にダウンロードされるモデル重みを含みません。
+リポジトリ本体のソースコードは GNU General Public License v3.0 で公開されています。詳細は [LICENSE](LICENSE) を参照してください。サードパーティの依存ライブラリ、および実行時にダウンロードされるモデル/データ資産（Gemma、Sherpa-ONNX の音声モデルなど）はそれぞれ別のライセンスに従います。[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) をご確認ください。上記 GPL-3.0 ライセンスは、実行時にダウンロードされるモデル重みを含みません。
 
 ---
 
 ## English
 
 Opedrgent is an on-device AI agent app for Android, written in Kotlin and Jetpack Compose. It is built around a local-first stance: the LLM can be a cloud OpenAI-compatible endpoint or run on the phone via LiteRT-LM. ASR defaults to offline Sherpa-ONNX models, and TTS, embeddings, notes, and memory all live in on-device SQLite, with no hard dependency on any cloud service. Beyond general chat and tool calling, it includes a Ham mode for amateur satellite work (pass prediction, ADIF logging) and a full-duplex voice engine for interview and meeting scenarios.
+
+### Quick start
+
+Prerequisites: JDK 21 (must use the Android Studio bundled JBR), Android SDK (compileSdk 36), and an arm64-v8a device.
+
+```bash
+git clone https://github.com/HaohanHe/Opedrgent.git
+cd Opedrgent
+# On Windows, point JAVA_HOME at the Android Studio bundled JBR
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+./gradlew assembleDebug
+```
+
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The first build requires access to Maven Central and JitPack. For a clean-machine command-line reproduction and proxy setup, see the [build guide](docs/wiki/Building.md).
 
 ### Features
 
@@ -409,12 +465,13 @@ Note: system JDK 25 or newer is incompatible with Gradle 8.x. You must use the A
 
 ### Documentation
 
-- [User manual](docs/wiki/User-Manual.md)
-- [FAQ](docs/wiki/FAQ.md)
-- [Wiki home](docs/wiki/Home.md)
-- [Build guide](docs/wiki/Building.md)
-- [Privacy](PRIVACY.md), [Third-party notices](THIRD_PARTY_NOTICES.md), [Roadmap](ROADMAP.md)
+- Wiki home: [Home](docs/wiki/Home.md)
+- Getting started: [User manual](docs/wiki/User-Manual.md), [FAQ](docs/wiki/FAQ.md), [Build guide](docs/wiki/Building.md)
+- Features and design: [Features](docs/wiki/Features.md), [Architecture](docs/wiki/Architecture.md), [Tool system](docs/wiki/Tool-System.md), [Memory system](docs/wiki/Memory-System.md), [Insight system](docs/wiki/Insight-Sprout.md), [Skill system](docs/wiki/Skill-System.md)
+- Permissions and data: [Permissions](docs/wiki/Permissions.md), [Cloud services](docs/wiki/Cloud-Services.md)
+- Cultivation and review: [Cultivation](docs/wiki/Cultivation.md), [Cognitive](docs/wiki/Cognitive.md), [Actions](docs/wiki/Actions.md), [Mirror hand-off](docs/wiki/Mirror-Handoff.md)
+- Repository root: [Privacy](PRIVACY.md), [Third-party notices](THIRD_PARTY_NOTICES.md), [Roadmap](ROADMAP.md), [Changelog](CHANGELOG.md)
 
 ### License
 
-The source code of this repository is released under the MIT license — see [LICENSE](LICENSE). Third-party open-source dependencies and runtime-downloaded model/data assets (Gemma, Sherpa-ONNX speech models, etc.) are governed by their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The MIT grant above does NOT cover model weights downloaded at runtime.
+The source code of this repository is released under the GNU General Public License v3.0 — see [LICENSE](LICENSE). Third-party open-source dependencies and runtime-downloaded model/data assets (Gemma, Sherpa-ONNX speech models, etc.) are governed by their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The GPL-3.0 grant above does NOT cover model weights downloaded at runtime.
