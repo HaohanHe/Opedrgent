@@ -113,6 +113,18 @@ abstract class OrbitalObject(val data: OrbitalData) {
         return orbitalPos
     }
 
+    /**
+     * Propagate to [tsinceMin] minutes after epoch and return the raw TEME state
+     * [x, y, z, vx, vy, vz] in km and km/s. Used by JVM verification tests; not part
+     * of the observer-facing API.
+     */
+    internal fun propagateTeme(tsinceMin: Double): DoubleArray {
+        calculateSDP4orSGP4(tsinceMin)
+        convertSatState(position, velocity)
+        magnitude(velocity)
+        return doubleArrayOf(position.x, position.y, position.z, velocity.x, velocity.y, velocity.z)
+    }
+
     private fun calcCurrentDaynum(now: Long): Double {
         val then = 315446400000 // time in millis on 31Dec79 00:00:00 UTC (daynum 0)
         return (now - then) / 1000.0 / 60.0 / 60.0 / 24.0
@@ -143,8 +155,8 @@ abstract class OrbitalObject(val data: OrbitalData) {
 
     // Converts the sat position and velocity vectors to km and km/sec
     private fun convertSatState(pos: Vector4, vel: Vector4) {
-        scaleVector(EARTH_RADIUS, pos)
-        scaleVector(EARTH_RADIUS * MIN_PER_DAY / SEC_PER_DAY, vel)
+        scaleVector(SGP4_EARTH_RADIUS, pos)
+        scaleVector(SGP4_EARTH_RADIUS * MIN_PER_DAY / SEC_PER_DAY, vel)
     }
 
     // Calculates the topocentric coordinates of the object with ECI pos and vel at time

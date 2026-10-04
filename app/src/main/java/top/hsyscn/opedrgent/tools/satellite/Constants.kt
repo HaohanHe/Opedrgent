@@ -8,6 +8,12 @@ const val ASTRONOMICAL_UNIT = 1.49597870691E8
 const val DEG2RAD = 0.017453292519943295
 const val RAD2DEG = 57.29577951308232
 const val EARTH_RADIUS = 6378.137
+// Equatorial Earth radius (km) for scaling SGP4/SDP4 canonical units to km.
+// The SGP4 theory uses the wgs-72 "old" radiusearthkm = 6378.135 (NORAD Space
+// Track Report No. 3, 1980; Vallado et al., AIAA 2006-6753), not the WGS-84
+// geodetic radius 6378.137 used for ground-station/geodetic conversions above.
+// Keeping the two separate avoids a ~2 km-equivalent scaling error on position.
+const val SGP4_EARTH_RADIUS = 6378.135
 const val EARTH_ROT_PER_SID_DAY = 1.00273790934
 const val EPSILON = 1.0E-12
 const val FLAT_FACT = 3.35281066474748E-3
