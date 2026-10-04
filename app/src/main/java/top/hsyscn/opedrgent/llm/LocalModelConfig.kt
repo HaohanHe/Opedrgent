@@ -81,37 +81,7 @@ object AvailableLocalModels {
             recommandedFor = "快速响应、低内存设备",
             minMemoryMb = 2000,
             maxContextLength = 4096,
-        ),
-        LocalModelInfo(
-            id = "functiongemma-270m-it",
-            displayName = "FunctionGemma 270m",
-            description = "专为Tool Calling优化的超轻量模型。速度极快，适合简单指令执行。国内网络可能需代理下载",
-            sizeMb = 270,
-            downloadUrl = "https://huggingface.co/litert-community/functiongemma-270m-it-litert/resolve/main/functiongemma-270m-it.litertlm",
-            fileName = "functiongemma-270m-it.litertlm",
-            supportsFunctionCalling = true,
-            maxTokens = 512,
-            recommandedFor = "快速工具调用、简单指令",
-            minMemoryMb = 1500,
-            maxContextLength = 4096,
-        ),
-        LocalModelInfo(
-            id = "gemma-sprint-2b-it",
-            displayName = "GemmaSprint 2B",
-            description = "高效推理模型，支持多模态和SpecDec，GPU加速效果显著。国内网络可能需代理下载",
-            sizeMb = 2000,
-            downloadUrl = "https://huggingface.co/litert-community/GemmaSprint-2B-it/resolve/main/GemmaSprint-2B-it.litertlm",
-            fileName = "GemmaSprint-2B-it.litertlm",
-            supportsFunctionCalling = false,
-            maxTokens = 2048,
-            recommandedFor = "高效推理、日常对话",
-            minMemoryMb = 3000,
-            maxContextLength = 8192,
-            supportsImage = true,
-            supportsAudio = true,
-            supportsSpecDec = true,
-            preferGpu = true,
-        ),
+        )
     )
 
     fun findById(id: String): LocalModelInfo? = MODELS.find { it.id == id }

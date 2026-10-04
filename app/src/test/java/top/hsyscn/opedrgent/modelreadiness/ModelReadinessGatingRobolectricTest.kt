@@ -141,7 +141,7 @@ class ModelReadinessGatingRobolectricTest {
 
     @Test
     fun `downloaded model on disk resolves to READY`() {
-        val info = AvailableLocalModels.MODELS.first { it.id == "functiongemma-270m-it" }
+        val info = AvailableLocalModels.MODELS.first { it.id == "gemma-3-1b-it" }
         val mm = ModelDownloadManager.getInstance(ctx)
         val file = mm.getModelFile(info.id)!!
         file.parentFile!!.mkdirs()
