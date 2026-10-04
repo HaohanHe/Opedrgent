@@ -7,6 +7,7 @@ import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Capabilities
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
@@ -73,7 +74,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
         private set
 
     @Volatile private var engine: Engine? = null
-    @Volatile private var conversation: Any? = null
+    @Volatile private var conversation: Conversation? = null
     @Volatile private var lastSessionId: String? = null
     @Volatile private var cachedConfig: ConversationConfig? = null
     @Volatile var currentConfig: LlmInferenceConfig? = null
@@ -168,7 +169,14 @@ class LocalLlmEngine private constructor(private val context: Context) {
                 val engineConfig = EngineConfig(
                     modelPath = modelPath,
                     backend = selectedBackend,
-                    visionBackend = if (config.supportsImage) Backend.GPU() else null,
+                    visionBackend = if (config.supportsImage) {
+                        try {
+                            Backend.GPU()
+                        } catch (e: Exception) {
+                            DebugLog.w(TAG, "Vision GPU not available, falling back to CPU: ${e.message}")
+                            Backend.CPU()
+                        }
+                    } else null,
                     audioBackend = if (config.supportsAudio) Backend.CPU() else null,
                     maxNumTokens = config.maxTokens,
                     cacheDir = context.cacheDir.path,
@@ -232,9 +240,9 @@ class LocalLlmEngine private constructor(private val context: Context) {
         } catch (e: Exception) {
             // Release a partially-initialized Engine so the mmap'd weights
             // are not leaked (hundreds of MB) until the next loadModel/unload.
+            closeConversationQuietly()
             runCatching { engine?.close() }
             engine = null
-            conversation = null
             val errorMsg = e.message ?: "Unknown error"
             val causeMsg = e.cause?.message?.let { " (cause: $it)" } ?: ""
             CrashReporter.logError(TAG, "Failed to load model", e)
@@ -278,11 +286,13 @@ class LocalLlmEngine private constructor(private val context: Context) {
             val startTime = System.currentTimeMillis()
 
             withContext(Dispatchers.IO) {
-                @Suppress("UNCHECKED_CAST")
-                val conv = conversation as com.google.ai.edge.litertlm.Conversation
+                val conv = conversation ?: run {
+                    onError("Engine not ready (state=$state)")
+                    return@withContext
+                }
 
                 val contents = buildContents(prompt, images, audioClips)
-                val extraContext = if (enableThinking) mapOf("enable_thinking" to "true") else emptyMap()
+                val extraContext = if (enableThinking) mapOf("enable_thinking" to true) else emptyMap()
 
                 suspendCancellableCoroutine { continuation ->
                     continuation.invokeOnCancellation {
@@ -300,7 +310,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
                                 if (text.isNotEmpty() && !text.startsWith("<ctrl")) {
                                     onDelta(text)
                                 }
-                                val thinking = message.channels["thought"]
+                                val thinking = message.channels[THOUGHT_CHANNEL]
                                 if (!thinking.isNullOrEmpty() && onThinkingDelta != null) {
                                     onThinkingDelta(thinking)
                                 }
@@ -340,9 +350,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
 
     fun cancelProcess() {
         try {
-            @Suppress("UNCHECKED_CAST")
-            val conv = conversation as? com.google.ai.edge.litertlm.Conversation
-            conv?.cancelProcess()
+            conversation?.cancelProcess()
             DebugLog.i(TAG, "Process cancelled")
         } catch (e: Exception) {
             DebugLog.w(TAG, "Error cancelling process: ${e.message}")
@@ -363,8 +371,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
             val responseText = StringBuilder()
 
             withContext(Dispatchers.IO) {
-                @Suppress("UNCHECKED_CAST")
-                val conv = conversation as com.google.ai.edge.litertlm.Conversation
+                val conv = conversation ?: return@withContext
 
                 val contents = buildContents(prompt, images, audioClips)
                 conv.sendMessageAsync(contents).collect { message ->
@@ -398,8 +405,10 @@ class LocalLlmEngine private constructor(private val context: Context) {
         }
 
         try {
-            @Suppress("UNCHECKED_CAST")
-            val conv = conversation as com.google.ai.edge.litertlm.Conversation
+            val conv = conversation ?: run {
+                emit("[Error] Engine not ready")
+                return@flow
+            }
 
             val contents = buildContents(prompt, images, audioClips)
             conv.sendMessageAsync(contents).collect { message ->
@@ -434,11 +443,21 @@ class LocalLlmEngine private constructor(private val context: Context) {
         return Contents.of(contents)
     }
 
+    /** 关闭并丢弃当前会话的原生资源（Conversation 持有会话级句柄），不关闭 Engine。 */
+    private fun closeConversationQuietly() {
+        val old = conversation
+        conversation = null
+        if (old != null) {
+            runCatching { old.close() }
+                .onFailure { DebugLog.w(TAG, "Error closing conversation: ${it.message}") }
+        }
+    }
+
     /** 用上次的 ConversationConfig 重建一轮空对话（清掉多轮历史），不重新加载模型。 */
     fun resetConversation() {
         try {
             val config = cachedConfig ?: return
-            @Suppress("UNCHECKED_CAST")
+            closeConversationQuietly()
             conversation = engine?.createConversation(config)
             DebugLog.i(TAG, "Conversation reset for new session")
         } catch (e: Exception) {
@@ -449,7 +468,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
     /** 卸载当前模型并关闭 Engine，释放 mmap 权重；之后 [isReady] 为 false。 */
     fun unload() {
         try {
-            conversation = null
+            closeConversationQuietly()
             engine?.close()
             engine = null
             state = LocalLlmState.Uninitialized
@@ -486,6 +505,7 @@ class LocalLlmEngine private constructor(private val context: Context) {
 
     companion object {
         const val TAG = "LocalLlmEngine"
+        const val THOUGHT_CHANNEL = "thought"
 
         @Volatile
         private var instance: LocalLlmEngine? = null
