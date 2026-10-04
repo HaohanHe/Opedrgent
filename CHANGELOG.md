@@ -1,6 +1,42 @@
 # Opedrgent 更新日志 / Release Notes
 
-## 1.2.1
+## 1.2.1（首次公开发布 / First public source release）
+
+### 稳定性与健壮性 / Stability & Robustness
+
+- **录音生命周期**：修复切换 Tab 导致录音中断或崩溃、`AudioRecord` 未释放；语音管线异常自恢复、退避溢出修正。  
+  **Recording lifecycle**: Fixed recording interruption/crash on tab switching and `AudioRecord` leaks; the voice pipeline now self-recovers with corrected backoff.
+- **状态与并发**：约 159 处 `state.value = copy` 改为原子 `update {}`；补齐多处流关闭、失败引擎 `close`；`ModelDownloadManager` 收敛为单例。  
+  **State & concurrency**: Replaced ~159 non-atomic state writes with `update {}`, fixed missing stream/engine closes, and consolidated `ModelDownloadManager` into a singleton.
+- **数据一致性**：删除笔记/反思时级联清理关联报告与行动项；海马、反思、知识图谱的查后写事务化并加唯一索引；修复面试计时器常驻。  
+  **Data consistency**: Cascading cleanup on note/reflection deletion, transactional read-then-write with unique indexes, and a stuck interview-timer fix.
+- **备份安全**：备份解包增加 Zip Slip 路径校验，失败时安全回滚；修正 WebDAV 明文传输。  
+  **Backup safety**: Added Zip Slip canonical-path checks with rollback on failure, and fixed plaintext WebDAV.
+
+### 安全与隐私 / Security & Privacy
+
+- MCP 自定义请求头改为加密存储，调试日志对密钥掩码，声纹模板排除备份；`networkSecurityConfig` 仅对回环地址放行明文，敏感数据经 Android Keystore 加密。  
+  MCP custom headers are encrypted, debug logs mask secrets, voiceprint templates are excluded from backups, cleartext is allowed only for loopback, and sensitive data uses the Android Keystore.
+
+### 数据库升级 / Database Migrations
+
+- Action、Sprout、GrowthReview、Folder、Cultivation 五个数据库的 `onUpgrade` 由“丢弃重建”改为保留用户数据的增量迁移（统一 `SqliteMigrations` 框架，含 Cultivation v1→v2 旧报告按同名列迁移）。  
+  All five databases now upgrade incrementally (preserving user data) via a unified `SqliteMigrations` framework instead of dropping and recreating.
+
+### 数值与算法 / Algorithm
+
+- SGP4 状态缩放改用 WGS-72 地球半径 `6378.135`，消除近地目标约 1.9 m 的历元位置偏差；WGS-84 大地测量仍使用 `6378.137`。  
+  SGP4 state scaling now uses the WGS-72 radius `6378.135`, removing a ~1.9 m near-Earth epoch bias; WGS-84 geodetic calculations still use `6378.137`.
+
+### 测试 / Testing
+
+- 单元测试扩充至 **27 个测试类 / 238 个用例**，全部通过：新增 Robolectric 测试（真实 SQLite 迁移、全双工状态机与权限门、模型就绪门控、备份安全失败与回滚）、故障注入测试，以及 6 组 TLE 的 SGP4 发布向量对照。  
+  Expanded to **27 test classes / 238 cases, all passing**, adding Robolectric tests (real SQLite migrations, full-duplex state machine and permission gates, readiness gating, backup failure/rollback), fault-injection tests, and SGP4 published-vector checks across 6 TLEs.
+
+### 开源治理 / Open-source Governance
+
+- 项目许可证整体转为 **GPL-3.0**：卫星过境模块基于 SGP4/SDP4，代码表达移植自 GPL-3.0 的 Look4Sat（上游 PREDICT），已保留署名；新增 `THIRD_PARTY_NOTICES.md` 列明依赖协议，运行期下载的模型权重不在 GPL 授权范围内。  
+  The project is now released entirely under **GPL-3.0**: the satellite module's SGP4/SDP4 implementation is ported from GPL-3.0 Look4Sat (upstream PREDICT) with attribution; added `THIRD_PARTY_NOTICES.md`, and runtime-downloaded model weights are outside the GPL grant.
 
 ### 修复 / Fixes
 
