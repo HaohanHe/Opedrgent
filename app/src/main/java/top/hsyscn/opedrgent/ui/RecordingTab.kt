@@ -66,9 +66,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
-import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -2752,7 +2752,7 @@ private fun DecisionsCard(decisions: List<top.hsyscn.opedrgent.stt.SmartSummary.
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Assignment, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
+                Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(stringResource(R.string.summary_key_decisions), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }
@@ -2778,7 +2778,7 @@ private fun OpenQuestionsCard(questions: List<top.hsyscn.opedrgent.stt.SmartSumm
     ) {
         Column(modifier = Modifier.padding(SpacingTokens.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.HelpOutline, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
+                Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, /* 装饰性图标，文本已说明 */ tint = themePrimary(), modifier = Modifier.size(SizeTokens.iconSm))
                 Spacer(Modifier.width(SpacingTokens.sm))
                 Text(stringResource(R.string.summary_open_questions), style = MaterialTheme.typography.titleMedium, color = themeTextDark())
             }

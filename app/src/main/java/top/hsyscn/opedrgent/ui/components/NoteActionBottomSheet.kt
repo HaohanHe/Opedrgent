@@ -263,7 +263,7 @@ fun NoteActionBottomSheet(
                         leadingContent = {
                             Icon(Icons.Default.AutoAwesome, stringResource(R.string.handoff_send_to_mirror), modifier = Modifier.size(SizeTokens.listActionIconSize), tint = MaterialTheme.colorScheme.primary)
                         },
-                        modifier = Modifier.clickable { onDismiss(); onSendToCultivation?.invoke() },
+                        modifier = Modifier.clickable { onDismiss(); onSendToCultivation() },
                     )
                 }
                 ListItem(

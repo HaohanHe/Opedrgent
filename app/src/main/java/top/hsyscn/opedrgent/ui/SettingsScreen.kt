@@ -983,7 +983,6 @@ fun SettingsScreen(
                                             ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                             ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                             ModelType.STREAMING_PARAFORMER -> stringResource(R.string.settings_paraformer_liu_shi)
-                                            else -> modelInfo.type.name
                                         }
                                         FilterChip(
                                             selected = selectedLocalModel == modelInfo.type.name,
@@ -1020,7 +1019,6 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> stringResource(R.string.settings_paraformer_liu_shi_kuo_hao)
-                                                    else -> modelInfo.modelName
                                                 },
                                                 style = MaterialTheme.typography.labelLarge,
                                                 maxLines = 1,
@@ -1106,7 +1104,6 @@ fun SettingsScreen(
                                                     ModelType.SENSE_VOICE_SMALL -> "SenseVoice"
                                                     ModelType.FUNASR_NANO_INT8 -> "FunASR Nano"
                                                     ModelType.STREAMING_PARAFORMER -> context.getString(R.string.settings_paraformer_liu_shi_kuo_hao)
-                                                    else -> modelInfo.modelName
                                                 }
                                                 sttDialogModelDesc = context.getString(R.string.settings_ben_di_li_xian_yu_yin_shi_bie_mo_xing)
                                                 sttDialogPercent = 0
@@ -1141,7 +1138,7 @@ fun SettingsScreen(
                                                                 }
                                                                 is ModelManager.DownloadProgress.Error -> {
                                                                     downloadingModel = null
-                                                                    downloadStatusText = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message ?: "")
+                                                                    downloadStatusText = context.getString(R.string.settings_xia_zai_shi_bai_1, progress.message)
                                                                     sttDialogStatus = "error"
                                                                     sttDialogStatusDetail = progress.message
                                                                     SttDownloadService.fail(context, sttDialogModelName, progress.message)

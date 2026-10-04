@@ -568,7 +568,7 @@ class AgentService(
         if (cancelled.get()) return LoopOutcome.Break(BreakReason.CANCELLED)
 
         if (reflectionStreamResult.error != null) {
-            return LoopOutcome.Error(context.getString(R.string.agent_error_reflection_failed, reflectionStreamResult.error ?: ""))
+            return LoopOutcome.Error(context.getString(R.string.agent_error_reflection_failed, reflectionStreamResult.error))
         }
 
         if (reflectionStreamResult.toolCalls.isNotEmpty()) {

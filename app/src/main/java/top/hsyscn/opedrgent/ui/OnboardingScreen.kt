@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -316,7 +317,7 @@ fun OnboardingScreen(
                                 Text(stringResource(R.string.onboarding_get_started))
                                 Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                 Icon(
-                                    Icons.Default.ArrowForward,
+                                    Icons.AutoMirrored.Filled.ArrowForward,
                                     contentDescription = null,
                                     modifier = Modifier.size(SizeTokens.iconMd),
                                 )
@@ -326,7 +327,7 @@ fun OnboardingScreen(
                                 Text(stringResource(R.string.onboarding_next))
                                 Spacer(modifier = Modifier.width(SpacingTokens.xs))
                                 Icon(
-                                    Icons.Default.ArrowForward,
+                                    Icons.AutoMirrored.Filled.ArrowForward,
                                     contentDescription = null,
                                     modifier = Modifier.size(SizeTokens.iconMd),
                                 )

@@ -191,7 +191,7 @@ class WebSearchTool(
             appendLine("搜索结果（共 ${results.size} 条，来源：内置浏览器 Bing）：")
             results.forEachIndexed { idx, r ->
                 appendLine("${idx + 1}. [${r.title}](${r.url})")
-                val snip = r.snippet?.trim()
+                val snip = r.snippet.trim()
                 if (!snip.isNullOrBlank()) appendLine("   $snip")
                 appendLine()
             }

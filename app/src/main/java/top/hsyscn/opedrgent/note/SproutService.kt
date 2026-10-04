@@ -296,7 +296,7 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
             }
 
             // 复用原有解析逻辑
-            val jsonStr = extractJsonFromMarkdown(stripThinkingTags(finalContent!!)) ?: finalContent!!.trim()
+            val jsonStr = extractJsonFromMarkdown(stripThinkingTags(finalContent)) ?: finalContent.trim()
             val articleResult = extractSproutArticle(jsonStr)
             if (articleResult.isSuccess) {
                 val article = articleResult.getOrThrow().copy(modelUsed = modelId)
