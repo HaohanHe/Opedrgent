@@ -28,14 +28,16 @@ object LocalToolCatalog {
         // 离线工具不使用云端配置，传空 ApiConfig（各 invoker 均以 _ 忽略该参数）。
         val apiConfig = ApiConfig(baseUrl = "", apiKey = "", model = "")
 
-        // 第一版：仅注册已确认纯本地、无网络、无云依赖的工具，
-        // 先把 native 受约束解码这条链路在真机验证通，再逐步扩充。
+        // 仅注册已确认纯本地、无网络、无云依赖的工具；数字参数由适配器
+        // 序列化为字符串后由各工具自行解析。是否调用由模型在受约束解码下决定。
         val offlineSets: List<ToolSet> = listOf(
             TodoWriteTool(ctx),
             LocalModelTool(ctx),
+            RecallTool(ctx),
+            ActionItemTool(ctx),
         )
-        // 真机验证通过后可按需纳入：RecallTool、ActionItemTool、BackupTool、
-        // RunJsTool、RunIntentTool、RunCalendarTool、SatellitePassTool 等。
+        // 真机验证稳定后可按需纳入：BackupTool、RunJsTool、RunIntentTool、
+        // RunCalendarTool、SatellitePassTool、ReverseGeocodeTool 等。
 
         return offlineSets
             .flatMap { it.getTools().values }
