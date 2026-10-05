@@ -183,9 +183,14 @@ class LocalLlmEngine private constructor(private val context: Context) {
                     cacheDir = context.cacheDir.path,
                 )
 
-                // 未显式提供工具时，注入端侧离线工具目录（纯本地、无网络），
-                // 由模型经受约束解码自主调用，不做关键词命中。
-                val effectiveTools = tools.ifEmpty { LocalToolCatalog.get(context) }
+                // 未显式提供工具、且模型本身支持函数调用时，注入端侧离线工具目录
+                //（纯本地、无网络），由模型经受约束解码自主调用，不做关键词命中；
+                // 不支持函数调用的小模型保持空工具，避免工具约束干扰生成。
+                val effectiveTools = when {
+                    tools.isNotEmpty() -> tools
+                    modelInfo.supportsFunctionCalling -> LocalToolCatalog.get(context)
+                    else -> emptyList()
+                }
 
                 DebugLog.i(TAG, "Creating Engine with $backendLabel backend, maxTokens=${config.maxTokens}, image=${config.supportsImage}, audio=${config.supportsAudio}, tools=${effectiveTools.size}...")
 
