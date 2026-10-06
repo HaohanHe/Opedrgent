@@ -27,7 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -262,7 +262,7 @@ private fun CultivationHeader(
             CultivationTab.MIRROR, CultivationTab.EXEMPLAR -> {
                 if (showBaseline) {
                     IconButton(onClick = onOpenBaseline) {
-                        Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.cultivation_tab_baseline))
+                        Icon(Icons.Filled.Person, contentDescription = stringResource(R.string.cultivation_tab_baseline))
                     }
                 }
                 IconButton(onClick = onOpenHistory) {
