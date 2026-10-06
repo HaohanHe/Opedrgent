@@ -144,7 +144,7 @@ class StepAudioAsrEngine(
             val processingTimeMs = System.currentTimeMillis() - startTimeMs
             result.copy(
                 processingTimeMs = processingTimeMs,
-                durationMs = file.length(),
+                // durationMs 由 parseSseResponse 从分段时间戳推导，不再用文件字节数冒充毫秒（U48-05）
                 modelUsed = "stepaudio-2.5-asr",
             )
         } catch (e: Exception) {
@@ -314,9 +314,11 @@ class StepAudioAsrEngine(
         val finalText = fullText.toString().trim()
         DebugLog.i(TAG, "ASR 完成: ${finalText.length} 字符, ${segments.size} 分段")
 
+        val totalDurationMs = segments.maxOfOrNull { it.endTimeMs } ?: 0L
         return SttResult(
             text = finalText,
             confidence = if (finalText.isNotBlank()) 0.95f else 0f,
+            durationMs = totalDurationMs,
             segments = segments.ifEmpty {
                 if (finalText.isNotBlank()) listOf(SttSegment(text = finalText))
                 else emptyList()

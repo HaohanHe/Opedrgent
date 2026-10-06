@@ -196,6 +196,8 @@ class FreshnessCalculator {
                         val year = groups[1].toInt()
                         val month = groups[2].toInt()
                         val day = groups[3].toInt()
+                        // 越界日期（month=13/day=45 等）直接丢弃，避免 Calendar lenient 静默滚动到相邻年月
+                        if (!isValidDate(year, month, day)) continue
                         return toTimestamp(year, month, day)
                     }
                 }
@@ -215,6 +217,7 @@ class FreshnessCalculator {
                 val day = englishResult.groupValues[2].toInt()
                 val year = englishResult.groupValues[3].toInt()
                 val month = ENGLISH_MONTH_MAP[monthName] ?: return null
+                if (!isValidDate(year, month, day)) return null
                 return toTimestamp(year, month, day)
             } catch (_: Exception) {
             }
@@ -256,6 +259,17 @@ class FreshnessCalculator {
         } catch (_: Exception) {
             url
         }
+    }
+
+    /**
+     * 校验解析出的年月日是否在合理范围内。越界日期（如 month=13、day=45、
+     * 未来过远/过早的年份）一律丢弃，避免默认 lenient 的 Calendar 把它静默滚动成相邻年月。
+     */
+    private fun isValidDate(year: Int, month: Int, day: Int): Boolean {
+        if (year !in 1990..2100) return false
+        if (month !in 1..12) return false
+        if (day !in 1..31) return false
+        return true
     }
 
     private fun toTimestamp(year: Int, month: Int, day: Int): Long {

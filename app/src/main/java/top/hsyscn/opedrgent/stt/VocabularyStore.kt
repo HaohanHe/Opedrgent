@@ -9,22 +9,34 @@ import org.json.JSONTokener
 class VocabularyStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /** 解析后的词表缓存：热路径每 200ms 调一次 applyVocabulary，避免每次都读 SP + JSON 解析（U48-12） */
+    @Volatile private var cachedTerms: Map<String, String>? = null
+
     companion object {
         private const val PREFS_NAME = "vocabulary"
         private const val KEY_TERMS = "terms"
     }
 
     fun addTerm(term: String) {
+        addTerm(term, term)
+    }
+
+    /**
+     * 添加热词/同音纠错映射：识别结果中的 term 会被替换为 replacement。
+     * 仅传 term 时 replacement==term，等价于词表增强（替换为自身，无副作用）。
+     */
+    fun addTerm(term: String, replacement: String) {
         val normalized = term.trim()
         if (normalized.isBlank()) return
+        val normalizedReplacement = replacement.trim()
         val map = getTermsMap().toMutableMap()
-        map[normalized] = normalized
+        map[normalized] = normalizedReplacement.ifBlank { normalized }
         saveTermsMap(map)
     }
 
     fun removeTerm(term: String) {
         val map = getTermsMap().toMutableMap()
-        map.remove(term)
+        map.remove(term.trim())
         saveTermsMap(map)
     }
 
@@ -48,8 +60,11 @@ class VocabularyStore(context: Context) {
     }
 
     private fun getTermsMap(): Map<String, String> {
-        val jsonStr = prefs.getString(KEY_TERMS, null) ?: return emptyMap()
-        return try {
+        cachedTerms?.let { return it }
+        val jsonStr = prefs.getString(KEY_TERMS, null)
+        val parsed = if (jsonStr == null) {
+            emptyMap()
+        } else try {
             val array = JSONTokener(jsonStr).nextValue() as? JSONArray
             if (array != null) {
                 val map = mutableMapOf<String, String>()
@@ -70,6 +85,8 @@ class VocabularyStore(context: Context) {
         } catch (_: Exception) {
             emptyMap()
         }
+        cachedTerms = parsed
+        return parsed
     }
 
     private fun saveTermsMap(map: Map<String, String>) {
@@ -81,5 +98,6 @@ class VocabularyStore(context: Context) {
             array.put(obj)
         }
         prefs.edit().putString(KEY_TERMS, array.toString()).apply()
+        cachedTerms = map.toMap()
     }
 }

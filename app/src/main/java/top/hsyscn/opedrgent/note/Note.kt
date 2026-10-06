@@ -54,8 +54,8 @@ data class Note(
     /** 最后修改时间戳（毫秒） */
     var updatedAt: Long = System.currentTimeMillis(),
 
-    /** 字数统计 */
-    var wordCount: Int = 0,
+    /** 字数统计（只读派生：DAO 落库时恒以 content.length 覆盖，调用方传入值不被持久化；cursor 读回即该派生值） */
+    val wordCount: Int = 0,
 
     /** AI 发芽报告（JSON 格式存储结构化分析结果） */
     var sproutReportJson: String? = null,
@@ -87,9 +87,18 @@ data class Note(
         } catch (_: Exception) { "[]" }
     }
 
-    /** 获取 AI 发芽报告（旧版结构化） */
+    /** 获取 AI 发芽报告（旧版结构化）。与 SproutArticle 共用 sproutReportJson 列，按 format 标记/形状区分，避免把文章 JSON 误读为空骨架报告。 */
     fun getSproutReport(): SproutReport? {
-        return sproutReportJson?.let { SproutReport.fromJson(it) }
+        val raw = sproutReportJson ?: return null
+        return try {
+            val obj = org.json.JSONObject(raw)
+            val fmt = obj.optString("format", "")
+            // v2 文章带 articles 键或显式 format=article；旧版报告无 articles
+            if (fmt == "article" || (fmt.isEmpty() && obj.has("articles"))) return null
+            SproutReport.fromJson(raw)
+        } catch (_: Exception) {
+            SproutReport.fromJson(raw)
+        }
     }
 
     /** 设置 AI 发芽报告（旧版结构化） */
@@ -99,10 +108,19 @@ data class Note(
 
     /** 获取 AI 发芽文章（新版叙事式） */
     fun getSproutArticle(): SproutArticle? {
-        return sproutReportJson?.let { SproutArticle.fromJson(it) }
+        val raw = sproutReportJson ?: return null
+        return try {
+            val obj = org.json.JSONObject(raw)
+            val fmt = obj.optString("format", "")
+            // 旧版报告带 articles 缺失/coreInsights 键或显式 format=report；文章以 articles 为标志
+            if (fmt == "report" || (fmt.isEmpty() && !obj.has("articles"))) return null
+            SproutArticle.fromJson(raw)
+        } catch (_: Exception) {
+            SproutArticle.fromJson(raw)
+        }
     }
 
-    /** 设置 AI 发芽文章（新版叙事式） */
+    /** 设置 AI 发芽文章（新版叙事式）。toJson 内会写入 format=article 标记，与 getSproutReport/getSproutArticle 的形状互判对齐。 */
     fun setSproutArticle(article: SproutArticle?) {
         sproutReportJson = article?.toJson()
     }
@@ -169,6 +187,7 @@ data class SproutReport(
     fun toJson(): String {
         return try {
             val json = org.json.JSONObject().apply {
+                put("format", "report")
                 put("generatedAt", generatedAt)
                 put("modelUsed", modelUsed)
                 put("summary", summary)
@@ -195,8 +214,14 @@ data class SproutReport(
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList(),
                     coreInsights = (json.optJSONArray("coreInsights") ?: json.optJSONArray("ahaMoments")) /* 兼容旧版本地数据 */?.let { arr ->
-                        (0 until arr.length()).mapNotNull {
-                            CoreInsight.fromJson(arr.getJSONObject(it).toString())
+                        (0 until arr.length()).mapNotNull { i ->
+                            // toJson() 把每个 CoreInsight 序列化为字符串元素；历史数据也可能是对象元素。
+                            // 逐条容错：单条损坏跳过，不让一条脏数据拖垮整份报告。
+                            when (val el = arr.opt(i)) {
+                                is org.json.JSONObject -> CoreInsight.fromJson(el.toString())
+                                is String -> CoreInsight.fromJson(el)
+                                else -> null
+                            }
                         }
                     } ?: emptyList(),
                     actionItems = json.optJSONArray("actionItems")?.let { arr ->
@@ -303,6 +328,7 @@ data class SproutArticle(
     fun toJson(): String {
         return try {
             val json = org.json.JSONObject().apply {
+                put("format", "article")
                 put("generatedAt", generatedAt)
                 put("modelUsed", modelUsed)
                 put("summary", summary)

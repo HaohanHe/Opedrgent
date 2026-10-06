@@ -9,16 +9,19 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.Manifest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.tts.TtsPlayer
 import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -232,8 +235,25 @@ class FullDuplexAudioEngine(
     // 引擎事件监听
     private val engineEventListeners = mutableListOf<(EngineEvent) -> Unit>()
 
-    // 协程作用域
-    private val engineScope = CoroutineScope(Dispatchers.IO)
+    // 协程作用域：
+    // - SupervisorJob：单侧（采集/播放）协程抛错不连带取消对侧管线；
+    // - CoroutineExceptionHandler：兜底任何未在协程内捕获的 Throwable，避免进程崩溃；
+    // - var：disconnect 取消后可在下次 connect 时重建，杜绝"假连接"（U55-01）。
+    private val engineExceptionHandler = CoroutineExceptionHandler { _, e ->
+        CrashReporter.logError(TAG, "引擎协程未捕获异常", e)
+        DebugLog.e(TAG, "引擎协程未捕获异常: ${e.message}", e)
+    }
+
+    private var engineScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + engineExceptionHandler
+    )
+
+    /** 若作用域已被 disconnect 永久取消则重建，保证重连时采集/播放协程能真正启动。 */
+    private fun ensureScope() {
+        if (!engineScope.isActive) {
+            engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + engineExceptionHandler)
+        }
+    }
 
     // ==================== 公开 API ====================
 
@@ -254,9 +274,15 @@ class FullDuplexAudioEngine(
 
         DebugLog.i(TAG, "正在连接音频通道...")
 
-        // 检查权限
+        // 若上一次 disconnect 已取消协程作用域，这里重建，避免重连后协程静默不启动（U55-01）
+        ensureScope()
+
+        // 检查权限：不再裸抛 SecurityException 让上层崩溃，改为事件化上抛，
+        // 由上层（监听 PIPELINE_FAILED）决定发起运行时权限请求 / 引导用户去设置页（U55-11）。
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            throw SecurityException("缺少 RECORD_AUDIO 权限")
+            DebugLog.e(TAG, "缺少 RECORD_AUDIO 权限")
+            notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "PERMISSION_DENIED")
+            return
         }
 
         try {
@@ -268,10 +294,10 @@ class FullDuplexAudioEngine(
 
         } catch (e: IllegalStateException) {
             releaseResources()
-            throw e
+            notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "音频初始化失败: ${e.message}")
         } catch (e: SecurityException) {
             releaseResources()
-            throw e
+            notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "PERMISSION_DENIED")
         }
     }
 
@@ -395,13 +421,16 @@ class FullDuplexAudioEngine(
         idleTimeoutFired = false
         lastSpeechSeenMs = System.currentTimeMillis()
 
-        // 启动录音线程
-        startRecording()
+        // 启动录音线程（返回是否真正拉起成功；失败时已上抛 PIPELINE_FAILED 并回落 CONNECTED）
+        val recordingStarted = startRecording()
 
         // 启动播放线程
         startPlayback()
 
-        changeState(DuplexState.LISTENING)
+        // 仅当采集管线真正启动才进入 LISTENING，避免 UI 显示"正在听"而麦克风未启动（U55-06）
+        if (recordingStarted) {
+            changeState(DuplexState.LISTENING)
+        }
     }
 
     /**
@@ -415,11 +444,13 @@ class FullDuplexAudioEngine(
 
         // 停止录音协程
         runCatching { recordJob?.cancel() }
-        recordJob = null
 
         // 停止播放协程
         runCatching { playJob?.cancel() }
-        playJob = null
+
+        // 等待采集/播放协程真正退出后再触碰原生句柄，
+        // 避免外层 releaseResources 与协程 finally 对已 release 的 AudioRecord/Track 并发调用（U55-07）
+        joinJobs()
 
         // 停止 AudioRecord
         runCatching { audioRecord?.stop() }
@@ -443,6 +474,26 @@ class FullDuplexAudioEngine(
     }
 
     /**
+     * 有界等待 recordJob / playJob 退出。
+     *
+     * stop/disconnect 为普通（非 suspend）函数，不能直接 join；这里用 NonCancellable + 短超时
+     * 做有界阻塞等待，确保协程 finally（record.stop()/track.stop()）跑完后外层再 release，
+     * 杜绝 use-after-release。超时兜底不阻塞 teardown 超过约 500ms。
+     */
+    private fun joinJobs() {
+        runCatching {
+            runBlocking(NonCancellable) {
+                withTimeout(500L) {
+                    recordJob?.join()
+                    playJob?.join()
+                }
+            }
+        }
+        recordJob = null
+        playJob = null
+    }
+
+    /**
      * AI 说话（写入 TTS 音频数据到播放队列）。
      *
      * @param pcmData PCM 音频数据（16kHz, 16bit, mono）
@@ -459,6 +510,9 @@ class FullDuplexAudioEngine(
         playQueue.offer(pcmData)
 
         if (_state != DuplexState.AI_SPEAKING) {
+            // 新一轮 AI 说话开始：复位上一轮可能残留的 bargeInDetected，
+            // 避免上层漏调 resetBargeIn 时新入队 PCM 被播放循环静默丢弃（U55-04）
+            resetBargeIn()
             changeState(DuplexState.AI_SPEAKING)
         }
 
@@ -578,7 +632,8 @@ class FullDuplexAudioEngine(
         } else {
             if (_state == DuplexState.MUTED) {
                 DebugLog.i(TAG, "用户取消静音")
-                changeState(if (isPlaying.get()) DuplexState.AI_SPEAKING else DuplexState.LISTENING)
+                // 用播放队列是否为空（而非分块写入间会抖动的 isPlaying 瞬时值）判断 AI 是否仍在说（U55-10）
+                changeState(if (!playQueue.isEmpty()) DuplexState.AI_SPEAKING else DuplexState.LISTENING)
             }
         }
     }
@@ -691,12 +746,8 @@ class FullDuplexAudioEngine(
         when {
             // 从静音切换到语音
             !vadIsSpeechActive && energy > VAD_ENERGY_THRESHOLD -> {
-                // 检查前导静音帧数是否足够（过滤噪音触发）
-                if (leadingSilenceFrameCount < VAD_LEADING_SILENCE_FRAMES) {
-                    leadingSilenceFrameCount++
-                    return
-                }
-
+                // 高能帧直接进入语音缓冲，不再因"前导静音帧计数未达 N"而丢弃用户开口首段 ~200ms（U55-03）。
+                // 前导预热只在 startRecording 阶段一次性完成，不在这里对语音帧 return。
                 vadIsSpeechActive = true
                 synchronized(this) {
                     currentSpeechBuffer.reset()
@@ -826,8 +877,11 @@ class FullDuplexAudioEngine(
 
     /**
      * 启动录音线程（持续采集）。
+     *
+     * @return true 表示采集协程已成功拉起；false 表示 AudioRecord 重建失败（已上抛 PIPELINE_FAILED），
+     *         调用方据此决定是否进入 LISTENING（U55-06）。
      */
-    private fun startRecording() {
+    private fun startRecording(): Boolean {
         var record = audioRecord
         if (record == null) {
             // 管线曾彻底失败并释放了 AudioRecord：按 connect 同口径重建，支持上层重试
@@ -837,7 +891,7 @@ class FullDuplexAudioEngine(
                 CrashReporter.logError(TAG, "AudioRecord 重建失败", e)
                 DebugLog.e(TAG, "AudioRecord 重建失败: ${e.message}", e)
                 notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "采集管线重建失败: ${e.message}")
-                return
+                return false
             }
         }
 
@@ -897,11 +951,18 @@ class FullDuplexAudioEngine(
                 }
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "录音线程被取消")
+            } catch (e: Throwable) {
+                // processVadFrame/checkIdleTimeout 等内层 try 之外抛来的非取消异常：
+                // 路由到 failRecordingPipeline，不让其穿透到父 scope（配合 SupervisorJob 不拖垮播放侧）（U55-02）
+                CrashReporter.logError(TAG, "录音线程未捕获异常", e)
+                DebugLog.e(TAG, "录音线程未捕获异常: ${e.message}", e)
+                failRecordingPipeline("采集管线未捕获异常: ${e.message}")
             } finally {
-                runCatching { record!!.stop() }
+                runCatching { record?.stop() }
                 DebugLog.d(TAG, "录音线程结束")
             }
         }
+        return true
     }
 
     /**
@@ -958,7 +1019,7 @@ class FullDuplexAudioEngine(
     /**
      * 启动播放线程（从队列取数据写入 AudioTrack）。
      */
-    private fun startPlayback() {
+    private fun startPlayback(): Boolean {
         var track = audioTrack
         if (track == null) {
             // 播放管线曾彻底失败并释放了 AudioTrack：按 connect 同口径重建，支持上层重试
@@ -967,7 +1028,7 @@ class FullDuplexAudioEngine(
             } catch (e: Exception) {
                 DebugLog.e(TAG, "AudioTrack 重建失败: ${e.message}", e)
                 notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "播放管线重建失败: ${e.message}")
-                return
+                return false
             }
         }
 
@@ -993,8 +1054,13 @@ class FullDuplexAudioEngine(
                     try {
                         while (offset < data.size && isActive && isRecording.get() && !bargeInDetected) {
                             val writeSize = kotlin.math.min(data.size - offset, 3200)  // 每次 100ms
-                            track!!.write(data, offset, writeSize)
-                            offset += writeSize
+                            val written = track!!.write(data, offset, writeSize)
+                            if (written < 0) {
+                                // AudioTrack.write 返回负错误码：静默跳过该段会丢音频，触发管线重建（U55-08）
+                                DebugLog.e(TAG, "AudioTrack.write 失败 code=$written")
+                                throw java.io.IOException("AudioTrack.write 错误码=$written")
+                            }
+                            offset += written
                             playRestartAttempts = 0
 
                             // 小延迟让出 CPU
@@ -1031,12 +1097,19 @@ class FullDuplexAudioEngine(
                 }
             } catch (e: CancellationException) {
                 DebugLog.i(TAG, "播放线程被取消")
+            } catch (e: Throwable) {
+                // 未在写入循环内消化的异常：上抛 PIPELINE_FAILED，配合 SupervisorJob 不拖垮采集侧（U55-02）
+                CrashReporter.logError(TAG, "播放线程未捕获异常", e)
+                DebugLog.e(TAG, "播放线程未捕获异常: ${e.message}", e)
+                notifyEvent(EngineEvent.Kind.PIPELINE_FAILED, "播放管线未捕获异常: ${e.message}")
+                playQueue.clear()
             } finally {
-                runCatching { track!!.stop() }
+                runCatching { track?.stop() }
                 isPlaying.set(false)
                 DebugLog.d(TAG, "播放线程结束")
             }
         }
+        return true
     }
 
     /**

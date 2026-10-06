@@ -74,9 +74,8 @@ class RunCalendarTool(
         DebugLog.i("RunCalendarTool: 执行日历操作 — input=${input.toString().take(200)}")
 
         return try {
-            // input 可能是 String 或 Map<String, String>
-            val paramsJson = JSONObject(input as Map<*, *>).toString()
-            val params = JSONObject(paramsJson)
+            // input 在所有生产路径均为 Map<String,String>（见 ToolCallParser / MainViewModel）
+            val params = JSONObject(input as Map<*, *>)
             val action = params.optString("action", "")
 
             if (action.isBlank()) {
@@ -370,13 +369,21 @@ class RunCalendarTool(
         return parseTimeOfDay(trimmed, cal)
     }
 
-    /** 从文本中提取小时:分钟并设置到 cal 上 */
+    /** 从文本中提取小时:分钟并设置到 cal 上；含“下午/晚上/傍晚”按 12 小时制 +12 换算 */
     private fun parseTimeOfDay(text: String, baseCal: Calendar): Long {
         // 匹配 "3点" "15:00" "三点半" "3:30" 等
         val regex = Regex("""(\d{1,2})[:：点](\d{0,2})?""")
         regex.find(text)?.let { match ->
-            val hour = match.groupValues[1].toIntOrNull() ?: return@let
+            var hour = match.groupValues[1].toIntOrNull() ?: return@let
             val minute = match.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull() ?: 0
+            // 12 小时制上下午换算：仅依据上下文出现的“上午/下午/晚上”等词。
+            // 修 “下午3点 / 下午3:30” 被无条件建成凌晨 03:00 的缺陷。
+            val isPm = text.contains("下午") || text.contains("晚上") || text.contains("傍晚") ||
+                text.contains("noon") || text.contains("pm", ignoreCase = true)
+            val isAm = text.contains("上午") || text.contains("早上") || text.contains("凌晨") ||
+                text.contains("am", ignoreCase = true)
+            if (isPm && hour in 1..11) hour += 12
+            if (isAm && hour == 12) hour = 0
             baseCal.set(Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
             baseCal.set(Calendar.MINUTE, minute.coerceIn(0, 59))
             baseCal.set(Calendar.SECOND, 0)

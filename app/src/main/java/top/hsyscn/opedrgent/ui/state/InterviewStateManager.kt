@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.ui.state
 
 import android.app.Application
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -79,7 +80,7 @@ class InterviewStateManager(
     private val interviewTranscript: MutableList<DialogueTurn> = Collections.synchronizedList(mutableListOf())
 
     /** 当前问题索引 */
-    private var currentQuestionIdx = 0
+    private val currentQuestionIdx = AtomicInteger(0)
 
     /** 语音对话引擎 */
     private var voiceEngine: VoiceConversationEngine? = null
@@ -95,11 +96,16 @@ class InterviewStateManager(
      */
     fun startInterview(config: InterviewConfig) {
         scope.launch {
+            // 重入保护：先彻底停掉上一轮可能仍在运行的全双工引擎（含 native ASR），
+            // 避免旧采集/播放线程泄漏、旧回调继续向已 clear 的 transcript 追加 turn 污染新会话（U29-1）
+            voiceEngine?.release()
+            voiceEngine = null
+
             val apiConfig = apiSettings.getApiConfig() ?: return@launch
             try {
                 // 重置状态
                 interviewTranscript.clear()
-                currentQuestionIdx = 0
+                currentQuestionIdx.set(0)
                 interviewStartTime = System.currentTimeMillis()
 
                 // 更新状态：进入准备阶段
@@ -148,11 +154,11 @@ class InterviewStateManager(
                     onAiSpeak = { text ->
                         val turn = DialogueTurn(role = "interviewer", content = text, questionCategory = app.getString(R.string.interview_category_followup))
                         interviewTranscript.add(turn)
-                        currentQuestionIdx++
+                        currentQuestionIdx.incrementAndGet()
                         _interviewState.update {
                             it.copy(
                                 messages = interviewTranscript.toList(),
-                                questionCount = currentQuestionIdx,
+                                questionCount = currentQuestionIdx.get(),
                                 isSpeaking = true,
                             )
                         }
@@ -210,7 +216,7 @@ class InterviewStateManager(
                                     answer = userInput,
                                     currentQuestion = lastQuestion ?: DialogueTurn(role = "interviewer", content = ""),
                                     history = interviewTranscript.toList(),
-                                    currentQuestionIndex = currentQuestionIdx,
+                                    currentQuestionIndex = currentQuestionIdx.get(),
                                 )
                                 when (nextAction) {
                                     is NextAction.FollowUp -> nextAction.question
@@ -253,14 +259,17 @@ class InterviewStateManager(
                     content = answer,
                 )
                 interviewTranscript.add(answerTurn)
-                currentQuestionIdx++
+                currentQuestionIdx.incrementAndGet()
 
-                // 更新状态为思考中
-                _interviewState.value = currentState.copy(
-                    messages = interviewTranscript.toList(),
-                    questionCount = currentQuestionIdx,
-                    phase = InterviewPhase.EVALUATING, // 复用 EVALUATING 表示 AI 思考中
-                )
+                // 更新状态为思考中。用 update{it.copy} 原子合并，只改本方法负责的字段，
+                // 不读取旧快照整态赋值，避免回滚引擎回调并发更新的 duplexState/isListening/isSpeaking（U29-3）
+                _interviewState.update {
+                    it.copy(
+                        messages = interviewTranscript.toList(),
+                        questionCount = currentQuestionIdx.get(),
+                        phase = InterviewPhase.EVALUATING, // 复用 EVALUATING 表示 AI 思考中
+                    )
+                }
 
                 // 获取当前问题（最后一个面试官问题）
                 val lastInterviewerMessage = interviewTranscript.lastOrNull { it.role == "interviewer" }
@@ -275,7 +284,7 @@ class InterviewStateManager(
                         answer = answer,
                         currentQuestion = lastInterviewerMessage,
                         history = interviewTranscript.toList(),
-                        currentQuestionIndex = currentQuestionIdx - 1,
+                        currentQuestionIndex = currentQuestionIdx.get() - 1,
                     )
                 }
 
@@ -406,7 +415,7 @@ class InterviewStateManager(
         voiceEngine?.stopFullDuplex()
         voiceEngine = null
         interviewTranscript.clear()
-        currentQuestionIdx = 0
+        currentQuestionIdx.set(0)
         interviewStartTime = 0L
         _interviewState.value = InterviewUiState()
     }

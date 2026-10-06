@@ -5,8 +5,6 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
@@ -42,7 +40,14 @@ class AsrManager(
         private const val TAG = "AsrManager"
     }
 
-    private val mutex = Mutex()
+    /**
+     * 保护 [engine] 字段的所有读/写。close()/invalidateEngine() 为非 suspend 方法，
+     * 故统一用 JVM 监视器（而非协程 Mutex），使 getOrCreateEngine（suspend）与
+     * close/invalidate/getCachedEngine/startStreaming 等共用同一把锁，消除竞态（U47-05）。
+     */
+    private val engineLock = Any()
+
+    @Volatile
     private var engine: SpeechEngine? = null
     private val vocabularyStore = VocabularyStore(context)
     private val postProcessor = AsrPostProcessor()
@@ -87,7 +92,9 @@ class AsrManager(
         )
 
         // 将后处理分段映射回 SttSegment (保留原始时间信息)
-        val postSegments = if (processed.segments.size > 1) {
+        // U47-12：引擎未填 durationMs（默认 0）时，按 ratio 映射会让所有 segment 时间戳归零，
+        // 此时跳过映射、直接保留引擎原始 segments，避免 UI 时间轴失效。
+        val postSegments = if (rawResult.durationMs > 0 && processed.segments.size > 1) {
             processed.segments.mapIndexed { idx, seg ->
                 val ratioStart = seg.startTime.coerceIn(0f, 1f)
                 val ratioEnd = seg.endTime.coerceIn(ratioStart, 1f)
@@ -99,6 +106,9 @@ class AsrManager(
                 )
             }
         } else {
+            if (rawResult.durationMs <= 0 && processed.segments.size > 1) {
+                DebugLog.w(TAG, "引擎未提供 durationMs，跳过分段时间映射，保留原始 segments")
+            }
             rawResult.segments
         }
 
@@ -119,7 +129,7 @@ class AsrManager(
      * 调用前必须确保引擎已初始化（通过 [ensureInitialized] 或 [transcribeFile]）。
      */
     fun startStreaming(): Flow<StreamingRecognitionState> {
-        val e = engine
+        val e = synchronized(engineLock) { engine }
         if (e == null || !e.isAvailable) {
             DebugLog.w(TAG, "startStreaming: 引擎未就绪，返回空流")
             return emptyFlow()
@@ -132,7 +142,7 @@ class AsrManager(
      * 停止当前流式识别。
      */
     fun stopStreaming() {
-        engine?.stopStreamingRecognition()
+        synchronized(engineLock) { engine }?.stopStreamingRecognition()
     }
 
     /**
@@ -158,13 +168,13 @@ class AsrManager(
      * 获取已缓存的引擎实例（不触发初始化）。
      * 如果引擎尚未初始化，返回 null。
      */
-    fun getCachedEngine(): SpeechEngine? = engine
+    fun getCachedEngine(): SpeechEngine? = synchronized(engineLock) { engine }
 
     /**
      * 获取当前引擎类型名称（用于 UI 显示）。
      */
     fun getCurrentEngineName(): String {
-        return when (engine?.engineType) {
+        return when (synchronized(engineLock) { engine?.engineType }) {
             EngineType.MIMO_ASR -> "MiMo ASR (在线)"
             EngineType.SHERPA_ONNX -> "Sherpa-ONNX (本地)"
             EngineType.ANDROID_SPEECH_RECOGNIZER -> "Android SpeechRecognizer"
@@ -177,9 +187,15 @@ class AsrManager(
      * 关闭引擎并释放资源。
      */
     fun close() {
-        DebugLog.i(TAG, "关闭引擎: ${engine?.engineType}")
-        engine?.close()
-        engine = null
+        // 在同一把锁内摘引用并 close，避免与 getOrCreateEngine 的赋值竞态
+        // 把刚创建、正在流式使用的引擎关掉（U47-05）。
+        val e = synchronized(engineLock) {
+            val current = engine
+            engine = null
+            current
+        }
+        DebugLog.i(TAG, "关闭引擎: ${e?.engineType}")
+        e?.close()
     }
 
     /**
@@ -187,25 +203,29 @@ class AsrManager(
      * 用于用户切换模型后强制重新初始化。
      */
     fun invalidateEngine() {
+        val e = synchronized(engineLock) {
+            val current = engine
+            engine = null
+            current
+        }
         DebugLog.i(TAG, "引擎缓存已失效，将在下次使用时重新创建")
-        engine?.close()
-        engine = null
+        e?.close()
     }
 
     /**
      * 当前引擎是否为流式识别引擎（OnlineRecognizer）。
      */
     fun isCurrentEngineStreaming(): Boolean {
-        val e = engine ?: return false
+        val e = synchronized(engineLock) { engine } ?: return false
         return e is SherpaOnnxEngine && e.isStreamingEngine
     }
 
     // ==================== 内部实现 ====================
 
-    private suspend fun getOrCreateEngine(): SpeechEngine = mutex.withLock {
+    private fun getOrCreateEngine(): SpeechEngine = synchronized(engineLock) {
         val existing = engine
         if (existing != null && existing.isAvailable) {
-            return@withLock existing
+            return@synchronized existing
         }
 
         // 关闭旧引擎

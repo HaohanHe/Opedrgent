@@ -4,6 +4,7 @@ import top.hsyscn.opedrgent.R
 
 import android.content.Context
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -21,10 +22,15 @@ class ReadUrlTool(
     private val fetcher: SourceFetcher,
 ) : ToolSet {
 
+    private val webViewMutex = kotlinx.coroutines.sync.Mutex()
     private var webViewAgent: WebViewAgent? = null
 
     private suspend fun getWebViewAgent(): WebViewAgent {
-        return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
+        // check-then-act 加锁：并发 deepFetch 下避免多建 WebViewAgent 泄漏原生 WebView。
+        webViewAgent?.let { return it }
+        return webViewMutex.withLock {
+            webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
+        }
     }
 
     private fun buildPartialTimeoutResult(
@@ -61,6 +67,9 @@ class ReadUrlTool(
         useProviderSearch: Boolean,
     ): ToolResult {
         val url = tp.state.input["url"] ?: return emptyResult(tp, context.getString(R.string.error_missing_url))
+        if (!isUrlHttpSecure(url)) {
+            return emptyResult(tp, "read_url 仅支持 http/https 协议：$url")
+        }
         DebugLog.i("read_url: $url")
         // 弹性截断：根据模型上下文窗口按比例计算
         val maxChars = top.hsyscn.opedrgent.utils.ModelLimits.toolOutputMaxChars(
@@ -120,6 +129,16 @@ class ReadUrlTool(
             endTime = System.currentTimeMillis())))
     }
 
+    /** 仅允许 http/https（与 OpenBrowserTool.isUrlSafe 对齐），拒绝 file/content/tel 等 scheme。 */
+    private fun isUrlHttpSecure(url: String): Boolean {
+        return try {
+            val scheme = android.net.Uri.parse(url).scheme?.lowercase()
+            scheme == "http" || scheme == "https"
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
      * 释放 WebViewAgent 资源，不使用时必须调用以避免内存泄漏。
      * WebView 单个实例占用 50-100MB 内存。
@@ -136,6 +155,13 @@ class ReadUrlTool(
                 description = """读取并提取指定URL网页的文字内容。
 
 ⚠️ 当用户提供了具体 URL 时必须使用此工具，不要使用 web_search。""",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "要读取的完整网页 URL（仅支持 http/https）"}
+                    },
+                    "required": ["url"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeReadUrl(tp, config, sp, ups) },
             ),
         )

@@ -101,19 +101,24 @@ class CheckpointManager(private val storage: CheckpointStorageProvider) {
         }
     }
 
-    /** 标记检查点为已终结（墓碑），之后不可回滚。幂等。 */
+    /** 标记检查点为已终结（墓碑），之后不可回滚。幂等。协程安全（按 checkpointId 加 Mutex）。 */
     suspend fun markTombstone(checkpointId: String) {
-        val cp = storage.load(checkpointId) ?: run {
-            DebugLog.w(TAG, "markTombstone: checkpoint $checkpointId not found, skip")
-            return
+        // 与 appendToolCall/replaceToolCalls 共用同一把 checkpoint 级锁，
+        // 否则 append 的 cp.copy(toolCalls=...) 会把已写入的 tombstone=true 覆盖回 false，
+        // 导致已终结事务被 RollbackExecutor 重复补偿。
+        mutexFor(checkpointId).withLock {
+            val cp = storage.load(checkpointId) ?: run {
+                DebugLog.w(TAG, "markTombstone: checkpoint $checkpointId not found, skip")
+                return@withLock
+            }
+            if (cp.tombstone) {
+                DebugLog.d(TAG, "markTombstone: $checkpointId already tombstoned (idempotent)")
+                return@withLock
+            }
+            cp.tombstone = true
+            storage.save(cp)
+            DebugLog.i(TAG, "tombstone marked: $checkpointId")
         }
-        if (cp.tombstone) {
-            DebugLog.d(TAG, "markTombstone: $checkpointId already tombstoned (idempotent)")
-            return
-        }
-        cp.tombstone = true
-        storage.save(cp)
-        DebugLog.i(TAG, "tombstone marked: $checkpointId")
     }
 
     /** 检查点是否已终结（墓碑或不存在均视为不可回滚）。 */
@@ -122,9 +127,13 @@ class CheckpointManager(private val storage: CheckpointStorageProvider) {
         return cp.tombstone
     }
 
-    /** 删除检查点（事务彻底结束后清理）。 */
+    /** 删除检查点（事务彻底结束后清理）。同步回收该 id 的 Mutex，避免长会话无界累积。 */
     suspend fun deleteCheckpoint(checkpointId: String) {
-        storage.delete(checkpointId)
+        mutexFor(checkpointId).withLock {
+            storage.delete(checkpointId)
+        }
+        // 锁释放后再移除 Mutex：此时没有其它协程持锁，也不会再有人用这个 id 复活检查点
+        mutexes.remove(checkpointId)
     }
 
     /**

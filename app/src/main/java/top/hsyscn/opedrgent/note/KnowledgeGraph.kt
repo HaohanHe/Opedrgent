@@ -22,11 +22,17 @@ class KnowledgeGraph(
     private val provider: EmbeddingProvider,
 ) {
 
-    // 防止多个协程并发修改图谱（link/rebuild/remove 串行执行），避免事务干扰与状态错乱
-    private val graphMutex = Mutex()
-
     companion object {
         private const val TAG = "KnowledgeGraph"
+
+        // 防止多个协程并发修改图谱（link/rebuild/remove 串行执行）。
+        // 提升为 companion 级单例：Worker 每次 doWork 都会新建 KnowledgeGraph 实例，
+        // 实例字段锁会导致各实例持不同锁，跨实例互斥失效。
+        private val graphMutex = Mutex()
+
+        // 迁移只在进程内实际执行一次；后续构造的实例跳过 wasMigrated 查询。
+        @Volatile
+        private var migrationChecked = false
 
         const val REL_SEMANTIC_SIMILAR = "SEMANTIC_SIMILAR"
         const val REL_SHARED_KEYWORD = "SHARED_KEYWORD"
@@ -40,8 +46,6 @@ class KnowledgeGraph(
 
         private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000
     }
-
-    private fun isLocalProvider(): Boolean = provider.providerName().startsWith("local")
 
     /**
      * 对敏感实体名称进行掩码。
@@ -61,10 +65,14 @@ class KnowledgeGraph(
     }
 
     init {
-        try {
-            KnowledgeGraphMigrator.migrateIfNeeded(context, store)
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "migration failed: ${e.message}", e)
+        if (!migrationChecked) {
+            try {
+                if (KnowledgeGraphMigrator.migrateIfNeeded(context, store)) {
+                    migrationChecked = true
+                }
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "migration failed: ${e.message}", e)
+            }
         }
     }
 
@@ -81,11 +89,12 @@ class KnowledgeGraph(
     }
 
     private suspend fun doLinkNote(noteId: String, content: String): List<String> {
-        val embedding = try {
-            provider.embed(content)
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
-            LocalEmbeddingProvider(store).embed(content)
+        val (embedding, effectiveProvider) = embedWithFallback(content)
+        // 阈值必须与实际生成向量的 provider 一致：远端失败回退本地后不得再用远端阈值。
+        val threshold = if (effectiveProvider.providerName().startsWith("local")) {
+            LOCAL_SIMILARITY_THRESHOLD
+        } else {
+            SIMILARITY_THRESHOLD
         }
         val title = content.take(100)
         val summary = content.take(300)
@@ -104,14 +113,13 @@ class KnowledgeGraph(
                     summary = summary,
                     keywords = keywords.joinToString(","),
                     updatedAt = currentTime,
-                    contentHash = content.hashCode().toString(),
                 )
             )
             store.saveEmbedding(
                 GraphEmbeddingEntity(
                     nodeId = noteId,
-                    provider = provider.providerName(),
-                    model = "",
+                    provider = effectiveProvider.providerName(),
+                    model = modelNameFor(effectiveProvider),
                     dimension = embedding.size,
                     vector = embedding.toByteArray(),
                 )
@@ -139,6 +147,15 @@ class KnowledgeGraph(
             .map { if (it.sourceId == noteId) it.targetId else it.sourceId }
             .toSet()
 
+        // 批量预加载：embedding 与 节点-实体 映射各一条 SQL，消除逐节点 N+1 查询。
+        // 历史向量仅在 provider+维度与当前提供器一致时才参与比对（跨向量空间视为缺失）。
+        val embeddingByNode = store.getAllEmbeddings()
+            .filter { isEmbeddingCompatible(it) }
+            .associateBy { it.nodeId }
+        val entitiesByNode = store.getEntitiesByNode()
+            .mapValues { (_, list) -> list.map { it.name }.toSet() }
+        val entityTypeByName = store.getAllEntities().associate { it.name to it.entityType }
+
         val newLinkedIds = mutableListOf<String>()
         val edgesToUpsert = mutableListOf<GraphEdgeEntity>()
         val allNodes = store.getAllNodes()
@@ -146,7 +163,7 @@ class KnowledgeGraph(
             val otherId = other.id
             if (otherId == noteId) continue
 
-            val otherEmbedding = store.getEmbedding(otherId)?.vector?.toFloatArray()
+            val otherEmbedding = embeddingByNode[otherId]?.vector?.toFloatArray()
             val similarity = if (otherEmbedding != null) cosineSimilarity(embedding, otherEmbedding) else 0f
 
             val otherKeywords = other.keywords.split(',')
@@ -155,13 +172,12 @@ class KnowledgeGraph(
                 .toSet()
             val sharedKeywords = keywordSet.intersect(otherKeywords)
 
-            val otherEntityNames = store.getEntitiesForNode(otherId).map { it.name }.toSet()
+            val otherEntityNames = entitiesByNode[otherId] ?: emptySet()
             val sharedEntities = entityNameToId.keys.intersect(otherEntityNames)
 
             val relationType: String
             val weight: Float
             val reason: String
-            val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
             when {
                 sharedEntities.isNotEmpty() -> {
                     relationType = REL_SHARED_ENTITY
@@ -169,7 +185,7 @@ class KnowledgeGraph(
                     val entityTypes = entities.associate { it.name to it.type }
                     reason = "共同实体：" + sharedEntities.take(3).map { name ->
                         val type = entityTypes[name]
-                            ?: store.getEntityByName(name)?.entityType?.let {
+                            ?: entityTypeByName[name]?.let {
                                 runCatching { LocalEntityExtractor.EntityType.valueOf(it) }.getOrNull()
                             }
                             ?: LocalEntityExtractor.EntityType.CONCEPT
@@ -202,16 +218,7 @@ class KnowledgeGraph(
                 else -> continue
             }
 
-            edgesToUpsert.add(
-                GraphEdgeEntity(
-                    sourceId = noteId,
-                    targetId = otherId,
-                    relationType = relationType,
-                    weight = weight,
-                    reason = reason,
-                    createdAt = currentTime,
-                )
-            )
+            edgesToUpsert.add(canonicalEdge(noteId, otherId, relationType, weight, reason, currentTime))
             if (otherId !in existingLinkedIds) {
                 newLinkedIds.add(otherId)
             }
@@ -233,12 +240,9 @@ class KnowledgeGraph(
         val sorted = edges.sortedByDescending { it.weight }
         val keep = sorted.take(MAX_LINKS_PER_NOTE).map { it.id }.toSet()
         val toRemove = sorted.filter { it.id !in keep }
+        // 删除失败直接抛出，使外层写事务回滚；不在事务内静默吞异常后照常提交。
         for (edge in toRemove) {
-            try {
-                store.deleteEdge(edge.id)
-            } catch (e: Exception) {
-                DebugLog.e(TAG, "trimLinks deleteEdge failed: ${e.message}", e)
-            }
+            store.deleteEdge(edge.id)
         }
     }
 
@@ -272,9 +276,10 @@ class KnowledgeGraph(
                     if (a < b) GraphEdge(a, b) else GraphEdge(b, a)
                 }
                 .distinct()
+            val coveredNodeIds = links.flatMap { listOf(it.sourceId, it.targetId) }.toSet()
             val totalNotes = nodes.size
             val totalLinks = links.size
-            val isolatedNotes = nodes.count { store.getEdgesForNode(it.id).isEmpty() }
+            val isolatedNotes = nodes.count { it.id !in coveredNodeIds }
             GraphStats(
                 totalNotes = totalNotes,
                 totalLinks = totalLinks,
@@ -309,9 +314,12 @@ class KnowledgeGraph(
                 val queryVector = withTimeoutOrNull(30_000L) {
                     provider.embed(query)
                 } ?: return@withLock emptyList()
+                val embeddingByNode = store.getAllEmbeddings()
+                    .filter { isEmbeddingCompatible(it) }
+                    .associateBy { it.nodeId }
                 store.getAllNodes()
                     .mapNotNull { node ->
-                        val embedding = store.getEmbedding(node.id)?.vector?.toFloatArray()
+                        val embedding = embeddingByNode[node.id]?.vector?.toFloatArray()
                             ?: return@mapNotNull null
                         val similarity = cosineSimilarity(queryVector, embedding)
                         if (similarity > 0.05f) node.id to similarity else null
@@ -399,7 +407,6 @@ class KnowledgeGraph(
                             summary = summary,
                             keywords = keywords.joinToString(","),
                             updatedAt = currentTime,
-                            contentHash = content.hashCode().toString(),
                         )
                     )
                     contents.add(content)
@@ -421,29 +428,26 @@ class KnowledgeGraph(
                     return@withLock
                 }
 
-                val embeddings = try {
-                    val batch = provider.embedBatch(contents)
-                    batch.mapIndexed { index, vector ->
-                        GraphEmbeddingEntity(
-                            nodeId = noteIds[index],
-                            provider = provider.providerName(),
-                            model = "",
-                            dimension = vector.size,
-                            vector = vector.toByteArray(),
-                        )
-                    }
+                val (batchVectors, effectiveProvider) = try {
+                    provider.embedBatch(contents) to provider
                 } catch (e: Exception) {
                     DebugLog.w(TAG, "batch embedding failed, falling back to local: ${e.message}")
-                    val batch = LocalEmbeddingProvider(store).embedBatch(contents)
-                    batch.mapIndexed { index, vector ->
-                        GraphEmbeddingEntity(
-                            nodeId = noteIds[index],
-                            provider = provider.providerName(),
-                            model = "",
-                            dimension = vector.size,
-                            vector = vector.toByteArray(),
-                        )
-                    }
+                    val local = LocalEmbeddingProvider(store)
+                    local.embedBatch(contents) to local
+                }
+                val effectiveThreshold = if (effectiveProvider.providerName().startsWith("local")) {
+                    LOCAL_SIMILARITY_THRESHOLD
+                } else {
+                    SIMILARITY_THRESHOLD
+                }
+                val embeddings = batchVectors.mapIndexed { index, vector ->
+                    GraphEmbeddingEntity(
+                        nodeId = noteIds[index],
+                        provider = effectiveProvider.providerName(),
+                        model = modelNameFor(effectiveProvider),
+                        dimension = vector.size,
+                        vector = vector.toByteArray(),
+                    )
                 }
 
                 val nodeIds = nodes.map { it.id }
@@ -465,7 +469,7 @@ class KnowledgeGraph(
                         val relationType: String
                         val weight: Float
                         val reason: String
-                        val threshold = if (isLocalProvider()) LOCAL_SIMILARITY_THRESHOLD else SIMILARITY_THRESHOLD
+                        val threshold = effectiveThreshold
                         when {
                             sharedEntities.isNotEmpty() -> {
                                 relationType = REL_SHARED_ENTITY
@@ -497,16 +501,7 @@ class KnowledgeGraph(
                             else -> continue
                         }
 
-                        edges.add(
-                            GraphEdgeEntity(
-                                sourceId = aId,
-                                targetId = bId,
-                                relationType = relationType,
-                                weight = weight,
-                                reason = reason,
-                                createdAt = currentTime,
-                            )
-                        )
+                        edges.add(canonicalEdge(aId, bId, relationType, weight, reason, currentTime))
                     }
                 }
 
@@ -552,6 +547,59 @@ class KnowledgeGraph(
     } catch (e: Exception) {
         DebugLog.e(TAG, "needsRebuild failed: ${e.message}", e)
         false
+    }
+
+    private suspend fun embedWithFallback(content: String): Pair<FloatArray, EmbeddingProvider> {
+        return try {
+            provider.embed(content) to provider
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "embedding failed, falling back to local: ${e.message}")
+            val local = LocalEmbeddingProvider(store)
+            local.embed(content) to local
+        }
+    }
+
+    /** 历史向量仅在 provider 与维度都与当前提供器一致时才参与比对，否则视为缺失。 */
+    private fun isEmbeddingCompatible(embedding: GraphEmbeddingEntity): Boolean {
+        return embedding.provider == provider.providerName() &&
+            embedding.dimension == provider.dimension() &&
+            embedding.vector != null
+    }
+
+    /** 落库写入真实 model 标识；云端模型名不暴露在 EmbeddingProvider 接口上，留空待 provider 侧补充。 */
+    private fun modelNameFor(p: EmbeddingProvider): String {
+        return if (p.providerName().startsWith("local")) "tfidf-512" else ""
+    }
+
+    /** 边按无向规范化存储：落库前保证 sourceId <= targetId，唯一约束作用于规范化有序对。 */
+    private fun canonicalEdge(
+        sourceId: String,
+        targetId: String,
+        relationType: String,
+        weight: Float,
+        reason: String,
+        createdAt: Long,
+    ): GraphEdgeEntity {
+        // GraphEdgeEntity 首参为 id: Long，位置参数会把 String 误射到 id；统一用具名参数。
+        return if (sourceId <= targetId) {
+            GraphEdgeEntity(
+                sourceId = sourceId,
+                targetId = targetId,
+                relationType = relationType,
+                weight = weight,
+                reason = reason,
+                createdAt = createdAt,
+            )
+        } else {
+            GraphEdgeEntity(
+                sourceId = targetId,
+                targetId = sourceId,
+                relationType = relationType,
+                weight = weight,
+                reason = reason,
+                createdAt = createdAt,
+            )
+        }
     }
 
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
@@ -624,11 +672,7 @@ class KnowledgeGraph(
 
     /** 获取指定节点对之间的边详情（无向查找）。 */
     fun getEdgeDetails(sourceId: String, targetId: String): GraphEdgeDetail? = try {
-        store.getAllEdges()
-            .find {
-                (it.sourceId == sourceId && it.targetId == targetId) ||
-                    (it.sourceId == targetId && it.targetId == sourceId)
-            }
+        store.findEdgeByPair(sourceId, targetId)
             ?.let {
                 GraphEdgeDetail(
                     sourceId = it.sourceId,

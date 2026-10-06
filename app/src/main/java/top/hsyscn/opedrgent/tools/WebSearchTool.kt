@@ -5,6 +5,7 @@ import top.hsyscn.opedrgent.R
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -28,7 +29,6 @@ import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.utils.PromptSafety
 import top.hsyscn.opedrgent.utils.smartTruncate
-import java.util.concurrent.ConcurrentHashMap
 
 class WebSearchTool(
     private val context: Context,
@@ -38,8 +38,8 @@ class WebSearchTool(
     private val apiSettings: ApiSettings,
 ) : ToolSet {
 
+    private val webViewMutex = kotlinx.coroutines.sync.Mutex()
     private var webViewAgent: WebViewAgent? = null
-    private val translationCache = ConcurrentHashMap<String, String>()
 
     private fun buildSearchConfig(): SearchConfig = SearchConfig(
         providerOrder = apiSettings.getSearchProviderOrder(),
@@ -50,48 +50,10 @@ class WebSearchTool(
     )
 
     private suspend fun getWebViewAgent(): WebViewAgent {
-        return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
-    }
-
-    private suspend fun translateQueryToEnglish(query: String, config: ApiConfig): String {
-        val cached = translationCache[query]
-        if (cached != null) {
-            DebugLog.i("translateQuery: cache hit for '$query' → '$cached'")
-            return cached
-        }
-        val prompt = buildString {
-            appendLine("Translate this Chinese search query into English search keywords.")
-            appendLine("Output ONLY the English translation, no explanation, no quotes.")
-            appendLine("Keep it concise: 3-6 keywords separated by spaces.")
-            appendLine()
-            appendLine("Examples:")
-            appendLine("吉利 跨时代 人才 跃迁 计划 官方 → Geely cross-era talent leap plan official")
-            appendLine("中国 新能源 汽车 出口 数据 → China NEV export data")
-            appendLine("小米 SU7 评测 → Xiaomi SU7 review")
-            appendLine()
-            appendLine("Query: $query")
-        }
-        return try {
-            val result = withContext(Dispatchers.IO) {
-                llm.chatCompletions(
-                    config = config,
-                    system = "You are a search query translator. Translate Chinese queries to English for web search.",
-                    messages = listOf(
-                        ChatMessage(role = Role.USER, content = prompt, createdAt = System.currentTimeMillis()),
-                    ),
-                )
-            }.trim().trim('"').trim('\'')
-            DebugLog.i("translateQuery: '$query' → '$result'")
-            if (result.isNotBlank() && result.length > 3) {
-                translationCache[query] = result
-                result
-            } else {
-                DebugLog.w("translateQuery: result too short, fallback to original")
-                query
-            }
-        } catch (e: Exception) {
-            DebugLog.w("translateQuery failed: ${e.message}")
-            query
+        // check-then-act 加锁：executeDeepPhase 在 IO 上并发 deepFetch，避免多建 WebViewAgent 泄漏原生 WebView。
+        webViewAgent?.let { return it }
+        return webViewMutex.withLock {
+            webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
         }
     }
 
@@ -242,7 +204,7 @@ class WebSearchTool(
                     var p = el.querySelector('.b_caption p');
                     items.push({
                         title: h2 ? h2.textContent.trim() : '',
-                        url: h2 && h2.href ? h2.href : '',
+                        url: (h2 && h2.querySelector('a')) ? h2.querySelector('a').href : '',
                         snippet: p ? p.textContent.trim() : ''
                     });
                 });
@@ -275,9 +237,13 @@ class WebSearchTool(
     }
 
     private suspend fun multimodalSearch(tp: ToolPart, query: String, config: ApiConfig, systemPrompt: String): ToolResult {
+        // multimodal 读取已声明的可选 url；失败如实报 ERROR，不再包装成 COMPLETED 成功输出。
         val url = tp.state.input["url"] ?: "https://www.bing.com"
         val log = runCatching { getWebViewAgent().multimodalClick(query, url, llm, config, systemPrompt, maxRounds = 3) }.getOrNull()
-            ?: context.getString(R.string.error_multimodal_click_failed)
+            ?: return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+                status = ToolStateType.ERROR,
+                error = context.getString(R.string.error_multimodal_click_failed),
+                endTime = System.currentTimeMillis())))
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = log, endTime = System.currentTimeMillis())))
     }
@@ -329,9 +295,6 @@ class WebSearchTool(
             }
         }
     }
-
-    private fun parsePhase(tp: ToolPart): String =
-        tp.state.input["phase"]?.lowercase()?.trim() ?: "scan"
 
     private fun parseUrls(tp: ToolPart): List<String> =
         tp.state.input["urls"]?.split(Regex("[|\\n]+"))?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
@@ -512,7 +475,6 @@ class WebSearchTool(
     fun destroy() {
         webViewAgent?.destroy()
         webViewAgent = null
-        translationCache.clear()
     }
 
     override fun getTools(): Map<String, ToolBinding> {
@@ -542,6 +504,10 @@ class WebSearchTool(
                         put("urls", org.json.JSONObject().apply {
                             put("type", "string")
                             put("description", "deep 阶段要抓取的 URL，多个用 | 分隔")
+                        })
+                        put("url", org.json.JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选，仅 method=multimodal 时要点击/截图的目标页 URL；缺省 bing.com")
                         })
                         put("max_fetch", org.json.JSONObject().apply {
                             put("type", "integer")

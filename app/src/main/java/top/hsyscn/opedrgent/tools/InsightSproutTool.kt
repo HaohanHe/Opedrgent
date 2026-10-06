@@ -24,6 +24,8 @@ class InsightSproutTool(
     }
 
     private val sproutCache = LinkedHashMap<String, SproutCacheEntry>(CACHE_MAX_SIZE, 0.75f, true)
+    // 工具在 Dispatchers.IO 并发执行：非线程安全 LinkedHashMap 的读/淘汰/写需加同一把锁。
+    private val cacheLock = Any()
 
     private data class SproutCacheEntry(
         val result: String,
@@ -31,8 +33,6 @@ class InsightSproutTool(
         val timestamp: Long,
     )
 
-    @Tool("insight_sprout")
-    @ToolDescription("知识洞察：对输入文本进行深度多维度分析，衍生出结构化的洞察报告。参数中 text 为必填，length/domains/use_context 为可选。")
     suspend fun executeInsightSprout(
         tp: ToolPart,
         config: ApiConfig,
@@ -90,7 +90,7 @@ class InsightSproutTool(
         }
 
         val cacheKey = buildCacheKey(effectiveText, outputLength, preferredDomains)
-        val cached = sproutCache[cacheKey]
+        val cached = synchronized(cacheLock) { sproutCache[cacheKey] }
         if (cached != null) {
             DebugLog.i("insight_sprout: 命中缓存 cacheKey=$cacheKey")
             val cachedReport = formatCachedResult(cached.result, cached.qualityScore, fromCache = true)
@@ -128,16 +128,18 @@ class InsightSproutTool(
 
         val formattedReport = formatSproutResult(result, qualityScore, processingTimeMs, outputLength, preferredDomains)
 
-        if (sproutCache.size >= CACHE_MAX_SIZE) {
-            val oldestKey = sproutCache.keys.first()
-            sproutCache.remove(oldestKey)
-            DebugLog.d("insight_sprout: 缓存淘汰 key=$oldestKey")
+        synchronized(cacheLock) {
+            if (sproutCache.size >= CACHE_MAX_SIZE) {
+                val oldestKey = sproutCache.keys.first()
+                sproutCache.remove(oldestKey)
+                DebugLog.d("insight_sprout: 缓存淘汰 key=$oldestKey")
+            }
+            sproutCache[cacheKey] = SproutCacheEntry(
+                result = formattedReport,
+                qualityScore = qualityScore,
+                timestamp = System.currentTimeMillis(),
+            )
         }
-        sproutCache[cacheKey] = SproutCacheEntry(
-            result = formattedReport,
-            qualityScore = qualityScore,
-            timestamp = System.currentTimeMillis(),
-        )
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = formattedReport, endTime = System.currentTimeMillis())))
     }
@@ -177,8 +179,8 @@ class InsightSproutTool(
             if (lower.contains(keyword)) score += 15.0
         }
 
-        val questionMarks = para.count { it == '？' || it == '?' } +
-            Regex("[?？]").findAll(para).count()
+        // 问号只统计一次（原实现 count + Regex.findAll 对同字符集重复计数导致翻倍）
+        val questionMarks = para.count { it == '？' || it == '?' }
         score += questionMarks * 5.0
 
         val positionBonus = when {
@@ -188,7 +190,6 @@ class InsightSproutTool(
         }
         score += positionBonus
 
-        val density = para.filter { it.isLetterOrDigit() }.length.coerceAtLeast(1).toFloat()
         val ideaDensity = indicatorKeywords.count { lower.contains(it) }.toFloat() / (para.length.toFloat() / 100f)
         score += ideaDensity * 10.0
 

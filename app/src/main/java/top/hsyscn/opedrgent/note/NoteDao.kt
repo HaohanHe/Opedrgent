@@ -4,8 +4,6 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -15,10 +13,7 @@ import kotlinx.coroutines.withContext
  */
 class NoteDao(private val db: NoteDatabase) {
 
-    private val _changeNotifier = MutableStateFlow(System.currentTimeMillis())
-    val changeNotifier: Flow<Long> = _changeNotifier
-
-    private fun notifyChange() { _changeNotifier.value = System.currentTimeMillis() }
+    // 变更通知统一由 NoteRepository._changeTrigger 驱动，DAO 层不再维护无消费方的 StateFlow。
 
     /** 查询所有未删除笔记（置顶优先 + 更新时间倒序） */
     suspend fun getAllNotes(): List<Note> = withContext(Dispatchers.IO) {
@@ -62,13 +57,14 @@ class NoteDao(private val db: NoteDatabase) {
 
     /** 搜索笔记（标题/内容/摘要模糊匹配） */
     suspend fun searchNotes(query: String): List<Note> = withContext(Dispatchers.IO) {
-        val likePattern = "%$query%"
+        if (query.isBlank()) return@withContext emptyList()
+        val likePattern = "%${escapeLike(query)}%"
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
             """${NoteDatabase.COL_IS_DELETED} = 0 AND (
-                ${NoteDatabase.COL_TITLE} LIKE ? OR
-                ${NoteDatabase.COL_CONTENT} LIKE ? OR
-                ${NoteDatabase.COL_SUMMARY} LIKE ?
+                ${NoteDatabase.COL_TITLE} LIKE ? ESCAPE '\' OR
+                ${NoteDatabase.COL_CONTENT} LIKE ? ESCAPE '\' OR
+                ${NoteDatabase.COL_SUMMARY} LIKE ? ESCAPE '\'
             )""",
             arrayOf(likePattern, likePattern, likePattern),
             null, null, "${NoteDatabase.COL_UPDATED_AT} DESC",
@@ -78,10 +74,11 @@ class NoteDao(private val db: NoteDatabase) {
 
     /** 按标签筛选 */
     suspend fun getByTag(tag: String): List<Note> = withContext(Dispatchers.IO) {
+        if (tag.isBlank()) return@withContext emptyList()
         val cursor = db.readableDatabase.query(
             NoteDatabase.TABLE_NOTES, null,
-            "${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_TAGS_JSON} LIKE ?",
-            arrayOf("%\"$tag\"%"),
+            "${NoteDatabase.COL_IS_DELETED} = 0 AND ${NoteDatabase.COL_TAGS_JSON} LIKE ? ESCAPE '\'",
+            arrayOf("%\"${escapeLike(tag)}\"%"),
             null, null,
             "CASE WHEN ${NoteDatabase.COL_IS_PINNED}=1 THEN 0 ELSE 1 END, ${NoteDatabase.COL_UPDATED_AT} DESC",
         )
@@ -158,14 +155,12 @@ class NoteDao(private val db: NoteDatabase) {
         val values = noteToContentValues(note)
         if (note.id == 0L) {
             val id = db.writableDatabase.insert(NoteDatabase.TABLE_NOTES, null, values)
-            notifyChange()
             id
         } else {
             db.writableDatabase.update(
                 NoteDatabase.TABLE_NOTES, values,
                 "${NoteDatabase.COL_ID} = ?", arrayOf(note.id.toString()),
             )
-            notifyChange()
             note.id
         }
     }
@@ -177,7 +172,6 @@ class NoteDao(private val db: NoteDatabase) {
         }
         db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
             "${NoteDatabase.COL_ID} = ?", arrayOf(id.toString()))
-        notifyChange()
     }
 
     /** 置顶切换（不刷新 updatedAt：置顶不是内容编辑） */
@@ -187,7 +181,33 @@ class NoteDao(private val db: NoteDatabase) {
         }
         db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
             "${NoteDatabase.COL_ID} = ?", arrayOf(id.toString()))
-        notifyChange()
+    }
+
+    /** 原子翻转置顶状态（SET is_pinned = 1 - is_pinned），避免读-改-写在并发下吞掉一次翻转 */
+    suspend fun flipPinned(id: Long) = withContext(Dispatchers.IO) {
+        db.writableDatabase.execSQL(
+            "UPDATE ${NoteDatabase.TABLE_NOTES} SET ${NoteDatabase.COL_IS_PINNED} = 1 - ${NoteDatabase.COL_IS_PINNED} WHERE ${NoteDatabase.COL_ID} = ?",
+            arrayOf(id.toString())
+        )
+    }
+
+    /** 定向更新所属文件夹（folder_id 单列），避免整行 upsert 回写覆盖并发的内容/发芽写 */
+    suspend fun updateFolderId(id: Long, folderId: Long?) = withContext(Dispatchers.IO) {
+        val values = ContentValues().apply {
+            folderId?.let { put(NoteDatabase.COL_FOLDER_ID, it) } ?: putNull(NoteDatabase.COL_FOLDER_ID)
+        }
+        db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
+            "${NoteDatabase.COL_ID} = ?", arrayOf(id.toString()))
+    }
+
+    /** 把某文件夹下的直属笔记批量重挂到新文件夹（文件夹软删除级联，避免 folder_id 指向已删文件夹而成孤儿） */
+    suspend fun reparentNotes(fromFolderId: Long, newFolderId: Long?) = withContext(Dispatchers.IO) {
+        val values = ContentValues().apply {
+            newFolderId?.let { put(NoteDatabase.COL_FOLDER_ID, it) } ?: putNull(NoteDatabase.COL_FOLDER_ID)
+        }
+        db.writableDatabase.update(NoteDatabase.TABLE_NOTES, values,
+            "${NoteDatabase.COL_FOLDER_ID} = ? AND ${NoteDatabase.COL_IS_DELETED} = 0",
+            arrayOf(fromFolderId.toString()))
     }
 
     /** 获取最近 N 条 */
@@ -202,6 +222,10 @@ class NoteDao(private val db: NoteDatabase) {
     }
 
     // ==================== 内部工具 ====================
+
+    /** 转义 LIKE 通配符 % 与 _（并先转义反斜杠），配合语句中的 ESCAPE '\' 使用。 */
+    private fun escapeLike(raw: String): String =
+        raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     private fun noteToContentValues(note: Note): ContentValues = ContentValues().apply {
         if (note.id > 0) put(NoteDatabase.COL_ID, note.id)

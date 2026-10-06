@@ -6,6 +6,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
@@ -223,7 +226,10 @@ object ModelManager {
     }
 
     /** 下载状态缓存（modelType → 已下载），避免反复查文件系统 */
-    private val downloadStatusCache = mutableMapOf<ModelType, Boolean>()
+    private val downloadStatusCache = java.util.concurrent.ConcurrentHashMap<ModelType, Boolean>()
+
+    /** 同一模型并发下载互斥（U49-08）：modelType -> 下载锁 */
+    private val downloadMutexes = java.util.concurrent.ConcurrentHashMap<ModelType, Mutex>()
 
     /**
      * 检查模型是否已下载且文件完整。
@@ -240,9 +246,10 @@ object ModelManager {
         // 核心模型文件必须全部存在；HR后处理资源（dict.tar.bz2/lexicon.txt/replace.fst）是可选增强，
         // 缺失不影响模型可用性（只是HR矫正不启用），避免旧安装被误判为"未下载"
         val requiredFiles = modelInfo.files.filter { !it.first.startsWith("hr-files/") }
-        val result = requiredFiles.all { File(subDir, it.second).exists() } &&
-                ensureHrResourcesExtracted(subDir) &&
-                ensureTokensTxtExists(subDir)
+        // 本函数可能在 Composable 组合期被主线程调用，只做文件存在性判断；
+        // 绝不同步触发 dict.tar.bz2 解压或 tokens.json->txt 转换（会在主线程解压大 bz2 包导致 ANR，U49-02）。
+        // 解压/转换只在下载完成后（downloadModel / downloadHrResources）一次性执行。
+        val result = requiredFiles.all { File(subDir, it.second).exists() }
         downloadStatusCache[modelType] = result
         return result
     }
@@ -425,7 +432,16 @@ object ModelManager {
                     }
 
                     // 提取文件
+                    // Tar Slip 防护：规范化后必须仍位于 targetDir 之内，拒绝绝对路径与 ../ 越界条目（U49-04）
+                    val canonicalTarget = targetDir.canonicalPath
                     val outFile = File(targetDir, name)
+                    val canonicalOut = outFile.canonicalPath
+                    if (!canonicalOut.startsWith(canonicalTarget + File.separator)) {
+                        DebugLog.w("$TAG: 跳过越界 tar 条目: $name")
+                        val skipBlocks = (fileSize + 511L) / 512L
+                        repeat(skipBlocks.toInt()) { bzis.read(buffer) }
+                        continue
+                    }
                     outFile.parentFile?.mkdirs()
 
                     if (fileSize > 0) {
@@ -457,7 +473,11 @@ object ModelManager {
         return getModelSubDir(context, modelInfo).also { it.mkdirs() }
     }
 
-    fun downloadModel(context: Context, modelType: ModelType): Flow<DownloadProgress> = flow {
+    fun downloadModel(context: Context, modelType: ModelType): Flow<DownloadProgress> {
+        // 同一模型并发下载互斥：多个入口同时 collect 时只允许一个下载流写同一 localFile（U49-08）
+        val mutex = downloadMutexes.getOrPut(modelType) { Mutex() }
+        return flow {
+        mutex.withLock {
         val modelInfo = AVAILABLE_MODELS.find { it.type == modelType } ?: run {
             emit(DownloadProgress.Error("未知模型类型: $modelType"))
             return@flow
@@ -552,7 +572,9 @@ object ModelManager {
         } else {
             emit(DownloadProgress.Error("部分文件缺失"))
         }
-    }.flowOn(Dispatchers.IO)
+        }
+        }.flowOn(Dispatchers.IO)
+    }
 
     /**
      * 下载文件并emit进度（在 Flow 上下文中调用）
@@ -573,17 +595,28 @@ object ModelManager {
                 }
 
                 val body = response.body ?: return DownloadResult.Failed("响应体为空")
+                val expectedBytes = body.contentLength()
 
-                localFile.sink().buffer().use { sink ->
+                // 写入临时文件 .part，完整后再原子改名：
+                // 避免 App 被杀后留下的 >1KB 残缺文件被当成"已下载"（U49-07）
+                val partFile = File(localFile.parentFile, localFile.name + ".part")
+                if (partFile.exists()) partFile.delete()
+
+                partFile.sink().buffer().use { sink ->
                     val source = body.source()
                     val buffer = ByteArray(8192)
                     var totalRead = 0L
-                    var lastProgressTime = System.currentTimeMillis()
-                    var lastProgressBytes = 0L
                     var lastEmitTime = 0L
 
                     while (true) {
-                        val read = source.read(buffer)
+                        // 带超时的阻塞读：连接挂起时 source.read 会一直阻塞到 OkHttp readTimeout(120s)，
+                        // 使"5 秒无进度切源"失效。用 withTimeout 包住每次读，超时即中断并切源（U49-05）。
+                        val read = withTimeoutOrNull(STALL_TIMEOUT_MS) { source.read(buffer) }
+                        if (read == null) {
+                            DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据")
+                            partFile.delete()
+                            return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
+                        }
                         if (read == -1) break
                         sink.write(buffer, 0, read)
                         totalRead += read
@@ -596,15 +629,6 @@ object ModelManager {
                             emit(DownloadProgress.Downloading(progress))
                             lastEmitTime = now
                         }
-
-                        if (totalRead > lastProgressBytes) {
-                            lastProgressTime = now
-                            lastProgressBytes = totalRead
-                        } else if (now - lastProgressTime > STALL_TIMEOUT_MS) {
-                            DebugLog.w("$TAG: 下载卡住: ${STALL_TIMEOUT_MS / 1000}秒无数据")
-                            localFile.delete()
-                            return DownloadResult.Stalled("${STALL_TIMEOUT_MS / 1000}秒内无数据传输")
-                        }
                     }
                     // 最终上报一次
                     val cumulativeRead = alreadyDownloadedBytes + totalRead
@@ -612,9 +636,21 @@ object ModelManager {
                     emit(DownloadProgress.Downloading(progress))
                 }
 
-                if (localFile.length() < 1024) {
-                    localFile.delete()
-                    return DownloadResult.Failed("文件过小 (${localFile.length()} B)")
+                if (partFile.length() < 1024) {
+                    partFile.delete()
+                    return DownloadResult.Failed("文件过小 (${partFile.length()} B)")
+                }
+                // 已知 Content-Length 时比对大小，截断文件不算成功（U49-07）
+                if (expectedBytes > 0 && partFile.length() != expectedBytes) {
+                    partFile.delete()
+                    return DownloadResult.Failed("文件大小不完整 (${partFile.length()} B != ${expectedBytes} B)")
+                }
+
+                // 原子改名：只有完整文件才会落到最终 localFile
+                if (localFile.exists()) localFile.delete()
+                if (!partFile.renameTo(localFile)) {
+                    partFile.delete()
+                    return DownloadResult.Failed("临时文件改名失败")
                 }
 
                 return DownloadResult.Success(localFile)

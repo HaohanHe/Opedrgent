@@ -91,6 +91,10 @@ class DynamicAuthorityScorer {
     private val cacheTtlMs = 3600_000L
     private val cacheTimestamps = ConcurrentHashMap<String, Long>()
 
+    // 容量上限：搜索 URL 多为一次性、不会复取，过期条目只在复取同 key 时才清理，
+    // 否则缓存会随会话单调无界增长（U33-6）。这里在写入前做边界控制。
+    private val maxCacheEntries = 512
+
     fun calculate(url: String, title: String, snippet: String? = null): AuthorityScore {
         val cacheKey = buildCacheKey(url, title, snippet)
 
@@ -114,6 +118,8 @@ class DynamicAuthorityScorer {
             negativePenalty = negativePenalty,
             finalScore = finalScore
         )
+
+        enforceCacheBound()
 
         authorityCache[cacheKey] = score
         cacheTimestamps[cacheKey] = System.currentTimeMillis()
@@ -155,6 +161,24 @@ class DynamicAuthorityScorer {
         if (expiredKeys.isNotEmpty()) {
             DebugLog.d(TAG, "Cleared ${expiredKeys.size} expired cache entries")
         }
+    }
+
+    /**
+     * 写入前的缓存边界控制：先清过期；仍超容量则按写入时间淘汰最旧的一半，
+     * 保证 authorityCache/cacheTimestamps 不会随一次性 URL 无界增长。
+     */
+    private fun enforceCacheBound() {
+        if (authorityCache.size < maxCacheEntries) return
+        clearExpiredCache()
+        if (authorityCache.size < maxCacheEntries) return
+        val toDrop = cacheTimestamps.entries
+            .sortedBy { it.value }
+            .take((maxCacheEntries / 2).coerceAtLeast(1))
+        for ((k, _) in toDrop) {
+            authorityCache.remove(k)
+            cacheTimestamps.remove(k)
+        }
+        DebugLog.d(TAG, "Evicted ${toDrop.size} oldest authority cache entries")
     }
 
     private fun calculateBaseAuthority(domainInfo: DomainInfo): Double {

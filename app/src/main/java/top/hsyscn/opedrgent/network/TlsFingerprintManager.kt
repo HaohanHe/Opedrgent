@@ -5,12 +5,6 @@ import okhttp3.OkHttpClient
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import java.security.SecureRandom
-import javax.net.ssl.X509TrustManager
-import java.security.cert.X509Certificate
-import javax.net.ssl.TrustManager
-import javax.net.ssl.HttpsURLConnection
 
 /**
  * TLS指纹配置文件 - 模拟不同浏览器的TLS特征
@@ -21,29 +15,13 @@ enum class TlsProfile(
     val cipherSuites: List<String>?,
     val description: String
 ) {
-    CHROME_MODERN(
-        "Chrome Modern",
-        listOf("TLSv1.2", "TLSv1.3"),
-        null,  // 使用默认密码套件
-        "模拟现代Chrome浏览器的TLS配置"
-    ),
-    FIREFOX_MODERN(
-        "Firefox Modern", 
+    // 此前 4 个"浏览器" profile 的 tlsVersions/cipherSuites 完全一致，指纹随机化为空操作（U35-08）；
+    // 合并为 Modern（默认，启用 TLSv1.2/1.3）与 Compatible（仅 TLSv1.2，老旧服务器回退）两类。
+    MODERN(
+        "Modern",
         listOf("TLSv1.2", "TLSv1.3"),
         null,
-        "模拟现代Firefox浏览器的TLS配置"
-    ),
-    EDGE_WINDOWS(
-        "Edge Windows",
-        listOf("TLSv1.2", "TLSv1.3"),
-        null,
-        "模拟Windows Edge浏览器的TLS配置"
-    ),
-    SAFARI_MACOS(
-        "Safari macOS",
-        listOf("TLSv1.2", "TLSv1.3"),
-        null,
-        "模拟macOS Safari浏览器的TLS配置"
+        "现代 TLS 配置（默认，启用 TLSv1.3）"
     ),
     COMPATIBLE(
         "Compatible",
@@ -64,7 +42,7 @@ enum class TlsProfile(
  */
 object TlsFingerprintManager {
     
-    @Volatile private var currentProfile: TlsProfile = TlsProfile.CHROME_MODERN
+    @Volatile private var currentProfile: TlsProfile = TlsProfile.MODERN
     @Volatile private var sessionStartTime = 0L
     @Volatile private var requestCount = 0
     
@@ -90,7 +68,7 @@ object TlsFingerprintManager {
      */
     private fun selectRandomProfile(): TlsProfile {
         val profiles = TlsProfile.values()
-        val weights = doubleArrayOf(0.35, 0.25, 0.20, 0.15, 0.05)  // Chrome权重最高
+        val weights = doubleArrayOf(0.95, 0.05)  // 95% Modern / 5% Compatible
         
         val random = java.util.Random()
         val randVal = random.nextDouble()
@@ -176,37 +154,6 @@ object TlsFingerprintManager {
     }
     
     /**
-     * 创建信任所有证书的不安全客户端（仅用于调试）
-     * 
-     * ⚠️ 警告：不要在生产环境中使用！
-     */
-    fun createInsecureClient(): OkHttpClient {
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            })
-            
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(null, trustAllCerts, SecureRandom())
-            
-            return OkHttpClient.Builder()
-                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
-                .connectTimeout(NetworkConfig.TLS_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .readTimeout(NetworkConfig.TLS_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .writeTimeout(NetworkConfig.TLS_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .callTimeout(NetworkConfig.TLS_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .build()
-                
-        } catch (e: Exception) {
-            DebugLog.e("TlsFingerprintManager: failed to create insecure client: ${e.message}")
-            return HttpClients.default
-        }
-    }
-    
-    /**
      * 获取当前TLS配置信息（用于调试）
      */
     fun getCurrentProfileInfo(): Map<String, Any> {
@@ -231,7 +178,7 @@ object TlsFingerprintManager {
      * 重置状态（用于测试）
      */
     fun reset() {
-        currentProfile = TlsProfile.CHROME_MODERN
+        currentProfile = TlsProfile.MODERN
         sessionStartTime = System.currentTimeMillis()
         requestCount = 0
         clientCache.clear()

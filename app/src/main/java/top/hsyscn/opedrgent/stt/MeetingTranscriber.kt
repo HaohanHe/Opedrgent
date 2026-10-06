@@ -307,8 +307,8 @@ class MeetingTranscriber(
                 matchedId = matchSpeakerFromAudio(audioFile, firstSeg.startTimeMs, extractDurationMs)
             }
 
-            // 降级：使用统计特征
-            if (matchedId == null && !useRealEmbedding) {
+            // 降级：只要没匹配上（含 extractor 可用但单段提取失败），就走统计特征兜底（U50-05）
+            if (matchedId == null) {
                 val totalDuration = segments.last().endTimeMs
                 val features = buildSpeakerProfileFeatures(
                     labelSegments = labelSegments,
@@ -352,20 +352,15 @@ class MeetingTranscriber(
         val extractor = speakerEmbeddingExtractor ?: return null
         if (!extractor.isAvailable) return null
 
+        val segmentWav = extractWavSegment(audioFile, startMs, durationMs)
+            ?: run {
+                DebugLog.w(TAG, "无法截取音频片段: start=${startMs}ms, dur=${durationMs}ms")
+                return null
+            }
+
+        // 无论成功失败都删除临时文件（异常路径也清理，避免 cacheDir 累积 vp_segment_*.wav，U50-07）
         return try {
-            // 读取 WAV 文件并截取指定时间范围的 PCM 数据
-            val segmentWav = extractWavSegment(audioFile, startMs, durationMs)
-                ?: run {
-                    DebugLog.w(TAG, "无法截取音频片段: start=${startMs}ms, dur=${durationMs}ms")
-                    return null
-                }
-
-            // 使用提取器获取声纹嵌入（当前已在 suspend 上下文中，直接调用即可）
             val embedding = extractor.extractFromFile(segmentWav)
-
-            // 清理临时文件
-            segmentWav.delete()
-
             if (embedding != null) {
                 voiceprintManager?.matchSpeakerByEmbedding(embedding)
             } else {
@@ -374,6 +369,8 @@ class MeetingTranscriber(
         } catch (e: Exception) {
             DebugLog.w(TAG, "声纹提取/匹配失败: ${e.message}")
             null
+        } finally {
+            segmentWav.delete()
         }
     }
 

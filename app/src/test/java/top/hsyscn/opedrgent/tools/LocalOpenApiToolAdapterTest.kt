@@ -1,7 +1,6 @@
 package top.hsyscn.opedrgent.tools
 
 import org.json.JSONObject
-import org.json.JSONTokener
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,15 +62,15 @@ class LocalOpenApiToolAdapterTest {
     }
 
     @Test
-    fun stringParamPassedThroughAndOutputQuoted() {
+    fun stringParamPassedThroughAndOutputEnvelopedAsResult() {
         val a = adapter { tp ->
             assertEquals("abc", tp.state.input["id"])
             ok(tp, "done-output")
         }
         val raw = a.execute("""{"id":"abc"}""")
-        // 成功输出为 JSON 字符串字面量
-        val parsed = JSONTokener(raw).nextValue()
-        assertEquals("done-output", parsed)
+        // 成功统一为对象信封 {"result":...}，不再是被引号包裹的裸字符串
+        val obj = JSONObject(raw)
+        assertEquals("done-output", obj.getString("result"))
     }
 
     @Test

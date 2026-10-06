@@ -53,6 +53,9 @@ class SproutStateManager(
 
     private val sproutCache = mutableMapOf<String, SproutResult>()
     private var sproutJob: Job? = null
+    /** 发芽代次：每次 triggerSprout 自增；旧协程的 Cancelled/Error 终态写入仅在代次仍匹配时生效，
+     *  避免取消后旧协程在新协程已置 AnalyzingInput 后再写终态覆盖（U29-4）。 */
+    private var sproutRunId = 0
 
     /**
      * 触发一次知识发芽。
@@ -72,7 +75,16 @@ class SproutStateManager(
             return
         }
 
-        val cacheKey = trimmedText.hashCode().toString()
+        // 缓存键用 SHA-256 前 16 位 hex：String.hashCode 仅 32 位且不同文本会碰撞，
+        // 会把 A 文本的发芽结果错配给 B 文本（U29-12）。摘要失败再退化为长度+hashCode。
+        val cacheKey = try {
+            java.security.MessageDigest.getInstance("SHA-256")
+                .digest(trimmedText.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+                .take(16)
+        } catch (e: Exception) {
+            "f" + trimmedText.hashCode().toString() + "_" + trimmedText.length
+        }
         sproutCache[cacheKey]?.let { cached ->
             DebugLog.i("Sprout: 命中缓存，直接返回历史结果")
             _sproutResult.value = cached.markdownReport
@@ -81,6 +93,7 @@ class SproutStateManager(
             return
         }
 
+        val myRun = ++sproutRunId
         sproutJob?.cancel()
         _sproutingState.value = SproutingState.IDLE
         _sproutResult.value = null
@@ -155,12 +168,25 @@ class SproutStateManager(
 
                 DebugLog.i("Sprout: 发芽完成 phases=${result.completedPhases.size}/4 quality=$qualityScore time=${result.processingTimeMs}ms seeds=${result.seeds.size} insights=${result.insights.size}")
             } catch (e: kotlinx.coroutines.CancellationException) {
+                // 已被新一轮 triggerSprout 取代：不再写终态，避免覆盖新协程已置的 AnalyzingInput（U29-4）
+                if (sproutRunId != myRun) return@launch
                 val completedPhases = _sproutUiState.value.let { (it as? SproutUiState.GeneratingReport)?.phasesCompleted ?: 0 }
                 DebugLog.i("Sprout: 用户取消发芽 completedPhases=$completedPhases")
                 _sproutUiState.value = SproutUiState.Cancelled(completedPhases)
                 _sproutingState.value = SproutingState.IDLE
             } catch (e: Exception) {
-                val failedPhase = _sproutUiState.value.let { (it as? SproutUiState.PhaseInProgress)?.phase }
+                // 已被新一轮取代：同样不写终态
+                if (sproutRunId != myRun) return@launch
+                // 实际进行态是 AnalyzingInput / GeneratingReport（均为 SproutUiState 直接子类，
+                // 不继承 PhaseInProgress），按真实类型反推失败阶段（U29-5）。
+                val failedPhase = when (val st = _sproutUiState.value) {
+                    is SproutUiState.GeneratingReport -> {
+                        val idx = st.phasesCompleted.coerceAtMost(SproutPhase.entries.size - 1)
+                        SproutPhase.entries.getOrElse(idx) { SproutPhase.SEED_EXTRACTION }
+                    }
+                    is SproutUiState.AnalyzingInput -> SproutPhase.SEED_EXTRACTION
+                    else -> null
+                }
                 DebugLog.e("Sprout: 发芽异常 [${failedPhase?.name ?: "UNKNOWN"}] ${e.message}", e)
                 _sproutUiState.value = SproutUiState.Error(
                     app.getString(R.string.sprout_error_processing, e.message ?: ""),

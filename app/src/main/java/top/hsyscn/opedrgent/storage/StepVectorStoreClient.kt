@@ -102,10 +102,12 @@ object StepVectorStoreClient {
 
                 val json = JSONObject(responseBody)
                 val vs = json.optJSONObject("vector_store") ?: json
+                // file_counts 在阶跃 API 里是对象 {in_progress, completed, failed, total}，
+                // 与 listStores 保持同一解析口径，否则新建存储的 fileCount 恒为 0。
                 VectorStoreInfo(
                     id = vs.getString("id"),
                     name = vs.optString("name", name),
-                    fileCount = vs.optInt("file_counts", 0),
+                    fileCount = vs.optJSONObject("file_counts")?.optInt("total", 0) ?: 0,
                     createdAt = vs.optLong("created_at", 0L),
                     status = vs.optString("status", "completed"),
                 )
@@ -169,8 +171,7 @@ object StepVectorStoreClient {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                val response = client.newCall(request).execute()
-                response.isSuccessful || response.code == 204
+                client.newCall(request).execute().use { it.isSuccessful || it.code == 204 }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "删除向量存储异常: ${e.message}", e)
                 false
@@ -273,8 +274,7 @@ object StepVectorStoreClient {
                 .header("Authorization", "Bearer $apiKey")
                 .build()
 
-            val response = client.newCall(request).execute()
-            response.isSuccessful
+            client.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             DebugLog.e(TAG, "关联文件到向量存储异常: ${e.message}", e)
             false
@@ -330,8 +330,7 @@ object StepVectorStoreClient {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                val response = client.newCall(request).execute()
-                response.isSuccessful || response.code == 404 // 404 也说明认证通过只是没有数据
+                client.newCall(request).execute().use { it.isSuccessful || it.code == 404 }
             } catch (_: Exception) {
                 false
             }

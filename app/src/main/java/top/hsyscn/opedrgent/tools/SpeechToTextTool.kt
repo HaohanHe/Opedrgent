@@ -27,6 +27,7 @@ enum class ProcessingPhase(val progressRange: IntRange) {
     SEGMENTING(30..50),
     RECOGNIZING(50..100),
     IDLE(100..100),
+    ERROR(0..0),
 }
 
 data class ProcessingProgress(
@@ -42,7 +43,6 @@ class SpeechToTextTool(
 
     companion object {
         private const val TAG = "SpeechToTextTool"
-        private const val MAX_DURATION_MS = 1800_000L
         private const val MAX_FILE_SIZE_MB = 100
 
         private val AUDIO_EXTENSIONS = setOf(
@@ -62,7 +62,7 @@ class SpeechToTextTool(
         return mapOf(
             "speech_to_text" to ToolBinding(
                 name = "speech_to_text",
-                description = "语音转文字工具：将音频或视频文件中的语音内容识别为文字。支持常见音频格式(mp3,wav,m4a,aac,ogg,flac等)和视频格式(mp4,mkv,avi,mov,webm等)，可自动从视频中提取音频轨道。参数 uri(必填): 文件URI路径; language(可选,默认auto): zh/en/auto; enable_punctuation(可选,默认true): 是否添加标点。",
+                description = "语音转文字工具：将音频或视频文件中的语音内容识别为文字。支持常见音频格式(mp3,wav,m4a,aac,ogg,flac等)和视频格式(mp4,mkv,avi,mov,webm等)，可自动从视频中提取音频轨道。参数 uri(必填，也可用别名 file_uri 或 path 传入): 文件URI路径; language(可选,默认auto): zh/en/auto; enable_punctuation(可选,默认true): true/false，是否添加标点。",
                 invoker = { tp, config, sp, ups -> executeSpeechToText(tp, config, sp, ups) },
             ),
         )
@@ -115,13 +115,11 @@ class SpeechToTextTool(
         return MediaType.UNKNOWN
     }
 
-    @Tool("speech_to_text")
-    @ToolDescription("将音频或视频文件中的语音内容识别为文字。支持多种音视频格式，可自动从视频中提取音频轨道进行识别。")
     suspend fun executeSpeechToText(
         tp: ToolPart,
         config: ApiConfig,
         systemPrompt: String,
-        useProviderSearch: Boolean,
+        cancelled: Boolean,
     ): ToolResult {
         resetProgress()
 
@@ -175,7 +173,8 @@ class SpeechToTextTool(
                 val metadata = AudioProcessor.getAudioMetadata(context, uri)
                 if (metadata != null) {
                     DebugLog.i(TAG, "元数据: duration=${AudioProcessor.formatDuration(metadata.durationMs)} sampleRate=${metadata.sampleRate} channels=${metadata.channels} format=${metadata.format}")
-                    validateFileSize(metadata)
+                    val sizeError = checkFileTooLarge(metadata)
+                    if (sizeError != null) return@withContext emptyResult(tp, sizeError)
                 }
 
                 when (mediaType) {
@@ -222,7 +221,7 @@ class SpeechToTextTool(
                 updateProgress(ProcessingPhase.IDLE, 100, "完成")
                 successResult(tp, outputText)
             }.getOrElse { e ->
-                updateProgress(ProcessingPhase.IDLE, -1, "错误: ${e.message}")
+                updateProgress(ProcessingPhase.ERROR, 0, "错误: ${e.message}")
                 handleError(e, tp)
             }
         }
@@ -270,13 +269,23 @@ class SpeechToTextTool(
         }
     }
 
-    private fun validateFileSize(metadata: AudioMetadata?) {
-        if (metadata != null && metadata.fileSizeBytes > 0) {
-            val sizeMB = metadata.fileSizeBytes / (1024.0 * 1024.0)
-            if (sizeMB > MAX_FILE_SIZE_MB) {
-                DebugLog.w(TAG, "文件较大: ${String.format("%.1f", sizeMB)} MB (限制 ${MAX_FILE_SIZE_MB} MB)")
-            }
-        }
+    /** 返回非空表示文件超过大小上限需中止识别；null 表示通过。 */
+    private fun checkFileTooLarge(metadata: AudioMetadata?): String? {
+        if (metadata == null || metadata.fileSizeBytes <= 0) return null
+        val sizeMB = metadata.fileSizeBytes / (1024.0 * 1024.0)
+        if (sizeMB <= MAX_FILE_SIZE_MB) return null
+        return buildFileTooLargeError(sizeMB)
+    }
+
+    private fun buildFileTooLargeError(sizeMB: Double): String {
+        return """🗂 文件过大
+
+当前文件约 ${String.format("%.1f", sizeMB)} MB，超过 ${MAX_FILE_SIZE_MB} MB 上限。
+
+**建议操作：**
+- 压缩码率 / 采样率后重试
+- 裁剪音视频片段后分段识别
+- 导出为 WAV (16kHz 单声道) 以减小体积"""
     }
 
     private fun formatSuccessResult(result: SttResult, processingTimeMs: Long, metadata: AudioMetadata?, mediaType: MediaType): String {

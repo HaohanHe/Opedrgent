@@ -5,7 +5,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -13,6 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import top.hsyscn.opedrgent.interview.EngineEvent
 import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine.DuplexState
 
 /**
@@ -20,7 +21,7 @@ import top.hsyscn.opedrgent.interview.FullDuplexAudioEngine.DuplexState
  *
  * 本类只覆盖「纯状态机 + 权限门 + 入队门 + 状态回调」逻辑，绝不触碰真实音频硬件：
  *  - 不调用 connect() 成功后的 AudioRecord/AudioTrack 创建路径（RECORD_AUDIO 权限默认未授予，
- *    connect() 在创建任何硬件句柄之前就抛 SecurityException，正好验证权限门）；
+ *    connect() 在创建任何硬件句柄之前就上抛 PIPELINE_FAILED(PERMISSION_DENIED) 并保持 IDLE，正好验证权限门）；
  *  - 不调用 start()（它会拉起 startRecording()/startPlayback() 真实采集/播放线程）；
  *  - 到达 CONNECTED 态走的是公共方法 stop()（其内部对 null 的 recordJob/audioRecord 等全部
  *    runCatching 空转），不经过硬件。
@@ -47,20 +48,34 @@ class FullDuplexStateMachineRobolectricTest {
     }
 
     @Test
-    fun `connect without RECORD_AUDIO permission throws and stays IDLE`() {
+    fun `connect without RECORD_AUDIO surfaces permission error and stays IDLE`() {
         // 显式确保未授予（Robolectric 默认即未授予）
         assertEquals(PackageManager.PERMISSION_DENIED,
             ctx.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
 
-        var thrown: SecurityException? = null
+        // 捕获引擎事件：权限缺失应作为可区分的 PIPELINE_FAILED(PERMISSION_DENIED) 同步上抛，
+        // 由上层监听后引导运行时授权，而不是裸抛 SecurityException（U55-11）。
+        val events = mutableListOf<EngineEvent>()
+        engine.onEngineEvent { events.add(it) }
+
+        // 新契约：connect() 不再抛异常
+        var thrown: Throwable? = null
         try {
             engine.connect()
-        } catch (e: SecurityException) {
-            thrown = e
+        } catch (t: Throwable) {
+            thrown = t
         }
-        assertNotNull(thrown)
+        assertNull("connect() 无权限时不应再抛异常: ${thrown?.message}", thrown)
+
         // 权限门在创建 AudioRecord/AudioTrack 之前触发，状态不得迁移
         assertEquals(DuplexState.IDLE, engine.state)
+
+        // 必须收到可区分的权限被拒信号（kind=PIPELINE_FAILED 且 message=PERMISSION_DENIED）
+        val permEvents = events.filter {
+            it.kind == EngineEvent.Kind.PIPELINE_FAILED &&
+                it.message == "PERMISSION_DENIED"
+        }
+        assertTrue("应收到 PIPELINE_FAILED(PERMISSION_DENIED) 事件，实际: $events", permEvents.isNotEmpty())
     }
 
     @Test

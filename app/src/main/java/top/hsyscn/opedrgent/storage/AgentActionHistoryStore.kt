@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.utils.CrashReporter
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
@@ -177,7 +178,14 @@ class AgentActionHistoryStore(context: Context) {
                 arr.getJSONObject(i).toTaskRecord()
             }
         } catch (e: Exception) {
+            // 写一半崩溃导致文件截断时，静默返回空列表会让全部历史/模板凭空消失。
+            // 保留损坏副本为 .corrupt 供排查，再返回空列表。
             DebugLog.e(TAG, "加载历史失败: ${e.message}", e)
+            runCatching {
+                File(file.parentFile, file.name + ".corrupt").writeText(
+                    file.readText(), Charsets.UTF_8,
+                )
+            }
             emptyList()
         }
     }
@@ -186,9 +194,17 @@ class AgentActionHistoryStore(context: Context) {
         try {
             val arr = JSONArray()
             records.forEach { arr.put(it.toJson()) }
-            file.writeText(arr.toString())
+            // tmp + rename 原子写：避免写一半崩溃把主文件截断成全空历史
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            tmp.writeText(arr.toString(), Charsets.UTF_8)
+            val renamed = tmp.exists() && tmp.length() > 0L && tmp.renameTo(file)
+            if (!renamed) {
+                tmp.delete()
+                file.writeText(arr.toString(), Charsets.UTF_8)
+            }
         } catch (e: Exception) {
             DebugLog.e(TAG, "保存历史失败: ${e.message}", e)
+            CrashReporter.logError(TAG, "保存历史失败", e)
         }
     }
 

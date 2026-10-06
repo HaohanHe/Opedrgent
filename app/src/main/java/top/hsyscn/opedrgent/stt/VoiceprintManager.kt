@@ -83,11 +83,11 @@ class VoiceprintManager(private val context: Context) {
             extractAudioFeatures(File(path))
         }
 
-        val avgEmbedding = if (allFeatures.isNotEmpty()) {
-            averageEmbeddings(allFeatures, STATISTICAL_EMBEDDING_DIM)
-        } else {
-            hashEmbedding(name)
+        if (allFeatures.isEmpty()) {
+            // 全部样本解码失败时禁止把 name 哈希向量当真实声纹持久化（余弦相似度无意义，会误命中，U50-10）
+            throw IllegalStateException("未能从任何样本提取有效音频特征，无法注册说话人")
         }
+        val avgEmbedding = averageEmbeddings(allFeatures, STATISTICAL_EMBEDDING_DIM)
 
         val profile = SpeakerProfile(
             id = UUID.randomUUID().toString(),
@@ -414,9 +414,15 @@ class VoiceprintManager(private val context: Context) {
 
     private fun parseSpeakers(jsonStr: String): List<SpeakerProfile> {
         val result = mutableListOf<SpeakerProfile>()
-        try {
-            val array = JSONArray(jsonStr)
-            for (i in 0 until array.length()) {
+        val array = try {
+            JSONArray(jsonStr)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "解析声纹数据失败(整体JSON): ${e.message}", e)
+            return result
+        }
+        // 逐条容错：单条条目损坏/字段缺失只跳过该条，不丢弃已成功解析的全部声纹（U50-09）
+        for (i in 0 until array.length()) {
+            runCatching {
                 val obj = array.getJSONObject(i)
                 val id = obj.getString("id")
                 val name = obj.getString("name")
@@ -439,9 +445,9 @@ class VoiceprintManager(private val context: Context) {
                     }
                 }
                 result.add(SpeakerProfile(id, name, paths, embed, embeddingType, actualDim))
+            }.onFailure { e ->
+                DebugLog.w(TAG, "跳过损坏的声纹条目[$i]: ${e.message}")
             }
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "解析声纹数据失败: ${e.message}", e)
         }
         return result
     }

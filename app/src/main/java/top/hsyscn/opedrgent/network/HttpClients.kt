@@ -12,9 +12,12 @@ object HttpClients {
     /**
      * 连接池配置
      */
+    // 连接保活时长（分钟）。性能统计上报需与连接池实际值同源派生，避免口径漂移。
+    private const val KEEPALIVE_DURATION_MINUTES = 5L
+
     private val connectionPool = ConnectionPool(
         maxIdleConnections = NetworkConfig.MAX_IDLE_CONNECTIONS,
-        keepAliveDuration = 5,
+        keepAliveDuration = KEEPALIVE_DURATION_MINUTES,
         TimeUnit.MINUTES
     )
 
@@ -172,14 +175,13 @@ object HttpClients {
         return mapOf(
             "connectionPool" to mapOf(
                 "maxIdleConnections" to NetworkConfig.MAX_IDLE_CONNECTIONS,
-                "keepAliveDurationSec" to 5
+                "keepAliveDurationSec" to TimeUnit.MINUTES.toSeconds(KEEPALIVE_DURATION_MINUTES)
             ),
             "dispatcher" to mapOf(
                 "maxRequests" to NetworkConfig.MAX_REQUESTS,
                 "maxRequestsPerHost" to NetworkConfig.MAX_REQUESTS_PER_HOST
             ),
-            "tlsProfile" to TlsFingerprintManager.getCurrentProfileInfo(),
-            "cacheStats" to emptyMap<String, Any>()  // WebSearcher cache stats available via WebSearcher instance
+            "tlsProfile" to TlsFingerprintManager.getCurrentProfileInfo()
         )
     }
 }

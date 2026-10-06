@@ -1,11 +1,7 @@
 package top.hsyscn.opedrgent.network
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -97,20 +93,8 @@ object EngineStatusManager {
         level = DeprecationLevel.WARNING
     )
     fun startHealthCheck(scope: CoroutineScope) {
-        if (healthCheckJob != null) return
-        
-        healthCheckJob = scope.launch(Dispatchers.IO) {
-            while (isActive) {
-                try {
-                    delay(60_000L) // 每分钟检查一次
-                    performHealthChecks()
-                } catch (e: Exception) {
-                    DebugLog.w("EngineStatusManager health check error: ${e.message}")
-                }
-            }
-        }
-        
-        DebugLog.i("EngineStatusManager: health check started")
+        // 死代码已切除：引擎暂停/恢复状态机由 SmartCircuitBreaker 承担，这里不再启动任何轮询。
+        DebugLog.d("EngineStatusManager: startHealthCheck deprecated, no-op")
     }
     
     /**
@@ -127,72 +111,6 @@ object EngineStatusManager {
         DebugLog.i("EngineStatusManager: health check stopped")
     }
     
-    /**
-     * 对所有暂停的引擎执行健康检查
-     */
-    private suspend fun performHealthChecks() {
-        val now = System.currentTimeMillis()
-        
-        statusMap.entries
-            .filter { it.value.suspended && it.value.suspendUntil < now }
-            .forEach { (engineName, status) ->
-                if (status.inRecoveryMode && status.recoveryAttempts >= status.maxRecoveryAttempts) {
-                    // 超过最大重试次数，延长暂停时间
-                    extendSuspension(engineName, status)
-                } else {
-                    // 尝试恢复
-                    attemptRecovery(engineName)
-                }
-            }
-    }
-    
-    /**
-     * 延长暂停时间（指数退避）
-     */
-    private fun extendSuspension(engineName: String, currentStatus: EngineStatus) {
-        val baseDelay = when (classifyError(currentStatus.lastError ?: "")) {
-            ErrorType.CAPTCHA -> 300_000L   // 5分钟
-            ErrorType.RATE_LIMIT -> 120_000L // 2分钟
-            ErrorType.FORBIDDEN -> 180_000L   // 3分钟
-            else -> 60_000L                   // 1分钟
-        }
-        
-        // 指数退避：每次延长2倍，最大1小时
-        val attempts = currentStatus.recoveryAttempts.coerceAtLeast(1)
-        val extendedDelay = (baseDelay * Math.pow(2.0, attempts.toDouble())).toLong()
-            .coerceAtMost(3_600_000L)
-        
-        val newSuspendUntil = System.currentTimeMillis() + extendedDelay
-        
-        statusMap[engineName] = currentStatus.copy(
-            suspendUntil = newSuspendUntil,
-            recoveryAttempts = 0,  // 重置重试计数
-            inRecoveryMode = false
-        )
-        
-        DebugLog.w("EngineStatusManager: $engineName suspension extended by ${extendedDelay / 1000}s")
-    }
-    
-    /**
-     * 尝试恢复暂停的引擎
-     */
-    private fun attemptRecovery(engineName: String) {
-        val current = statusMap[engineName] ?: return
-        
-        statusMap[engineName] = current.copy(
-            inRecoveryMode = true,
-            recoveryAttempts = current.recoveryAttempts + 1
-        )
-        
-        DebugLog.i("EngineStatusManager: attempting recovery #$${current.recoveryAttempts + 1} for $engineName")
-        
-        // 标记为可用的短暂时间窗口（30秒），让搜索引擎尝试调用
-        statusMap[engineName] = (statusMap[engineName] ?: current).copy(
-            suspended = false,
-            suspendUntil = System.currentTimeMillis() + 30_000L
-        )
-    }
-
     @Deprecated(
         message = "Use CircuitBreakerManager.getOrCreate(engineName).allowRequest() instead",
         replaceWith = ReplaceWith("CircuitBreakerManager.getOrCreate(engineName).allowRequest()")
@@ -206,34 +124,6 @@ object EngineStatusManager {
             if (!status.suspended) return true
             val now = System.currentTimeMillis()
             status.suspendUntil < now
-        }
-    }
-
-    /**
-     * 分类错误类型
-     */
-    private fun classifyError(errorMessage: String): ErrorType {
-        return when {
-            errorMessage.contains("CAPTCHA", ignoreCase = true) ||
-                errorMessage.contains("captcha", ignoreCase = true) ||
-                errorMessage.contains("challenge", ignoreCase = true) -> ErrorType.CAPTCHA
-            
-            errorMessage.contains("429") || 
-                errorMessage.contains("Too Many Requests") ||
-                errorMessage.contains("rate limit", ignoreCase = true) -> ErrorType.RATE_LIMIT
-            
-            errorMessage.contains("403") || 
-                errorMessage.contains("Forbidden") -> ErrorType.FORBIDDEN
-            
-            errorMessage.contains("timeout", ignoreCase = true) ||
-                errorMessage.contains("SocketTimeout") ||
-                errorMessage.contains("ConnectTimeout") -> ErrorType.TRANSIENT
-            
-            errorMessage.contains("SSL") ||
-                errorMessage.contains("certificate") ||
-                errorMessage.contains("UnknownHost") -> ErrorType.PERMANENT
-            
-            else -> ErrorType.UNKNOWN
         }
     }
 

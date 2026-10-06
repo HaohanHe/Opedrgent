@@ -209,52 +209,51 @@ class SpeakerEmbeddingExtractor(private val context: Context) {
             val createStreamMethod = inst.javaClass.getMethod("createStream")
             val stream = createStreamMethod.invoke(inst) ?: return null
 
-            // 喂入音频
-            val acceptMethod = stream.javaClass.getMethod(
-                "acceptWaveform",
-                FloatArray::class.java,
-                Int::class.javaPrimitiveType,
-            )
-            acceptMethod.invoke(stream, samples, SAMPLE_RATE)
-
-            // 标记输入完成
-            val inputFinishedMethod = stream.javaClass.getMethod("inputFinished")
-            inputFinishedMethod.invoke(stream)
-
-            // 检查是否就绪
-            val isReadyMethod = inst.javaClass.getMethod(
-                "isReady",
-                stream.javaClass,
-            )
-            val ready = isReadyMethod.invoke(inst, stream) as? Boolean ?: false
-            if (!ready) {
-                DebugLog.w(TAG, "extractor.isReady() = false")
-                // 尝试直接 compute
-            }
-
-            // 计算嵌入
-            val computeMethod = inst.javaClass.getMethod(
-                "compute",
-                stream.javaClass,
-            )
-            val result = computeMethod.invoke(inst, stream) ?: return null
-
-            // 获取嵌入向量
-            val getEmbeddingMethod = result.javaClass.getMethod("getEmbedding")
-            val embedding = getEmbeddingMethod.invoke(result) as? FloatArray
-
-            // 释放 stream
             try {
-                val releaseMethod = stream.javaClass.getMethod("release")
-                releaseMethod.invoke(stream)
-            } catch (_: Exception) {}
+                // 喂入音频
+                val acceptMethod = stream.javaClass.getMethod(
+                    "acceptWaveform",
+                    FloatArray::class.java,
+                    Int::class.javaPrimitiveType,
+                )
+                acceptMethod.invoke(stream, samples, SAMPLE_RATE)
 
-            if (embedding != null && embedding.size == EMBEDDING_DIM) {
-                DebugLog.i(TAG, "嵌入提取成功: dim=${embedding.size}, norm=${String.format("%.4f", embeddingNorm(embedding))}")
-                return embedding
-            } else {
-                DebugLog.w(TAG, "嵌入维度异常: ${embedding?.size ?: "null"} (expected $EMBEDDING_DIM)")
-                return null
+                // 标记输入完成
+                val inputFinishedMethod = stream.javaClass.getMethod("inputFinished")
+                inputFinishedMethod.invoke(stream)
+
+                // 检查是否就绪
+                val isReadyMethod = inst.javaClass.getMethod(
+                    "isReady",
+                    stream.javaClass,
+                )
+                @Suppress("UNUSED_VARIABLE")
+                val ready = isReadyMethod.invoke(inst, stream) as? Boolean ?: false
+
+                // 计算嵌入
+                val computeMethod = inst.javaClass.getMethod(
+                    "compute",
+                    stream.javaClass,
+                )
+                val result = computeMethod.invoke(inst, stream) ?: return null
+
+                // 获取嵌入向量
+                val getEmbeddingMethod = result.javaClass.getMethod("getEmbedding")
+                val embedding = getEmbeddingMethod.invoke(result) as? FloatArray
+
+                if (embedding != null && embedding.size == EMBEDDING_DIM) {
+                    DebugLog.i(TAG, "嵌入提取成功: dim=${embedding.size}, norm=${String.format("%.4f", embeddingNorm(embedding))}")
+                    return embedding
+                } else {
+                    DebugLog.w(TAG, "嵌入维度异常: ${embedding?.size ?: "null"} (expected $EMBEDDING_DIM)")
+                    return null
+                }
+            } finally {
+                // 任一反射调用抛异常都必须释放 native stream，避免句柄泄漏（U50-06）
+                try {
+                    val releaseMethod = stream.javaClass.getMethod("release")
+                    releaseMethod.invoke(stream)
+                } catch (_: Exception) {}
             }
         } catch (e: Exception) {
             DebugLog.e(TAG, "反射提取嵌入失败: ${e.message}", e)

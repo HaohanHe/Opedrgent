@@ -3,31 +3,34 @@ package top.hsyscn.opedrgent.network
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.util.regex.Pattern
 
+/**
+ * 融合权重。
+ *
+ * 注意：进入融合的每个分量都必须先归一到 [0,1] 再加权，否则不同量程的分量
+ * 会互相淹没。relevance 为 SearchResultContainer 产出的复合分（量程约 0~100），
+ * 在 rank() 内对本批结果做 min-max 归一后使用。authority / freshness 已由容器
+ * 折叠进该复合分，此处不再重复计分。
+ */
 data class RankingWeights(
-    val bm25: Double = 0.25,
-    val semantic: Double = 0.20,
-    val authority: Double = 0.15,
-    val freshness: Double = 0.15,
-    val diversity: Double = 0.10,
-    val position: Double = 0.15
+    val relevance: Double = 0.55,  // 容器复合分（已批量归一到 [0,1]，含 bm25/位置/权威/新鲜度）
+    val semantic: Double = 0.25,  // 词法重叠分 [0,1]
+    val position: Double = 0.20   // 原始位置分（已归一到 [0,1]）
 )
 
 data class RankingConfig(
     val weights: RankingWeights = RankingWeights(),
     val useMMR: Boolean = true,
     val mmrLambda: Double = 0.7,
-    val mmrTopK: Int = 20,
-    val normalizeScores: Boolean = true
+    val mmrTopK: Int = 20
 )
 
 data class RankedResult(
     val result: SearchResult,
-    val bm25Score: Double,
+    val compositeScore: Double,
     val semanticScore: SemanticScore?,
     val authorityScore: AuthorityScore?,
     val freshnessScore: FreshnessScore?,
     val hybridScore: Double,
-    val diversityScore: Double,
     val positionScore: Double
 )
 
@@ -38,7 +41,7 @@ class HybridRankingEngine(
     companion object {
         private const val TAG = "HybridRankingEngine"
 
-        private val CHINESE_WORD_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{2,4}")
+        private val CHINESE_WORD_PATTERN = Pattern.compile("[\u4e00-\u9fa5]{2,4}")
         private val ENGLISH_WORD_PATTERN = Pattern.compile("[a-zA-Z][a-zA-Z0-9_-]{1,20}")
 
         private val STOP_WORDS = setOf(
@@ -73,11 +76,20 @@ class HybridRankingEngine(
             return emptyList()
         }
 
-        val totalResults = results.size
         DebugLog.d("[$TAG] ranking ${results.size} results, limit=$limit")
 
+        // ★ 把容器复合分（量程约 0~100，含 bm25/位置/权威/新鲜度/引擎多样性）
+        //   在本批结果内 min-max 归一到 [0,1]，使各分量同量程可加权。
+        //   旧实现直接把这个 10~100 量级的复合分当成 BM25 以 0.25 权重融合，
+        //   再过 sigmoid 导致头尾都被钳到 0.999、排序失效（U33-1）。
+        val minScore = results.minOf { it.score }
+        val maxScore = results.maxOf { it.score }
+        val scoreRange = maxScore - minScore
+        fun normalizeComposite(score: Double): Double =
+            if (scoreRange <= 0.0) 1.0 else (score - minScore) / scoreRange
+
         val rankedList = results.mapIndexed { index, result ->
-            calculateHybridScore(result, index, totalResults)
+            calculateHybridScore(result, index, normalizeComposite(result.score))
         }
 
         val sortedByScore = rankedList.sortedByDescending { it.hybridScore }
@@ -89,7 +101,7 @@ class HybridRankingEngine(
             sortedByScore.take(limit)
         }
 
-        DebugLog.i("[$TAG] ranking complete: ${results.size} in → ${finalResults.size} out, MMR=${config.useMMR}")
+        DebugLog.i("[$TAG] ranking complete: ${results.size} in -> ${finalResults.size} out, MMR=${config.useMMR}")
         return finalResults
     }
 
@@ -134,34 +146,18 @@ class HybridRankingEngine(
         return selected
     }
 
-    fun getWeightsForIntent(intent: QueryIntent): RankingWeights {
-        return when (intent) {
-            QueryIntent.INFORMATIONAL -> RankingWeights(
-                bm25 = 0.25, semantic = 0.25,
-                authority = 0.15, freshness = 0.15,
-                diversity = 0.10, position = 0.10
-            )
-            QueryIntent.NAVIGATIONAL -> RankingWeights(
-                bm25 = 0.20, semantic = 0.15,
-                authority = 0.25, freshness = 0.05,
-                diversity = 0.05, position = 0.30
-            )
-            QueryIntent.TRANSACTIONAL -> RankingWeights(
-                bm25 = 0.15, semantic = 0.15,
-                authority = 0.20, freshness = 0.20,
-                diversity = 0.10, position = 0.20
-            )
-        }
-    }
-
-    private fun calculateHybridScore(result: SearchResult, originalPosition: Int, totalResults: Int): RankedResult {
-        val bm25Score = result.score
-
+    private fun calculateHybridScore(
+        result: SearchResult,
+        originalPosition: Int,
+        relevanceNorm: Double
+    ): RankedResult {
         val semanticScore = semanticScorer.calculateScore(
             title = result.title,
             snippet = result.snippet
         )
 
+        // authority / freshness 已由 SearchResultContainer 折叠进 result.score，
+        // 这里仅保留诊断记录，不再计入融合加权，避免双重计分（U33-1）。
         val authorityScore = authorityScorer.calculate(
             url = result.url,
             title = result.title,
@@ -174,37 +170,29 @@ class HybridRankingEngine(
         )
 
         val engineWeight = calculateEngineWeight(result.sourceEngines)
-        val positionScore = calculatePositionScore(originalPosition, totalResults)
-        val diversityScore = 1.0
+        val positionScore = calculatePositionScore(originalPosition)
 
-        val rawHybridScore =
-            bm25Score * config.weights.bm25 +
+        // 三个分量均为 [0,1] 且权重和为 1.0，线性加权后天然落在 [0,1]，
+        // 不再过 sigmoid（旧 sigmoid 在大输入下饱和钳顶，丢失区分度）。
+        val baseScore =
+            relevanceNorm * config.weights.relevance +
             semanticScore.combinedScore * config.weights.semantic +
-            authorityScore.finalScore * config.weights.authority +
-            freshnessScore.adjustedScore * config.weights.freshness +
-            diversityScore * config.weights.diversity +
             positionScore * config.weights.position
 
-        val engineAdjustedScore = rawHybridScore * engineWeight
-
-        val finalScore = if (config.normalizeScores) {
-            sigmoid(engineAdjustedScore)
-        } else {
-            engineAdjustedScore.coerceIn(0.0, 1.0)
-        }
+        // 引擎交叉验证作为相对乘子保留（仅影响排序，不做 [0,1] 截断以免再次饱和）
+        val hybridScore = (baseScore * engineWeight).coerceAtLeast(0.0)
 
         return RankedResult(
             result = result,
-            bm25Score = bm25Score,
+            compositeScore = result.score,
             semanticScore = semanticScore,
             authorityScore = authorityScore,
             freshnessScore = freshnessScore,
-            hybridScore = finalScore,
-            diversityScore = diversityScore,
+            hybridScore = hybridScore,
             positionScore = positionScore
         ).also {
-            DebugLog.d("[$TAG] hybridScore=${"%.4f".format(finalScore)} | " +
-                    "bm25=${"%.3f".format(bm25Score)} sem=${"%.3f".format(semanticScore.combinedScore)} " +
+            DebugLog.d("[$TAG] hybridScore=${"%.4f".format(hybridScore)} | " +
+                    "relevance=${"%.3f".format(relevanceNorm)} sem=${"%.3f".format(semanticScore.combinedScore)} " +
                     "auth=${"%.3f".format(authorityScore.finalScore)} fresh=${"%.3f".format(freshnessScore.adjustedScore)} " +
                     "pos=${"%.3f".format(positionScore)} engW=${"%.2f".format(engineWeight)} | ${result.title.take(40)}")
         }
@@ -265,19 +253,11 @@ class HybridRankingEngine(
     }
 
     /**
-     * SearXNG 风格线性位置衰减：score = base / position
-     * 比对数衰减更平缓，避免过度惩罚后排结果。
+     * 位置分归一到 [0,1]：首位=1.0，随位置线性衰减 1/(pos+1)。
+     * 与其它 [0,1] 分量同量程（旧实现返回 10/(pos+1)∈[0,10]，与 [0,1] 分量错配）。
      */
-    private fun calculatePositionScore(position: Int, totalResults: Int): Double {
+    private fun calculatePositionScore(position: Int): Double {
         val effectivePos = (position + 1).coerceAtLeast(1)
-        return (10.0 / effectivePos).coerceIn(0.0, 10.0)
-    }
-
-    private fun sigmoid(x: Double): Double {
-        return (1.0 / (1.0 + Math.exp(-x))).coerceIn(0.001, 0.999)
-    }
-
-    private fun normalizeScore(score: Double, min: Double, max: Double): Double {
-        return if (max <= min) score else ((score - min) / (max - min)).coerceIn(0.0, 1.0)
+        return (1.0 / effectivePos).coerceIn(0.0, 1.0)
     }
 }

@@ -50,6 +50,9 @@ class StepSearchTool : ToolSet {
 
         /** 最大返回结果数 */
         const val MAX_N = 20
+
+        /** category 枚举白名单（与 Schema enum 对齐，非法值兜底为 research） */
+        private val ALLOWED_CATEGORIES = setOf(CATEGORY_RESEARCH, CATEGORY_GENERAL)
     }
 
     private val client: OkHttpClient by lazy {
@@ -101,6 +104,7 @@ class StepSearchTool : ToolSet {
 
             val category = args.optString("category", CATEGORY_RESEARCH)
                 .ifBlank { CATEGORY_RESEARCH }
+                .let { if (it in ALLOWED_CATEGORIES) it else CATEGORY_RESEARCH }
             val n = args.optInt("n", DEFAULT_N).coerceIn(1, MAX_N)
 
             // 调用 Search API
@@ -171,7 +175,8 @@ class StepSearchTool : ToolSet {
 
             val items = mutableListOf<SearchItem>()
             for (i in 0 until dataArr.length()) {
-                val item = dataArr.getJSONObject(i)
+                // 容错：data 中混入字符串/null 等非对象元素时跳过，不整次失败
+                val item = dataArr.optJSONObject(i) ?: continue
                 items.add(SearchItem(
                     title = item.optString("title", ""),
                     url = item.optString("url", ""),
@@ -241,7 +246,11 @@ class StepSearchTool : ToolSet {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                client.newCall(request).execute().isSuccessful
+                // use{} 关闭 ResponseBody 以回收连接，避免每次校验泄漏一条连接
+                client.newCall(request).execute().use { resp ->
+                    resp.body?.close()
+                    resp.isSuccessful
+                }
             } catch (_: Exception) { false }
         }
 }

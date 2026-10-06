@@ -399,7 +399,12 @@ class SpeakerDiarizer(private val context: Context) {
                 if (dataSize <= 0) return@use FloatArray(0)
 
                 val rawPcm = ByteArray(dataSize)
-                fis.read(rawPcm)
+                var totalRead = 0
+                while (totalRead < dataSize) {
+                    val r = fis.read(rawPcm, totalRead, dataSize - totalRead)
+                    if (r == -1) break
+                    totalRead += r
+                }
 
                 val totalSamples = rawPcm.size / 2
                 val monoSamples = if (channels > 1) totalSamples / channels else totalSamples

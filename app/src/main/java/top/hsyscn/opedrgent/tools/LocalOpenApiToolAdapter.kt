@@ -54,13 +54,13 @@ class LocalOpenApiToolAdapter(
             return@runBlocking JSONObject().put("error", e.message ?: "tool failed").toString()
         }
 
+        // 统一对象信封：失败 {"error":...}，成功/空结果 {"result":...}，
+        // 不再对成功输出做 JSONObject.quote 裸字符串，避免受约束解码下对象/字符串两种形态混用。
         when {
             !state.error.isNullOrBlank() ->
                 JSONObject().put("error", state.error).toString()
-            state.output != null ->
-                JSONObject.quote(state.output)
             else ->
-                JSONObject.quote("")
+                JSONObject().put("result", state.output ?: "").toString()
         }
     }
 

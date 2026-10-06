@@ -57,9 +57,10 @@ class HealthTool(private val context: Context) : ToolSet {
         tp: ToolPart,
         config: ApiConfig,
         systemPrompt: String,
-        useProviderSearch: Boolean,
+        cancelled: Boolean,
     ): ToolResult {
-        val queryType = tp.state.input["query_type"] ?: "summary"
+        val queryType = tp.state.input["query_type"]?.trim()
+            ?: return errorResult(tp, "缺少必填参数 query_type（summary/steps/sleep）")
 
         return try {
             val availability = HealthConnectHelper.getAvailability(context)
@@ -72,6 +73,7 @@ class HealthTool(private val context: Context) : ToolSet {
                 return errorResult(tp, context.getString(R.string.health_permission_revoked))
             }
 
+            // query_type 为必填且受限枚举：落在 enum 外不得静默降级为成功态。
             val result = when (queryType) {
                 "summary" -> {
                     HealthConnectHelper.getTodaySummary(context)
@@ -87,7 +89,7 @@ class HealthTool(private val context: Context) : ToolSet {
                     HealthConnectHelper.getRecentSleep(context)
                         ?: context.getString(R.string.health_no_sleep_data)
                 }
-                else -> context.getString(R.string.health_unknown_query, queryType)
+                else -> return errorResult(tp, "无效 query_type '$queryType'，只支持 summary/steps/sleep")
             }
 
             DebugLog.d("HealthTool: query=$queryType, result=${result.take(100)}")

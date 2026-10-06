@@ -141,7 +141,12 @@ class MimoAsrEngine(
                     val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(tempFile))
                     if (pair != null && pair.first.isNotEmpty()) {
                         val outFile = java.io.File(context.cacheDir, "mimo_decode_${System.currentTimeMillis()}.wav")
-                        AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                        try {
+                            AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                        } catch (e: Exception) {
+                            if (outFile.exists()) outFile.delete()
+                            throw e
+                        }
                         outFile
                     } else {
                         DebugLog.e(TAG, "MediaCodec 解码失败，返回空结果")
@@ -177,7 +182,12 @@ class MimoAsrEngine(
                 val pair = AudioProcessor.decodeToPcm(context, Uri.fromFile(file))
                 if (pair != null && pair.first.isNotEmpty()) {
                     val outFile = java.io.File(context.cacheDir, "mimo_decode_path_${System.currentTimeMillis()}.wav")
-                    AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                    try {
+                        AudioProcessor.saveAsWav(pair.first, pair.second, outFile.absolutePath)
+                    } catch (e: Exception) {
+                        if (outFile.exists()) outFile.delete()
+                        throw e
+                    }
                     outFile
                 } else {
                     DebugLog.e(TAG, "MediaCodec 解码失败 (filePath), 返回空结果")
@@ -304,11 +314,17 @@ class MimoAsrEngine(
     fun feedAudioData(samples: FloatArray) {
         if (!streamingActive.get()) return
         synchronized(audioBuffer) {
+            if (samples.size >= audioBuffer.size) {
+                // 单次喂入已达整缓冲容量：只保留最新一整段，避免负计数与数组越界
+                System.arraycopy(samples, samples.size - audioBuffer.size, audioBuffer, 0, audioBuffer.size)
+                audioBufferCount.set(audioBuffer.size)
+                return
+            }
             val available = audioBuffer.size - audioBufferCount.get()
             if (samples.size > available) {
                 // 缓冲区将满：丢弃最旧的数据
                 val discard = samples.size - available
-                val remaining = audioBufferCount.get() - discard
+                val remaining = (audioBufferCount.get() - discard).coerceAtLeast(0)
                 if (remaining > 0) {
                     System.arraycopy(audioBuffer, discard, audioBuffer, 0, remaining)
                 }
@@ -366,7 +382,7 @@ class MimoAsrEngine(
             val apiKey = apiSettings.getApiKey()
             if (apiKey.isNullOrBlank()) {
                 DebugLog.e(TAG, "MiMo API Key 未设置")
-                restoreChunkToBuffer(chunkData)
+                // 数据本就留在缓冲区头部（快照未移除），下次循环自动重试，无需回填
                 return@withContext null
             }
             val jsonBody = buildStreamingRequestBody(base64Audio)
@@ -384,8 +400,7 @@ class MimoAsrEngine(
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     DebugLog.e(TAG, "流式 chunk 请求失败: HTTP ${response.code}, body=${body.take(200)}")
-                    // 失败：回填数据到缓冲区
-                    restoreChunkToBuffer(chunkData)
+                    // 数据本就在缓冲区头部，下次循环重试，无需回填（旧逻辑会把同段音频重复入缓冲导致文本翻倍）
                     return@withContext null
                 }
                 try {
@@ -399,8 +414,7 @@ class MimoAsrEngine(
                     }
                 } catch (e: Exception) {
                     DebugLog.w(TAG, "解析 chunk 响应失败: ${e.message}")
-                    // 解析失败也回填数据（保守策略）
-                    restoreChunkToBuffer(chunkData)
+                    // 数据保留在缓冲区，下次重试
                     return@withContext null
                 }
             }
@@ -424,39 +438,8 @@ class MimoAsrEngine(
             }
             text.ifEmpty { null }
         } catch (e: Exception) {
-            DebugLog.w(TAG, "chunk 发送失败（数据已回填到缓冲区等待重试）: ${e.message}")
-            // 失败时回填数据到缓冲区头部，保证数据不丢失
-            restoreChunkToBuffer(chunkData)
+            DebugLog.w(TAG, "chunk 发送失败（数据保留在缓冲区等待重试）: ${e.message}")
             null
-        }
-    }
-
-    /**
-     * 将未成功发送的 chunk 数据回填到缓冲区头部。
-     *
-     * 确保在网络故障、API 错误等场景下音频数据不会丢失，
-     * 下次定时发送或静音检测触发时会重新发送。
-     */
-    private fun restoreChunkToBuffer(chunkData: FloatArray) {
-        synchronized(audioBuffer) {
-            // 将 chunk 数据插回缓冲区头部（保持时间顺序）
-            val totalNeeded = chunkData.size + audioBufferCount.get()
-            if (totalNeeded <= audioBuffer.size) {
-                // 先把现有数据后移，再把 chunkData 放到头部
-                System.arraycopy(audioBuffer, 0, audioBuffer, chunkData.size, audioBufferCount.get())
-                System.arraycopy(chunkData, 0, audioBuffer, 0, chunkData.size)
-                audioBufferCount.set(totalNeeded)
-            } else {
-                // 缓冲区不够：只保留能放下的部分
-                val keepFromChunk = audioBuffer.size - audioBufferCount.get()
-                if (keepFromChunk > 0) {
-                    System.arraycopy(audioBuffer, 0, audioBuffer, keepFromChunk, audioBufferCount.get())
-                    System.arraycopy(chunkData, 0, audioBuffer, 0, keepFromChunk)
-                    audioBufferCount.set(audioBuffer.size)
-                }
-                DebugLog.w(TAG, "回填缓冲区空间不足，丢弃 ${chunkData.size - keepFromChunk} 个采样点")
-            }
-            DebugLog.d(TAG, "已回填 ${chunkData.size} 个采样点到缓冲区（当前缓冲区大小=${audioBufferCount.get()}）")
         }
     }
 
@@ -771,10 +754,14 @@ class MimoAsrEngine(
 
     private fun encodeToBase64(file: File): String {
         val bytes = file.readBytes()
-        val dataToEncode = if (bytes.size <= MAX_BASE64_BYTES) bytes
-        else bytes.copyOfRange(0, MAX_BASE64_BYTES)
-        DebugLog.d(TAG, "Base64 编码: 原始=${bytes.size}B, 编码后=${dataToEncode.size}B")
-        return Base64.getEncoder().encodeToString(dataToEncode)
+        val encoded = Base64.getEncoder().encodeToString(bytes)
+        // 以编码后字符串长度判定上限；超限直接拒识，不再静默截断原始音频尾部（会丢失转写尾段）
+        if (encoded.length > MAX_BASE64_BYTES) {
+            DebugLog.e(TAG, "Base64 编码后 ${encoded.length} 字符超过 ${MAX_BASE64_BYTES} 上限，拒绝转写")
+            return ""
+        }
+        DebugLog.d(TAG, "Base64 编码: 原始=${bytes.size}B, 编码后=${encoded.length}B")
+        return encoded
     }
 
     /**
@@ -846,7 +833,8 @@ class MimoAsrEngine(
             "video/3gpp" -> "3gp"
             else -> {
                 val subtype = mimeType.substringAfter("/", "")
-                if (subtype.isNotEmpty() && subtype.length <= 5) subtype else "wav"
+                // 白名单字符校验：杜绝恶意 provider 返回 "audio/../../x" 造成路径穿越
+                if (subtype.matches(Regex("[a-z0-9]{1,5}"))) subtype else "wav"
             }
         }
     }

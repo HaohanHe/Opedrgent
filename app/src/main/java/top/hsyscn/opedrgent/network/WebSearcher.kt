@@ -44,7 +44,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     // ---- Delegated components ----
     private val cacheManager: MultiLevelCacheManager by lazy { MultiLevelCacheManager() }
     private val legacyCache: SearchCacheManager by lazy { SearchCacheManager() }
-    private val ranker: SearchResultRanker by lazy { SearchResultRanker() }
+    // ranker 改为每次 searchWithResilience 内新建（见该函数），不再持有共享实例，避免查询状态串味。
     private val deduplicator: SearchDeduplicator by lazy { SearchDeduplicator() }
 
     private val circuitBreakerManager: CircuitBreakerManager get() = CircuitBreakerManager
@@ -671,8 +671,15 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         val theme: String = "simple"              // simple, oscar, bootstrap5等
     )
 
-    fun searchSearxng(query: String, limit: Int = 5, config: SearXNGConfig? = null): List<SearchResult> {
-        if (SEARXNG_BASE_URL.isBlank()) return emptyList()
+    fun searchSearxng(
+        query: String,
+        limit: Int = 5,
+        config: SearXNGConfig? = null,
+        baseUrl: String? = null
+    ): List<SearchResult> {
+        // 基址由调用方显式透传，不再读写全局 SEARXNG_BASE_URL（消除并发 save/restore 竞态，U30-01）。
+        val effectiveBaseUrl = (baseUrl ?: SEARXNG_BASE_URL).trimEnd('/')
+        if (effectiveBaseUrl.isBlank()) return emptyList()
 
         // 引擎状态检查
         if (!CircuitBreakerManager.getOrCreate("searxng").allowRequest()) {
@@ -681,17 +688,17 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         }
 
         // 频率限制检查
-        if (!RateLimiter.allowRequest(extractDomain(SEARXNG_BASE_URL))) {
+        if (!RateLimiter.allowRequest(extractDomain(effectiveBaseUrl))) {
             DebugLog.w("WebSearcher SearXNG: rate limited")
             return emptyList()
         }
 
         val cfg = config ?: SearXNGConfig(resultsPerPage = limit * 2)  // 多取一些以便筛选
-        
+
         val q = URLEncoder.encode(query, "UTF-8")
-        
+
         // 构建完整URL参数
-        val urlBuilder = StringBuilder("$SEARXNG_BASE_URL/search?")
+        val urlBuilder = StringBuilder("$effectiveBaseUrl/search?")
             .append("q=$q")
             .append("&format=json")
             .append("&pageno=${cfg.pageNumber}")
@@ -1846,7 +1853,8 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
     ): List<SearchResult> {
         val cacheKey = cacheKeyGenerator.generate(
             query = query,
-            providerOrder = config.providerOrder
+            providerOrder = config.providerOrder,
+            limit = limit
         )
 
         val cached = cacheManager.get(cacheKey)
@@ -1855,6 +1863,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
             return cached.results
         }
 
+        // 每次搜索新建独立 ranker（连带独立 HybridRankingEngine/SemanticScorer/FreshnessCalculator 状态），
+        // 避免并发搜索时后到的 initialize(query2) 覆盖前者正在打分的查询状态（U30-04 / U33-12）。
+        val ranker = SearchResultRanker()
         ranker.initialize(query)
 
         val isZh = containsChinese(query)
@@ -1868,7 +1879,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
         // ★ Bugfix: 记录本次搜索尝试的引擎列表，方便排查静默失败
         DebugLog.i("WebSearcher resilience: 启动 ${providers.size} 个引擎并行搜索: ${providers.joinToString(",")} (query=${q.take(60)})")
 
-        val engineStatus = mutableMapOf<String, String>()  // engine -> status
+        val engineStatus = java.util.concurrent.ConcurrentHashMap<String, String>()  // engine -> status
 
         coroutineScope {
             val deferredResults = providers.map { provider ->
@@ -1887,15 +1898,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                         try {
                             val results = when (provider) {
                                 "searxng" -> {
-                                    val url = config.searxngUrl ?: SEARXNG_BASE_URL
+                                    val url = (config.searxngUrl ?: SEARXNG_BASE_URL).trimEnd('/')
                                     if (url.isBlank()) { engineStatus[provider] = "SKIP(no-url)"; null }
-                                    else {
-                                        val prev = SEARXNG_BASE_URL
-                                        SEARXNG_BASE_URL = url
-                                        val r = runCatching { searchSearxng(q, limit) }.getOrNull()
-                                        SEARXNG_BASE_URL = prev
-                                        r
-                                    }
+                                    else runCatching { searchSearxng(q, limit, baseUrl = url) }.getOrNull()
                                 }
                                 "ddg", "duckduckgo" -> runCatching { searchDdg(q, limit) }.getOrNull()
                                 "baidu" -> runCatching { searchBaidu(q, limit) }.getOrNull()

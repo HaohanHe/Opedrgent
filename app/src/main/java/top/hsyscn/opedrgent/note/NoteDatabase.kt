@@ -84,10 +84,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
         """.trimIndent())
 
         // 索引
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_type ON $TABLE_NOTES($COL_TYPE)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_created ON $TABLE_NOTES($COL_CREATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON $TABLE_NOTES($COL_IS_PINNED, $COL_UPDATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_folder ON $TABLE_NOTES($COL_FOLDER_ID)")
+        ensureIndexes(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -104,6 +101,16 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(
             }
             v++
         }
+        // 升级库与新建库对齐：补齐 onCreate 中创建的索引，避免老设备永久缺索引导致全表扫描
+        ensureIndexes(db)
+    }
+
+    /** 建索引（CREATE INDEX IF NOT EXISTS，onCreate 与 onUpgrade 共用，消除 schema 漂移） */
+    private fun ensureIndexes(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_type ON $TABLE_NOTES($COL_TYPE)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_created ON $TABLE_NOTES($COL_CREATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON $TABLE_NOTES($COL_IS_PINNED, $COL_UPDATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_folder ON $TABLE_NOTES($COL_FOLDER_ID)")
     }
 
     /** 安全添加列，已存在则跳过 */

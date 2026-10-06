@@ -51,6 +51,7 @@ class ResultDeduplicator {
                         val key = param.substringBefore("=").lowercase()
                         key in TRACKING_PARAMS || key.isEmpty()
                     }
+                    .sorted()
                     .joinToString("&")
                 if (params.isEmpty()) null else params
             } else {
@@ -109,6 +110,7 @@ class ResultDeduplicator {
                 bestScore = other.bestScore
                 title = other.title
                 snippet = other.snippet
+                bestSnippetLength = other.snippet?.length ?: 0
             } else if ((other.snippet?.length ?: 0) > bestSnippetLength) {
                 snippet = other.snippet
                 bestSnippetLength = other.snippet?.length ?: 0

@@ -55,6 +55,8 @@ class StepVisionTool(
 
         /** 最大图片 Base64 大小限制 (~5MB PNG) */
         const val MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+        /** image_path 解码时目标最长边（用于 inSampleSize 降采样，防大图 OOM） */
+        private const val TARGET_SIDE_PX = 1024
     }
 
     private val client: OkHttpClient by lazy {
@@ -115,8 +117,17 @@ class StepVisionTool(
             val analysisType = args.optString("analysis_type", "general").ifBlank { "general" }
             val model = args.optString("model", MODEL_VISION).ifBlank { MODEL_VISION }
 
-            // 解析图片
-            val imageBase64 = resolveImage(args)
+            // 解析图片：base64 超限须显式报错，不得静默丢弃后误报"未提供图片"
+            val rawB64 = args.optString("image_base64", "").ifBlank { null }
+            val imageBase64: String? = when {
+                rawB64 != null && rawB64.length >= MAX_IMAGE_SIZE_BYTES * 4 / 3 ->
+                    return emptyResult(
+                        toolPart,
+                        "image_base64 超过约 ${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB 上限（当前 base64 长度 ${rawB64.length}），请压缩后重试",
+                    )
+                rawB64 != null -> rawB64
+                else -> resolveImagePath(args)
+            }
             if (imageBase64 == null) return emptyResult(toolPart, "需要提供 image_base64 或 image_path")
 
             // 根据分析类型构建优化的 prompt
@@ -166,7 +177,9 @@ class StepVisionTool(
             // 构建多模态消息
             val contentArray = buildString {
                 append("[")
-                append("{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/png;base64,$imageBase64\"}}, ")
+                append("{\"type\": \"image_url\", \"image_url\": {\"url\": ")
+                append(JSONObject.quote(dataUriForImageBase64(imageBase64)))
+                append("}}, ")
                 append("{\"type\": \"text\", \"text\": ${JSONObject.quote(prompt)}}")
                 append("]")
             }
@@ -345,21 +358,35 @@ class StepVisionTool(
 
     // ---- 图片解析 ----
 
-    private fun resolveImage(args: JSONObject): String? {
-        // 优先 base64
-        args.optString("image_base64", "").ifBlank { null }?.let {
-            if (it.length < MAX_IMAGE_SIZE_BYTES * 4 / 3) return it // base64 ≈ 4/3 原始大小
-        }
-        // 回退文件路径
+    private fun resolveImagePath(args: JSONObject): String? {
+        // 仅处理文件路径分支；base64 的超限判定已在 execute() 显式报错
         val path = args.optString("image_path", "").ifBlank { null } ?: return null
         return try {
-            val bitmap = android.graphics.BitmapFactory.decodeFile(path) ?: return null
+            // 先只读边界尺寸（inJustDecodeBounds），再按目标最长边算 inSampleSize 降采样，防大图全尺寸解码 OOM
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(path, bounds)
+            val opts = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = calculateInSampleSize(bounds, TARGET_SIDE_PX)
+            }
+            val bitmap = android.graphics.BitmapFactory.decodeFile(path, opts) ?: return null
             try {
                 bitmapToBase64(bitmap)
             } finally {
                 bitmap.recycle()
             }
+        } catch (oom: OutOfMemoryError) {
+            DebugLog.e(TAG, "decodeFile OOM: ${oom.message}", oom)
+            null
         } catch (_: Exception) { null }
+    }
+
+    private fun calculateInSampleSize(bounds: android.graphics.BitmapFactory.Options, targetMax: Int): Int {
+        val h = bounds.outHeight
+        val w = bounds.outWidth
+        if (h <= 0 || w <= 0) return 1
+        var sample = 1
+        while (maxOf(h, w) / sample > targetMax) sample *= 2
+        return sample
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
@@ -383,6 +410,35 @@ class StepVisionTool(
         val json = JSONObject(body)
         json.optJSONObject("error")?.optString("message") ?: json.optString("error", body.take(200))
     } catch (_: Exception) { body.take(200) }
+
+    /**
+     * 按图片字节魔数推断 MIME 后拼接 data URI，避免一律写死 image/png 与实际 JPEG/WebP 不符。
+     */
+    private fun dataUriForImageBase64(b64: String): String =
+        "data:${sniffImageMime(b64)};base64,$b64"
+
+    private fun sniffImageMime(b64: String): String {
+        return try {
+            val head = Base64.decode(b64.take(24), Base64.DEFAULT)
+            when {
+                head.size >= 3 &&
+                    (head[0].toInt() and 0xFF) == 0xFF &&
+                    (head[1].toInt() and 0xFF) == 0xD8 &&
+                    (head[2].toInt() and 0xFF) == 0xFF -> "image/jpeg"
+                head.size >= 4 &&
+                    (head[0].toInt() and 0xFF) == 0x89 &&
+                    (head[1].toInt() and 0xFF) == 0x50 &&
+                    (head[2].toInt() and 0xFF) == 0x4E &&
+                    (head[3].toInt() and 0xFF) == 0x47 -> "image/png"
+                head.size >= 12 &&
+                    String(head, 0, 4) == "RIFF" &&
+                    String(head, 8, 4) == "WEBP" -> "image/webp"
+                else -> "image/png"
+            }
+        } catch (_: Exception) {
+            "image/png"
+        }
+    }
 
     private fun successResult(tp: ToolPart, text: String): ToolResult = ToolResult(
         toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = text, endTime = System.currentTimeMillis())),

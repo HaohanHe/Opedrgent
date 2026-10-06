@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import top.hsyscn.opedrgent.utils.DebugLog
 import top.hsyscn.opedrgent.settings.ApiSettings
 import java.io.File
@@ -332,6 +334,8 @@ class SherpaOnnxEngine(
             val finishedSegments = mutableListOf<String>()
             var lastSentText = ""
 
+            // 防止重复 start 覆盖旧 job：先取消上一个未结束的解码协程
+            streamingJob?.cancel()
             streamingJob = launch(Dispatchers.IO) {
                 try {
                     while (isActive && streamingActive.get()) {
@@ -447,7 +451,8 @@ class SherpaOnnxEngine(
             trySend(StreamingRecognitionState.Listening)
             DebugLog.i(TAG, "伪流式识别已启动 (minChunk=${MIN_CHUNK_MS}ms, maxChunk=${MAX_CHUNK_MS}ms)")
 
-            // 启动后台识别协程
+            // 启动后台识别协程（先取消上一个未结束的任务，避免双解码循环）
+            streamingJob?.cancel()
             streamingJob = launch(Dispatchers.IO) {
                 try {
                     while (isActive && streamingActive.get()) {
@@ -544,19 +549,25 @@ class SherpaOnnxEngine(
         } else {
             // 伪流式: 追加到固定大小缓冲区（超过上限时丢弃最旧的数据）
             synchronized(bufferLock) {
-                val available = MAX_PENDING_BUFFER_SAMPLES - pendingBufferSize
-                if (samples.size > available) {
-                    // 缓冲区将满：丢弃最旧的数据，腾出空间
-                    val discard = samples.size - available
-                    val remaining = pendingBufferSize - discard
-                    if (remaining > 0) {
-                        System.arraycopy(pendingBuffer, discard, pendingBuffer, 0, remaining)
+                if (samples.size >= MAX_PENDING_BUFFER_SAMPLES) {
+                    // 单次喂入已达整缓冲容量：只保留最新一整段，避免负计数与数组越界
+                    System.arraycopy(samples, samples.size - MAX_PENDING_BUFFER_SAMPLES, pendingBuffer, 0, MAX_PENDING_BUFFER_SAMPLES)
+                    pendingBufferSize = MAX_PENDING_BUFFER_SAMPLES
+                } else {
+                    val available = MAX_PENDING_BUFFER_SAMPLES - pendingBufferSize
+                    if (samples.size > available) {
+                        // 缓冲区将满：丢弃最旧的数据，腾出空间
+                        val discard = samples.size - available
+                        val remaining = (pendingBufferSize - discard).coerceAtLeast(0)
+                        if (remaining > 0) {
+                            System.arraycopy(pendingBuffer, discard, pendingBuffer, 0, remaining)
+                        }
+                        pendingBufferSize = remaining
+                        DebugLog.w(TAG, "缓冲区已满(${MAX_PENDING_BUFFER_SECONDS}s)，丢弃最旧 ${discard / TARGET_SAMPLE_RATE}s 音频")
                     }
-                    pendingBufferSize = remaining
-                    DebugLog.w(TAG, "缓冲区已满(${MAX_PENDING_BUFFER_SECONDS}s)，丢弃最旧 ${discard / TARGET_SAMPLE_RATE}s 音频")
+                    System.arraycopy(samples, 0, pendingBuffer, pendingBufferSize, samples.size)
+                    pendingBufferSize += samples.size
                 }
-                System.arraycopy(samples, 0, pendingBuffer, pendingBufferSize, samples.size)
-                pendingBufferSize += samples.size
             }
         }
     }
@@ -569,7 +580,16 @@ class SherpaOnnxEngine(
 
     override fun close() {
         try {
-            stopStreamingRecognition()
+            // 先停标志并取消后台解码协程，等待其退出后再 release native 句柄；
+            // 否则 IO 线程的 while(decode) 循环会在 release 之后继续使用已释放句柄（use-after-release）。
+            streamingActive.set(false)
+            streamingJob?.cancel()
+            try {
+                runBlocking { withTimeoutOrNull(1000L) { streamingJob?.join() } }
+            } catch (e: Exception) {
+                DebugLog.w(TAG, "等待流式协程退出异常: ${e.message}")
+            }
+            streamingJob = null
 
             offlineRecognizer?.release()
             offlineRecognizer = null
@@ -580,6 +600,7 @@ class SherpaOnnxEngine(
 
             _isInitialized.set(false)
             currentModelDir = null
+            streamingChannel = null
 
             DebugLog.i(TAG, "资源已完全释放")
         } catch (e: Exception) {
@@ -947,7 +968,8 @@ class SherpaOnnxEngine(
             else -> {
                 // Try to extract extension from MIME type (e.g., "audio/foo" -> "foo")
                 val subtype = mimeType.substringAfter("/", "")
-                if (subtype.isNotEmpty() && subtype.length <= 5) subtype else "wav"
+                // 白名单字符校验：杜绝恶意 provider 返回 "audio/../../x" 造成路径穿越（U49-11）
+                if (subtype.matches(Regex("[a-z0-9]{1,5}"))) subtype else "wav"
             }
         }
     }

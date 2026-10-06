@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -12,6 +13,7 @@ import top.hsyscn.opedrgent.cloud.CloudCatalog
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.HttpClients
+import top.hsyscn.opedrgent.network.NetworkConfig
 import top.hsyscn.opedrgent.network.ToolResult
 import top.hsyscn.opedrgent.network.emptyResult
 import top.hsyscn.opedrgent.settings.ApiConfig
@@ -20,6 +22,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * siliconflow_image_generate 工具 — 硅基流动 (SiliconFlow) FLUX 文生图。
@@ -61,6 +64,19 @@ class SiliconFlowImageGenTool(
         const val MODEL_DEV = "black-forest-labs/FLUX.1-dev"
 
         private const val DEFAULT_IMAGE_SIZE = "1024x1024"
+    }
+
+    /**
+     * 文生图专用客户端：dev 高步数 / batch=4 常超过 default 的 60s callTimeout 被误掐。
+     * 复用仓库 IMAGE_GEN_* 常量（connect 30s / read 120s / write 60s），总超时对齐 read 120s。
+     */
+    private val imageGenClient: OkHttpClient by lazy {
+        HttpClients.default.newBuilder()
+            .connectTimeout(NetworkConfig.IMAGE_GEN_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NetworkConfig.IMAGE_GEN_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NetworkConfig.IMAGE_GEN_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(NetworkConfig.IMAGE_GEN_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
     }
 
     override fun getTools(): Map<String, ToolBinding> = mapOf(
@@ -226,7 +242,7 @@ class SiliconFlowImageGenTool(
 
             DebugLog.i(TAG, "调用文生图 API: model=$model, size=$imageSize, batch=$batchSize")
 
-            HttpClients.default.newCall(request).execute().use { response ->
+            imageGenClient.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     DebugLog.e(TAG, "文生图失败 (${response.code}): ${body.take(300)}")
@@ -269,9 +285,19 @@ class SiliconFlowImageGenTool(
                     DebugLog.e(TAG, "下载图片失败 (${response.code}): $url")
                     return@withContext null
                 }
-                response.body?.byteStream()?.use { input ->
-                    file.outputStream().use { output -> input.copyTo(output) }
-                } ?: return@withContext null
+                val contentType = response.header("Content-Type").orEmpty()
+                val bytes = response.body?.bytes() ?: return@withContext null
+                // CDN 临时链接异常时可能返 200 + HTML / 截断响应：校验类型 + 大小 + 魔数，
+                // 避免把损坏内容静默落盘为 .png 却仍按"保存成功"上报。
+                if (!contentType.startsWith("image/")) {
+                    DebugLog.w(TAG, "下载图片 Content-Type 非 image/* ($contentType): $url")
+                    return@withContext null
+                }
+                if (!isProbablyImage(bytes)) {
+                    DebugLog.w(TAG, "下载图片魔数校验失败，疑似非图片 ($url)")
+                    return@withContext null
+                }
+                file.writeBytes(bytes)
             }
             DebugLog.i(TAG, "图片已保存: ${file.absolutePath}")
             file.absolutePath
@@ -313,6 +339,20 @@ class SiliconFlowImageGenTool(
             ?: body.take(200)
     } catch (_: Exception) {
         body.take(200)
+    }
+
+    /** 按魔数识别 PNG / JPEG / GIF / WebP，并要求最小字节数，拒绝 HTML 错误页与截断响应。 */
+    private fun isProbablyImage(b: ByteArray): Boolean {
+        if (b.size < 1024) return false
+        val png = b.size >= 8 && b[0] == 0x89.toByte() && b[1] == 0x50.toByte() &&
+            b[2] == 0x4E.toByte() && b[3] == 0x47.toByte()
+        val jpeg = b.size >= 3 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() && b[2] == 0xFF.toByte()
+        val gif = b.size >= 6 && b[0] == 'G'.code.toByte() && b[1] == 'I'.code.toByte() && b[2] == 'F'.code.toByte()
+        val webp = b.size >= 12 && b[0] == 'R'.code.toByte() && b[1] == 'I'.code.toByte() &&
+            b[2] == 'F'.code.toByte() && b[3] == 'F'.code.toByte() &&
+            b[8] == 'W'.code.toByte() && b[9] == 'E'.code.toByte() &&
+            b[10] == 'B'.code.toByte() && b[11] == 'P'.code.toByte()
+        return png || jpeg || gif || webp
     }
 
     private fun successResult(tp: ToolPart, text: String): ToolResult = ToolResult(

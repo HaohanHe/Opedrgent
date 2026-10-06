@@ -90,10 +90,6 @@ class HippocampusIndex(context: Context) {
         }
     }
 
-    private suspend fun insert(item: IndexedItem) = withContext(Dispatchers.IO) {
-        db.insert(HippocampusDatabase.TABLE, null, item.toContentValues())
-    }
-
     /**
      * 批量插入索引条目。
      *
@@ -105,7 +101,12 @@ class HippocampusIndex(context: Context) {
         db.beginTransaction()
         try {
             for (item in entries) {
-                db.insert(HippocampusDatabase.TABLE, null, item.toContentValues())
+                // 与 upsert 契约对齐：遇 (source_type,source_id) 唯一冲突时 REPLACE 而非抛
+                // SQLiteConstraintException 导致整批回滚。
+                db.insertWithOnConflict(
+                    HippocampusDatabase.TABLE, null, item.toContentValues(),
+                    SQLiteDatabase.CONFLICT_REPLACE,
+                )
             }
             db.setTransactionSuccessful()
         } finally {
@@ -134,11 +135,6 @@ class HippocampusIndex(context: Context) {
         put(HippocampusDatabase.COL_UPDATED_AT, item.updatedAt)
     }
 
-    private suspend fun update(item: IndexedItem) = withContext(Dispatchers.IO) {
-        db.update(HippocampusDatabase.TABLE, buildUpdateValues(item),
-            "${HippocampusDatabase.COL_ID}=?", arrayOf(item.id))
-    }
-
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         db.delete(HippocampusDatabase.TABLE, "${HippocampusDatabase.COL_ID}=?", arrayOf(id))
     }
@@ -150,13 +146,21 @@ class HippocampusIndex(context: Context) {
     }
 
     suspend fun query(keyword: String, limit: Int = 10): List<IndexedItem> = withContext(Dispatchers.IO) {
+        // 空关键词退化为 "%%" 全表匹配，直接短路返回空；% _ \ 需转义避免用户输入扩大命中
+        if (keyword.isBlank()) return@withContext emptyList()
+        val pattern = "%" + escapeLike(keyword) + "%"
         val sql = """SELECT * FROM ${HippocampusDatabase.TABLE}
-            WHERE ${HippocampusDatabase.COL_TITLE} LIKE ? OR ${HippocampusDatabase.COL_SUMMARY} LIKE ? OR ${HippocampusDatabase.COL_KEYWORDS} LIKE ?
+            WHERE ${HippocampusDatabase.COL_TITLE} LIKE ? ESCAPE '\'
+            OR ${HippocampusDatabase.COL_SUMMARY} LIKE ? ESCAPE '\'
+            OR ${HippocampusDatabase.COL_KEYWORDS} LIKE ? ESCAPE '\'
             ORDER BY ${HippocampusDatabase.COL_CREATED_AT} DESC LIMIT ?"""
-        val pattern = "%$keyword%"
         val cursor = db.rawQuery(sql, arrayOf(pattern, pattern, pattern, limit.toString()))
         cursorToList(cursor)
     }
+
+    /** 转义 LIKE 通配符 % _ \，配合 SQL 的 ESCAPE '\' 子句使用。 */
+    private fun escapeLike(s: String): String =
+        s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     suspend fun getAll(limit: Int = 100): List<IndexedItem> = withContext(Dispatchers.IO) {
         val cursor = db.query(HippocampusDatabase.TABLE, null, null, null, null, null,
@@ -309,7 +313,12 @@ class HippocampusIndex(context: Context) {
 
     /** 删除指定来源类型的全部索引项（笔记/录音等分类清除复用）。 */
     suspend fun deleteAllByType(sourceType: SourceType) = withContext(Dispatchers.IO) {
-        getAllByType(sourceType, Int.MAX_VALUE).forEach { delete(it.id) }
+        // 单条 DELETE 完成，避免先全量载入内存再逐行 autocommit 删除（N 条 = N 次 fsync）
+        db.delete(
+            HippocampusDatabase.TABLE,
+            "${HippocampusDatabase.COL_SOURCE_TYPE}=?",
+            arrayOf(sourceType.name),
+        )
     }
 
     /** 清空全部修炼索引（修炼数据独立清除入口）。 */

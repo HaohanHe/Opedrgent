@@ -127,6 +127,11 @@ source* 系列可选，用于记录这条行动来自哪里（如某次录音、
         val id = input["id"]?.toLongOrNull() ?: return emptyResult(tp, "缺少必填参数 id，或 id 不是数字")
         val statusRaw = input["status"]?.trim().orEmpty()
         if (statusRaw.isBlank()) return emptyResult(tp, "缺少必填参数 status")
+        // 显式校验枚举：未知 status 不得被 ActionStatus.fromName 静默归一为 OPEN。
+        val allowedStatuses = setOf("open", "done", "deferred")
+        if (statusRaw.lowercase() !in allowedStatuses) {
+            return emptyResult(tp, "无效 status '$statusRaw'，只支持 open/done/deferred")
+        }
         val status = ActionStatus.fromName(statusRaw)
 
         store.updateStatus(id, status)

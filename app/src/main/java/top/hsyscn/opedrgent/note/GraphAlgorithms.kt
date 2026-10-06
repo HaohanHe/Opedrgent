@@ -119,14 +119,19 @@ object GraphAlgorithms {
         val init = 1f / n
         var ranks = nodes.associateWith { init }.toMutableMap()
 
+        // 每个 source 的出边权重总和在迭代间恒定，预先算好；
+        // 原先在每条入边里重复 sumOf，复杂度为 O(iterations * E * avgDegree)。
+        val outWeightTotal = outNeighbors.mapValues { (_, list) ->
+            list.sumOf { it.second.toDouble() }.toFloat()
+        }
+
         repeat(iterations) {
             val newRanks = mutableMapOf<String, Float>()
             for (node in nodes) {
                 var rank = (1f - alpha) / n
                 val incoming = inNeighbors[node] ?: emptyList()
                 for ((source, weight) in incoming) {
-                    val outgoing = outNeighbors[source] ?: emptyList()
-                    val totalWeight = outgoing.sumOf { it.second.toDouble() }.toFloat()
+                    val totalWeight = outWeightTotal[source] ?: 0f
                     if (totalWeight > 0f) {
                         rank += alpha * (ranks[source] ?: 0f) * weight / totalWeight
                     }

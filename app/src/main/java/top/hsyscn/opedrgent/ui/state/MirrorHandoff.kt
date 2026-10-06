@@ -25,6 +25,7 @@ object MirrorHandoff {
     private var payload: Payload? = null
 
     /** 来源页提交待分析文本。重复 post 会覆盖上一次未消费的移交。 */
+    @Synchronized
     fun post(transcript: String, sourceTitle: String, sourceType: SourceType) {
         payload = Payload(
             transcript = transcript,
@@ -33,7 +34,9 @@ object MirrorHandoff {
         )
     }
 
-    /** 批判镜页进入时取出载荷并立即清空；无待移交内容时返回 null。 */
+    /** 批判镜页进入时取出载荷并立即清空；无待移交内容时返回 null。
+     *  synchronized 保证"读+清"原子，避免两个消费者并发各拿到同一份载荷（U29-11）。 */
+    @Synchronized
     fun consume(): Payload? {
         val current = payload
         payload = null

@@ -55,7 +55,7 @@ allowDowngrade 可选：备份来自旧版本 app 时默认拒绝，置 true 强
                     "properties": {
                         "archivePath": {
                             "type": "string",
-                            "description": "备份归档的绝对路径。可选；不传则自动使用 backups 目录下最新一份 .zip。"
+                            "description": "备份归档的绝对路径，且必须位于本应用 backups 目录内（拒绝目录外绝对路径或含 ../ 的路径）。可选；不传则自动使用 backups 目录下最新一份 .zip；指定的归档不存在时会直接报错，不会静默回退到其它归档。"
                         },
                         "allowDowngrade": {
                             "type": "boolean",
@@ -85,8 +85,33 @@ allowDowngrade 可选：备份来自旧版本 app 时默认拒绝，置 true 强
         val input = tp.state.input
         val allowDowngrade = input["allowDowngrade"].toBooleanStrictLenient()
 
-        val archive = resolveArchive(input["archivePath"])
-            ?: return emptyResult(tp, "未找到可用的备份归档：请通过 archivePath 指定路径，或先调用 backup_create 创建备份。")
+        // 备份根目录取 canonical；显式 archivePath 必须收敛到该目录内。
+        // 拒绝目录外绝对路径与 ../ 穿越；显式路径不存在时直接报错，不静默回退“最新备份”。
+        val backupsRoot = runCatching { File(context.filesDir, "backups").canonicalFile }
+            .getOrElse { File(context.filesDir, "backups") }
+
+        val explicit = input["archivePath"]
+        val archive: File = if (!explicit.isNullOrBlank()) {
+            val candidate = runCatching { File(explicit).canonicalFile }.getOrNull()
+                ?: return emptyResult(tp, "archivePath 无法解析：${explicit.take(80)}")
+            if (!candidate.path.startsWith(backupsRoot.path + File.separator)) {
+                return emptyResult(
+                    tp,
+                    "archivePath 必须位于应用备份目录内，已拒绝目录外或含 ../ 的路径：${explicit.take(80)}",
+                )
+            }
+            if (!candidate.exists() || !candidate.isFile) {
+                return emptyResult(tp, "指定的备份归档不存在或不是文件：${explicit.take(80)}")
+            }
+            candidate
+        } else {
+            backupsRoot.listFiles { it -> it.isFile && it.name.endsWith(".zip") }
+                ?.maxByOrNull { it.lastModified() }
+                ?: return emptyResult(
+                    tp,
+                    "未找到可用的备份归档：请先调用 backup_create 创建备份，或通过 archivePath 指定 backups 目录内的归档。",
+                )
+        }
 
         val r = archive.inputStream().use { stream ->
             manager.restoreFrom(stream, allowDowngrade = allowDowngrade)
@@ -101,16 +126,6 @@ allowDowngrade 可选：备份来自旧版本 app 时默认拒绝，置 true 强
             if (r.message.isNotBlank()) appendLine("- 说明：${r.message}")
         }
         return success(tp, text.trim())
-    }
-
-    private fun resolveArchive(explicit: String?): File? {
-        if (!explicit.isNullOrBlank()) {
-            val f = File(explicit)
-            if (f.exists() && f.isFile) return f
-        }
-        val dir = File(context.filesDir, "backups")
-        return dir.listFiles { it -> it.isFile && it.name.endsWith(".zip") }
-            ?.maxByOrNull { it.lastModified() }
     }
 
     /** 宽松解析布尔：接受 true/1/yes，其余视为 false。 */

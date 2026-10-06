@@ -298,14 +298,14 @@ private fun generateIndexHtml(notes: List<Note>, noteMetaList: List<JSONObject>)
 </div>
 
 <script id="notes-data" type="application/json">
-$metaJsonArray
+${escapeJsonForScript(metaJsonArray.toString())}
 </script>
 
 <script id="graph-data" type="application/json">
-{
-  "nodes": ${JSONArray(graphNodes)},
-  "edges": ${JSONArray(graphEdges)}
-}
+${escapeJsonForScript(buildString {
+    append("{\"nodes\": ").append(JSONArray(graphNodes)).append(",")
+    append("\"edges\": ").append(JSONArray(graphEdges)).append("}")
+})}
 </script>
 
 <script src="assets/app.js"></script>
@@ -2393,6 +2393,18 @@ private fun renderMarkdownSimple(md: String): String {
 // ---------------------------------------------------------------------------
 private fun escapeHtml(text: String): String {
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+}
+
+/**
+ * 把序列化后的 JSON 字符串嵌入 <script type="application/json"> 前做脚本块闭合转义。
+ * JSONObject/JSONArray 会转义引号与反斜杠，但不转义 '<'；用户标题/标签/摘要/图谱标签中若含
+ * "</script><script>..." 会闭合脚本块并在接收方浏览器执行任意脚本。转义 < > & 为 \\uXXXX，
+ * JSON.parse 仍会正确还原为原字符，而 </script> 不再出现字面闭合序列。
+ */
+private fun escapeJsonForScript(json: String): String {
+    return json.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
 }
 private fun escapeAttr(text: String): String {
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;").replace("\n", " ").replace("\r", "")

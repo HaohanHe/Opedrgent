@@ -299,6 +299,8 @@ class KnowledgeBase(private val context: Context) {
                     content = content,
                     knowledgeBaseId = kbId,
                     sourceUri = null,
+                    // 新建文本文档同样进入待同步队列，等待云端上传
+                    syncStatus = SyncStatus.PENDING,
                 )
                 saveDocument(doc)
                 DebugLog.i(TAG, "文本文档添加成功: ${doc.title}")
@@ -361,8 +363,8 @@ class KnowledgeBase(private val context: Context) {
 
 
 
-    fun deleteDocument(documentId: String): Boolean {
-        return db.delete(TABLE_DOCS, "$DOC_ID=?", arrayOf(documentId)) > 0
+    suspend fun deleteDocument(documentId: String): Boolean = withContext(Dispatchers.IO) {
+        db.delete(TABLE_DOCS, "$DOC_ID=?", arrayOf(documentId)) > 0
     }
 
     // ---- 增量同步支持 ----
@@ -426,6 +428,7 @@ class KnowledgeBase(private val context: Context) {
                 newContentHash = newHash,
                 newSourceLastModified = file.lastModified(),
                 newSourceSize = file.length(),
+                markPending = contentChanged,
             )
 
             DebugLog.i(TAG, "文档重新解析完成: ${doc.title} (内容${if (contentChanged) "已变更" else "未变更"})")
@@ -450,9 +453,31 @@ class KnowledgeBase(private val context: Context) {
      *
      * @return 需要重新解析的文档列表
      */
+    /**
+     * 扫描所有有本地源文件的文档, 检测哪些需要重新解析。
+     *
+     * 仅投影 id/source_uri/source_last_modified/source_size 四个字段做 mtime/size 比较，
+     * 不把全量正文 content 反序列化进内存（文档多时避免一次 GC 压力）。
+     */
     fun scanForChangedDocuments(): List<KbDocument> {
-        val allDocs = getAllDocuments()
-        return allDocs.filter { isSourceFileChanged(it) }
+        val changedIds = mutableListOf<String>()
+        db.query(
+            TABLE_DOCS,
+            arrayOf(DOC_ID, DOC_SOURCE_URI, DOC_SOURCE_LAST_MODIFIED, DOC_SOURCE_SIZE),
+            null, null, null, null, null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                val sourceUri = c.getString(1) ?: continue
+                if (sourceUri.startsWith("content://")) continue
+                val file = File(sourceUri)
+                if (!file.exists()) continue
+                if (file.lastModified() != c.getLong(2) || file.length() != c.getLong(3)) {
+                    changedIds.add(c.getString(0))
+                }
+            }
+        }
+        // 命中变更的文档再按需按 id 取完整对象（数量通常很小）
+        return changedIds.mapNotNull { getDocumentById(it) }
     }
 
     // ---- 统计 ----
@@ -521,7 +546,9 @@ class KnowledgeBase(private val context: Context) {
             sourceLastModified = file.lastModified(),
             sourceSize = file.length(),
             contentHash = contentHash,
-            syncStatus = SyncStatus.LOCAL_ONLY,
+            // 新增文档直接置 PENDING，使阶段二 getDocumentsNeedingSync 能扫描到并上传云端；
+            // 否则 LOCAL_ONLY 为终态，云端向量库永远收不到新文档。
+            syncStatus = SyncStatus.PENDING,
         )
 
         saveDocument(doc)
@@ -568,6 +595,9 @@ class KnowledgeBase(private val context: Context) {
     /**
      * 更新文档内容 (增量同步重新解析后调用)。
      * 仅更新内容相关字段, 保留 id/kbId/sourceUri 等。
+     *
+     * @param markPending 仅在内容哈希真正变化时置 PENDING；文件被外部 touch 但内容一致时
+     *   不置 PENDING，避免把一份相同的文档重新上传云端并覆盖 cloudFileId。
      */
     fun updateDocumentContent(
         docId: String,
@@ -575,6 +605,7 @@ class KnowledgeBase(private val context: Context) {
         newContentHash: String,
         newSourceLastModified: Long,
         newSourceSize: Long,
+        markPending: Boolean = true,
     ): Boolean {
         val values = android.content.ContentValues().apply {
             put(DOC_CONTENT, newContent)
@@ -582,8 +613,10 @@ class KnowledgeBase(private val context: Context) {
             put(DOC_CONTENT_HASH, newContentHash)
             put(DOC_SOURCE_LAST_MODIFIED, newSourceLastModified)
             put(DOC_SOURCE_SIZE, newSourceSize)
-            // 内容变更后标记为待同步
-            put(DOC_SYNC_STATUS, SyncStatus.PENDING.name)
+            // 仅在内容真正变更时标记为待同步
+            if (markPending) {
+                put(DOC_SYNC_STATUS, SyncStatus.PENDING.name)
+            }
         }
         return db.update(TABLE_DOCS, values, "$DOC_ID=?", arrayOf(docId)) > 0
     }
@@ -602,6 +635,25 @@ class KnowledgeBase(private val context: Context) {
             if (status == SyncStatus.SYNCED) put(DOC_LAST_SYNCED_AT, System.currentTimeMillis())
         }
         return db.update(TABLE_DOCS, values, "$DOC_ID=?", arrayOf(docId)) > 0
+    }
+
+    /**
+     * 按同步状态聚合计数（SQL GROUP BY，不加载正文 content）。
+     * 供 KbSyncManager.getSyncStats 使用，避免为统计 4 个枚举值把全量文档内容读进内存。
+     */
+    fun countBySyncStatus(): Map<SyncStatus, Int> {
+        val map = mutableMapOf<SyncStatus, Int>()
+        db.rawQuery(
+            "SELECT $DOC_SYNC_STATUS, COUNT(*) FROM $TABLE_DOCS GROUP BY $DOC_SYNC_STATUS",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                val statusStr = c.getString(0) ?: SyncStatus.LOCAL_ONLY.name
+                val status = runCatching { SyncStatus.valueOf(statusStr) }.getOrDefault(SyncStatus.LOCAL_ONLY)
+                map[status] = c.getInt(1)
+            }
+        }
+        return map
     }
 
     /**

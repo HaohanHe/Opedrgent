@@ -3,6 +3,7 @@ package top.hsyscn.opedrgent.tools
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import org.json.JSONObject
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
 import top.hsyscn.opedrgent.network.ToolResult
@@ -30,7 +31,39 @@ class TodoWriteTool(private val context: Context) : ToolSet {
         return mapOf(
             "todowrite" to ToolBinding(
                 name = "todowrite",
-                description = "创建或更新任务列表来跟踪多步骤工作进度",
+                description = "创建或更新任务列表来跟踪多步骤工作进度。todos 为完整任务数组，每次调用会整体替换现有任务列表。",
+                parameters = JSONObject("""
+                    {
+                        "type": "object",
+                        "properties": {
+                            "todos": {
+                                "type": "array",
+                                "description": "完整的任务列表（整体覆盖现有任务，最多 10 项）。每项含 content/status/priority。",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "content": {
+                                            "type": "string",
+                                            "description": "任务内容，必填且不可为空"
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "enum": ["pending", "in_progress", "completed", "cancelled"],
+                                            "description": "任务状态，默认 pending"
+                                        },
+                                        "priority": {
+                                            "type": "string",
+                                            "enum": ["high", "medium", "low"],
+                                            "description": "优先级，默认 medium"
+                                        }
+                                    },
+                                    "required": ["content"]
+                                }
+                            }
+                        },
+                        "required": ["todos"]
+                    }
+                """),
                 invoker = ::executeTodoWrite,
             )
         )
@@ -47,15 +80,26 @@ class TodoWriteTool(private val context: Context) : ToolSet {
         val todos: List<TodoItem> = try {
             val listType = object : TypeToken<List<Map<String, String>>>() {}.type
             val rawList: List<Map<String, String>> = gson.fromJson(todosJson, listType)
-            rawList.map { map ->
+            // 过滤掉 content 为空白的项，避免保存空任务。
+            rawList.mapNotNull { map ->
+                val content = map["content"]?.trim().orEmpty()
+                if (content.isBlank()) return@mapNotNull null
                 TodoItem(
-                    content = map["content"] ?: "",
+                    content = content,
                     status = map["status"] ?: "pending",
                     priority = map["priority"] ?: "medium",
                 )
             }
         } catch (e: Exception) {
             return errorResult(tp, "无法解析 todos JSON: ${e.message}")
+        }
+
+        // 空列表不得静默覆盖已持久化任务：直接报错提示，避免误清空。
+        if (todos.isEmpty()) {
+            return errorResult(
+                tp,
+                "todos 为空：未提供任何含有效 content 的任务。为避免误清空现有任务列表，本次未保存。如需结束任务，请将其 status 标记为 completed/cancelled。",
+            )
         }
 
         if (todos.size > 10) {

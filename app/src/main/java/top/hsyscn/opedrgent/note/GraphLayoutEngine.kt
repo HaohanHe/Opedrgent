@@ -68,21 +68,19 @@ object GraphLayoutEngine {
         density: Density,
         canvasSize: androidx.compose.ui.geometry.Size? = null,
         iterations: Int = 120,
+        cancelRequested: () -> Boolean = { false },
     ): GraphLayout {
-        val positions = computeForceLayout(nodes, edges, centrality, density, canvasSize, iterations)
+        val positions = computeForceLayout(
+            nodes, edges, centrality, density, canvasSize, iterations, cancelRequested,
+        )
         val bounds = computeLayoutBounds(positions, nodes, centrality, density)
         return GraphLayout(positions, bounds)
     }
 
     /**
-     * 计算节点在 px 中的半径。
-     *
-     * @param nodeId 节点 ID
-     * @param centrality 中心性映射
-     * @param density Compose 密度
-     * @return 节点半径（px）
+     * 计算节点在 px 中的半径（内部统一复用，消除公式重复）。
      */
-    fun nodeRadiusPx(
+    private fun radiusFor(
         nodeId: String,
         centrality: Map<String, Float>,
         density: Density,
@@ -113,6 +111,7 @@ object GraphLayoutEngine {
         density: Density,
         canvasSize: androidx.compose.ui.geometry.Size? = null,
         iterations: Int,
+        cancelRequested: () -> Boolean,
     ): Map<String, Offset> {
         if (nodes.isEmpty()) return emptyMap()
 
@@ -121,12 +120,7 @@ object GraphLayoutEngine {
         val idToIndex = nodeIds.withIndex().associate { it.value to it.index }
 
         // 节点半径（px），用于碰撞检测
-        val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-        val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
-        val radii = FloatArray(n) { i ->
-            val c = centrality[nodeIds[i]]?.coerceIn(0f, 1f) ?: 0f
-            basePx + sqrt(c) * extraPx
-        }
+        val radii = FloatArray(n) { i -> radiusFor(nodeIds[i], centrality, density) }
 
         // 1. 圆盘内随机初始化（避免花圈）
         val rng = kotlin.random.Random(0xACE)
@@ -171,6 +165,8 @@ object GraphLayoutEngine {
         val repulsionCutoffSq = repulsionCutoff * repulsionCutoff
 
         for (iter in 0 until iterations) {
+            // 可协作取消：过期布局计算可在此中断，不必跑完剩余 O(N^2) 迭代。
+            if (cancelRequested()) break
             // 清零力
             for (i in 0 until n) {
                 forceX[i] = 0f
@@ -288,16 +284,13 @@ object GraphLayoutEngine {
         density: Density,
     ): RectF {
         if (layout.isEmpty()) return RectF()
-        val basePx = with(density) { SizeTokens.graphNodeBaseRadius.toPx() }
-        val extraPx = with(density) { SizeTokens.graphNodeMaxExtraRadius.toPx() }
         var minX = Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
         for (node in nodes) {
             val pos = layout[node.id] ?: continue
-            val c = centrality[node.id]?.coerceIn(0f, 1f) ?: 0f
-            val radius = basePx + sqrt(c) * extraPx
+            val radius = radiusFor(node.id, centrality, density)
             minX = min(minX, pos.x - radius)
             minY = min(minY, pos.y - radius)
             maxX = max(maxX, pos.x + radius)

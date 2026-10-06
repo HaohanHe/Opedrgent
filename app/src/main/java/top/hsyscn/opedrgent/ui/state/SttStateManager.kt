@@ -72,6 +72,8 @@ class SttStateManager(
 
     private var sttEngine: SpeechEngine? = null
     private var sttJob: Job? = null
+    /** 模型下载 Job：外部调用方不持有，内部追踪以便 close() 取消旧下载（U29-7） */
+    private var downloadJob: Job? = null
 
     // ==================== 统一流式 ASR 状态（跨页面保持） ====================
 
@@ -82,6 +84,8 @@ class SttStateManager(
     val asrEvent: Flow<AsrUiEvent> = _asrEvent.receiveAsFlow()
 
     private var asrStreamingJob: Job? = null
+    /** 流式 ASR 代次：旧 job finally 复位 _asrListening 前校验代次，避免误清新会话的 true（U29-8） */
+    private var asrStreamRunId = 0
 
     /**
      * 启动文件/视频语音转文字。
@@ -431,6 +435,7 @@ class SttStateManager(
     fun startStreamingAsrCollection() {
         if (_asrListening.value) return
         asrStreamingJob?.cancel()
+        val myRun = ++asrStreamRunId
         _asrListening.value = true
         asrStreamingJob = coroutineScope.launch {
             try {
@@ -458,7 +463,10 @@ class SttStateManager(
                 _asrEvent.trySend(AsrUiEvent.Error(app.getString(R.string.error_stt_failed, e.message ?: app.getString(R.string.error_unknown_error))))
                 _asrListening.value = false
             } finally {
-                _asrListening.value = false
+                // 代次已被新会话取代：旧 job 的 finally 不再把 _asrListening 复位成 false（U29-8）
+                if (myRun == asrStreamRunId) {
+                    _asrListening.value = false
+                }
             }
         }
     }
@@ -515,7 +523,9 @@ class SttStateManager(
         _sttUiState.value = SttUiState.DownloadingModel(0f, modelSizeMb)
         _sttProgress.value = SttProgressState.DOWNLOADING_MODEL
 
-        return coroutineScope.launch(Dispatchers.IO) {
+        // 取消上一次未完成的下载，并把本次 Job 登记到内部字段，供 close() 统一取消（U29-7）
+        downloadJob?.cancel()
+        val job = coroutineScope.launch(Dispatchers.IO) {
             try {
                 ModelManager.downloadModel(app, modelType).collect { progress ->
                     when (progress) {
@@ -560,12 +570,16 @@ class SttStateManager(
                 }
             }
         }
+        downloadJob = job
+        return job
     }
 
     private fun initializeSttEngine(modelType: ModelType) {
         val modelDir = ModelManager.getModelPath(app, modelType)
         if (modelDir != null && modelDir.exists()) {
             try {
+                // 重新初始化前先关闭旧的 sherpa-onnx native 句柄，避免重复分配（U29-6）
+                runCatching { sherpaOnnxEngine?.close() }
                 val engine = SherpaOnnxEngine(app, SttConfig(modelType = modelType))
                 engine.initialize(modelDir)
                 sherpaOnnxEngine = engine
@@ -623,10 +637,15 @@ class SttStateManager(
         sttJob = null
         asrStreamingJob?.cancel()
         asrStreamingJob = null
+        downloadJob?.cancel()
+        downloadJob = null
         _asrEvent.close()
 
         sttEngine?.close()
         sttEngine = null
+        // sherpaOnnxEngine 此前从不 close，native 句柄泄漏；这里补关（U29-6）
+        runCatching { sherpaOnnxEngine?.close() }
+        sherpaOnnxEngine = null
         asrManager.close()
     }
 }

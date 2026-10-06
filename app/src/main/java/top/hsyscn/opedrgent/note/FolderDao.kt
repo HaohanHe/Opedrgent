@@ -3,8 +3,6 @@ package top.hsyscn.opedrgent.note
 import android.content.ContentValues
 import android.database.Cursor
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -14,10 +12,7 @@ import kotlinx.coroutines.withContext
  */
 class FolderDao(private val db: FolderDatabase) {
 
-    private val _changeNotifier = MutableStateFlow(System.currentTimeMillis())
-    val changeNotifier: Flow<Long> = _changeNotifier
-
-    private fun notifyChange() { _changeNotifier.value = System.currentTimeMillis() }
+    // 变更通知由 FolderRepository._changeTrigger 驱动，DAO 层不再维护无消费方的 StateFlow。
 
     /** 查询所有未删除文件夹（按名称排序） */
     suspend fun getAllFolders(): List<Folder> = withContext(Dispatchers.IO) {
@@ -82,27 +77,47 @@ class FolderDao(private val db: FolderDatabase) {
         val values = folderToContentValues(folder)
         if (folder.id == 0L) {
             val id = db.writableDatabase.insert(FolderDatabase.TABLE_FOLDERS, null, values)
-            notifyChange()
             id
         } else {
             db.writableDatabase.update(
                 FolderDatabase.TABLE_FOLDERS, values,
                 "${FolderDatabase.COL_ID} = ?", arrayOf(folder.id.toString()),
             )
-            notifyChange()
             folder.id
         }
     }
 
-    /** 软删除 */
+    /**
+     * 软删除文件夹（级联）：
+     * 1) 直属子文件夹的 parentId 上移到被删文件夹的父目录，避免子树失去父节点从导航消失；
+     * 2) 软删除自身。
+     * 笔记的重挂由 FolderRepository 编排 NoteDao.reparentNotes 完成（跨库无单事务）。
+     */
     suspend fun softDelete(id: Long) = withContext(Dispatchers.IO) {
-        val values = ContentValues().apply {
-            put(FolderDatabase.COL_IS_DELETED, 1)
-            put(FolderDatabase.COL_UPDATED_AT, System.currentTimeMillis())
+        val parentId = getById(id)?.parentId
+        val dbw = db.writableDatabase
+        dbw.beginTransaction()
+        try {
+            // 子文件夹上移一层
+            val childValues = ContentValues().apply {
+                parentId?.let { put(FolderDatabase.COL_PARENT_ID, it) } ?: putNull(FolderDatabase.COL_PARENT_ID)
+            }
+            dbw.update(
+                FolderDatabase.TABLE_FOLDERS, childValues,
+                "${FolderDatabase.COL_PARENT_ID} = ? AND ${FolderDatabase.COL_IS_DELETED} = 0",
+                arrayOf(id.toString()),
+            )
+            // 软删除自身
+            val selfValues = ContentValues().apply {
+                put(FolderDatabase.COL_IS_DELETED, 1)
+                put(FolderDatabase.COL_UPDATED_AT, System.currentTimeMillis())
+            }
+            dbw.update(FolderDatabase.TABLE_FOLDERS, selfValues,
+                "${FolderDatabase.COL_ID} = ?", arrayOf(id.toString()))
+            dbw.setTransactionSuccessful()
+        } finally {
+            dbw.endTransaction()
         }
-        db.writableDatabase.update(FolderDatabase.TABLE_FOLDERS, values,
-            "${FolderDatabase.COL_ID} = ?", arrayOf(id.toString()))
-        notifyChange()
     }
 
     /** 重命名 */
@@ -113,7 +128,6 @@ class FolderDao(private val db: FolderDatabase) {
         }
         db.writableDatabase.update(FolderDatabase.TABLE_FOLDERS, values,
             "${FolderDatabase.COL_ID} = ?", arrayOf(id.toString()))
-        notifyChange()
     }
 
     /** 移动文件夹到新父目录 */
@@ -124,7 +138,6 @@ class FolderDao(private val db: FolderDatabase) {
         }
         db.writableDatabase.update(FolderDatabase.TABLE_FOLDERS, values,
             "${FolderDatabase.COL_ID} = ?", arrayOf(id.toString()))
-        notifyChange()
     }
 
     /** 检查文件夹名称是否已存在（在指定父目录下） */
@@ -138,12 +151,12 @@ class FolderDao(private val db: FolderDatabase) {
         else
             arrayOf(name, parentId.toString(), excludeId.toString())
 
-        var count = 0
+        // 存在性查询：仅判断是否有匹配行。旧实现 projection=null 后取列0（id）当计数，
+        // 仅靠自增 id>=1 侥幸正确；改为投影 id 列并直接看是否有行。
         db.readableDatabase.query(
-            FolderDatabase.TABLE_FOLDERS, null, where, args,
+            FolderDatabase.TABLE_FOLDERS, arrayOf(FolderDatabase.COL_ID), where, args,
             null, null, null,
-        ).use { c -> if (c.moveToFirst()) count = c.getInt(0) }
-        count > 0
+        ).use { it.moveToFirst() }
     }
 
     // ==================== 内部工具 ====================

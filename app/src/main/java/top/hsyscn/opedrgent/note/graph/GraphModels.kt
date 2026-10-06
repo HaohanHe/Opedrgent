@@ -9,7 +9,6 @@ data class GraphNodeEntity(
     val summary: String = "",
     val keywords: String = "",
     val updatedAt: Long = System.currentTimeMillis(),
-    val contentHash: String = "",
 )
 
 /**

@@ -2,6 +2,7 @@ package top.hsyscn.opedrgent.note
 
 import org.json.JSONArray
 import org.json.JSONObject
+import top.hsyscn.opedrgent.utils.DebugLog
 
 data class SpanRepresentation(
     var bold: Boolean = false,
@@ -35,19 +36,27 @@ data class SpanRepresentation(
             if (json.isBlank()) return emptyList()
             return try {
                 val arr = JSONArray(json)
-                (0 until arr.length()).map { i ->
-                    val o = arr.getJSONObject(i)
-                    SpanRepresentation(
-                        bold = o.optBoolean("b", false),
-                        italic = o.optBoolean("i", false),
-                        monospace = o.optBoolean("m", false),
-                        strikethrough = o.optBoolean("s", false),
-                        link = o.optBoolean("l", false),
-                        start = o.optInt("a", 0),
-                        end = o.optInt("e", 0),
-                    )
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i)
+                    if (o == null) {
+                        DebugLog.w("SpanRepresentation", "skip non-object span at index $i")
+                        null
+                    } else {
+                        SpanRepresentation(
+                            bold = o.optBoolean("b", false),
+                            italic = o.optBoolean("i", false),
+                            monospace = o.optBoolean("m", false),
+                            strikethrough = o.optBoolean("s", false),
+                            link = o.optBoolean("l", false),
+                            start = o.optInt("a", 0),
+                            end = o.optInt("e", 0),
+                        )
+                    }
                 }
-            } catch (e: Exception) { emptyList() }
+            } catch (e: Exception) {
+                DebugLog.w("SpanRepresentation", "decode spans failed: ${e.message}")
+                emptyList()
+            }
         }
     }
 }

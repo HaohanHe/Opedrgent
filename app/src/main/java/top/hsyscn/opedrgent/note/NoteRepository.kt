@@ -18,6 +18,7 @@ import top.hsyscn.opedrgent.storage.MemoryStore
 import top.hsyscn.opedrgent.storage.SourceType as HippoSourceType
 import top.hsyscn.opedrgent.storage.SproutReportStore
 import top.hsyscn.opedrgent.utils.DebugLog
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 笔记仓库：统一数据访问层。
@@ -50,8 +51,13 @@ class NoteRepository(
         )
     }
 
-    // 响应式变更通知
+    // 响应式变更通知：单调递增计数器，避免同毫秒连续写被 StateFlow distinctUntilChanged 去重漏刷
     private val _changeTrigger = MutableStateFlow(0L)
+    private val changeCounter = AtomicLong(0L)
+
+    private fun bumpChange() {
+        _changeTrigger.value = changeCounter.incrementAndGet()
+    }
 
     /** 所有笔记（按置顶+更新时间排序） */
     fun getAllNotes(): Flow<List<Note>> = _changeTrigger
@@ -65,7 +71,7 @@ class NoteRepository(
     /** 从同步更新笔记（触发知识图谱建边，但不触发记忆同步） */
     suspend fun updateFromSync(note: Note) {
         val id = dao.insertOrUpdate(note)
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
         GraphLinkWorker.enqueue(context, id)
     }
 
@@ -114,12 +120,12 @@ class NoteRepository(
                 }
             }
 
-            // 2. 语义召回结果按分数排序并去重补充
-            val semanticNotes = semanticResults
-                .mapNotNull { (noteIdStr, _) ->
-                    val noteId = noteIdStr.toLongOrNull() ?: return@mapNotNull null
-                    dao.getById(noteId)
-                }
+            // 2. 语义召回结果按分数排序并去重补充（批量取回，避免逐条 getById 的 N+1 游标往返）
+            val semanticNoteIds = semanticResults.mapNotNull { (noteIdStr, _) ->
+                noteIdStr.toLongOrNull()
+            }
+            val semanticById = dao.getByIds(semanticNoteIds).associateBy { it.id }
+            val semanticNotes = semanticNoteIds.mapNotNull { semanticById[it] }
             for (note in semanticNotes) {
                 if (seenIds.add(note.id)) {
                     combined.add(note)
@@ -176,7 +182,7 @@ class NoteRepository(
             note
         }
         val id = dao.insertOrUpdate(noteToSave)
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
         GraphLinkWorker.enqueue(context, id)
         syncNoteMemory(id, noteToSave)
         return id
@@ -201,7 +207,7 @@ class NoteRepository(
             val generated = NoteTitleGenerator.generate(text, apiSettings, llmClient)
             if (generated.isNotBlank()) {
                 dao.insertOrUpdate(note.copy(title = generated))
-                _changeTrigger.value = System.currentTimeMillis()
+                bumpChange()
                 true
             } else {
                 false
@@ -270,8 +276,8 @@ class NoteRepository(
         return id
     }
 
-    /** 软删除 */
-    suspend fun deleteNote(id: Long) {
+    /** 软删除（整体切 IO：图谱事务/报告库打开/海马体清理均为阻塞操作） */
+    suspend fun deleteNote(id: Long) = withContext(Dispatchers.IO) {
         dao.softDelete(id)
         knowledgeGraph.removeNote(id.toString())
         // 同步清理笔记记忆
@@ -281,24 +287,20 @@ class NoteRepository(
         // 同步清理该笔记派生的发芽报告，避免孤儿报告指向已删笔记
         runCatching { SproutReportStore(context).deleteByNoteId(id) }
             .onFailure { DebugLog.e("NoteRepository", "cleanup sprout reports failed: ${it.message}", it) }
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
     }
 
-    /** 置顶切换 */
+    /** 置顶切换：数据库内原子翻转，避免读-改-写在并发下吞掉一次翻转 */
     suspend fun togglePin(id: Long): Boolean {
-        val note = dao.getById(id) ?: return false
-        val newPinned = !note.isPinned
-        dao.setPinned(id, newPinned)
-        _changeTrigger.value = System.currentTimeMillis()
-        return newPinned
+        dao.flipPinned(id)
+        bumpChange()
+        return dao.getById(id)?.isPinned ?: false
     }
 
-    /** 移动笔记到文件夹 */
+    /** 移动笔记到文件夹：定向 UPDATE，避免整行读-改-写覆盖并发的内容/发芽写 */
     suspend fun moveToFolder(noteId: Long, folderId: Long?) {
-        val note = dao.getById(noteId) ?: return
-        note.folderId = folderId
-        dao.insertOrUpdate(note)
-        _changeTrigger.value = System.currentTimeMillis()
+        dao.updateFolderId(noteId, folderId)
+        bumpChange()
     }
 
     /** 获取最近 N 条（用于 AI 上下文注入） */
@@ -329,8 +331,11 @@ class NoteRepository(
     }
 
     // ==================== 知识图谱代理方法 ====================
+    // 线程契约：以下方法同步触库（KnowledgeGraphStore SQLite 读），调用方必须自行在
+    // Dispatchers.IO 中调用（现有 NoteGraphScreen/NoteListScreen/NoteEditorScreen 已如此）。
+    // 改为 suspend 会波及 MainViewModel 的非 suspend 透传包装，不在本批范围。
 
-    /** 获取笔记的所有关联笔记ID（按相关性排序） */
+    /** 获取笔记的所有关联笔记ID（按相关性排序）。调用方须切 IO。 */
     fun getLinkedNotes(noteId: Long): List<String> {
         return knowledgeGraph.getLinkedNotes(noteId.toString())
     }

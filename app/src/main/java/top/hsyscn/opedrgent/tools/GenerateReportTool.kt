@@ -22,8 +22,11 @@ class GenerateReportTool(
         systemPrompt: String,
         useProviderSearch: Boolean,
     ): ToolResult {
-        val topic = tp.state.input["topic"] ?: tp.state.input["query"] ?: return emptyResult(tp, "缺少报告主题")
-        val data = tp.state.input["data"] ?: tp.state.input["research_data"] ?: ""
+        // 编排器 (ToolExecutor.getResearchToolDefinitions) 声明的键为 material/title，
+        // 主循环本工具 getTools() 的键为 topic/data；这里两侧兼容，避免“缺少报告主题”。
+        val topic = tp.state.input["topic"] ?: tp.state.input["query"] ?: tp.state.input["title"]
+            ?: return emptyResult(tp, "缺少报告主题")
+        val data = tp.state.input["data"] ?: tp.state.input["research_data"] ?: tp.state.input["material"] ?: ""
         DebugLog.i("generate_report: topic=$topic")
 
         if (data.isBlank()) {
@@ -48,7 +51,8 @@ class GenerateReportTool(
                     messages = listOf(ChatMessage(role = Role.USER, content = basicPrompt, createdAt = System.currentTimeMillis())),
                 )
             } catch (e: Exception) {
-                "报告生成失败：${e.message}"
+                DebugLog.e("generate_report basic failed: ${e.message}", e)
+                return emptyResult(tp, "报告生成失败：${e.message}")
             }
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = basicReport, endTime = System.currentTimeMillis())))
         }
@@ -75,7 +79,8 @@ class GenerateReportTool(
                 messages = listOf(ChatMessage(role = Role.USER, content = reportPrompt, createdAt = System.currentTimeMillis())),
             )
         } catch (e: Exception) {
-            "报告生成失败：${e.message}\n\n=== 原始数据 ===\n${data.take(3000)}"
+            DebugLog.e("generate_report report failed: ${e.message}", e)
+            return emptyResult(tp, "报告生成失败：${e.message}")
         }
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = report, endTime = System.currentTimeMillis())))
@@ -111,7 +116,8 @@ class GenerateReportTool(
                 messages = listOf(ChatMessage(role = Role.USER, content = summaryPrompt, createdAt = System.currentTimeMillis())),
             )
         } catch (e: Exception) {
-            "摘要生成失败：${e.message}\n\n=== 原文前500字 ===\n${content.take(500)}"
+            DebugLog.e("generate_summary failed: ${e.message}", e)
+            return emptyResult(tp, "摘要生成失败：${e.message}")
         }
 
         return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = summary, endTime = System.currentTimeMillis())))
@@ -122,11 +128,29 @@ class GenerateReportTool(
             "generate_report" to ToolBinding(
                 name = "generate_report",
                 description = "生成研究报告：整理研究结果，生成结构化的报告。参数中 topic 为必填，data 为可选（包含研究数据）。",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string", "description": "报告主题（主循环路径必填）"},
+                        "data": {"type": "string", "description": "可选，研究数据正文"},
+                        "material": {"type": "string", "description": "可选，编排器路径传入的报告素材（等价于 data）"},
+                        "title": {"type": "string", "description": "可选，编排器路径传入的报告标题（等价于 topic）"}
+                    },
+                    "required": ["topic"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeGenerateReport(tp, config, sp, ups) },
             ),
             "generate_summary" to ToolBinding(
                 name = "generate_summary",
                 description = "生成摘要：对长文本或多个来源的内容进行摘要整理。参数中 content 为必填。",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string", "description": "待摘要原文（必填）"},
+                        "text": {"type": "string", "description": "可选，与 content 等价"}
+                    },
+                    "required": ["content"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeGenerateSummary(tp, config, sp, ups) },
             ),
         )

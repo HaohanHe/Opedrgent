@@ -24,6 +24,19 @@ class MimoTtsTool(
             "mimo_tts" to ToolBinding(
                 name = "mimo_tts",
                 description = "使用MiMo引擎生成高质量语音。支持预置音色(8种)、音色设计(文本描述)、音色克隆(音频样本)三种模式。参数: text(必填), voice(可选,默认冰糖), model(可选: mimo-v2.5-tts/mimo-v2.5-tts-voicedesign/mimo-v2.5-tts-voiceclone), style_instruction(自然语言风格), overall_style(整体标签), singing(唱歌模式), voice_file_base64(仅voiceclone模式，音频样本base64)。",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "要合成的文本（必填）"},
+                        "voice": {"type": "string", "description": "可选，预置音色 id；空则回落配置默认音色"},
+                        "model": {"type": "string", "description": "可选，模型：mimo-v2.5-tts / mimo-v2.5-tts-voicedesign / mimo-v2.5-tts-voiceclone"},
+                        "style_instruction": {"type": "string", "description": "可选，自然语言风格描述"},
+                        "overall_style": {"type": "string", "description": "可选，整体风格标签"},
+                        "singing": {"type": "boolean", "description": "可选，是否唱歌模式"},
+                        "voice_file_base64": {"type": "string", "description": "可选，仅 voiceclone 模式，音频样本 base64"}
+                    },
+                    "required": ["text"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeMimoTts(tp, config, sp, ups) },
             ),
         )
@@ -47,7 +60,7 @@ class MimoTtsTool(
             return emptyResult(tp, "mimo_tts: 未配置API Key（MiMo与主模型共用同一Key）")
         }
 
-        val voiceId = tp.state.input["voice"]?.trim() ?: apiSettings.getTtsMimoVoice()
+        val voiceId = tp.state.input["voice"]?.trim()?.takeIf { it.isNotBlank() } ?: apiSettings.getTtsMimoVoice()
         val rawModelId = tp.state.input["model"]?.trim() ?: "mimo-v2.5-tts"
         val modelId = when {
             rawModelId.contains("voiceclone") -> "mimo-v2.5-tts-voiceclone"
@@ -104,7 +117,7 @@ class MimoTtsTool(
             outputFile.parentFile?.mkdirs()
             outputFile.writeBytes(result.audioData)
 
-            val durationSec = result.audioData.size.toDouble() / (24000 * 2)
+            val durationSec = estimateWavDurationSec(result.audioData)
 
             DebugLog.i("mimo_tts: success! file=${outputFile.absolutePath}, size=${result.audioData.size} bytes")
 
@@ -129,6 +142,35 @@ class MimoTtsTool(
         } catch (e: Exception) {
             DebugLog.e("mimo_tts exception: ${e.message}", e)
             return emptyResult(tp, "mimo_tts: 异常 - ${e.message}")
+        }
+    }
+
+    /**
+     * 解析 WAV 头估算时长（秒）。audioData 为含 RIFF/WAVE 头的整包字节。
+     * 读 fmt 块取采样率(24)/声道(22)/位深(34)，按 (size-44)/byteRate 计算；
+     * 头信息不可靠时回退到 24kHz/16bit/单声道 的旧估算。
+     */
+    private fun estimateWavDurationSec(wav: ByteArray): Double {
+        return try {
+            if (wav.size < 44 ||
+                wav[0] != 'R'.code.toByte() || wav[1] != 'I'.code.toByte() ||
+                wav[2] != 'F'.code.toByte() || wav[3] != 'F'.code.toByte()
+            ) {
+                return wav.size.toDouble() / (24000.0 * 2.0)
+            }
+            val channels = (wav[22].toInt() and 0xff) or ((wav[23].toInt() and 0xff) shl 8)
+            val sampleRate = (wav[24].toInt() and 0xff) or
+                ((wav[25].toInt() and 0xff) shl 8) or
+                ((wav[26].toInt() and 0xff) shl 16) or
+                ((wav[27].toInt() and 0xff) shl 24)
+            val bitsPerSample = (wav[34].toInt() and 0xff) or ((wav[35].toInt() and 0xff) shl 8)
+            if (sampleRate <= 0 || channels <= 0 || bitsPerSample <= 0) {
+                return wav.size.toDouble() / (24000.0 * 2.0)
+            }
+            val byteRate = sampleRate.toDouble() * channels * (bitsPerSample / 8.0)
+            (wav.size - 44).coerceAtLeast(0).toDouble() / byteRate
+        } catch (_: Exception) {
+            wav.size.toDouble() / (24000.0 * 2.0)
         }
     }
 }

@@ -180,26 +180,15 @@ class AsrPostProcessor {
 
         // 4. 时间格式规范化
         result = result.replace(Regex("(\\d{4})年(\\d{1,2})月(\\d{1,2})日"), "$1年$2月$3日")
-        result = result.replace(Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?"), "$1:$2$3".replace("$3", if (Regex(".+:\\d{2}:\\d{2}") matches result) "" else ":$3"))
-
-        // 5. 句子边界: 连续空格/无标点的长文本按断句
-        result = insertSentenceBoundaries(result)
+        result = result.replace(Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")) { m ->
+            val hh = m.groupValues[1]
+            val mm = m.groupValues[2]
+            val ss = m.groupValues[3]
+            // 秒数命中时保留 HH:MM:SS，否则 HH:MM；不再在模板字符串上做二次 replace（U50-01）
+            if (ss.isNotEmpty()) "$hh:$mm:$ss" else "$hh:$mm"
+        }
 
         return result
-    }
-
-    /**
-     * 在无明显标点处插入句子边界。
-     */
-    private fun insertSentenceBoundaries(text: String): String {
-        // 已经有标点的地方不动，只在超长无标点段插入
-        return text.replace(Regex("([^。！？；\n]{30,})")) { match ->
-            val segment = match.value
-            // 按语义停顿词分割
-            segment.split(Regex("(?<=[，,])\\s*|(?<=[然后|接着|之后|另外|此外|同时|所以|因此|但是|不过|然而|总之|综上])"))
-                .filter { it.isNotBlank() }
-                .joinToString("")
-        }
     }
 
     // ================================================================

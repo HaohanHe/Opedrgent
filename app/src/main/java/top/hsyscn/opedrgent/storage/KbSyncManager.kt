@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
@@ -40,43 +42,51 @@ class KbSyncManager(
     /** 同步进度事件流 */
     val progress: SharedFlow<SyncProgress> = _progress.asSharedFlow()
 
+    // 手动触发与 WorkManager 后台任务可能并发进入；用同一把 Mutex 串行化整段同步，
+    // 否则两份 syncAll 会同时 getDocumentsNeedingSync 拿到同一批 PENDING 文档，
+    // 重复上传云端并互相覆盖 cloudFileId。
+    private val syncMutex = Mutex()
+
     // ---- 完整同步 ----
 
     /**
      * 执行完整同步: 本地重解析 + 云端上传。
      *
+     * 与 [syncLocalChanges]/[syncToCloud] 共用同一把锁；并发调用会排队，不重入。
+     *
      * @param cloudApiKey 阶跃 API Key (为空则跳过云端同步)
      * @param cloudStoreId 目标向量存储 ID (为空则跳过云端同步)
      * @return 同步汇总结果
      */
-    suspend fun syncAll(cloudApiKey: String? = null, cloudStoreId: String? = null): SyncSummary {
-        DebugLog.i(TAG, "开始完整知识库同步 (cloud=${!cloudApiKey.isNullOrBlank() && !cloudStoreId.isNullOrBlank()})")
-        _progress.tryEmit(SyncProgress.StageChange(SyncStage.STARTED, "开始同步"))
+    suspend fun syncAll(cloudApiKey: String? = null, cloudStoreId: String? = null): SyncSummary =
+        syncMutex.withLock {
+            DebugLog.i(TAG, "开始完整知识库同步 (cloud=${!cloudApiKey.isNullOrBlank() && !cloudStoreId.isNullOrBlank()})")
+            _progress.tryEmit(SyncProgress.StageChange(SyncStage.STARTED, "开始同步"))
 
-        // 阶段 1: 本地重解析
-        val localResult = syncLocalChanges()
+            // 阶段 1: 本地重解析（已持锁，直接调内部实现，不再二次加锁）
+            val localResult = doSyncLocalChanges(cloudApiKey)
 
-        // 阶段 2: 云端同步
-        val cloudResult = if (!cloudApiKey.isNullOrBlank() && !cloudStoreId.isNullOrBlank()) {
-            syncToCloud(cloudApiKey, cloudStoreId)
-        } else {
-            DebugLog.i(TAG, "跳过云端同步 (未提供 apiKey 或 storeId)")
-            CloudSyncResult(0, 0, 0)
+            // 阶段 2: 云端同步
+            val cloudResult = if (!cloudApiKey.isNullOrBlank() && !cloudStoreId.isNullOrBlank()) {
+                doSyncToCloud(cloudApiKey, cloudStoreId)
+            } else {
+                DebugLog.i(TAG, "跳过云端同步 (未提供 apiKey 或 storeId)")
+                CloudSyncResult(0, 0, 0)
+            }
+
+            val summary = SyncSummary(
+                scannedCount = localResult.scannedCount,
+                reparsedCount = localResult.reparsedCount,
+                contentChangedCount = localResult.contentChangedCount,
+                failedReparseCount = localResult.failedCount,
+                cloudUploadedCount = cloudResult.uploadedCount,
+                cloudFailedCount = cloudResult.failedCount,
+                cloudSkippedCount = cloudResult.skippedCount,
+            )
+            _progress.tryEmit(SyncProgress.StageChange(SyncStage.COMPLETED, "同步完成: ${summary.reparsedCount} 重解析, ${summary.cloudUploadedCount} 上传云端"))
+            DebugLog.i(TAG, "同步完成: $summary")
+            summary
         }
-
-        val summary = SyncSummary(
-            scannedCount = localResult.scannedCount,
-            reparsedCount = localResult.reparsedCount,
-            contentChangedCount = localResult.contentChangedCount,
-            failedReparseCount = localResult.failedCount,
-            cloudUploadedCount = cloudResult.uploadedCount,
-            cloudFailedCount = cloudResult.failedCount,
-            cloudSkippedCount = cloudResult.skippedCount,
-        )
-        _progress.tryEmit(SyncProgress.StageChange(SyncStage.COMPLETED, "同步完成: ${summary.reparsedCount} 重解析, ${summary.cloudUploadedCount} 上传云端"))
-        DebugLog.i(TAG, "同步完成: $summary")
-        return summary
-    }
 
     // ---- 阶段 1: 本地重解析 ----
 
@@ -84,11 +94,15 @@ class KbSyncManager(
      * 扫描本地源文件变更并重新解析。
      *
      * 仅处理 sourceUri 为本地文件路径的文档 (content:// URI 无法检测变更)。
+     * 与 [syncAll] 共用同一把锁，避免与完整同步并发重解析同一文档。
      *
      * @param cloudApiKey 本地解析失败时的云端回退 API Key (可选)
      * @return 本地同步结果
      */
-    suspend fun syncLocalChanges(cloudApiKey: String? = null): LocalSyncResult {
+    suspend fun syncLocalChanges(cloudApiKey: String? = null): LocalSyncResult =
+        syncMutex.withLock { doSyncLocalChanges(cloudApiKey) }
+
+    private suspend fun doSyncLocalChanges(cloudApiKey: String?): LocalSyncResult {
         return withContext(Dispatchers.IO) {
             val changedDocs = knowledgeBase.scanForChangedDocuments()
             DebugLog.i(TAG, "本地变更扫描: 发现 ${changedDocs.size} 个文档源文件已变更")
@@ -137,12 +151,16 @@ class KbSyncManager(
      * 将待同步文档上传到阶跃云端向量存储。
      *
      * 处理 PENDING 和 FAILED 状态的文档, 上传成功后标记为 SYNCED。
+     * 与 [syncAll] 共用同一把锁，避免并发上传同一文档导致云端重复文件、cloudFileId 互相覆盖。
      *
      * @param apiKey 阶跃 API Key
      * @param storeId 目标向量存储 ID
      * @return 云端同步结果
      */
-    suspend fun syncToCloud(apiKey: String, storeId: String): CloudSyncResult {
+    suspend fun syncToCloud(apiKey: String, storeId: String): CloudSyncResult =
+        syncMutex.withLock { doSyncToCloud(apiKey, storeId) }
+
+    private suspend fun doSyncToCloud(apiKey: String, storeId: String): CloudSyncResult {
         return withContext(Dispatchers.IO) {
             val pendingDocs = knowledgeBase.getDocumentsNeedingSync()
             DebugLog.i(TAG, "云端同步: ${pendingDocs.size} 个文档待上传")
@@ -252,16 +270,17 @@ class KbSyncManager(
     // ---- 同步状态查询 ----
 
     /**
-     * 获取同步状态统计。
+     * 获取同步状态统计。基于 SQL GROUP BY 聚合，不把全量文档正文读进内存。
      */
     fun getSyncStats(): SyncStats {
-        val allDocs = knowledgeBase.getAllDocuments()
+        val counts = knowledgeBase.countBySyncStatus()
+        val total = counts.values.sum()
         return SyncStats(
-            total = allDocs.size,
-            synced = allDocs.count { it.syncStatus == SyncStatus.SYNCED },
-            pending = allDocs.count { it.syncStatus == SyncStatus.PENDING },
-            failed = allDocs.count { it.syncStatus == SyncStatus.FAILED },
-            localOnly = allDocs.count { it.syncStatus == SyncStatus.LOCAL_ONLY },
+            total = total,
+            synced = counts[SyncStatus.SYNCED] ?: 0,
+            pending = counts[SyncStatus.PENDING] ?: 0,
+            failed = counts[SyncStatus.FAILED] ?: 0,
+            localOnly = counts[SyncStatus.LOCAL_ONLY] ?: 0,
         )
     }
 

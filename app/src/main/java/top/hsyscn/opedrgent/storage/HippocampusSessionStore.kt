@@ -135,13 +135,16 @@ class HippocampusSessionStore(context: Context) {
      */
     suspend fun search(keyword: String, limit: Int = 30): List<SessionSummary> = withContext(Dispatchers.IO) {
         runCatching {
-            val pattern = "%$keyword%"
+            if (keyword.isBlank()) return@runCatching emptyList<SessionSummary>()
+            // % _ \ 转义，配合 ESCAPE '\'；空词不再退化为 "%%" 全表返回
+            val escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            val pattern = "%$escaped%"
             val sql = """SELECT * FROM ${HippocampusDatabase.TABLE_SESSIONS}
-                WHERE ${HippocampusDatabase.COL_PRIMARY_GOAL} LIKE ?
-                OR ${HippocampusDatabase.COL_POSITION} LIKE ?
-                OR ${HippocampusDatabase.COL_COMPANY} LIKE ?
-                OR ${HippocampusDatabase.COL_SESSION_SUMMARY} LIKE ?
-                OR ${HippocampusDatabase.COL_KEY_TOPICS} LIKE ?
+                WHERE ${HippocampusDatabase.COL_PRIMARY_GOAL} LIKE ? ESCAPE '\'
+                OR ${HippocampusDatabase.COL_POSITION} LIKE ? ESCAPE '\'
+                OR ${HippocampusDatabase.COL_COMPANY} LIKE ? ESCAPE '\'
+                OR ${HippocampusDatabase.COL_SESSION_SUMMARY} LIKE ? ESCAPE '\'
+                OR ${HippocampusDatabase.COL_KEY_TOPICS} LIKE ? ESCAPE '\'
                 ORDER BY ${HippocampusDatabase.COL_ENDED_AT} DESC LIMIT ?"""
             val cursor = db.rawQuery(sql, arrayOf(pattern, pattern, pattern, pattern, pattern, limit.toString()))
             cursorToList(cursor)

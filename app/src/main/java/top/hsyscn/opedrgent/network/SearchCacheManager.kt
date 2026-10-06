@@ -69,9 +69,14 @@ class SearchCacheManager {
 
         // 检查是否过期
         if (now - entry.timestamp > SearchConstants.SEARCH_CACHE_TTL_MS) {
-            // Only remove the entry we actually inspected to avoid racing a fresh put.
-            searchCache.remove(key, entry)
-            lruLock.writeLock().withLock { searchLru.remove(key) }
+            // 在写锁内做条件删除：仅当 searchCache 仍指向本条过期 entry 时，才同时移除数据与 LRU 索引。
+            // 避免与并发 putToCache 竞态——后者可能已为同一 key 写入新条目，此时不得误删其 LRU 索引。
+            lruLock.writeLock().withLock {
+                if (searchCache[key] === entry) {
+                    searchCache.remove(key)
+                    searchLru.remove(key)
+                }
+            }
             cacheMisses.incrementAndGet()
             return null
         }
@@ -101,7 +106,9 @@ class SearchCacheManager {
             lastAccessTime = AtomicLong(now)
         )
 
-        // 如果超过最大容量，移除最老的条目（LRU）
+        // 如果超过最大容量，移除最老的条目（LRU）。
+        // searchCache 与 searchLru 在同一写锁临界区内更新，保证二者 key 集合始终一致，
+        // 否则过期清理路径的引用相等判断会误判。
         lruLock.writeLock().withLock {
             while (searchLru.size >= SearchConstants.MAX_CACHE_SIZE && searchLru.isNotEmpty()) {
                 val oldestKey = searchLru.keys.iterator().next()
@@ -110,9 +117,8 @@ class SearchCacheManager {
             }
             searchLru.remove(key)
             searchLru[key] = true
+            searchCache[key] = newEntry
         }
-
-        searchCache[key] = newEntry
 
         // 定期清理过期条目
         periodicCleanUp()

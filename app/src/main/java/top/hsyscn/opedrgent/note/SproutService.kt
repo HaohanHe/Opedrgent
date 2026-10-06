@@ -1,13 +1,7 @@
 package top.hsyscn.opedrgent.note
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -336,38 +330,22 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     /** 重新生成（覆盖旧报告） */
     suspend fun resprout(note: Note): Result<SproutArticle> = sprout(note.content)
 
-    /** 批量发芽 */
-    suspend fun batchSprout(notes: List<Note>): Map<Long, Result<SproutArticle>> {
-        val results = mutableMapOf<Long, Result<SproutArticle>>()
-        for (note in notes) {
-            results[note.id] = sprout(note.content)
-            kotlinx.coroutines.delay(500)
-        }
-        return results
-    }
-
     /**
-     * 批量发芽 — 对多篇笔记并发执行发芽分析
-     * 并发数限制为 2（控制 token 消耗）
+     * 批量发芽 — 对多篇笔记执行发芽分析。
+     * 注：sprout() 内部由实例级 sproutMutex 全程互斥（含多轮 tool 调用的网络 I/O），实际并发度恒为 1；
+     * 先前 Semaphore(2) 被该全局 mutex 击穿而完全空转，故移除冗余信号量与误导性"并发2"注释。
      */
     suspend fun sproutBatch(
         notes: List<Note>,
         otherNotesContext: String = "",
     ): List<Result<SproutArticle>> {
         if (notes.isEmpty()) return emptyList()
-        val semaphore = Semaphore(2)
-        return coroutineScope {
-            notes.map<Note, Deferred<Result<SproutArticle>>> { note ->
-                async<Result<SproutArticle>> {
-                    try {
-                        semaphore.withPermit {
-                            sprout(note.content, otherNotesContext)
-                        }
-                    } catch (e: Exception) {
-                        Result.failure(e)
-                    }
-                }
-            }.awaitAll()
+        return notes.map { note ->
+            try {
+                sprout(note.content, otherNotesContext)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 
@@ -405,40 +383,6 @@ class SproutService(private val apiSettings: ApiSettings, private val hippocampu
     }
 
     // ==================== 解析器 ====================
-
-    private fun parseNarrativeResponse(responseBody: String, modelUsed: String): Result<SproutArticle> {
-        return try {
-            val json = JSONObject(responseBody)
-            val choices = json.optJSONArray("choices")
-                ?: return Result.failure(RuntimeException("响应格式错误：无 choices"))
-
-            if (choices.length() == 0) return Result.failure(RuntimeException("响应为空"))
-
-            var content = choices.getJSONObject(0)
-                .getJSONObject("message")
-                .optString("content", "")
-
-            content = stripThinkingTags(content)
-
-            DebugLog.d(TAG, "LLM 原始响应 (${content.length} 字符): ${content.take(300)}")
-
-            val jsonStr = extractJsonFromMarkdown(content) ?: content.trim()
-            DebugLog.d(TAG, "提取的 JSON (${jsonStr.length} 字符): ${jsonStr.take(300)}")
-
-            val articleResult = extractSproutArticle(jsonStr)
-            if (articleResult.isSuccess) {
-                val article = articleResult.getOrThrow().copy(modelUsed = modelUsed)
-                DebugLog.i(TAG, "叙事式发芽成功: ${article.summary.take(50)}... (${article.articles.size}篇)")
-                Result.success(article)
-            } else {
-                DebugLog.e(TAG, "发芽解析失败: ${articleResult.exceptionOrNull()?.message}")
-                articleResult
-            }
-        } catch (e: Exception) {
-            DebugLog.e(TAG, "解析发芽响应失败: ${e.message}")
-            Result.failure(e)
-        }
-    }
 
     private fun extractJsonFromMarkdown(content: String): String? {
         val regex = Regex("```(?:json)?\\s*([\\s\\S]*?)```")

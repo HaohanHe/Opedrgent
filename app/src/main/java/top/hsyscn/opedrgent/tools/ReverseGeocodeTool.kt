@@ -76,6 +76,13 @@ class ReverseGeocodeTool(
         if (lat == null || lon == null) {
             return ToolResult(toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.ERROR, error = context.getString(R.string.error_missing_lat_lon), endTime = System.currentTimeMillis())))
         }
+        // 范围校验：越界坐标（如 lat=999/lon=200）不再静默落到“解析失败”文案
+        if (lat !in -90.0..90.0 || lon !in -180.0..180.0) {
+            return ToolResult(toolPart = tp.copy(state = tp.state.copy(
+                status = ToolStateType.ERROR,
+                error = "坐标越界：纬度需在 -90~90、经度需在 -180~180，收到 lat=$lat, lon=$lon",
+                endTime = System.currentTimeMillis())))
+        }
 
         DebugLog.i("geocode reverse: $lat, $lon")
         val result = searcher.reverseGeocode(lat, lon)
@@ -132,7 +139,7 @@ class ReverseGeocodeTool(
         )
     }
 
-    private fun Double.format(decimals: Int): String = String.format("%.${decimals}f", this)
+    private fun Double.format(decimals: Int): String = String.format(Locale.US, "%.${decimals}f", this)
 
     /** 为 ToolPart 添加 action 参数（用于别名转发） */
     private fun ToolPart.withAction(action: String): ToolPart =

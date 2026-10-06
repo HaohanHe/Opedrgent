@@ -12,11 +12,14 @@ object ReflectionLocator {
     private var reflectionId: Long? = null
 
     /** 从行动项查看复盘时调用。 */
+    @Synchronized
     fun open(id: Long) {
         reflectionId = id
     }
 
-    /** 批判镜页进入时取出并清空；无定位请求返回 null。 */
+    /** 批判镜页进入时取出并清空；无定位请求返回 null。
+     *  synchronized 保证"读+清"原子，避免并发消费重复取到同一 id（U29-11）。 */
+    @Synchronized
     fun consume(): Long? {
         val id = reflectionId
         reflectionId = null

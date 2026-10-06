@@ -35,6 +35,14 @@ object InterviewAgent {
 
     private const val TAG = "InterviewAgent"
 
+    /**
+     * LLM 服务不可用时的统一兜底文案。
+     *
+     * callLlm / callLlmWithMessages 抛错时返回该文案，generateIdleNudge 用它判定"当前不可播报引导"。
+     * 两侧共用同一常量，避免硬编码子串嗅探在文案改版后失配（U56-06）。
+     */
+    const val LLM_SERVICE_UNAVAILABLE_FALLBACK = "抱歉，AI 服务暂时不可用，请稍后重试。"
+
     // ==================== 海马体记忆系统 ====================
 
     /**
@@ -502,8 +510,8 @@ object InterviewAgent {
             userMessage = userPrompt,
         ).trim()
 
-        // 服务不可用时 callLlm 会返回兜底提示，这里不把它当作要播报的引导
-        return if (raw.contains("AI 服务暂时不可用")) "" else raw.ifBlank { "" }
+        // 服务不可用时 callLlm 会返回统一兜底文案，这里不把它当作要播报的引导（U56-06）
+        return if (raw == LLM_SERVICE_UNAVAILABLE_FALLBACK || raw.isBlank()) "" else raw
     }
 
     /**
@@ -626,12 +634,15 @@ object InterviewAgent {
             }
         }
 
-        // 3. 构建消息列表（注入注意力上下文）
+        // 3. 构建消息列表。
+        // 注意力上下文合并进 systemPrompt（与 buildUnifiedPrompt 合成单条 system），
+        // 不再额外往 messages[0] 注入一条 SYSTEM 消息，避免与 system 参数形成双 system 歧义（U56-07）。
         val messages = contextToMessages(history).toMutableList()
 
-        // 注入海马体注意力上下文（作为额外的 system 消息）
-        if (attentionContext.isNotBlank()) {
-            messages.add(0, ChatMessage(role = Role.SYSTEM, content = attentionContext))
+        val effectiveSystemPrompt = if (attentionContext.isNotBlank()) {
+            "$systemPrompt\n\n$attentionContext"
+        } else {
+            systemPrompt
         }
 
         // 添加当前轮次的用户消息
@@ -641,7 +652,7 @@ object InterviewAgent {
         val response = callLlmWithMessages(
             llmClient = llmClient,
             config = apiConfig,
-            systemPrompt = systemPrompt,
+            systemPrompt = effectiveSystemPrompt,
             messages = messages,
         )
 
@@ -670,7 +681,7 @@ object InterviewAgent {
             )
         } catch (e: Exception) {
             DebugLog.e(TAG, "LLM 调用失败: ${e.message}")
-            "抱歉，AI 服务暂时不可用，请稍后重试。"
+            LLM_SERVICE_UNAVAILABLE_FALLBACK
         }
     }
 
@@ -796,7 +807,7 @@ object InterviewAgent {
             )
         } catch (e: Exception) {
             DebugLog.e(TAG, "LLM 调用失败: ${e.message}")
-            "抱歉，AI 服务暂时不可用，请稍后重试。"
+            LLM_SERVICE_UNAVAILABLE_FALLBACK
         }
     }
 

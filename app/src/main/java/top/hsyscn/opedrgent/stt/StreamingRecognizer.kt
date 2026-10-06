@@ -49,11 +49,17 @@ class StreamingRecognizer {
     private var stream: OnlineStream? = null
     private var _isActive = false
 
+    // U47-10：feedAudio 由音频录制线程高频调用，release() 由 UI/close 线程触发。
+    // recognizer/stream/_isActive 的所有访问都经 this 监视器串行化，
+    // 避免线程 A 持旧 stream 引用调 native、线程 B 已 release → JNI use-after-free。
+
+    @get:Synchronized
     val isActive: Boolean get() = _isActive
 
     /**
      * Create a new OnlineRecognizer with Paraformer streaming config.
      */
+    @Synchronized
     fun create(
         @Suppress("UNUSED_PARAMETER") assetManager: Any?,
         modelDir: File,
@@ -134,6 +140,7 @@ class StreamingRecognizer {
     /**
      * Feed audio samples for streaming recognition (real-time input).
      */
+    @Synchronized
     fun feedAudio(samples: FloatArray, sampleRate: Int = 16000) {
         val s = stream ?: return
         if (!_isActive || samples.isEmpty()) return
@@ -148,12 +155,16 @@ class StreamingRecognizer {
     /**
      * Feed entire audio and decode all at once (for file recognition).
      */
+    @Synchronized
     fun recognize(samples: FloatArray, sampleRate: Int = 16000): String {
         val r = recognizer ?: return ""
         val s = stream ?: return ""
         if (samples.isEmpty()) return ""
 
         return try {
+            // U47-11：文件解码前先 reset，避免同实例此前流式会话残留的隐状态污染结果；
+            // 也避免上一次文件调用 inputFinished() 把 stream 留在 EOS 状态后无法再用于流式。
+            r.reset(s)
             s.acceptWaveform(samples, sampleRate)
             s.inputFinished()
 
@@ -174,6 +185,7 @@ class StreamingRecognizer {
     /**
      * Check if the recognizer has enough audio to produce a decode result.
      */
+    @Synchronized
     fun isReady(): Boolean {
         val r = recognizer ?: return false
         val s = stream ?: return false
@@ -188,6 +200,7 @@ class StreamingRecognizer {
     /**
      * Decode one step, advancing the recognizer's internal state.
      */
+    @Synchronized
     fun decode() {
         val r = recognizer ?: return
         val s = stream ?: return
@@ -203,6 +216,7 @@ class StreamingRecognizer {
      *
      * Returns partial text that can be updated/corrected as more audio arrives.
      */
+    @Synchronized
     fun getResult(): String {
         val r = recognizer ?: return ""
         val s = stream ?: return ""
@@ -217,6 +231,7 @@ class StreamingRecognizer {
     /**
      * Check if an endpoint (pause/break) has been detected.
      */
+    @Synchronized
     fun isEndpoint(): Boolean {
         val r = recognizer ?: return false
         val s = stream ?: return false
@@ -230,6 +245,7 @@ class StreamingRecognizer {
     /**
      * Reset the recognizer for a new utterance.
      */
+    @Synchronized
     fun reset() {
         val r = recognizer ?: return
         val s = stream ?: return
@@ -243,14 +259,15 @@ class StreamingRecognizer {
     /**
      * Release all resources (stream + recognizer).
      */
+    @Synchronized
     fun release() {
         stream?.let {
-            try { it.release() } catch (_: Exception) { }
+            try { it.release() } catch (e: Exception) { DebugLog.w(TAG, "stream release failed: ${e.message}") }
         }
         stream = null
 
         recognizer?.let {
-            try { it.release() } catch (_: Exception) { }
+            try { it.release() } catch (e: Exception) { DebugLog.w(TAG, "recognizer release failed: ${e.message}") }
         }
         recognizer = null
         _isActive = false

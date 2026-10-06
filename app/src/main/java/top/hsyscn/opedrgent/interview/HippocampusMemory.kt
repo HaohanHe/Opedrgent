@@ -67,6 +67,8 @@ class HippocampusMemory(
         private const val TAG = "HippocampusMemory"
         /** 快照间隔：每 N 轮做一次关键信息快照 */
         const val SNAPSHOT_INTERVAL = 3
+        /** turnHistory 最大保留轮数：超过后丢弃最老记录，避免长面试内存无界增长（U57-07） */
+        private const val MAX_TURN_HISTORY = 200
         /** 关键词提取最大数量 */
         private const val MAX_KEYWORDS = 8
         /** 最大关键话题数量 */
@@ -261,17 +263,27 @@ class HippocampusMemory(
      */
     fun detectDrift(turnIndex: Int, userMessage: String, aiResponse: String): DriftResult {
         // 无目标锚定时不记录
-        goalAnchor ?: return DriftResult(false, DriftLevel.NONE, "", "", 1.0f)
+        goalAnchor ?: return DriftResult(false, DriftLevel.NONE, "", "", Float.NaN)
 
-        // 仅记录轮次，不做关键词/词表命中式判定
+        // 仅记录轮次，不做关键词/词表命中式判定——跑题与否由模型结合完整对话判断。
+        // relevanceScore 不再恒填 1.0（那是"假装完全聚焦"的僵尸常量），诚实置 NaN，
+        // getDriftReport 遇到 NaN 按"由模型判断"处理（U57-08）。
         val result = DriftResult(
             isDrifting = false,
             driftLevel = DriftLevel.NONE,
             driftReason = "跑题判定由模型结合完整对话与目标完成",
             suggestedCorrection = "",
-            relevanceScore = 1.0f,
+            relevanceScore = Float.NaN,
         )
         turnHistory.add(TurnRecord(turnIndex, userMessage, aiResponse, result))
+
+        // 有界化：长面试 turnHistory 无界增长会撑大内存并拖慢每轮全量 joinToString，
+        // 超过上限丢弃最老记录（U57-07）。
+        synchronized(turnHistory) {
+            while (turnHistory.size > MAX_TURN_HISTORY) {
+                turnHistory.removeAt(0)
+            }
+        }
 
         DebugLog.d(TAG, "记录第${turnIndex}轮对话（漂移判定交由模型）")
         return result
@@ -360,18 +372,23 @@ class HippocampusMemory(
         val coveredTopics = anchor.keyTopics.filter { allText.contains(it.lowercase()) }.toSet()
         val pendingTopics = anchor.keyTopics.filter { !coveredTopics.contains(it) }.toSet()
 
-        // 提取用户提到的事实（简单实现：从最近几轮中提取较长句子）
+        // 提取用户提到的事实：只取用户自己说的话（userMessage），不再把 AI 回复里的模板话术
+        // 当作用户事实回注——否则 AI 的填充语会被当成"候选人事实"反复自我强化（U57-09）。
         val userMentionedFacts = turnHistory.takeLast(5)
-            .flatMap { listOf(it.userMessage, it.aiResponse) }
+            .map { it.userMessage }
             .filter { it.length > 20 && it.length < 200 }
             .take(5)
 
-        // 检测风险点（包含负面词汇的句子）
+        // 检测风险点（用户话中含负面能力词）。记录时绑定用户原话片段，
+        // 不再只输出"发现知识盲区: 不会"这种丢话题/丢轮次的通用标签（U57-10）。
         val negativePatterns = listOf("不会", "不懂", "不清楚", "没做过", "不熟悉", "没接触过")
         val redFlags = turnHistory.flatMap { record ->
             negativePatterns.mapNotNull { pattern ->
-                val text = "${record.userMessage} ${record.aiResponse}"
-                if (text.contains(pattern)) "发现知识盲区: $pattern" else null
+                if (record.userMessage.contains(pattern)) {
+                    "知识盲区($pattern): ${record.userMessage.take(60)}"
+                } else {
+                    null
+                }
             }
         }.distinct().take(3)
 
@@ -477,10 +494,15 @@ class HippocampusMemory(
             .map { it.driftResult.driftLevel }
             .maxByOrNull { it.ordinal } ?: DriftLevel.NONE
 
-        // 平均关联度
-        val averageRelevance = if (turnHistory.isNotEmpty()) {
-            turnHistory.map { it.driftResult.relevanceScore }.average().toFloat()
-        } else 1.0f
+        // 平均关联度：本地不再做命中式判定，relevanceScore 多为 NaN（交由模型判断），
+        // 过滤掉 NaN 再平均；若全部 NaN 则记 NaN，报告层据此显示"由模型判断"（U57-08）。
+        val averageRelevance = turnHistory
+            .map { it.driftResult.relevanceScore }
+            .filter { !it.isNaN() }
+            .takeIf { it.isNotEmpty() }
+            ?.average()
+            ?.toFloat()
+            ?: Float.NaN
 
         // 干预次数（MODERATE 及以上算干预）
         val interventionCount = turnHistory.count {

@@ -81,6 +81,19 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
 - tle_line2(可选, TLE 第二行, 以 '2 ' 开头；仅 passes 用, 与 tle_line1 配对, 通常来自 search 结果)
 
 注意：passes 默认依赖用户位置缓存（需设置中开启位置权限）；若用户提到远程地点，必须先通过 geocode 获取 lat/lon 传入。""",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["list", "search", "passes"], "description": "操作：list 内置卫星列表 / search 按名称搜索 TLE / passes 计算过境窗口"},
+                        "satellite": {"type": "string", "description": "卫星名称或 NORAD ID；search 必填，passes 可选（或直接传 tle_line1/tle_line2）"},
+                        "hours": {"type": "integer", "description": "passes 展望未来小时数，默认 24，最大 168"},
+                        "lat": {"type": "number", "description": "观测纬度（可选，未传则用用户缓存位置）"},
+                        "lon": {"type": "number", "description": "观测经度（可选，未传则用用户缓存位置）"},
+                        "tle_line1": {"type": "string", "description": "TLE 第一行（以 '1 ' 开头），与 tle_line2 配对"},
+                        "tle_line2": {"type": "string", "description": "TLE 第二行（以 '2 ' 开头），与 tle_line1 配对"}
+                    },
+                    "required": ["action"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeSatellitePass(tp, config, sp, ups) },
             ),
         )
@@ -183,6 +196,10 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
             val l2 = tleLine2.trim()
             if (!l1.startsWith("1 ") || !l2.startsWith("2 ")) {
                 return@withContext "[ERROR] TLE 格式错误：tle_line1 应以 '1 ' 开头，tle_line2 应以 '2 ' 开头。"
+            }
+            // 长度防御：前缀正确但行过短时 substring(2,7) 会越界，改为友好格式提示
+            if (l1.length < 7 || l2.length < 6) {
+                return@withContext "[ERROR] TLE 行长度不足，请完整粘贴 search 返回的两行 TLE，不要截断。"
             }
             val noradId = l1.substring(2, 7).trim().toIntOrNull() ?: -1
             val tleName = satelliteQuery?.takeIf { it.isNotBlank() } ?: "NORAD $noradId"
@@ -563,19 +580,23 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
             // 步骤 4：精扫细化 AOS（500ms 步长）
             cursor -= 60_000L // 回退一步
             var aosTime = -1L
+            // 追踪真实最大仰角时刻（替代 (AOS+LOS)/2 中点）；先于循环声明以便 step4/5/6 记录
+            var maxElTime = 0L
             safety = 0
             while (cursor < endTimeUtcMs && safety < 200000) {
                 safety++
                 cursor += 500L
                 val e = elevationAt(orbitalObject, geoPos, cursor)
                 if (e == null) continue
-                if (e > maxEl) maxEl = e
+                if (e > maxEl) { maxEl = e; maxElTime = cursor }
                 if (e >= minElevationDeg) {
                     aosTime = cursor
                     break
                 }
             }
             if (aosTime < 0) break
+            // 若精扫全程未刷新到更大仰角（首个采样即达 AOS），回退用 AOS 时刻
+            if (maxElTime == 0L) maxElTime = aosTime
 
             // 步骤 5：粗扫找 LOS（30s 步长），同时追踪最大仰角
             safety = 0
@@ -584,7 +605,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
                 cursor += 30_000L
                 val e = elevationAt(orbitalObject, geoPos, cursor)
                 if (e == null) break
-                if (e > maxEl) maxEl = e
+                if (e > maxEl) { maxEl = e; maxElTime = cursor }
                 if (e < minElevationDeg) break
             }
 
@@ -597,7 +618,7 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
                 cursor += 500L
                 val e = elevationAt(orbitalObject, geoPos, cursor)
                 if (e == null) break
-                if (e > maxEl) maxEl = e
+                if (e > maxEl) { maxEl = e; maxElTime = cursor }
                 if (e < minElevationDeg) {
                     losTime = cursor
                     break
@@ -608,8 +629,9 @@ B) 未预置卫星（用户提到的非标准名称，list 查不到的，如"�
                 losTime = endTimeUtcMs
             }
 
-            // 步骤 7：TCA（最大仰角时刻）= (AOS + LOS) / 2
-            val tcaTime = (aosTime + losTime) / 2
+            // 步骤 7：TCA（最大仰角时刻）取精扫期间观测到最大仰角的真实时刻，
+            // 而非 (AOS+LOS)/2 中点（真实过境峰值一般不落在中点）。
+            val tcaTime = maxElTime
 
             // 只记录 AOS >= startTime 的过境（未来过境）；
             // AOS < startTime 说明是回退期间找到的过去过境，跳过记录但仍从 LOS 继续搜索下一个

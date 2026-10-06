@@ -56,6 +56,13 @@ class OpenBrowserTool(
             "open_browser" to ToolBinding(
                 name = "open_browser",
                 description = "在浏览器中打开指定的URL。参数中 url 为必填。",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "要在浏览器中打开的完整 URL（仅支持 http/https）"}
+                    },
+                    "required": ["url"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeOpenBrowser(tp, config, sp, ups) },
             ),
         )

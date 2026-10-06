@@ -79,9 +79,12 @@ class WebResearchRouter(
                     warnings = warnings + "浏览器通道仅支持交互模式：请在内嵌浏览器中打开并“保存来源”",
                 )
             }
-            WebResearchMode.PROVIDER -> runProvider(req.copy(allowBrowser = effectiveAllowBrowser)).copy(warnings = warnings)
+            // 合并路由级 warnings 与 runProvider 产出的逐条抓取失败告警（U35-06）
+            WebResearchMode.PROVIDER -> runProvider(req.copy(allowBrowser = effectiveAllowBrowser))
+                .let { it.copy(warnings = warnings + it.warnings) }
             WebResearchMode.AUTO -> {
-                runProvider(req.copy(mode = WebResearchMode.PROVIDER, allowBrowser = effectiveAllowBrowser)).copy(warnings = warnings)
+                runProvider(req.copy(mode = WebResearchMode.PROVIDER, allowBrowser = effectiveAllowBrowser))
+                    .let { it.copy(warnings = warnings + it.warnings) }
             }
         }
     }

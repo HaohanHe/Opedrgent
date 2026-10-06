@@ -19,7 +19,7 @@ class KnowledgeGraphDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "knowledge_graph.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         const val TABLE_NODES = "kg_nodes"
         const val TABLE_EDGES = "kg_edges"
@@ -179,6 +179,21 @@ class KnowledgeGraphDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 当前版本为 1，后续升级在此处理。
+        if (oldVersion < 2) {
+            // v2：边语义为无向。清理历史上按有向写入造成的成对反向重复边
+            // （同一 (a,b,type) 对保留 id 最小的一行），随后把保留行规范化为 source_id < target_id，
+            // 使唯一约束真正作用于无向邻接对。
+            db.execSQL(
+                "DELETE FROM $TABLE_EDGES WHERE $COL_EDGE_ID NOT IN (" +
+                    " SELECT MIN($COL_EDGE_ID) FROM $TABLE_EDGES" +
+                    " GROUP BY MIN($COL_EDGE_SOURCE_ID, $COL_EDGE_TARGET_ID)," +
+                    " MAX($COL_EDGE_SOURCE_ID, $COL_EDGE_TARGET_ID), $COL_EDGE_RELATION_TYPE)"
+            )
+            db.execSQL(
+                "UPDATE $TABLE_EDGES SET $COL_EDGE_SOURCE_ID = $COL_EDGE_TARGET_ID," +
+                    " $COL_EDGE_TARGET_ID = $COL_EDGE_SOURCE_ID" +
+                    " WHERE $COL_EDGE_SOURCE_ID > $COL_EDGE_TARGET_ID"
+            )
+        }
     }
 }

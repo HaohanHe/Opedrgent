@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 文件夹仓库：统一数据访问层。
@@ -18,9 +19,16 @@ class FolderRepository(context: Context) {
 
     private val database = FolderDatabase.getInstance(context)
     private val dao = FolderDao(database)
+    // 笔记库句柄：文件夹软删除时级联重挂该文件夹下的笔记，避免孤儿（跨库无单事务，best-effort）
+    private val noteDao = NoteDao(NoteDatabase.getInstance(context))
 
-    // 响应式变更通知
+    // 响应式变更通知：单调递增计数器，避免同毫秒连续写被 StateFlow 去重漏刷
     private val _changeTrigger = MutableStateFlow(0L)
+    private val changeCounter = AtomicLong(0L)
+
+    private fun bumpChange() {
+        _changeTrigger.value = changeCounter.incrementAndGet()
+    }
 
     /** 所有文件夹（按名称排序） */
     fun getAllFolders(): Flow<List<Folder>> = _changeTrigger
@@ -52,7 +60,7 @@ class FolderRepository(context: Context) {
     /** 创建或更新文件夹 */
     suspend fun saveFolder(folder: Folder): Long {
         val id = dao.insertOrUpdate(folder)
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
         return id
     }
 
@@ -66,8 +74,16 @@ class FolderRepository(context: Context) {
         return saveFolder(folder)
     }
 
-    /** 软删除 */
-    suspend fun deleteFolder(id: Long) { dao.softDelete(id); _changeTrigger.value = System.currentTimeMillis() }
+    /**
+     * 软删除文件夹（级联）：
+     * - dao.softDelete 同库事务内把直属子文件夹上移一层；
+     * - 再把该文件夹下的直属笔记重挂到根目录（folder_id=NULL），避免从根目录/文件夹导航均不可见的孤儿笔记。
+     */
+    suspend fun deleteFolder(id: Long) {
+        dao.softDelete(id)
+        noteDao.reparentNotes(id, null)
+        bumpChange()
+    }
 
     /** 重命名 */
     suspend fun renameFolder(id: Long, newName: String) {
@@ -77,13 +93,13 @@ class FolderRepository(context: Context) {
             throw IllegalArgumentException("文件夹名称已存在")
         }
         dao.rename(id, newName)
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
     }
 
     /** 移动文件夹到新父目录 */
     suspend fun moveToParent(id: Long, newParentId: Long?) {
         dao.moveToParent(id, newParentId)
-        _changeTrigger.value = System.currentTimeMillis()
+        bumpChange()
     }
 
     /** 检查文件夹名称是否已存在 */

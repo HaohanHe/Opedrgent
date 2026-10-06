@@ -97,8 +97,6 @@ class ToolExecutor(
     private val requestConfirmation: suspend (ToolConfirmation) -> Boolean = { false }, // 高危操作用户确认回调（默认拒绝，必须由调用方显式接入确认流程）
 ) {
 
-    private var webViewAgent: WebViewAgent? = null
-
     private val toolRegistry = ToolRegistry().apply {
         register(WebSearchTool(context, searcher, fetcher, llm, apiSettings))
         register(OpenBrowserTool(requestConfirmation))
@@ -151,6 +149,7 @@ class ToolExecutor(
         config: ApiConfig,
         systemPrompt: String,
         useProviderSearch: Boolean = true,
+        timeoutMs: Long = ToolConfig.DEFAULT_TOOL_TIMEOUT_MS,
     ): ToolResult = withContext(Dispatchers.IO) {
         val started = toolPart.copy(
             state = toolPart.state.copy(
@@ -161,12 +160,12 @@ class ToolExecutor(
         DebugLog.i("ToolExecutor.execute: ${started.tool} with ${started.state.input}")
 
         try {
-            withTimeout(ToolConfig.DEFAULT_TOOL_TIMEOUT_MS) {
+            withTimeout(timeoutMs) {
                 executeBody(started, config, systemPrompt, useProviderSearch)
             }
         } catch (e: TimeoutCancellationException) {
-            DebugLog.w("Tool '${started.tool}' timed out after ${ToolConfig.DEFAULT_TOOL_TIMEOUT_MS}ms")
-            buildTimeoutResult(started)
+            DebugLog.w("Tool '${started.tool}' timed out after ${timeoutMs}ms")
+            buildTimeoutResult(started, timeoutMs)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -185,11 +184,12 @@ class ToolExecutor(
         config: ApiConfig,
         systemPrompt: String,
         useProviderSearch: Boolean = true,
+        timeoutMs: Long = ToolConfig.DEFAULT_TOOL_TIMEOUT_MS,
     ): List<ToolResult> = coroutineScope {
         toolParts.map { part ->
             async(Dispatchers.IO) {
                 runCatching {
-                    execute(part, config, systemPrompt, useProviderSearch)
+                    execute(part, config, systemPrompt, useProviderSearch, timeoutMs)
                 }.getOrElse { e ->
                     if (e is CancellationException) throw e
                     buildToolErrorResult(part, e)
@@ -288,12 +288,12 @@ class ToolExecutor(
         return unknownTool(started)
     }
 
-    private fun buildTimeoutResult(started: ToolPart): ToolResult {
+    private fun buildTimeoutResult(started: ToolPart, timeoutMs: Long = ToolConfig.DEFAULT_TOOL_TIMEOUT_MS): ToolResult {
         return ToolResult(
             toolPart = started.copy(
                 state = started.state.copy(
                     status = ToolStateType.PARTIAL_TIMEOUT,
-                    error = "${ToolConfig.ERROR_PREFIX_TIMEOUT} " + context.getString(R.string.error_tool_execution_timeout, started.tool, ToolConfig.DEFAULT_TOOL_TIMEOUT_MS / 1000),
+                    error = "${ToolConfig.ERROR_PREFIX_TIMEOUT} " + context.getString(R.string.error_tool_execution_timeout, started.tool, timeoutMs / 1000),
                     endTime = System.currentTimeMillis(),
                 ),
             ),
@@ -313,9 +313,7 @@ class ToolExecutor(
     }
 
     fun destroy() {
-        webViewAgent?.destroy()
-        webViewAgent = null
-        // Destroy all tools that hold WebViewAgent instances
+        // WebViewAgent 生命周期由各 Web 工具自身持有并在各自 destroy() 中回收（U31-09）
         toolRegistry.getAll().filterIsInstance<WebSearchTool>().forEach { it.destroy() }
         toolRegistry.getAll().filterIsInstance<ReadUrlTool>().forEach { it.destroy() }
         toolRegistry.getAll().filterIsInstance<DeepResearchTool>().forEach { it.destroy() }
@@ -550,8 +548,9 @@ class ToolExecutor(
         val lower = errorText.lowercase()
         val httpCode = extractHttpCode(errorText)
 
-        // 404 / 资源确实不存在 -> 以 SUCCESS 返回，让 LLM 知道不可用后继续
-        if (httpCode == 404 || lower.contains("not found") || lower.contains("找不到")) {
+        // 仅在显式 404 时以"资源不可用"放行（U31-11）：不再因异常消息里偶然出现
+        // "not found"/"找不到"子串就把真实失败当 SUCCESS，避免掩盖错误。
+        if (httpCode == 404) {
             return ToolExecutionResult(
                 status = ToolExecutionStatus.SUCCESS,
                 content = context.getString(R.string.error_resource_unavailable),
@@ -614,7 +613,9 @@ class ToolExecutor(
 
     private fun extractHttpCode(message: String?): Int? {
         if (message.isNullOrBlank()) return null
-        val regex = Regex("""\b([1-5]\d{2})\b""")
+        // 仅在 "HTTP 404"/"status=500"/"code: 404" 上下文中取状态码（U31-11），
+        // 避免把消息里的重试次数、毫秒数、错误 ID 等任意三位整数误当 HTTP 码。
+        val regex = Regex("""(?:HTTP|status[=:\s]|code[=:\s])\s*([1-5]\d{2})\b""", RegexOption.IGNORE_CASE)
         return regex.find(message)?.groupValues?.get(1)?.toIntOrNull()
     }
 

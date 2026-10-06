@@ -172,7 +172,6 @@ class SearchResultContainer {
 
     private val mergedMap = LinkedHashMap<String, MergedResult>()
     private var queryKeywords: Set<String> = emptySet()
-    private var queryKeywordFreq: Map<String, Int> = emptyMap()
     private var avgDocLength: Double = 100.0  // 平均文档长度（用于BM25归一化）
     
     private var semanticScorer: SemanticScorer? = null
@@ -210,12 +209,6 @@ class SearchResultContainer {
         allKeywords.addAll(bigrams.filter { it !in Bm25Config.STOP_WORDS })
 
         queryKeywords = allKeywords
-
-        queryKeywordFreq = mutableMapOf<String, Int>().apply {
-            queryKeywords.forEach { keyword ->
-                put(keyword, (this[keyword] ?: 0) + 1)
-            }
-        }
 
         DebugLog.d(
             "SearchResultContainer: query keywords=${queryKeywords.size}, " +
@@ -409,8 +402,8 @@ class SearchResultContainer {
         val freshness = calculateFreshness()
 
         // ★ SearXNG风格的位置评分：weight / position（线性衰减）
-        // position从1开始，position=1时得分最高
-        val positionScore = if (position == 0) engineWeight * 10.0 else engineWeight * 10.0 / (position + 1)
+        // position从0开始；position==0 时 10/(0+1)=10，与原 if/else 两分支等价，合并为单行
+        val positionScore = engineWeight * 10.0 / (position + 1).coerceAtLeast(1)
 
         // 加权综合得分（调整权重分配）
         val finalScore = (
@@ -668,9 +661,18 @@ class SearchResultContainer {
             val entry = iterator.next()
             val result = entry.value
 
-            // 规则1：垃圾域名过滤（不保留，确定是垃圾）
-            try {
-                val host = java.net.URL(result.url).host.lowercase()
+            // 规则1：垃圾域名 / 字典过滤。
+            // URL 解析失败时 host 记为 null：保守跳过这两类"基于域名"的过滤，但仍继续后续
+            // 关键词/BM25 过滤（旧实现把两类过滤包在同一个 try 里，空 catch 吞掉异常后
+            // 既不过 spam 也不过 dictionary，且完全静默，U33-7）。
+            val host = try {
+                java.net.URL(result.url).host.lowercase()
+            } catch (e: Exception) {
+                DebugLog.w("SearchResultContainer: failed to parse host for '${result.url}': ${e.message}")
+                null
+            }
+
+            if (host != null) {
                 if (SPAM_DOMAINS.any { host.endsWith(it) || host == it }) {
                     iterator.remove()
                     spamFiltered++
@@ -689,7 +691,7 @@ class SearchResultContainer {
                         continue
                     }
                 }
-            } catch (e: Exception) {}
+            }
 
             // 规则2：关键词匹配检查（改进版：要求完整词匹配，避免子串误匹配）
             if (queryKeywords.isNotEmpty()) {
@@ -989,6 +991,5 @@ class SearchResultContainer {
     fun clear() {
         mergedMap.clear()
         queryKeywords = emptySet()
-        queryKeywordFreq = emptyMap()
     }
 }

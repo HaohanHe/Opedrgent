@@ -51,61 +51,79 @@ object MapTileFetcher {
         heightTiles: Int = MAP_HEIGHT_TILES,
     ): MapResult? = withContext(Dispatchers.IO) {
         try {
-            DebugLog.i("MapTileFetcher: fetching map at $lat, $lon zoom=$zoom ${widthTiles}x${heightTiles} tiles")
+            // 入口边界约束（U35-09）：防止越界 zoom/lat/lon 产生非法瓦片坐标或超大 Bitmap
+            val zoomC = zoom.coerceIn(0, 20)
+            val latC = lat.coerceIn(-85.0511, 85.0511)
+            val lonC = ((((lon + 180.0) % 360.0) + 360.0) % 360.0 - 180.0).coerceIn(-180.0, 180.0)
+            val wT = widthTiles.coerceIn(1, 8)
+            val hT = heightTiles.coerceIn(1, 8)
 
-            val (centerTileX, centerTileY) = latLonToTile(lat, lon, zoom)
-            val offsetX = ((lonToX(lon, zoom) - centerTileX) * TILE_SIZE).coerceIn(0, TILE_SIZE)
-            val offsetY = ((latToY(lat, zoom) - centerTileY) * TILE_SIZE).coerceIn(0, TILE_SIZE)
+            DebugLog.i("MapTileFetcher: fetching map at $latC, $lonC zoom=$zoomC ${wT}x${hT} tiles")
 
-            val startX = centerTileX - widthTiles / 2
-            val startY = centerTileY - heightTiles / 2
-            val totalWidth = widthTiles * TILE_SIZE
-            val totalHeight = heightTiles * TILE_SIZE
+            // 保留浮点瓦片坐标，计算真实像素偏移（U35-02）：使目标经纬度落在画布中心
+            val tileXF = lonToXFloat(lonC, zoomC)
+            val tileYF = latToYFloat(latC, zoomC)
+            val centerTileX = tileXF.toInt()
+            val centerTileY = tileYF.toInt()
+            val offsetX = ((tileXF - centerTileX) * TILE_SIZE).toFloat()
+            val offsetY = ((tileYF - centerTileY) * TILE_SIZE).toFloat()
 
-            val outputBitmap = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(outputBitmap)
+            val startX = centerTileX - wT / 2
+            val startY = centerTileY - hT / 2
+            val totalWidth = wT * TILE_SIZE
+            val totalHeight = hT * TILE_SIZE
 
-            var successCount = 0
-            for (dy in 0 until heightTiles) {
-                for (dx in 0 until widthTiles) {
-                    val tileX = startX + dx
-                    val tileY = startY + dy
-                    val bitmap = downloadTile(tileX, tileY, zoom)
-                    if (bitmap != null) {
-                        try {
-                            canvas.drawBitmap(bitmap, (dx * TILE_SIZE).toFloat(), (dy * TILE_SIZE).toFloat(), null)
-                            successCount++
-                        } finally {
-                            if (!bitmap.isRecycled) bitmap.recycle()
+            // outputBitmap 在所有路径上统一 finally recycle，避免 successCount==0 或 compress 异常时泄漏（U35-01）
+            var outputBitmap: Bitmap? = null
+            try {
+                outputBitmap = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(outputBitmap)
+
+                var successCount = 0
+                for (dy in 0 until hT) {
+                    for (dx in 0 until wT) {
+                        val tileX = startX + dx
+                        val tileY = startY + dy
+                        val bitmap = downloadTile(tileX, tileY, zoomC)
+                        if (bitmap != null) {
+                            try {
+                                canvas.drawBitmap(bitmap,
+                                    (dx * TILE_SIZE - offsetX),
+                                    (dy * TILE_SIZE - offsetY),
+                                    null)
+                                successCount++
+                            } finally {
+                                if (!bitmap.isRecycled) bitmap.recycle()
+                            }
                         }
                     }
                 }
+
+                if (successCount == 0) {
+                    DebugLog.w("MapTileFetcher: all tiles failed")
+                    return@withContext null
+                }
+
+                val baos = ByteArrayOutputStream()
+                outputBitmap.compress(Bitmap.CompressFormat.PNG, 90, baos)
+                val bytes = baos.toByteArray()
+                val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+
+                DebugLog.i("MapTileFetcher: map ready ${totalWidth}x${totalHeight}px $successCount/${wT * hT} tiles, base64=${base64.length} chars")
+
+                MapResult(
+                    base64Png = "data:image/png;base64,$base64",
+                    widthPx = totalWidth,
+                    heightPx = totalHeight,
+                    zoom = zoomC,
+                    centerLat = latC,
+                    centerLon = lonC,
+                )
+            } finally {
+                outputBitmap?.takeIf { !it.isRecycled }?.recycle()
             }
-
-            if (successCount == 0) {
-                DebugLog.w("MapTileFetcher: all tiles failed")
-                return@withContext null
-            }
-
-            val baos = ByteArrayOutputStream()
-            outputBitmap.compress(Bitmap.CompressFormat.PNG, 90, baos)
-            val bytes = baos.toByteArray()
-            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            outputBitmap.recycle()
-
-            DebugLog.i("MapTileFetcher: map ready ${totalWidth}x${totalHeight}px $successCount/${widthTiles * heightTiles} tiles, base64=${base64.length} chars")
-
-            MapResult(
-                base64Png = "data:image/png;base64,$base64",
-                widthPx = totalWidth,
-                heightPx = totalHeight,
-                zoom = zoom,
-                centerLat = lat,
-                centerLon = lon,
-            )
         } catch (e: Exception) {
-            DebugLog.e("MapTileFetcher error: ${e.message}")
-            e.printStackTrace()
+            DebugLog.e("MapTileFetcher error: ${e.message}", e)
             null
         }
     }
@@ -142,6 +160,17 @@ object MapTileFetcher {
 
     private fun latLonToTile(lat: Double, lon: Double, zoom: Int): Pair<Int, Int> {
         return Pair(lonToX(lon, zoom), latToY(lat, zoom))
+    }
+
+    // 浮点瓦片坐标：用于按经纬度在画布上居中（U35-02）
+    private fun lonToXFloat(lon: Double, zoom: Int): Double =
+        (lon + 180.0) / 360.0 * (1 shl zoom).toDouble()
+
+    private fun latToYFloat(lat: Double, zoom: Int): Double {
+        val latRad = Math.toRadians(lat)
+        val sin = Math.sin(latRad)
+        val y = 0.5 - Math.log((1.0 + sin) / (1.0 - sin)) / (4.0 * Math.PI)
+        return y * (1 shl zoom).toDouble()
     }
 
     private fun lonToX(lon: Double, zoom: Int): Int {

@@ -16,6 +16,13 @@ data class SemanticScore(
     val combinedScore: Double
 )
 
+/**
+ * 词法重叠打分（命名沿用历史 SemanticScorer）。
+ *
+ * 注意：本类不做任何向量/embedding 语义计算，仅基于词法重叠（精确词命中 / 同义词表 /
+ * 词边界子串命中）作为召回特征。英文词采用词边界匹配，避免 "ai" 命中 "email/said"、
+ * "go" 命中 "good/google" 之类的子串误匹配（U33-10）。
+ */
 class SemanticScorer {
 
     companion object {
@@ -203,6 +210,30 @@ class SemanticScorer {
         private val ENGLISH_WORD_PATTERN = Pattern.compile("[a-zA-Z][a-zA-Z0-9_-]{1,20}")
         private val PRICE_PATTERN = Pattern.compile("[¥￥$]\\s*\\d+(?:\\.\\d{1,2})?|\\d+(?:\\.\\d{1,2})?\\s*(?:元|美元|美金|块|毛)")
         private val DOMAIN_PATTERN = Pattern.compile("(?:https?://)?(?:www\\.)?[a-zA-Z0-9][-a-zA-Z0-9]*\\.(?:com|cn|org|net|io|dev|app|cc|top|xyz)")
+
+        // 预建小写键视图：避免每条结果都对 SYNONYM_MAP 全表线性扫描（旧 O(N*Q*150)）
+        private val SYNONYM_BY_LOWER: Map<String, List<String>> =
+            SYNONYM_MAP.mapKeys { it.key.lowercase() }
+
+        // 纯 ASCII 词边界匹配：英文 token 要求前后不是字母数字，避免子串误命中。
+        // 含空格短语或非 ASCII（中文等）退化为普通子串包含。
+        private fun asciiTokenMatches(textLower: String, token: String): Boolean {
+            if (token.isEmpty()) return false
+            val isAsciiWord = token.all { (it in 'a'..'z') || (it in '0'..'9') }
+            if (!isAsciiWord) {
+                return textLower.contains(token)
+            }
+            var from = 0
+            while (true) {
+                val idx = textLower.indexOf(token, from)
+                if (idx < 0) return false
+                val beforeOk = idx == 0 || !textLower[idx - 1].isLetterOrDigit()
+                val afterIdx = idx + token.length
+                val afterOk = afterIdx >= textLower.length || !textLower[afterIdx].isLetterOrDigit()
+                if (beforeOk && afterOk) return true
+                from = idx + 1
+            }
+        }
     }
 
     private var queryKeywords: List<String> = emptyList()
@@ -268,9 +299,7 @@ class SemanticScorer {
         val expanded = mutableSetOf<String>()
         for (keyword in keywords) {
             expanded.add(keyword.lowercase())
-            val synonyms = SYNONYM_MAP[keyword.lowercase()]
-                ?: SYNONYM_MAP.entries.firstOrNull { it.key.equals(keyword, ignoreCase = true) }?.value
-                ?: emptyList()
+            val synonyms = SYNONYM_BY_LOWER[keyword.lowercase()] ?: emptyList()
             for (syn in synonyms) {
                 expanded.add(syn.lowercase())
             }
@@ -302,6 +331,7 @@ class SemanticScorer {
     private fun calculateSimilarity(text: String): Double {
         val textWords = extractKeywords(text).map { it.lowercase() }.toSet()
         if (textWords.isEmpty() || queryKeywords.isEmpty()) return 0.0
+        val textLower = text.lowercase()
 
         var matchCount = 0.0
         for (queryWord in queryKeywords) {
@@ -310,12 +340,11 @@ class SemanticScorer {
                 matchCount += 1.0
                 continue
             }
-            val synonyms = SYNONYM_MAP[qWord]
-                ?: SYNONYM_MAP.entries.firstOrNull { it.key.equals(qWord, ignoreCase = true) }?.value
-                ?: emptyList()
+            val synonyms = SYNONYM_BY_LOWER[qWord] ?: emptyList()
             if (synonyms.any { syn -> textWords.any { tw -> tw.equals(syn, ignoreCase = true) } }) {
                 matchCount += 0.7
-            } else if (text.contains(qWord, ignoreCase = true)) {
+            } else if (asciiTokenMatches(textLower, qWord)) {
+                // 词边界子串命中（英文整词），而非裸 contains 误命中
                 matchCount += 0.3
             }
         }
@@ -329,7 +358,7 @@ class SemanticScorer {
 
         var coverageCount = 0
         for (keyword in expandedKeywords) {
-            if (textLower.contains(keyword, ignoreCase = true)) {
+            if (asciiTokenMatches(textLower, keyword.lowercase())) {
                 coverageCount++
             }
         }

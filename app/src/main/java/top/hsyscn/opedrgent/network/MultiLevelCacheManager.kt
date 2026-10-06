@@ -6,7 +6,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import top.hsyscn.opedrgent.utils.DebugLog
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 data class SearchResultSet(
     val results: List<SearchResult>,
@@ -103,30 +103,33 @@ class MultiLevelCacheManager(
         }
     }
 
-    private val l2Cache: ConcurrentHashMap<String, CacheEntry<SearchResultSet>> =
-        ConcurrentHashMap()
+    // L2 用访问顺序 LinkedHashMap 做 LRU：迭代器首个 entry 即最久未访问者，淘汰 O(1)，
+    // 替换原先每次 put 满容时对 1 万条全量排序的 O(n log n) 做法。
+    // 所有读写均在 mutex.withLock 内串行化；getStats 仅读 size，最坏略陈旧，不影响正确性。
+    private val l2Cache: LinkedHashMap<String, CacheEntry<SearchResultSet>> =
+        LinkedHashMap(config.l2MaxSize + 1, 0.75f, true)
 
     private val mutex = Mutex()
 
-    var l1Hits = 0L; private set
-    var l1Misses = 0L; private set
-    var l2Hits = 0L; private set
-    var l2Misses = 0L; private set
+    private val l1Hits = AtomicLong(0)
+    private val l1Misses = AtomicLong(0)
+    private val l2Hits = AtomicLong(0)
+    private val l2Misses = AtomicLong(0)
 
-    private var writeCount = 0L
+    private val writeCount = AtomicLong(0)
 
     suspend fun get(key: String): SearchResultSet? {
         return mutex.withLock {
             val l1Result = getFromL1(key)
             if (l1Result != null) {
-                l1Hits++
+                l1Hits.incrementAndGet()
                 DebugLog.d("MultiLevelCacheManager: L1 HIT key=${key.take(16)}...")
                 return@withLock l1Result.data
             }
 
             val l2Result = getFromL2(key)
             if (l2Result != null) {
-                l2Hits++
+                l2Hits.incrementAndGet()
                 DebugLog.d("MultiLevelCacheManager: L2 HIT key=${key.take(16)}..., promoting to L1")
                 putToL1(key, CacheEntry(
                     data = l2Result.data,
@@ -138,8 +141,8 @@ class MultiLevelCacheManager(
                 return@withLock l2Result.data
             }
 
-            l1Misses++
-            l2Misses++
+            l1Misses.incrementAndGet()
+            l2Misses.incrementAndGet()
             DebugLog.d("MultiLevelCacheManager: MISS key=${key.take(16)}...")
             null
         }
@@ -154,8 +157,8 @@ class MultiLevelCacheManager(
             putToL1(key, CacheEntry(resultSet, now, config.l1TtlMs))
             putToL2(key, CacheEntry(resultSet, now, config.l2TtlMs))
 
-            writeCount++
-            if (writeCount % 100 == 0L) {
+            writeCount.incrementAndGet()
+            if (writeCount.get() % 100 == 0L) {
                 cleanExpiredEntries()
             }
 
@@ -175,28 +178,33 @@ class MultiLevelCacheManager(
         mutex.withLock {
             l1Cache.evictAll()
             l2Cache.clear()
-            l1Hits = 0L
-            l1Misses = 0L
-            l2Hits = 0L
-            l2Misses = 0L
-            writeCount = 0L
+            l1Hits.set(0L)
+            l1Misses.set(0L)
+            l2Hits.set(0L)
+            l2Misses.set(0L)
+            writeCount.set(0L)
             DebugLog.i("MultiLevelCacheManager: CLEARED all caches and stats reset")
         }
     }
 
     fun getStats(): Map<String, Any> {
+        // 计数器为 AtomicLong，无锁快照，避免在 mutex 外读到跨 epoch 的不一致组合
+        val l1h = l1Hits.get()
+        val l1m = l1Misses.get()
+        val l2h = l2Hits.get()
+        val l2m = l2Misses.get()
         return mapOf(
             "l1_size" to l1Cache.size(),
             "l1_maxSize" to l1Cache.maxSize(),
-            "l1_hits" to l1Hits,
-            "l1_misses" to l1Misses,
-            "l1_hitRate" to hitRate(l1Hits, l1Misses),
+            "l1_hits" to l1h,
+            "l1_misses" to l1m,
+            "l1_hitRate" to hitRate(l1h, l1m),
             "l2_size" to l2Cache.size,
             "l2_maxSize" to config.l2MaxSize,
-            "l2_hits" to l2Hits,
-            "l2_misses" to l2Misses,
-            "l2_hitRate" to hitRate(l2Hits, l2Misses),
-            "total_hitRate" to hitRate(l1Hits + l2Hits, l1Misses + l2Misses)
+            "l2_hits" to l2h,
+            "l2_misses" to l2m,
+            "l2_hitRate" to hitRate(l2h, l2m),
+            "total_hitRate" to hitRate(l1h + l2h, l1m + l2m)
         )
     }
 
@@ -240,13 +248,11 @@ class MultiLevelCacheManager(
     }
 
     private suspend fun evictL2IfNeeded() {
+        // 访问顺序 LinkedHashMap 的首个 entry 即最久未访问者；满容时淘汰一个即可，O(1)
         if (l2Cache.size < config.l2MaxSize) return
-        val sortedEntries = l2Cache.entries.sortedBy { it.value.lastAccessTime }
-        val removeCount = l2Cache.size - config.l2MaxSize + 1
-        sortedEntries.take(removeCount).forEach { (k, _) ->
-            l2Cache.remove(k)
-            DebugLog.d("MultiLevelCacheManager: L2 evicted key=${k.take(16)}...")
-        }
+        val eldest = l2Cache.keys.iterator().next()
+        l2Cache.remove(eldest)
+        DebugLog.d("MultiLevelCacheManager: L2 evicted key=${eldest.take(16)}...")
     }
 
     private suspend fun cleanExpiredEntries() {

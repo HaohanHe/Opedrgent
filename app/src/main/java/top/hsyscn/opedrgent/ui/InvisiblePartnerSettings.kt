@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,7 +65,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import top.hsyscn.opedrgent.service.AutoSproutWorker
 import top.hsyscn.opedrgent.service.DailyDigestNotifier
-import top.hsyscn.opedrgent.storage.PersonaDetector
+import top.hsyscn.opedrgent.cultivation.store.PersonaProfileStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.ui.theme.ShapeTokens
 import top.hsyscn.opedrgent.ui.theme.SizeTokens
 import top.hsyscn.opedrgent.ui.theme.SpacingTokens
@@ -142,8 +145,8 @@ fun InvisiblePartnerSettingsScreen(
     var showSproutHourPicker by rememberSaveable { mutableStateOf(false) }
     var showDigestHourPicker by rememberSaveable { mutableStateOf(false) }
 
-    // 首次进入时从 DataStore 加载已保存的值
-    scope.launch {
+    // 首次进入时从 DataStore 加载已保存的值（仅进入时执行一次，避免重组反复读旧值覆盖用户刚拨的开关）
+    LaunchedEffect(Unit) {
         dataStore.data.first().let { prefs ->
             autoSaveEnabled = prefs[KEY_AUTO_SAVE] ?: true
             autoSproutEnabled = prefs[KEY_AUTO_SPROUT] ?: false
@@ -298,11 +301,6 @@ fun InvisiblePartnerSettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.invisible_partner_zi_dong_qie_huan), style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                text = stringResource(R.string.invisible_partner_gen_ju_shi_jian_nei_rong_he),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeTextGrey(),
-                            )
                         }
                         Switch(
                             checked = autoPersonaEnabled,
@@ -316,64 +314,27 @@ fun InvisiblePartnerSettingsScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = SpacingTokens.md))
 
                     if (autoPersonaEnabled) {
-                        // 自动模式：显示检测结果，RadioButtons 禁用
-                        val detectedPersona = remember {
-                            PersonaDetector.detect(context)
-                        }
-                        val detectionReason = remember {
-                            PersonaDetector.explainReason(context)
-                        }
-
-                        PartnerPersona.entries.forEach { persona ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = SpacingTokens.sm),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(
-                                    selected = (detectedPersona == persona),
-                                    onClick = null,  // 自动模式下不可点击
-                                    enabled = false,
-                                )
-                                Spacer(Modifier.width(SpacingTokens.sm))
-                                Column {
-                                    Text(
-                                        text = stringResource(persona.labelResId),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (detectedPersona == persona)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        text = stringResource(persona.descriptionResId),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                        // 自动模式：不再按时间/日程/关键词推断人格（规则式自动贴人格已废除）。
+                        // 对用户的画像由模型在对话中经 persona tool_calls 自动刻画、与 PersonaProfile 统一，
+                        // 用户只读；这里只回显画像是否已建立，不替用户在 LIFE/WORK/CREATIVE 间做规则选择。
+                        var autoStatus by remember { mutableStateOf<String?>(null) }
+                        LaunchedEffect(Unit) {
+                            autoStatus = withContext(Dispatchers.IO) {
+                                val p = runCatching { PersonaProfileStore(context).get() }.getOrNull()
+                                if (p == null) {
+                                    "自动模式下，伙伴人格由模型在对话中自动刻画，此处不再按时间或日程切换；画像尚未建立，将在后续使用中自然形成。"
+                                } else {
+                                    "自动模式下，伙伴人格由模型在对话中自动刻画（现实自我 ${p.actualSelf.size} 条 / 理想自我 ${p.aspiredSelf.size} 条），此处只读；如需固定模式请关闭自动切换后手动选择。"
                                 }
                             }
                         }
 
                         Spacer(Modifier.height(SpacingTokens.sm))
 
-                        // 检测原因说明
                         Text(
-                            text = stringResource(
-                                R.string.invisible_partner_1_zi_dong_jian_ce_2,
-                                stringResource(detectedPersona.labelResId),
-                                detectionReason,
-                            ),
+                            text = autoStatus ?: "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
-                        )
-
-                        Spacer(Modifier.height(SpacingTokens.xs))
-
-                        Text(
-                            text = stringResource(R.string.invisible_partner_xi_tong_hui_gen_ju_shi_jian),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = themeTextGrey(),
                         )
                     } else {
                         // 手动模式：原有行为，RadioButton 可点击

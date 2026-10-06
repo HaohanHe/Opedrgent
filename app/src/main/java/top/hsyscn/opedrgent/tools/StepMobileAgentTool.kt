@@ -234,40 +234,55 @@ press_back(返回), press_home(主页), scroll(滚动), wait(等待) 等。""",
                 appendLine("- 保持简洁实用，每个步骤不超过一句话")
             }
 
-            // 构建消息
-            val messagesJson = buildString {
-                append("[")
-                append("{\"role\": \"system\", \"content\": ${JSONObject.quote(systemPrompt)}}")
-                // 用户消息
-                val userContent = buildString {
-                    append("请帮我完成以下任务: ")
-                    append(JSONObject.quote(task))
-                    if (currentApp != null) {
-                        append("\\n\\n当前应用: ")
-                        append(JSONObject.quote(currentApp))
-                    }
-                    if (previousActions != null) {
-                        append("\\n\\n已完成的步骤: ")
-                        append(JSONObject.quote(previousActions))
-                    }
-                    append("\\n\\n请分析截图并给出操作方案。")
+            // 构建用户文本（纯字符串拼接；JSON 字符串转义统一交给 JSONObject.put，禁止手拼 JSON）
+            val userContent = buildString {
+                append("请帮我完成以下任务: ")
+                append(task)
+                if (currentApp != null) {
+                    append("\n\n当前应用: ")
+                    append(currentApp)
                 }
-                if (screenshotBase64 != null) {
-                    // 多模态消息：图片 + 文字
-                    append(", {\"role\": \"user\", \"content\": [")
-                    append("{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/png;base64,$screenshotBase64\"}}, ")
-                    append("{\"type\": \"text\", \"text\": \"$userContent\"}")
-                    append("]}")
-                } else {
-                    // 纯文本模式（无截图时依赖描述）
-                    append(", {\"role\": \"user\", \"content\": \"$userContent (注意: 未提供截图，基于常见界面布局推断)\"}")
+                if (previousActions != null) {
+                    append("\n\n已完成的步骤: ")
+                    append(previousActions)
                 }
-                append("]")
+                append("\n\n请分析截图并给出操作方案。")
+            }
+
+            // 用 org.json 稳健构造 messages（此前手写字符串嵌套 quote 导致 JSON 畸形、发网前即 parse 失败）
+            val messagesArr = org.json.JSONArray()
+            messagesArr.put(JSONObject().apply {
+                put("role", "system")
+                put("content", systemPrompt)
+            })
+            if (screenshotBase64 != null) {
+                // 多模态消息：图片 + 文字
+                val contentArr = org.json.JSONArray()
+                contentArr.put(JSONObject().apply {
+                    put("type", "image_url")
+                    put("image_url", JSONObject().apply {
+                        put("url", dataUriForImageBase64(screenshotBase64))
+                    })
+                })
+                contentArr.put(JSONObject().apply {
+                    put("type", "text")
+                    put("text", userContent)
+                })
+                messagesArr.put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", contentArr)
+                })
+            } else {
+                // 纯文本模式（无截图时依赖描述）
+                messagesArr.put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "$userContent (注意: 未提供截图，基于常见界面布局推断)")
+                })
             }
 
             val jsonBody = JSONObject().apply {
                 put("model", model)
-                put("messages", org.json.JSONArray(messagesJson))
+                put("messages", messagesArr)
                 put("max_tokens", 2048)
                 put("temperature", 0.1)   // 低温度保证输出稳定
                 // 强制 JSON 输出
@@ -344,6 +359,35 @@ press_back(返回), press_home(主页), scroll(滚动), wait(等待) 等。""",
         val json = JSONObject(body)
         json.optJSONObject("error")?.optString("message") ?: json.optString("error", body.take(200))
     } catch (_: Exception) { body.take(200) }
+
+    /**
+     * 按图片字节魔数推断 MIME 后拼接 data URI，避免一律写死 image/png 与实际 JPEG/WebP 不符。
+     */
+    private fun dataUriForImageBase64(b64: String): String =
+        "data:${sniffImageMime(b64)};base64,$b64"
+
+    private fun sniffImageMime(b64: String): String {
+        return try {
+            val head = Base64.decode(b64.take(24), Base64.DEFAULT)
+            when {
+                head.size >= 3 &&
+                    (head[0].toInt() and 0xFF) == 0xFF &&
+                    (head[1].toInt() and 0xFF) == 0xD8 &&
+                    (head[2].toInt() and 0xFF) == 0xFF -> "image/jpeg"
+                head.size >= 4 &&
+                    (head[0].toInt() and 0xFF) == 0x89 &&
+                    (head[1].toInt() and 0xFF) == 0x50 &&
+                    (head[2].toInt() and 0xFF) == 0x4E &&
+                    (head[3].toInt() and 0xFF) == 0x47 -> "image/png"
+                head.size >= 12 &&
+                    String(head, 0, 4) == "RIFF" &&
+                    String(head, 8, 4) == "WEBP" -> "image/webp"
+                else -> "image/png"
+            }
+        } catch (_: Exception) {
+            "image/png"
+        }
+    }
 
     private fun successResult(tp: ToolPart, text: String): ToolResult = ToolResult(
         toolPart = tp.copy(state = tp.state.copy(status = ToolStateType.COMPLETED, output = text, endTime = System.currentTimeMillis())),

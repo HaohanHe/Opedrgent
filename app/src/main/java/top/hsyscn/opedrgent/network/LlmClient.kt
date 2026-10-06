@@ -1,7 +1,6 @@
 package top.hsyscn.opedrgent.network
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
@@ -19,7 +18,6 @@ import top.hsyscn.opedrgent.model.MultimodalMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.settings.ApiConfig
 import top.hsyscn.opedrgent.utils.DebugLog
-import kotlin.coroutines.resume
 
 sealed class StreamDelta {
     data class ReasoningDelta(val text: String) : StreamDelta()
@@ -461,9 +459,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
         val toolCallMap = mutableMapOf<Int, StringBuilder>()
         val toolArgMap = mutableMapOf<Int, StringBuilder>()
         val toolIdMap = mutableMapOf<Int, String>()
+        // 记录每个 idx 是否已收过 function.name，防止供应商逐块重发全名导致重复拼接
+        val toolNamedSet = mutableSetOf<Int>()
         var inThinkingTag = false
         var lastFinishReason: String? = null
         var totalChunks = 0
+        // 逐块 JSON 解析失败计数：全部块失败时不得上报为成功空回复
+        var parseFailures = 0
         var pendingBuffer = ""
         // ★ Prompt Cache Break Detection: 捕获 usage chunk 中的 cache token 计数
         var capturedCacheReadTokens = 0
@@ -605,7 +607,11 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                             .let { if (it == "null") "" else it }
 
                         if (nameDelta.isNotEmpty()) {
-                            toolCallMap.getOrPut(idx) { StringBuilder() }.append(nameDelta)
+                            // OpenAI 流式约定 name 仅首块下发；部分兼容端点逐块重发完整 function.name，
+                            // 已收过 name 的 idx 直接忽略重发，避免 "search" 被累加为 "searchsearch"。
+                            if (toolNamedSet.add(idx)) {
+                                toolCallMap.getOrPut(idx) { StringBuilder() }.append(nameDelta)
+                            }
                         }
                         if (argsDelta.isNotEmpty()) {
                             toolArgMap.getOrPut(idx) { StringBuilder() }.append(argsDelta)
@@ -622,6 +628,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                     }
                 }
             }.onFailure { e ->
+                parseFailures++
                 DebugLog.w("parseSse parse error: ${e.message}")
             }
         }
@@ -637,6 +644,13 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             pendingBuffer = ""
         }
 
+        if (totalChunks == 0 && parseFailures > 0) {
+            // 流到达了 data 但全部数据块解析失败（协议不符/网关占位错误体走 200），
+            // 不得伪装成"成功空回复"，应向上回调错误，避免上层把解析失败当成模型拒答。
+            DebugLog.w("parseSse: ZERO chunks after $parseFailures parse failures; reporting error")
+            onError("响应无法解析（$parseFailures 个数据块解析失败）")
+            return
+        }
         if (totalChunks == 0) {
             DebugLog.w("parseSse: ZERO chunks received! Stream was empty or all parse failures")
         }
@@ -663,7 +677,7 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
             reasoning = finalReasoning,
             toolCalls = toolCalls,
             finishReason = lastFinishReason,
-            isSafetyFiltered = lastFinishReason?.equals("SAFETY", ignoreCase = true) == true,
+            isSafetyFiltered = lastFinishReason?.equals("content_filter", ignoreCase = true) == true,
             cacheReadTokens = capturedCacheReadTokens,
             cacheCreationTokens = capturedCacheCreationTokens,
         ))
@@ -820,7 +834,12 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 try {
                     if (!response.isSuccessful) {
                         val raw = response.body?.string().orEmpty()
-                        val msg = runCatching { org.json.JSONObject(raw).optString("error", raw) }.getOrDefault(raw)
+                        val msg = runCatching {
+                            val errJson = org.json.JSONObject(raw)
+                            errJson.optJSONObject("error")?.optString("message")
+                                ?.takeIf { it.isNotBlank() }
+                                ?: errJson.optString("message", raw)
+                        }.getOrDefault(raw)
                         onError(msg)
                         return
                     }
@@ -983,8 +1002,10 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 throw IllegalStateException(msg?.takeIf { it.isNotBlank() } ?: "请求失败: HTTP ${resp.code}")
             }
             val root = JSONObject(raw)
-            val choice = root.getJSONArray("choices").getJSONObject(0)
-            val message = choice.getJSONObject("message")
+            val choice = root.optJSONArray("choices")?.optJSONObject(0)
+                ?: throw IllegalStateException("响应缺少 choices 数组: ${raw.take(200)}")
+            val message = choice.optJSONObject("message")
+                ?: throw IllegalStateException("响应缺少 message 字段: ${raw.take(200)}")
             val content = message.optString("content", "")
             // 提取思维链（SiliconFlow / DeepSeek / Qwen3 thinking 模型在非流式响应中通过 reasoning_content 字段返回）
             val reasoning = message.optString("reasoning_content", "")
@@ -1159,8 +1180,10 @@ class LlmClient(private val http: OkHttpClient = HttpClients.streaming) {
                 throw IllegalStateException(msg?.takeIf { it.isNotBlank() } ?: "供应商联网搜索失败: HTTP ${resp.code}")
             }
             val root = JSONObject(raw)
-            val choice = root.getJSONArray("choices").getJSONObject(0)
-            val message = choice.getJSONObject("message")
+            val choice = root.optJSONArray("choices")?.optJSONObject(0)
+                ?: throw IllegalStateException("供应商联网搜索响应缺少 choices: ${raw.take(200)}")
+            val message = choice.optJSONObject("message")
+                ?: throw IllegalStateException("供应商联网搜索响应缺少 message: ${raw.take(200)}")
             val content = message.optString("content", "")
             val annotations = mutableListOf<NativeSearchCitation>()
             message.optJSONArray("annotations")?.let { arr ->

@@ -650,11 +650,10 @@ object LocalTokenizer {
     }
 
     private fun processNonChinese(segment: String, result: MutableList<String>) {
+        // 缓冲阶段只累积 letter/digit/'_'，段内本就不含分隔符；此前的二次 split 恒为单段、无效，
+        // 直接整体小写后入特征。
         val lower = segment.lowercase()
-        val parts = lower.split(Regex("[^a-zA-Z0-9_]+"))
-        for (part in parts) {
-            if (part.length >= 2 && part !in stopWords) result.add(part)
-        }
+        if (lower.length >= 2 && lower !in stopWords) result.add(lower)
     }
 
     private fun forwardMaxMatch(text: String): List<String> {
@@ -704,11 +703,8 @@ object LocalTokenizer {
     }
 
     private fun selectSegmentation(forward: List<String>, backward: List<String>): List<String> {
-        return when {
-            forward.size < backward.size -> forward
-            backward.size <= forward.size -> backward
-            else -> forward
-        }
+        // 取分词数更少者；相等取逆向。原 when 的 else 分支不可达（与第二支条件矛盾），删除。
+        return if (forward.size < backward.size) forward else backward
     }
 
     private fun generateBigrams(text: String): List<String> {

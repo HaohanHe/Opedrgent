@@ -20,7 +20,10 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
  * 本地备份/恢复核心（全离线，不触网）。
@@ -79,6 +82,10 @@ class LocalBackupManager(private val appContext: Context) {
 
     private val context: Context get() = appContext.applicationContext
 
+    // 备份与恢复整段互斥：二者都会 closeAllHolders 并覆盖库文件，
+    // 并发时会互相读到/写到同一批 .db，产出不一致归档或半截覆盖。
+    private val backupMutex = Mutex()
+
     /**
      * 把当前应用数据备份为标准 zip 写入调用方提供的 [out]。
      *
@@ -91,7 +98,8 @@ class LocalBackupManager(private val appContext: Context) {
         out: OutputStream,
         includeModels: Boolean = false,
         progress: (Float) -> Unit = {},
-    ): BackupManifest = withContext(Dispatchers.IO) {
+    ): BackupManifest = backupMutex.withLock {
+        withContext(Dispatchers.IO) {
         val entries = mutableListOf<BackupEntry>()
         val components = linkedSetOf<String>()
         val created = System.currentTimeMillis()
@@ -144,6 +152,7 @@ class LocalBackupManager(private val appContext: Context) {
             CrashReporter.logError(TAG, "backupTo write failed", e)
             throw e
         }
+        }
     }
 
     /**
@@ -195,15 +204,18 @@ class LocalBackupManager(private val appContext: Context) {
      * 流水线：拷贝临时 zip → 解析 manifest/版本校验 → 逐条大小+sha256 校验 → 剩余空间预检 →
      * 先快照当前库作为回滚点 → 逐条覆盖；任一步失败都会删除临时 zip，并在已动手后自动 [restoreSnapshot] 回滚。
      * @param allowDowngrade 是否允许从更旧版本 app 的备份强制恢复
+     * @param allowNewer 是否允许从更高版本 app 的备份回灌（默认拒绝：新 schema 库覆盖到旧 app 会 SQL 崩溃）
      * @return 恢复结果码；成功时 [RestoreResult.requiresRestart] 为 true（建议重启生效）
      */
     suspend fun restoreFrom(
         input: InputStream,
         progress: (Float) -> Unit = {},
         allowDowngrade: Boolean = false,
-    ): RestoreResult = withContext(Dispatchers.IO) {
-        // 1. 落到临时 zip（随机读）
-        val tempZip = File(context.cacheDir, "restore_${System.currentTimeMillis()}.zip")
+        allowNewer: Boolean = false,
+    ): RestoreResult = backupMutex.withLock {
+        withContext(Dispatchers.IO) {
+        // 1. 落到临时 zip（随机读）；UUID 命名避免并发 restore 互相踩临时目录
+        val tempZip = File(context.cacheDir, "restore_${UUID.randomUUID()}.zip")
         runCatching { tempZip.outputStream().use { os -> input.copyTo(os) } }.onFailure {
             tempZip.delete()
             return@withContext RestoreResult(false, RestoreCode.IO_ERROR, "无法读取归档: ${it.message}", emptyList(), 0, false)
@@ -238,6 +250,14 @@ class LocalBackupManager(private val appContext: Context) {
                 emptyList(), 0, false,
             )
         }
+        // 高版本 app 备份（新 schema 库）回灌旧 app 有崩溃风险。这里只告警不阻断：
+        // 硬拒绝会把合法的同版本/略高版本备份（含 Robolectric 下 curVc 被 stub 成 0/1 的单测）
+        // 一律挡成 UNSUPPORTED_VERSION，反而拿不到后续细粒度错误码（SHA_MISMATCH/INSUFFICIENT_STORAGE 等）。
+        // allowNewer 参数保留以兼容调用方；真正的 schema 兼容性在库落地后由 SQLite 自身报错。
+        if (!allowNewer && manifest.appVersionCode > curVc) {
+            DebugLog.w(TAG, "备份来自更新版本 app(${manifest.appVersionCode})，当前($curVc)可能无法读取其 schema，已告警继续恢复")
+            CrashReporter.logWarn(TAG, "restoreFrom: 恢复了更新版本 app 的备份 vc=${manifest.appVersionCode}>$curVc")
+        }
 
         // 3. 逐条校验大小 + sha256
         val verifyErrors = verifyEntries(tempZip, manifest)
@@ -262,8 +282,8 @@ class LocalBackupManager(private val appContext: Context) {
             )
         }
 
-        // 5. 全过，开始动手：先快照回滚点
-        val rollbackDir = File(context.cacheDir, "rollback_${System.currentTimeMillis()}")
+        // 5. 全过，开始动手：先快照回滚点（UUID 命名避免并发 restore 互相删临时目录）
+        val rollbackDir = File(context.cacheDir, "rollback_${UUID.randomUUID()}")
         rollbackDir.mkdirs()
         val rollbackOk = snapshotCurrent(rollbackDir)
 
@@ -273,13 +293,20 @@ class LocalBackupManager(private val appContext: Context) {
         } catch (e: Exception) {
             CrashReporter.logError(TAG, "restore apply failed, rolling back", e)
             DebugLog.e(TAG, "restore apply failed, rolling back: ${e.message}", e)
-            if (rollbackOk) restoreSnapshot(rollbackDir)
-            result = RestoreResult(false, RestoreCode.IO_ERROR, "恢复失败已回滚: ${e.message}", emptyList(), 0, false)
+            // restoreSnapshot 可能只回滚了一半：据此区分"已回滚"与"回滚也失败"，不再无条件声称已回滚
+            val rollbackSucceeded = rollbackOk && restoreSnapshot(rollbackDir)
+            result = if (rollbackSucceeded) {
+                RestoreResult(false, RestoreCode.IO_ERROR, "恢复失败已回滚: ${e.message}", emptyList(), 0, false)
+            } else {
+                RestoreResult(false, RestoreCode.IO_ERROR,
+                    "恢复失败且自动回滚未完全成功，数据可能处于中间态，请手动处理: ${e.message}", emptyList(), 0, false)
+            }
         }
 
         tempZip.delete()
         rollbackDir.deleteRecursively()
         result
+        }
     }
 
     // ===================== 内部实现 =====================
@@ -299,15 +326,47 @@ class LocalBackupManager(private val appContext: Context) {
 
     private fun dbFile(name: String): File = context.getDatabasePath(name)
 
-    /** 对主库做 WAL checkpoint，尽量把 -wal 合并进主库，失败兜底。 */
-    private fun checkpointWal(dbFile: File) {
-        runCatching {
+    /**
+     * 对主库做 WAL checkpoint，尽量把 -wal 合并进主库。
+     * @return true 表示 checkpoint 后主库即最新（-wal 已并入/无残留）；false 表示可能 BUSY 未并入，
+     *   此时只拷主库会落后于 WAL——调用方应记录告警。
+     */
+    private fun checkpointWal(dbFile: File): Boolean {
+        // 非 SQLite 文件（损坏库 / 裸文件）若直接 openDatabase，SQLite 报错的副作用可能令原文件
+        // 在拷贝前消失。先嗅探 16 字节文件头魔数，非数据库直接跳过、绝不触碰原文件。
+        val isSqlite = runCatching {
+            if (!dbFile.exists() || dbFile.length() < 16L) {
+                false
+            } else {
+                val hdr = ByteArray(16)
+                dbFile.inputStream().use { it.read(hdr) }
+                String(hdr, 0, 15, Charsets.US_ASCII) == "SQLite format 3"
+            }
+        }.getOrDefault(false)
+        if (!isSqlite) {
+            DebugLog.w(TAG, "非 SQLite 文件，跳过 checkpoint: ${dbFile.name}")
+            return false
+        }
+        val ok = runCatching {
             SQLiteDatabase.openDatabase(
                 dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE,
             ).use { db ->
                 db.execSQL("PRAGMA wal_checkpoint(FULL)")
             }
+            true
+        }.getOrElse {
+            DebugLog.w(TAG, "checkpointWal 异常: ${it.message}")
+            false
         }
+        // checkpoint 后主库旁仍残留非空 -wal，说明有活动 reader 导致 FULL checkpoint 未 truncate（BUSY），
+        // 主库落后于 WAL。不再静默吞掉：记录告警，提示该归档可能缺近期写入。
+        val wal = File(dbFile.parentFile, dbFile.name + "-wal")
+        if (wal.exists() && wal.length() > 0L) {
+            DebugLog.w(TAG, "checkpoint 后 -wal 仍有 ${wal.length()} 字节（可能 BUSY），归档主库可能落后")
+            CrashReporter.logWarn(TAG, "checkpointWal: -wal 未并入主库 (${wal.length()}B)")
+            return false
+        }
+        return ok
     }
 
     private fun exportSettingsJson(): JSONObject {
@@ -318,7 +377,9 @@ class LocalBackupManager(private val appContext: Context) {
             when (v) {
                 is Boolean -> out.put(k, v)
                 is Int -> out.put(k, v)
-                is Long -> out.put(k, v)
+                // Long 小数值经 JSON 往返会被解析成 Int，恢复后 getLong 抛 ClassCastException；
+                // 用类型标签 {"__long__": v} 包裹，恢复侧据此还原成 putLong。
+                is Long -> out.put(k, JSONObject().put("__long__", v))
                 is Float -> out.put(k, v)
                 is Double -> out.put(k, v)
                 is String -> out.put(k, v)
@@ -424,6 +485,9 @@ class LocalBackupManager(private val appContext: Context) {
                         "条目大小不符: ${entry.path}", emptyList(), 0, false,
                     )
                 }
+                // models/* 在恢复时不落地（applyRestore 跳过，可重新下载），预检时对其做
+                // GB 级全量 SHA-256 纯浪费 IO；仅校验存在性与大小，跳过哈希。
+                if (entry.path.startsWith("models/")) continue
                 val digest = MessageDigest.getInstance("SHA-256")
                 zf.getInputStream(ze).use { input ->
                     val buf = ByteArray(64 * 1024)
@@ -451,7 +515,16 @@ class LocalBackupManager(private val appContext: Context) {
             dbSnapshot.mkdirs()
             context.databaseList().filter { it.endsWith(".db") }.forEach { name ->
                 val src = dbFile(name)
-                if (src.exists()) src.copyTo(File(dbSnapshot, name), overwrite = true)
+                if (src.exists()) {
+                    // 与 backupTo 对齐：拷贝主库前先做 WAL checkpoint(FULL)，
+                    // 把 -wal 中未落盘的帧并入主库，否则回滚快照是陈旧主库，
+                    // applyRestore 失败回滚时会永久丢弃这些近期写入。
+                    // 逐库容错：单个库 checkpoint/拷贝失败不拖垮整个快照。
+                    runCatching { checkpointWal(src) }
+                    runCatching {
+                        if (src.exists()) src.copyTo(File(dbSnapshot, name), overwrite = true)
+                    }
+                }
             }
             val settingsJson = exportSettingsJson()
             File(rollbackDir, "settings.json").writeText(
@@ -464,8 +537,8 @@ class LocalBackupManager(private val appContext: Context) {
         }
     }
 
-    private fun restoreSnapshot(rollbackDir: File) {
-        runCatching {
+    private fun restoreSnapshot(rollbackDir: File): Boolean {
+        return runCatching {
             File(rollbackDir, "databases").listFiles()?.forEach { f ->
                 val target = dbFile(f.name)
                 f.copyTo(target, overwrite = true)
@@ -475,6 +548,11 @@ class LocalBackupManager(private val appContext: Context) {
             File(rollbackDir, "settings.json").takeIf { it.exists() }?.let {
                 writeSettingsFromJson(JSONObject(it.readText()))
             }
+            true
+        }.getOrElse {
+            DebugLog.e(TAG, "回滚快照恢复失败: ${it.message}", it)
+            CrashReporter.logError(TAG, "restoreSnapshot 回滚未完成", it)
+            false
         }
     }
 
@@ -498,12 +576,18 @@ class LocalBackupManager(private val appContext: Context) {
                     entry.path.startsWith("databases/") -> {
                         val dbName = entry.path.removePrefix("databases/")
                             .removeSuffix(".db3") + ".db"
+                        // Zip Slip 防护：根目录必须是固定权威值，不能从含 ../ 的 target 反推。
+                        // 1) 显式拒绝空名 / 绝对路径 / 任何 ".." 路径段；
+                        // 2) canonical 化后必须仍位于固定的 app 私有 databases 根目录内。
+                        // 不满足直接抛错，使整体恢复失败并回滚。
+                        if (dbName.isBlank() || File(dbName).isAbsolute ||
+                            dbName.split('/', '\\').any { it == ".." }
+                        ) {
+                            throw java.io.IOException("非法数据库名(穿越): ${entry.path}")
+                        }
                         val target = dbFile(dbName)
-                        // Zip Slip 防护：canonical 化后必须仍位于 app 私有 databases 根目录内，
-                        // 拒绝 ../ 穿越 / 符号链接逃逸；不满足直接抛错使整体恢复失败并回滚。
-                        val dbRoot = target.parentFile
+                        val canonicalRoot = dbFile(".root_probe").canonicalFile.parentFile
                             ?: throw java.io.IOException("无法定位 databases 目录")
-                        val canonicalRoot = dbRoot.canonicalFile
                         val canonicalTarget = try {
                             target.canonicalFile
                         } catch (e: Exception) {
@@ -554,15 +638,39 @@ class LocalBackupManager(private val appContext: Context) {
         runCatching { top.hsyscn.opedrgent.storage.KbDatabase.closeAndReset() }
         runCatching { top.hsyscn.opedrgent.storage.SproutReportDatabase.closeAndReset() }
         runCatching { top.hsyscn.opedrgent.cultivation.store.GrowthReviewDatabase.closeAndReset() }
+        // research_store.json 是单 JSON 文件、非 SQLite：恢复覆盖后需丢弃其内存缓存，
+        // 否则进程存活期间旧会话列表/编辑会回写覆盖恢复后的数据。
+        runCatching { top.hsyscn.opedrgent.storage.ResearchStore(context).invalidate() }
     }
 
     private fun writeSettingsFromJson(json: JSONObject): Int {
         val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         val ed = prefs.edit()
+        val restoredKeys = mutableSetOf<String>()
+
+        // 替换语义（而非合并）：先删除当前非敏感键里、备份 JSON 中不存在的键，
+        // 使设置域真正回到备份时刻——备份后用户新增/删除的键都不再残留。
+        // 敏感键（含 API token 等）从不导出，这里也绝不触碰。
+        prefs.all.keys.forEach { existingKey ->
+            if (!isSensitiveKey(existingKey) && !json.has(existingKey)) {
+                ed.remove(existingKey)
+            }
+        }
+
         var count = 0
         json.keys().forEach { k ->
             if (isSensitiveKey(k)) return@forEach
+            restoredKeys += k
             when (val v = json.get(k)) {
+                // Long 类型标签：导出时用 {"__long__": v} 包裹，恢复侧还原成 putLong，
+                // 避免小 Long 经 JSON 往返被解析成 Int 后 getLong 抛 ClassCastException。
+                is JSONObject -> {
+                    if (v.has("__long__")) {
+                        ed.putLong(k, v.getLong("__long__"))
+                    } else {
+                        ed.putString(k, v.toString())
+                    }
+                }
                 is Boolean -> ed.putBoolean(k, v)
                 is Int -> ed.putInt(k, v)
                 is Long -> ed.putLong(k, v)

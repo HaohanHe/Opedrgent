@@ -32,6 +32,19 @@ class ResearchStore(context: Context) {
     private val checkpointDir = File(context.filesDir, "research_checkpoints").apply { mkdirs() }
     private val lock = Any()
     private var sessions: List<ResearchSession>? = null
+    // .bak 全量拷贝节流：长会话里每条消息都触发 saveAllInternal，
+    // 若每次都把整库文件拷成 .bak，单条消息成本 O(全库大小)，整体 O(N^2) IO。
+    // 改为距上次 .bak 拷贝超过 BAK_REFRESH_MS 才刷新一次；崩溃时最多丢失该窗口内的写入，
+    // 而 tmp+rename 本身是原子的，常规写入不依赖 .bak。
+    @Volatile private var lastBakCopyAt: Long = 0L
+    private val bakRefreshMs: Long get() = 30_000L
+
+    /** 备份/恢复整体替换 filesDir 后调用：丢弃内存缓存，下次读重新从磁盘加载。 */
+    fun invalidate() {
+        synchronized(lock) {
+            sessions = null
+        }
+    }
 
     private fun checkpointFile(sessionId: String): File = File(checkpointDir, "$sessionId.json")
 
@@ -363,28 +376,31 @@ class ResearchStore(context: Context) {
         root.put("sessions", arr)
         val jsonText = root.toString()
 
-        // 1. 保留上一份有效数据为 .bak（原子备份）
-        if (file.exists() && file.length() > 0L) {
+        // 1. 保留上一份有效数据为 .bak（节流：避免每次 mutation 都全量拷盘）
+        val now = System.currentTimeMillis()
+        if (file.exists() && file.length() > 0L && now - lastBakCopyAt >= bakRefreshMs) {
             runCatching {
                 file.inputStream().use { input ->
                     backupFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
+                lastBakCopyAt = now
             }
         }
-        // 2. 先写入临时文件
+        // 2. 先写入临时文件，再原子替换为主文件；renameTo 返回 false 时降级直接写主文件
         runCatching {
             tempFile.writeText(jsonText, Charsets.UTF_8)
-            // 3. 原子替换为主文件
-            if (tempFile.exists() && tempFile.length() > 0L) {
-                tempFile.renameTo(file)
-            } else {
-                // 临时文件写入失败，直接写主文件
+            val renamed = tempFile.exists() && tempFile.length() > 0L && tempFile.renameTo(file)
+            if (!renamed) {
+                // renameTo 失败（跨目录/句柄占用/权限）：不能静默成功，降级直接覆盖主文件并记录。
+                // 此前内存 sessions 已被调用方更新，必须确保持久化，否则杀进程后新写入丢失。
+                DebugLog.w("ResearchStore", "renameTo 失败，降级直接写主文件")
                 file.writeText(jsonText, Charsets.UTF_8)
             }
         }.onFailure {
-            // 原子写入失败，降级为直接覆盖主文件
+            // 临时文件写入异常，降级为直接覆盖主文件
+            DebugLog.e("ResearchStore", "原子写失败，降级直接写主文件: ${it.message}", it)
             file.writeText(jsonText, Charsets.UTF_8)
         }
     }
@@ -856,10 +872,17 @@ class ResearchStore(context: Context) {
                             endTime = stateObj.optLong("endTime", 0L),
                         )
                     } else ToolState(status = ToolStateType.PENDING)
+                    // 序列化时单独写了顶层 "input"（part.input），反序列化需回填，否则进程重启后该字段静默丢失。
+                    // 旧文件无顶层 input 时保持空 map（与历史行为一致）。
+                    val topInputMap = mutableMapOf<String, String>()
+                    o.optJSONObject("input")?.let { inp ->
+                        inp.keys().forEach { key -> topInputMap[key] = inp.optString(key) }
+                    }
                     MessagePart.ToolCall(
                         toolName = o.optString("toolName"),
                         callId = o.optString("callId"),
                         state = toolState,
+                        input = topInputMap,
                         output = o.optString("output").ifBlank { null },
                     )
                 }

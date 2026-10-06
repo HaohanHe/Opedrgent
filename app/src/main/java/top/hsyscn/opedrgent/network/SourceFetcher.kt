@@ -60,6 +60,9 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
     private val cache = LinkedHashMap<String, Pair<Long, FetchedSource>>(16, 0.75f, true)
 
     suspend fun fetchUrl(url: String): FetchedSource {
+        // 入口安全校验（U35-04）：仅允许 http/https，拒绝回环/私网/链路本地地址，防 SSRF
+        assertPublicHttpUrl(url)
+
         // 检查缓存
         synchronized(cache) {
             cache[url]?.let { (ts, cached) ->
@@ -98,6 +101,33 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
         }
     }
 
+    /**
+     * 端侧 SSRF 防护（U35-04）：
+     * - scheme 白名单：仅 http/https，拒绝 file://、jar:、gopher: 等
+     * - 解析 host，拒绝回环/私网/链路本地/任意本地地址（含 169.254.169.254 云元数据）
+     */
+    private fun assertPublicHttpUrl(url: String) {
+        val u = runCatching { java.net.URL(url) }.getOrNull()
+            ?: throw IllegalArgumentException("非法 URL: $url")
+        val scheme = u.protocol?.lowercase()?.trim().orEmpty()
+        if (scheme != "http" && scheme != "https") {
+            throw IllegalArgumentException("仅支持 http/https，拒绝 scheme: $scheme")
+        }
+        val host = u.host?.lowercase()?.trim().orEmpty()
+        if (host.isEmpty()) {
+            throw IllegalArgumentException("URL 缺少 host: $url")
+        }
+        if (host == "localhost" || host.endsWith(".localhost")) {
+            throw IllegalArgumentException("拒绝回环主机: $host")
+        }
+        val addr = runCatching { java.net.InetAddress.getByName(host) }.getOrNull()
+        if (addr != null && (addr.isLoopbackAddress || addr.isLinkLocalAddress
+                || addr.isSiteLocalAddress || addr.isAnyLocalAddress)
+        ) {
+            throw IllegalArgumentException("拒绝内网/链路本地/回环地址: $host")
+        }
+    }
+
     private fun fetchUrlInternal(url: String): FetchedSource {
         val req = Request.Builder()
             .url(url)
@@ -112,13 +142,21 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
                 throw IllegalStateException("抓取失败: HTTP ${resp.code}")
             }
 
-            // 限制响应大小
+            // 快速路径：Content-Length 已知且超限直接拒绝
             val contentLength = resp.header("Content-Length")?.toLongOrNull()
             if (contentLength != null && contentLength > MAX_BODY_BYTES) {
                 throw IllegalStateException("页面过大: ${contentLength / 1024}KB")
             }
 
-            val body = resp.body?.string().orEmpty()
+            // 流式读取并按字节截断（U35-03）：chunked 编码无 Content-Length 时同样在超限时中止，
+            // 避免恶意/异常服务端推送超大 body 撑爆内存。
+            val source = resp.body?.source()
+                ?: throw IllegalStateException("空响应体")
+            val bodyBytes = source.use { it.readByteArray(MAX_BODY_BYTES.toLong() + 1) }
+            if (bodyBytes.size > MAX_BODY_BYTES) {
+                throw IllegalStateException("页面过大: 超过 ${MAX_BODY_BYTES / 1024}KB（chunked）")
+            }
+            val body = bodyBytes.decodeToString()
             val doc = Jsoup.parse(body)
             val title = doc.title().takeIf { it.isNotBlank() }
 
@@ -218,15 +256,15 @@ class SourceFetcher(private val http: OkHttpClient = HttpClients.default) {
             ?: doc.selectFirst("meta[property=$name]")?.attr("content")?.takeIf { it.isNotBlank() }
     }
 
-    /** 判断异常是否可重试 */
+    /** 判断异常是否可重试。仅对明确的暂时性网络错误重试（U35-10）：不再用 IOException 泛化兜底，
+     *  否则会把读文件/编码等非网络错误也判为可重试；也不重试 SSL 握手等确定性失败。 */
     private fun isRetryable(e: Exception): Boolean {
+        if (e is java.net.SocketTimeoutException) return true
+        if (e is java.net.ConnectException) return true
+        if (e is java.net.UnknownHostException) return true
+        if (e is java.net.SocketException) return true
         val msg = e.message?.lowercase() ?: return false
-        return msg.contains("timeout") ||
-                msg.contains("connection") ||
-                msg.contains("reset") ||
-                msg.contains("broken pipe") ||
-                e is java.net.SocketTimeoutException ||
-                e is java.net.SocketException ||
-                e is java.io.IOException
+        return msg.contains("timeout") || msg.contains("reset") ||
+            msg.contains("broken pipe") || msg.contains("connection reset")
     }
 }

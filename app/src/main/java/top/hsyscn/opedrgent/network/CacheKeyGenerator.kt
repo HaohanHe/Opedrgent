@@ -12,11 +12,13 @@ object CacheKeyGenerator {
         language: String = "auto",
         timeRange: String? = null,
         region: String? = null,
-        timeBucketMinutes: Int = 5
+        timeBucketMinutes: Int = 5,
+        limit: Int = 5
     ): String {
         val normalized = normalizeQuery(query)
         val timeBucket = generateTimeBucket(timeBucketMinutes)
-        val configHash = hashConfig(providerOrder, language, timeRange, region)
+        // limit 参与 configHash：不同条数的请求必须得到不同缓存键（U30-03）
+        val configHash = hashConfig(providerOrder, language, timeRange, region, limit)
 
         val rawKey = "$normalized|$timeBucket|$configHash"
         val finalKey = sha256(rawKey)
@@ -30,7 +32,10 @@ object CacheKeyGenerator {
             .replace(Regex("\\s+"), " ")
             .lowercase(Locale.US)
 
-        result = Regex("[^a-z0-9\\u4e00-\\u9fff\\s.,!?;:'\"()\\[\\]{}]").replace(result, "")
+        // 保留全部 Unicode 字母/数字（\\p{L}\\p{N}）与常见空白标点；仅折叠空白与大小写。
+        // 旧白名单只保留 a-z0-9 与中文，会把西里尔/阿拉伯/希腊等整段删除成空串，
+        // 导致不同语种查询归一化为同一空串而缓存键碰撞（U32-03）。
+        result = Regex("[^\\p{L}\\p{N}\\s.,!?;:'\"()\\[\\]{}]").replace(result, "")
 
         if (result.length > 500) {
             result = result.take(500)
@@ -41,17 +46,20 @@ object CacheKeyGenerator {
     }
 
     private fun generateTimeBucket(minutes: Int): String {
+        // 守卫：<=0 会除零/产生负桶，>1440 失去 TTL 意义；钳制到 [1, 1440]（U32-02）
+        val clamped = minutes.coerceIn(1, 1440)
         val now = System.currentTimeMillis() / 1000L
-        return (now / (minutes * 60L)).toString()
+        return (now / (clamped * 60L)).toString()
     }
 
     private fun hashConfig(
         providerOrder: String,
         language: String,
         timeRange: String?,
-        region: String?
+        region: String?,
+        limit: Int
     ): String {
-        val raw = "${providerOrder}|${language}|${timeRange ?: ""}|${region ?: ""}"
+        val raw = "$providerOrder|$language|${timeRange ?: ""}|${region ?: ""}|$limit"
         return sha256(raw)
     }
 

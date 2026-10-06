@@ -14,6 +14,10 @@ class SystemAudioRecorder(private val context: Context) {
     private var isRecording = false
 
     fun startRecording(mediaProjection: MediaProjection): AudioRecord? {
+        // 重入保护：同一实例重复 start 时先释放旧 AudioRecord，避免覆盖字段导致旧 native 句柄泄漏（U46-02）
+        if (audioRecord != null || isRecording) {
+            stopRecording()
+        }
         if (android.os.Build.VERSION.SDK_INT < 29) {
             DebugLog.w("SystemAudioRecorder", "AudioPlaybackCaptureConfiguration requires API 29+")
             return null

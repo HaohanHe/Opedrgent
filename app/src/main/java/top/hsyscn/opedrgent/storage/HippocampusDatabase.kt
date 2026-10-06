@@ -82,6 +82,13 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
         if (oldVersion < 2) {
             // v1 -> v2: 新增 scope 列，旧数据默认为 project
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_SCOPE TEXT NOT NULL DEFAULT 'project'")
+            // 历史并发 upsert 可能已有 (source_type,source_id) 重复行：
+            // 在建唯一索引前去重（每组保留 rowid 最大/最新一行），仅升级时执行一次，
+            // 不再每次 onOpen 全表扫描。
+            db.execSQL(
+                "DELETE FROM $TABLE WHERE rowid NOT IN (" +
+                    "SELECT MAX(rowid) FROM $TABLE GROUP BY $COL_SOURCE_TYPE, $COL_SOURCE_ID)"
+            )
             createItemIndexes(db)
         }
         if (oldVersion < 3) {
@@ -92,14 +99,8 @@ class HippocampusDatabase(context: Context) : SQLiteOpenHelper(
 
     override fun onOpen(db: SQLiteDatabase) {
         super.onOpen(db)
-        // onOpen 在 onCreate/onUpgrade 之后回调，此时表已建好，可安全做幂等的并发修复。
-        // 旧库在并发 upsert 下可能已有 (source_type, source_id) 重复行：
-        // 每组保留 rowid 最大（最新插入）的一行，删除其余，避免建唯一索引失败。
-        // 两条语句均幂等，重复执行不报错。
-        db.execSQL(
-            "DELETE FROM $TABLE WHERE rowid NOT IN (" +
-                "SELECT MAX(rowid) FROM $TABLE GROUP BY $COL_SOURCE_TYPE, $COL_SOURCE_ID)"
-        )
+        // 仅保留幂等的唯一索引创建（IF NOT EXISTS 廉价）；
+        // 全表去重 DELETE 已迁移到 onUpgrade 升级路径，避免每次冷启动全表扫描。
         db.execSQL(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_source_unique ON $TABLE($COL_SOURCE_TYPE, $COL_SOURCE_ID)"
         )

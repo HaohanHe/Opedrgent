@@ -148,9 +148,10 @@ class SmartSummaryGenerator(
             val chapters = buildList {
                 for (i in 0 until chaptersJson.length()) {
                     val ch = runCatching { chaptersJson.getJSONObject(i) }.getOrNull() ?: continue
+                    val maxSec = transcript.durationMs / 1000
                     add(
                         SmartSummary.ChapterItem(
-                            timestampSec = ch.optLong("timestampSec", 0L),
+                            timestampSec = ch.optLong("timestampSec", 0L).coerceIn(0L, maxSec),
                             timestampFormatted = ch.optString("timestampFormatted", "00:00:00"),
                             title = ch.optString("title", ""),
                             summary = ch.optString("summary", ""),

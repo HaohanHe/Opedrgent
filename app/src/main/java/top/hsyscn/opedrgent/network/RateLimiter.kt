@@ -51,7 +51,8 @@ object RateLimiter {
         val now = System.currentTimeMillis()
 
         // 获取或初始化该域名的时间戳列表
-        val timestamps = requestTimestamps.getOrPut(domain) { mutableListOf() }
+        // computeIfAbsent 原子初始化，避免 getOrPut 竞态下两个协程各自建表导致丢计数
+        val timestamps = requestTimestamps.computeIfAbsent(domain) { mutableListOf() }
 
         return synchronized(timestamps) {
             // 1. 清理过旧记录（释放内存）

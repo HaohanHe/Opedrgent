@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.note
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -121,11 +122,11 @@ class LocalEmbeddingProvider(private val store: KnowledgeGraphStore) : Embedding
                 }
             }
 
-            // 用已有实体关联补充文档频率
+            // 用已有实体关联补充文档频率：直接复用实体侧维护好的 frequency（≈关联该实体的文档数），
+            // 避免逐实体再发一次 getNodesForEntity 的 N+1 同步查询。
             for (entity in store.getAllEntities()) {
                 if (entity.name in allFeaturesInBatch) {
-                    val nodeCount = store.getNodesForEntity(entity.id).size
-                    df[entity.name] = (df[entity.name] ?: 0) + nodeCount
+                    df[entity.name] = (df[entity.name] ?: 0) + entity.frequency.coerceAtLeast(1)
                 }
             }
         }
@@ -204,6 +205,7 @@ class CloudEmbeddingProvider(
 
     private class EmbeddingRetryException(message: String) : Exception(message)
 
+    @Volatile
     private var cachedDimension: Int = DEFAULT_DIMENSION
 
     override fun providerName(): String = "cloud"
@@ -213,56 +215,10 @@ class CloudEmbeddingProvider(
 
     override fun dimension(): Int = cachedDimension
 
-    override suspend fun embed(text: String): FloatArray = withContext(Dispatchers.IO) {
-        val config = apiConfig ?: throw IllegalStateException("Cloud embedding API config is null")
-        if (text.isBlank()) {
-            return@withContext FloatArray(cachedDimension) { 0f }
-        }
-
-        val model = resolveModel(config.model)
-        val url = buildEmbeddingUrl(config.baseUrl)
-        val body = JSONObject().apply {
-            put("input", text)
-            put("model", model)
-        }.toString()
-
-        val request = Request.Builder()
-            .url(url)
-            .post(body.toRequestBody("application/json".toMediaType()))
-            .header("Content-Type", "application/json")
-            .applyAuth(config.apiKey)
-            .build()
-
-        DebugLog.i(TAG, "embed → $url model=$model")
-
-        http.newCall(request).execute().use { response ->
-            val raw = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                val msg = runCatching {
-                    JSONObject(raw).optJSONObject("error")?.optString("message")
-                        ?: JSONObject(raw).optString("message").takeIf { it.isNotBlank() }
-                }.getOrNull()
-                throw IllegalStateException(
-                    msg?.takeIf { it.isNotBlank() } ?: "Embedding request failed: HTTP ${response.code}"
-                )
-            }
-
-            val root = JSONObject(raw)
-            val data = root.optJSONArray("data")
-                ?: throw IllegalStateException("Embedding response missing data array")
-            if (data.length() == 0) {
-                throw IllegalStateException("Embedding response data array is empty")
-            }
-
-            val embeddingArray = data.getJSONObject(0).optJSONArray("embedding")
-                ?: throw IllegalStateException("Embedding response missing embedding array")
-
-            val result = FloatArray(embeddingArray.length()) { i ->
-                embeddingArray.getDouble(i).toFloat()
-            }
-            cachedDimension = result.size
-            result
-        }
+    override suspend fun embed(text: String): FloatArray {
+        // 单条复用批量路径，从而与 embedChunk 共享 5xx/429/IO 重试与退避；
+        // 不再裸 execute() 一次失败即上抛并触发整批本地降级。
+        return embedBatch(listOf(text)).first()
     }
 
     override suspend fun embedBatch(texts: List<String>): List<FloatArray> = withContext(Dispatchers.IO) {
@@ -275,11 +231,12 @@ class CloudEmbeddingProvider(
         val url = buildEmbeddingUrl(config.baseUrl)
         val backoffMs = listOf(500L, 1000L, 2000L)
 
-        // 空白文本保持与 embed(text) 一致：直接返回零向量
-        val placeholders = mutableMapOf<Int, FloatArray>()
+        // 空白文本先记下下标，待拿到首批真实向量后再按其维度建零向量。
+        // 避免用过期 cachedDimension 建出与真实向量维度不一致的占位（同批混维度）。
+        val blankIndexes = mutableListOf<Int>()
         val nonBlankIndexed = texts.mapIndexedNotNull { index, text ->
             if (text.isBlank()) {
-                placeholders[index] = FloatArray(cachedDimension) { 0f }
+                blankIndexes += index
                 null
             } else {
                 index to text
@@ -292,6 +249,10 @@ class CloudEmbeddingProvider(
             val embeddings = embedChunk(chunkTexts, config, model, url, backoffMs)
             nonBlankEmbeddings.addAll(embeddings)
         }
+
+        // embedChunk 已把 cachedDimension 回填为真实维度；整批全空时才回退 cachedDimension。
+        val placeholderDim = nonBlankEmbeddings.firstOrNull()?.size ?: cachedDimension
+        val placeholders = blankIndexes.associateWith { FloatArray(placeholderDim) { 0f } }
 
         if (nonBlankEmbeddings.size != nonBlankIndexed.size) {
             throw IllegalStateException(
@@ -427,26 +388,72 @@ class FallbackEmbeddingProvider(
         private const val TAG = "FallbackEmbeddingProvider"
     }
 
+    /**
+     * 已固化的向量维度。首次成功编码后锁定，避免云(1536)↔本地(512)维度混存。
+     * 一旦锁定，降级到异维本地向量会被显式拒绝，不再静默污染检索空间。
+     */
+    @Volatile
+    private var lockedDimension: Int? = null
+
     override fun providerName(): String = "cloud-fallback"
 
     override fun isAvailable(): Boolean = true
 
-    override fun dimension(): Int = fallback.dimension()
+    /** 返回当前真实维度：已锁定用锁定值，否则按主用（云）provider 探测，而非固定本地 512。 */
+    override fun dimension(): Int = lockedDimension ?: primary.dimension()
 
     override suspend fun embed(text: String): FloatArray = try {
-        primary.embed(text)
+        primary.embed(text).also { onPrimarySuccess(it.size) }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
-        DebugLog.w(TAG, "cloud embedding failed, falling back to local: ${e.message}")
-        fallback.embed(text)
+        DebugLog.w(TAG, "cloud embedding failed, degrading: ${e.message}")
+        fallbackWithDimensionGuard { fallback.embed(text) }
     }
 
     override suspend fun embedBatch(texts: List<String>): List<FloatArray> = try {
-        primary.embedBatch(texts)
+        primary.embedBatch(texts).also { batch ->
+            batch.firstOrNull()?.let { onPrimarySuccess(it.size) }
+        }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
-        DebugLog.w(TAG, "cloud embedding batch failed, falling back to local: ${e.message}")
-        fallback.embedBatch(texts)
+        DebugLog.w(TAG, "cloud embedding batch failed, degrading: ${e.message}")
+        fallbackWithDimensionGuard { fallback.embedBatch(texts) }
+    }
+
+    private fun onPrimarySuccess(dim: Int) {
+        lockedDimension?.let { prev ->
+            if (prev != dim) {
+                DebugLog.w(TAG, "embedding dimension changed $prev -> $dim; vectors of the old dimension require graph rebuild")
+            }
+        }
+        lockedDimension = dim
+    }
+
+    /**
+     * 维度感知降级守卫：
+     * - 尚未锁定（空库首次）或锁定维度==本地维度时，降级安全并锁定到本地维度。
+     * - 已锁定为云维度而本地维度不同时，拒绝静默写入异维向量（否则 cosine 恒为 0、检索被清空），
+     *   显式抛出维度不匹配异常，要求重建/隔离向量空间，而非静默零化检索。
+     */
+    private suspend fun <T> fallbackWithDimensionGuard(block: suspend () -> T): T {
+        val locked = lockedDimension
+        val localDim = fallback.dimension()
+        if (locked != null && locked != localDim) {
+            DebugLog.e(TAG, "dimension mismatch: locked=$locked but local fallback=$localDim; refusing to mix, rebuild graph required")
+            throw EmbeddingDimensionMismatchException(locked, localDim)
+        }
+        lockedDimension = localDim
+        return block()
     }
 }
+
+/** 云↔本地维度不一致时显式抛出，指示需重建/隔离向量空间，禁止静默混存。 */
+class EmbeddingDimensionMismatchException(
+    val lockedDimension: Int,
+    val fallbackDimension: Int,
+) : Exception("Embedding dimension mismatch: locked=$lockedDimension, fallback=$fallbackDimension; rebuild graph")
 
 /**
  * Embedding 提供器工厂。

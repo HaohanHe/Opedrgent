@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.network
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,13 +29,22 @@ class SmartCircuitBreaker(
     private val config: CircuitBreakerConfig = CircuitBreakerConfig(),
     private val httpClient: OkHttpClient = HttpClients.default
 ) {
-    @Volatile var state: CircuitState = CircuitState.CLOSED
+    @Volatile
+    var state: CircuitState = CircuitState.CLOSED
         private set
 
-    @Volatile private var consecutiveFailures = 0
-    @Volatile private var openSince: Long = 0
-    @Volatile private var currentBackoffMs: Long = config.baseBackoffMs
-    @Volatile private var halfOpenProbeCount = 0
+    // 以下计数器全部由 synchronized(this) 保护（与 allowRequest/recordSuccess/recordFailure 同一监视器），
+    // 不再使用 @Volatile + 裸自增（read-modify-write 非原子，多协程并发会丢更新）。
+    private var consecutiveFailures = 0
+    private var openSince: Long = 0
+    private var currentBackoffMs: Long = config.baseBackoffMs
+
+    /** HALF_OPEN 中已准入但尚未完成（在途）的 probe 数量，用于限制并发探测上限。 */
+    private var halfOpenProbeInFlight = 0
+
+    /** 当前 HALF_OPEN 窗口内已成功的 probe 数量，达到 halfOpenMaxProbes 即转入 RECOVERING。 */
+    private var halfOpenSuccessCount = 0
+
     @Volatile private var lastHealthCheckTime: Long = 0
 
     private val recentResults = ConcurrentLinkedDeque<Boolean>()
@@ -47,7 +57,8 @@ class SmartCircuitBreaker(
                     val elapsed = System.currentTimeMillis() - openSince
                     if (elapsed >= currentBackoffMs) {
                         state = CircuitState.HALF_OPEN
-                        halfOpenProbeCount = 0
+                        halfOpenProbeInFlight = 0
+                        halfOpenSuccessCount = 0
                         DebugLog.i("CircuitBreaker[$engineName] OPEN → HALF_OPEN (backoff ${currentBackoffMs}ms elapsed)")
                         true
                     } else {
@@ -55,10 +66,13 @@ class SmartCircuitBreaker(
                     }
                 }
                 CircuitState.HALF_OPEN -> {
-                    if (halfOpenProbeCount < config.halfOpenMaxProbes) {
+                    if (halfOpenProbeInFlight < config.halfOpenMaxProbes) {
+                        // 准入即预约一个在途 probe 名额（在 recordSuccess/recordFailure 中释放），
+                        // 避免 N 个并发请求同时通过 0<N 的检查而打满刚恢复的引擎。
+                        halfOpenProbeInFlight++
                         true
                     } else {
-                        DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN 拒绝请求，probeCount 已达上限 $halfOpenProbeCount")
+                        DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN 拒绝请求，in-flight probe 已达上限 $halfOpenProbeInFlight")
                         false
                     }
                 }
@@ -70,23 +84,29 @@ class SmartCircuitBreaker(
     fun recordSuccess(responseTimeMs: Long = 0) {
         recentResults.addLast(true)
         trimWindow()
-        consecutiveFailures = 0
-        when (state) {
-            CircuitState.HALF_OPEN -> {
-                halfOpenProbeCount++
-                if (halfOpenProbeCount >= config.halfOpenMaxProbes) {
-                    state = CircuitState.RECOVERING
-                    DebugLog.i("CircuitBreaker[$engineName] HALF_OPEN → RECOVERING (probes=$halfOpenProbeCount)")
+        synchronized(this) {
+            consecutiveFailures = 0
+            when (state) {
+                CircuitState.HALF_OPEN -> {
+                    halfOpenProbeInFlight = (halfOpenProbeInFlight - 1).coerceAtLeast(0)
+                    halfOpenSuccessCount++
+                    if (halfOpenSuccessCount >= config.halfOpenMaxProbes) {
+                        state = CircuitState.RECOVERING
+                        halfOpenProbeInFlight = 0
+                        halfOpenSuccessCount = 0
+                        DebugLog.i("CircuitBreaker[$engineName] HALF_OPEN → RECOVERING (probes=$halfOpenSuccessCount)")
+                    }
                 }
+                CircuitState.RECOVERING -> {
+                    state = CircuitState.CLOSED
+                    currentBackoffMs = config.baseBackoffMs
+                    halfOpenProbeInFlight = 0
+                    halfOpenSuccessCount = 0
+                    openSince = 0
+                    DebugLog.i("CircuitBreaker[$engineName] RECOVERING → CLOSED (恢复完成)")
+                }
+                else -> {}
             }
-            CircuitState.RECOVERING -> {
-                state = CircuitState.CLOSED
-                currentBackoffMs = config.baseBackoffMs
-                halfOpenProbeCount = 0
-                openSince = 0
-                DebugLog.i("CircuitBreaker[$engineName] RECOVERING → CLOSED (恢复完成)")
-            }
-            else -> {}
         }
         DebugLog.d("CircuitBreaker[$engineName] recordSuccess state=${state} responseTime=${responseTimeMs}ms")
     }
@@ -94,31 +114,34 @@ class SmartCircuitBreaker(
     fun recordFailure(error: Exception? = null) {
         recentResults.addLast(false)
         trimWindow()
-        when (state) {
-            CircuitState.CLOSED -> {
-                consecutiveFailures++
-                if (consecutiveFailures >= config.failureThreshold) {
-                    openSince = System.currentTimeMillis()
-                    currentBackoffMs = config.baseBackoffMs
-                    state = CircuitState.OPEN
-                    DebugLog.w("CircuitBreaker[$engineName] CLOSED → OPEN (连续失败 $consecutiveFailures 次)")
-                } else {
-                    DebugLog.w("CircuitBreaker[$engineName] 连续失败 $consecutiveFailures/${config.failureThreshold}")
+        synchronized(this) {
+            when (state) {
+                CircuitState.CLOSED -> {
+                    consecutiveFailures++
+                    if (consecutiveFailures >= config.failureThreshold) {
+                        openSince = System.currentTimeMillis()
+                        currentBackoffMs = config.baseBackoffMs
+                        state = CircuitState.OPEN
+                        DebugLog.w("CircuitBreaker[$engineName] CLOSED → OPEN (连续失败 $consecutiveFailures 次)")
+                    } else {
+                        DebugLog.w("CircuitBreaker[$engineName] 连续失败 $consecutiveFailures/${config.failureThreshold}")
+                    }
                 }
+                CircuitState.HALF_OPEN -> {
+                    currentBackoffMs = minOf((currentBackoffMs * config.backoffFactor).toLong(), config.maxBackoffMs)
+                    openSince = System.currentTimeMillis()
+                    state = CircuitState.OPEN
+                    halfOpenProbeInFlight = 0
+                    halfOpenSuccessCount = 0
+                    DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN → OPEN (试探失败, backoff 升至 ${currentBackoffMs}ms)")
+                }
+                CircuitState.RECOVERING -> {
+                    openSince = System.currentTimeMillis()
+                    state = CircuitState.OPEN
+                    DebugLog.w("CircuitBreaker[$engineName] RECOVERING → OPEN (恢复期间再次失败)")
+                }
+                CircuitState.OPEN -> {}
             }
-            CircuitState.HALF_OPEN -> {
-                currentBackoffMs = minOf((currentBackoffMs * config.backoffFactor).toLong(), config.maxBackoffMs)
-                openSince = System.currentTimeMillis()
-                state = CircuitState.OPEN
-                halfOpenProbeCount = 0
-                DebugLog.w("CircuitBreaker[$engineName] HALF_OPEN → OPEN (试探失败, backoff 升至 ${currentBackoffMs}ms)")
-            }
-            CircuitState.RECOVERING -> {
-                openSince = System.currentTimeMillis()
-                state = CircuitState.OPEN
-                DebugLog.w("CircuitBreaker[$engineName] RECOVERING → OPEN (恢复期间再次失败)")
-            }
-            CircuitState.OPEN -> {}
         }
         if (error != null) {
             DebugLog.e("CircuitBreaker[$engineName] recordFailure: ${error.message}", error)
@@ -141,14 +164,22 @@ class SmartCircuitBreaker(
                 val response = httpClient.newCall(request).execute()
                 val success = response.isSuccessful
                 response.close()
-                if (success && state == CircuitState.OPEN) {
-                    state = CircuitState.HALF_OPEN
-                    halfOpenProbeCount = 0
-                    DebugLog.i("CircuitBreaker[$engineName] 健康检查成功 OPEN → HALF_OPEN")
+                if (success) {
+                    synchronized(this) {
+                        if (state == CircuitState.OPEN) {
+                            state = CircuitState.HALF_OPEN
+                            halfOpenProbeInFlight = 0
+                            halfOpenSuccessCount = 0
+                            DebugLog.i("CircuitBreaker[$engineName] 健康检查成功 OPEN → HALF_OPEN")
+                        }
+                    }
                 }
                 DebugLog.d("CircuitBreaker[$engineName] 健康检查结果: $success ($url)")
                 success
             }
+        } catch (e: CancellationException) {
+            // 结构化并取取消必须向上传播，不得吞掉
+            throw e
         } catch (e: Exception) {
             DebugLog.w("CircuitBreaker[$engineName] 健康检查异常: ${e.message}")
             false
@@ -160,13 +191,18 @@ class SmartCircuitBreaker(
         val totalSize = recentResults.size
         val failureCount = totalSize - successCount
         val successRate = if (totalSize > 0) successCount.toDouble() / totalSize else 1.0
+        val snapshot = synchronized(this) {
+            intArrayOf(consecutiveFailures, halfOpenProbeInFlight, halfOpenSuccessCount) to
+                longArrayOf(openSince, currentBackoffMs)
+        }
         return mapOf(
             "engine" to engineName,
             "state" to state.name,
-            "consecutiveFailures" to consecutiveFailures,
-            "openSince" to openSince,
-            "currentBackoffMs" to currentBackoffMs,
-            "halfOpenProbeCount" to halfOpenProbeCount,
+            "consecutiveFailures" to snapshot.first[0],
+            "openSince" to snapshot.second[0],
+            "currentBackoffMs" to snapshot.second[1],
+            "halfOpenProbeCount" to snapshot.first[1],
+            "halfOpenSuccessCount" to snapshot.first[2],
             "windowTotal" to totalSize,
             "windowSuccesses" to successCount,
             "windowFailures" to failureCount,
@@ -176,13 +212,16 @@ class SmartCircuitBreaker(
     }
 
     fun reset() {
-        state = CircuitState.CLOSED
-        consecutiveFailures = 0
-        openSince = 0
-        currentBackoffMs = config.baseBackoffMs
-        halfOpenProbeCount = 0
-        lastHealthCheckTime = 0
-        recentResults.clear()
+        synchronized(this) {
+            state = CircuitState.CLOSED
+            consecutiveFailures = 0
+            openSince = 0
+            currentBackoffMs = config.baseBackoffMs
+            halfOpenProbeInFlight = 0
+            halfOpenSuccessCount = 0
+            lastHealthCheckTime = 0
+            recentResults.clear()
+        }
         DebugLog.i("CircuitBreaker[$engineName] 已重置")
     }
 

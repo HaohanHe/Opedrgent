@@ -20,7 +20,8 @@ annotation class ToolDescription(
 /**
  * 工具参数的 JSON Schema 定义注解。
  * 用于声明工具接受的参数结构，遵循 OpenAI function calling 的 parameters 规范。
- * 如果未提供，ToolRegistry 将尝试从函数签名推断。
+ * 如果未提供（或解析失败），ToolRegistry 退化为空 object Schema（properties:{}），
+ * 不会从函数签名推断；因此需在 ToolBinding.parameters 中显式声明参数。
  */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)

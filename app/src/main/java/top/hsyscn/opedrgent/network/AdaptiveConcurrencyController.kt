@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.network
 
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -36,7 +37,7 @@ data class SuspendedRequest(
     val priority: Priority,
     val requester: String,
     val submittedAt: Long,
-    val continuation: CancellableContinuation<Boolean>
+    val continuation: CancellableContinuation<Unit>
 )
 
 class AdaptiveConcurrencyController(
@@ -45,9 +46,13 @@ class AdaptiveConcurrencyController(
     private val engineSemaphores = ConcurrentHashMap<String, Semaphore>()
     private val engineMaxPermits = ConcurrentHashMap<String, AtomicInteger>()
     private val engineUsedPermits = ConcurrentHashMap<String, AtomicInteger>()
+
+    // 按优先级分层的等待队列。结构变更由 queueLock 保护；队列内条目一旦被 pump 取走即代表已获许可。
     private val priorityQueues = EnumMap<Priority, LinkedList<SuspendedRequest>>(Priority::class.java).apply {
         Priority.entries.forEach { put(it, LinkedList()) }
     }
+    private val queueLock = Any()
+
     private val stats = ConcurrentHashMap<String, AtomicLong>().apply {
         put("processed", AtomicLong(0))
         put("rejected", AtomicLong(0))
@@ -89,6 +94,7 @@ class AdaptiveConcurrencyController(
         if (engineUsed.incrementAndGet() > engineMax.get()) {
             engineUsed.decrementAndGet()
             engineSemaphore.release()
+            pumpQueuedWaiters(engineSemaphore)
             stats["rejected"]?.incrementAndGet()
             DebugLog.w(TAG, "Engine[$engineName] access rejected due to dynamic limit=${engineMax.get()}")
             return null
@@ -101,6 +107,10 @@ class AdaptiveConcurrencyController(
             val result = block()
             recordRequest(true)
             result
+        } catch (e: CancellationException) {
+            // 结构化并发取消向上传播，不吞
+            recordRequest(false)
+            throw e
         } catch (e: Exception) {
             recordRequest(false)
             DebugLog.e(TAG, "Engine[$engineName] execution error: ${e.message}", e)
@@ -109,6 +119,8 @@ class AdaptiveConcurrencyController(
             activeRequests.decrementAndGet()
             engineUsed.decrementAndGet()
             engineSemaphore.release()
+            // 许可归还后，按优先级唤醒等待者，避免队列中的高优先级请求饿死
+            pumpQueuedWaiters(engineSemaphore)
             val count = requestCountSinceAdjustment.incrementAndGet()
             if (count >= config.adjustmentInterval) {
                 adjustEngineLimits()
@@ -118,10 +130,11 @@ class AdaptiveConcurrencyController(
     }
 
     fun getEngineSemaphore(engineName: String): Semaphore {
-        return engineSemaphores.getOrPut(engineName) {
+        // computeIfAbsent 在 ConcurrentHashMap 层面原子，避免 getOrPut 竞态产生孤儿 Semaphore
+        return engineSemaphores.computeIfAbsent(engineName) {
             DebugLog.d(TAG, "Creating new semaphore for engine: $engineName")
-            engineMaxPermits[engineName] = AtomicInteger(config.perEngineMaxConcurrent)
-            engineUsedPermits[engineName] = AtomicInteger(0)
+            engineMaxPermits.putIfAbsent(engineName, AtomicInteger(config.perEngineMaxConcurrent))
+            engineUsedPermits.putIfAbsent(engineName, AtomicInteger(0))
             // 创建一次后不再替换；实际并发上限通过 engineMaxPermits/engineUsedPermits 动态控制
             Semaphore(config.maxPerEngineLimit)
         }
@@ -172,7 +185,9 @@ class AdaptiveConcurrencyController(
         activeRequests.set(0)
         requestCountSinceAdjustment.set(0)
         successTracker.clear()
-        priorityQueues.values.forEach { it.clear() }
+        synchronized(queueLock) {
+            priorityQueues.values.forEach { it.clear() }
+        }
         stats.values.forEach { it.set(0) }
         engineSemaphores.clear()
         engineMaxPermits.clear()
@@ -180,56 +195,18 @@ class AdaptiveConcurrencyController(
         DebugLog.w(TAG, "AdaptiveConcurrencyController reset")
     }
 
+    /**
+     * 按优先级获取一个许可。
+     *
+     * 语义：
+     * - 若当前没有任何排队等待者，直接 tryAcquire 一个空闲许可（快路径）。
+     * - 一旦存在排队等待者，新到请求一律入队，不允许插队抢许可；
+     *   许可释放时由 [pumpQueuedWaiters] 按 HIGH→BACKGROUND 顺序唤醒队首，
+     *   从而让高优先级请求真正优先于已排队的低优先级请求。
+     *
+     * 返回 true 表示已持有一个许可（调用方负责 release）；false 表示超时未获得。
+     */
     private suspend fun acquireWithPriority(
-        semaphore: Semaphore,
-        priority: Priority,
-        timeoutMs: Long,
-        requester: String
-    ): Boolean {
-        return if (priority == Priority.HIGH) {
-            tryAcquireWithTimeout(semaphore, timeoutMs, requester)
-        } else {
-            acquireWithQueue(semaphore, priority, timeoutMs, requester)
-        }
-    }
-
-    private suspend fun tryAcquireWithTimeout(
-        semaphore: Semaphore,
-        timeoutMs: Long,
-        requester: String
-    ): Boolean {
-        return withTimeoutOrNull(timeoutMs) {
-            semaphore.acquire()
-            DebugLog.d(TAG, "HIGH priority acquired by $requester")
-            true
-        } ?: run {
-            DebugLog.w(TAG, "HIGH priority acquisition timed out for $requester after ${timeoutMs}ms")
-            false
-        }
-    }
-
-    private suspend fun acquireWithQueue(
-        semaphore: Semaphore,
-        priority: Priority,
-        timeoutMs: Long,
-        requester: String
-    ): Boolean {
-        val hasHigherPriorityWaiting = hasHigherPriorityInQueue(priority)
-
-        if (hasHigherPriorityWaiting) {
-            return enqueueAndWait(semaphore, priority, timeoutMs, requester)
-        }
-
-        return try {
-            semaphore.acquire()
-            true
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "Acquisition failed for $requester (priority=$priority): ${e.message}")
-            false
-        }
-    }
-
-    private suspend fun enqueueAndWait(
         semaphore: Semaphore,
         priority: Priority,
         timeoutMs: Long,
@@ -239,39 +216,54 @@ class AdaptiveConcurrencyController(
         val submittedAt = System.currentTimeMillis()
 
         return withTimeoutOrNull(timeoutMs) {
-            suspendCancellableCoroutine<Boolean> { continuation ->
-                val request = SuspendedRequest(
-                    id = requestId,
-                    priority = priority,
-                    requester = requester,
-                    submittedAt = submittedAt,
-                    continuation = continuation
-                )
-
-                priorityQueues[priority]?.add(request)
-
-                continuation.invokeOnCancellation {
-                    priorityQueues[priority]?.removeIf { it.id == requestId }
+            suspendCancellableCoroutine<Unit> { continuation ->
+                val request = SuspendedRequest(requestId, priority, requester, submittedAt, continuation)
+                val fastAcquired = synchronized(queueLock) {
+                    if (!hasAnyQueuedWaiter() && semaphore.tryAcquire()) {
+                        true
+                    } else {
+                        priorityQueues[priority]?.add(request)
+                        false
+                    }
+                }
+                if (fastAcquired) {
+                    // 快路径已拿到许可，直接恢复
+                    continuation.resume(Unit)
+                } else {
+                    continuation.invokeOnCancellation {
+                        // 超时或外部取消：从队列移除；入队期间未占用许可，无需 release
+                        synchronized(queueLock) {
+                            priorityQueues[priority]?.removeIf { it.id == requestId }
+                        }
+                    }
                 }
             }
-        }?.let { resumed ->
-            if (resumed) {
-                try {
-                    semaphore.acquire()
-                    true
-                } catch (e: Exception) {
-                    false
-                }
-            } else {
-                false
-            }
-        } ?: false
+        } != null
     }
 
-    private fun hasHigherPriorityInQueue(currentPriority: Priority): Boolean {
-        return Priority.entries
-            .filter { it.ordinal < currentPriority.ordinal }
-            .any { priorityQueues[it]?.isNotEmpty() == true }
+    /**
+     * 许可归还后调用：从高优先级到低优先级依次取队首，tryAcquire 一个刚归还的许可并恢复其协程。
+     * 没有空闲许可时立即停止（tryAcquire 返回 false），避免无意义自旋。
+     */
+    private fun pumpQueuedWaiters(semaphore: Semaphore) {
+        synchronized(queueLock) {
+            for (p in Priority.entries) {
+                val q = priorityQueues[p] ?: continue
+                while (q.isNotEmpty()) {
+                    val head = q.peek() ?: break
+                    if (semaphore.tryAcquire()) {
+                        q.poll()
+                        head.continuation.resume(Unit)
+                    } else {
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private fun hasAnyQueuedWaiter(): Boolean {
+        return Priority.entries.any { priorityQueues[it]?.isNotEmpty() == true }
     }
 
     private fun recordRequest(success: Boolean) {

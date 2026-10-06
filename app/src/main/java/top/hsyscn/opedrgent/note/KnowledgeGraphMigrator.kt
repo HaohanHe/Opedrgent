@@ -3,25 +3,31 @@ package top.hsyscn.opedrgent.note
 import android.content.Context
 import org.json.JSONObject
 import top.hsyscn.opedrgent.note.graph.GraphEdgeEntity
-import top.hsyscn.opedrgent.note.graph.GraphEmbeddingEntity
+import top.hsyscn.opedrgent.note.graph.GraphNodeEntity
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.File
 
 /**
  * 知识图谱旧版 JSON 数据迁移器。
  *
- * 读取 filesDir/knowledge_graph.json，将其中的 links 和 embeddings 写入 SQLite，
+ * 读取 filesDir/knowledge_graph.json，将其中的 links 写入 SQLite，
  * 迁移完成后将原文件重命名为 knowledge_graph.json.bak。
+ *
+ * 说明：
+ * - 复用调用方传入的 [KnowledgeGraphStore]，不再自行包装第二个连接。
+ * - legacy-tfidf 的 embedding 以 JSON 文本字节落盘，与运行时小端 float 解码格式不一致，
+ *   迁移过来不可用，故不再迁移 embedding（重建流程会重新计算）。
  */
-class KnowledgeGraphMigrator(context: Context) {
+class KnowledgeGraphMigrator(
+    context: Context,
+    private val store: KnowledgeGraphStore,
+) {
 
     companion object {
         private const val TAG = "KnowledgeGraphMigrator"
         private const val GRAPH_FILE = "knowledge_graph.json"
         private const val BACKUP_SUFFIX = ".bak"
         private const val DEFAULT_RELATION_TYPE = "SEMANTIC_SIMILAR"
-        private const val LEGACY_TFIDF_PROVIDER = "legacy-tfidf"
-        private const val LEGACY_TFIDF_MODEL = "sparse-tfidf"
 
         /**
          * 如果存在旧版 JSON 知识图谱数据，则迁移到 SQLite。
@@ -29,12 +35,11 @@ class KnowledgeGraphMigrator(context: Context) {
          * @return 是否成功完成迁移（无需迁移也返回 true）。
          */
         fun migrateIfNeeded(context: Context, store: KnowledgeGraphStore): Boolean {
-            return KnowledgeGraphMigrator(context).migrate()
+            return KnowledgeGraphMigrator(context, store).migrate()
         }
     }
 
     private val contextRef = context.applicationContext
-    private val store = KnowledgeGraphStore(contextRef)
 
     /**
      * 执行迁移。如果原文件不存在或已迁移过，则直接返回成功。
@@ -55,19 +60,15 @@ class KnowledgeGraphMigrator(context: Context) {
 
         return try {
             val json = JSONObject(graphFile.readText())
-            val version = json.optInt("version", 1)
 
             migrateLinks(json)
-            if (version >= 2) {
-                migrateEmbeddings(json)
-            }
 
             val backupFile = File(contextRef.filesDir, "$GRAPH_FILE$BACKUP_SUFFIX")
             if (backupFile.exists()) backupFile.delete()
             val renamed = graphFile.renameTo(backupFile)
 
             store.recordMigration(version = 1, source = graphFile.absolutePath)
-            DebugLog.i(TAG, "知识图谱迁移完成: v$version, 备份=$renamed")
+            DebugLog.i(TAG, "知识图谱迁移完成: 备份=$renamed")
             true
         } catch (e: Exception) {
             DebugLog.e(TAG, "知识图谱迁移失败: ${e.message}", e)
@@ -100,37 +101,16 @@ class KnowledgeGraphMigrator(context: Context) {
                 )
             }
         }
+        if (edges.isEmpty()) return
+        // 边引用的节点此时没有对应 kg_nodes 行，会留下悬空边（可视化/统计均会出现幻影节点）。
+        // 先补建最小节点行，等后续 rebuildFromNotes 再补全标题/关键词等信息。
+        val endpointIds = edges.flatMap { listOf(it.sourceId, it.targetId) }.toSet()
+        val now = System.currentTimeMillis()
+        store.upsertNodes(
+            endpointIds.map { GraphNodeEntity(id = it, updatedAt = now) },
+            useTransaction = false,
+        )
         store.upsertEdges(edges)
-        DebugLog.i(TAG, "迁移链接数: ${edges.size}")
-    }
-
-    private fun migrateEmbeddings(json: JSONObject) {
-        val embeddingsObj = json.optJSONObject("embeddings") ?: return
-        val embeddings = mutableListOf<GraphEmbeddingEntity>()
-        val keys = embeddingsObj.keys()
-        while (keys.hasNext()) {
-            val nodeId = keys.next()
-            val vecObj = embeddingsObj.optJSONObject(nodeId) ?: continue
-            val map = mutableMapOf<String, Float>()
-            val vecKeys = vecObj.keys()
-            while (vecKeys.hasNext()) {
-                val key = vecKeys.next()
-                map[key] = vecObj.optDouble(key, 0.0).toFloat()
-            }
-            if (map.isEmpty()) continue
-            val jsonBytes = JSONObject(map.mapValues { it.value.toDouble() }).toString().toByteArray(Charsets.UTF_8)
-            embeddings.add(
-                GraphEmbeddingEntity(
-                    nodeId = nodeId,
-                    provider = LEGACY_TFIDF_PROVIDER,
-                    model = LEGACY_TFIDF_MODEL,
-                    dimension = map.size,
-                    vector = jsonBytes,
-                    updatedAt = System.currentTimeMillis(),
-                )
-            )
-        }
-        store.saveEmbeddings(embeddings)
-        DebugLog.i(TAG, "迁移 embedding 数: ${embeddings.size}")
+        DebugLog.i(TAG, "迁移链接数: ${edges.size}, 补建节点数: ${endpointIds.size}")
     }
 }

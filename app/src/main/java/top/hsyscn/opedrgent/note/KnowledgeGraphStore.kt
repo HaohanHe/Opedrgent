@@ -21,7 +21,6 @@ class KnowledgeGraphStore(context: Context) {
     companion object {
         private const val TAG = "KnowledgeGraphStore"
         private const val DEFAULT_RELATION_TYPE = "SEMANTIC_SIMILAR"
-        private const val LEGACY_TFIDF_PROVIDER = "legacy-tfidf"
     }
 
     private val db: SQLiteDatabase by lazy { KnowledgeGraphDatabase.getInstance(context).writableDatabase }
@@ -37,7 +36,6 @@ class KnowledgeGraphStore(context: Context) {
             put(KnowledgeGraphDatabase.COL_NODE_SUMMARY, node.summary)
             put(KnowledgeGraphDatabase.COL_NODE_KEYWORDS, node.keywords)
             put(KnowledgeGraphDatabase.COL_NODE_UPDATED_AT, node.updatedAt)
-            put(KnowledgeGraphDatabase.COL_NODE_CONTENT_HASH, node.contentHash)
         }
         db.insertWithOnConflict(
             KnowledgeGraphDatabase.TABLE_NODES,
@@ -69,20 +67,6 @@ class KnowledgeGraphStore(context: Context) {
             arrayOf(nodeId),
         )
         return affected > 0
-    }
-
-    fun getNode(nodeId: String): GraphNodeEntity? {
-        db.query(
-            KnowledgeGraphDatabase.TABLE_NODES,
-            null,
-            "${KnowledgeGraphDatabase.COL_NODE_ID}=?",
-            arrayOf(nodeId),
-            null,
-            null,
-            null,
-        ).use { cursor ->
-            return if (cursor.moveToFirst()) cursorToNode(cursor) else null
-        }
     }
 
     fun getAllNodes(): List<GraphNodeEntity> {
@@ -226,8 +210,28 @@ class KnowledgeGraphStore(context: Context) {
         return list
     }
 
-    fun edgeExists(sourceId: String, targetId: String, relationType: String = DEFAULT_RELATION_TYPE): Boolean {
-        return findEdge(sourceId, targetId, relationType) != null
+    /**
+     * 按无向节点对查边（不限关系类型），双向各走一次索引，命中即返回首条。
+     * 用于替代全表拉取后再 find 的 O(E) 写法。
+     */
+    fun findEdgeByPair(sourceId: String, targetId: String): GraphEdgeEntity? {
+        val selection = "(" +
+            "${KnowledgeGraphDatabase.COL_EDGE_SOURCE_ID}=? AND ${KnowledgeGraphDatabase.COL_EDGE_TARGET_ID}=?" +
+            ") OR (" +
+            "${KnowledgeGraphDatabase.COL_EDGE_SOURCE_ID}=? AND ${KnowledgeGraphDatabase.COL_EDGE_TARGET_ID}=?" +
+            ")"
+        db.query(
+            KnowledgeGraphDatabase.TABLE_EDGES,
+            null,
+            selection,
+            arrayOf(sourceId, targetId, targetId, sourceId),
+            null,
+            null,
+            null,
+            "1",
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursorToEdge(cursor) else null
+        }
     }
 
     private fun findEdge(sourceId: String, targetId: String, relationType: String): GraphEdgeEntity? {
@@ -292,6 +296,24 @@ class KnowledgeGraphStore(context: Context) {
         ).use { cursor ->
             return if (cursor.moveToFirst()) cursorToEmbedding(cursor) else null
         }
+    }
+
+    fun getAllEmbeddings(): List<GraphEmbeddingEntity> {
+        val list = mutableListOf<GraphEmbeddingEntity>()
+        db.query(
+            KnowledgeGraphDatabase.TABLE_EMBEDDINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                list.add(cursorToEmbedding(cursor))
+            }
+        }
+        return list
     }
 
     fun deleteEmbedding(nodeId: String): Boolean {
@@ -477,6 +499,27 @@ class KnowledgeGraphStore(context: Context) {
         return list
     }
 
+    /**
+     * 一次性取出全部 节点 -> 实体 映射（JOIN，单条 SQL），消除逐节点 N+1 查询。
+     */
+    fun getEntitiesByNode(): Map<String, List<GraphEntity>> {
+        val result = mutableMapOf<String, MutableList<GraphEntity>>()
+        val sql = """
+            SELECT e.*, ne.${KnowledgeGraphDatabase.COL_NE_NODE_ID} AS node_id
+            FROM ${KnowledgeGraphDatabase.TABLE_ENTITIES} e
+            INNER JOIN ${KnowledgeGraphDatabase.TABLE_NODE_ENTITIES} ne
+            ON e.${KnowledgeGraphDatabase.COL_ENTITY_ID} = ne.${KnowledgeGraphDatabase.COL_NE_ENTITY_ID}
+        """.trimIndent()
+        db.rawQuery(sql, null).use { cursor ->
+            val nodeIdCol = cursor.getColumnIndexOrThrow("node_id")
+            while (cursor.moveToNext()) {
+                val nodeId = cursor.getString(nodeIdCol) ?: continue
+                result.getOrPut(nodeId) { mutableListOf() }.add(cursorToEntity(cursor))
+            }
+        }
+        return result
+    }
+
     fun getNodesForEntity(entityId: Long): List<GraphNodeEntity> {
         val list = mutableListOf<GraphNodeEntity>()
         val sql = """
@@ -585,7 +628,6 @@ class KnowledgeGraphStore(context: Context) {
             summary = cursor.getString(cursor.getColumnIndexOrThrow(KnowledgeGraphDatabase.COL_NODE_SUMMARY)) ?: "",
             keywords = cursor.getString(cursor.getColumnIndexOrThrow(KnowledgeGraphDatabase.COL_NODE_KEYWORDS)) ?: "",
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow(KnowledgeGraphDatabase.COL_NODE_UPDATED_AT)),
-            contentHash = cursor.getString(cursor.getColumnIndexOrThrow(KnowledgeGraphDatabase.COL_NODE_CONTENT_HASH)) ?: "",
         )
     }
 

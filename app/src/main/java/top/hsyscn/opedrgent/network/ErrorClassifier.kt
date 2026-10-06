@@ -50,7 +50,22 @@ object ErrorClassifier {
 
     private const val TAG = "ErrorClassifier"
 
-    private val CAPTCHA_KEYWORDS = listOf("captcha", "challenge", "verify", "human")
+    // 强关键词：子串命中即判定 CAPTCHA。已移除过宽的 "verify"/"human"——
+    // 它们会误伤 SSL "certificate verify failed"、"verify API key"、"human-readable" 等非验证码错误，
+    // 进而错误打开熔断器把正常引擎下线 30s+。
+    private val CAPTCHA_KEYWORDS = listOf("captcha", "challenge")
+
+    // 弱信号：仅在人机验证语境的复合短语出现时才算 CAPTCHA。
+    private val CAPTCHA_PHRASES = listOf(
+        "verify you are human",
+        "verify that you are human",
+        "verify that you're human",
+        "human verification",
+        "please verify",
+        "i'm not a robot",
+        "i am not a robot",
+        "not a robot"
+    )
 
     fun classify(exception: Exception): ClassifiedError {
         return classifyInternal(exception = exception, httpCode = null, responseBody = null)
@@ -420,6 +435,7 @@ object ErrorClassifier {
     }
 
     private fun containsCaptchaKeyword(text: String): Boolean {
-        return CAPTCHA_KEYWORDS.any { text.contains(it) }
+        return CAPTCHA_KEYWORDS.any { text.contains(it) } ||
+            CAPTCHA_PHRASES.any { text.contains(it) }
     }
 }

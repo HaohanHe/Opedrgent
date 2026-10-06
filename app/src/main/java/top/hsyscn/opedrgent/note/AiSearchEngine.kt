@@ -1,5 +1,6 @@
 package top.hsyscn.opedrgent.note
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.hsyscn.opedrgent.model.ChatMessage
@@ -7,6 +8,8 @@ import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.network.LlmClient
 import top.hsyscn.opedrgent.settings.ApiSettings
 import top.hsyscn.opedrgent.utils.DebugLog
+
+private const val MAX_LLM_NOTES = 30
 
 class AiSearchEngine(
     private val noteDao: NoteDao,
@@ -26,11 +29,24 @@ class AiSearchEngine(
             return@withContext fallbackSemanticSearch(query)
         }
 
+        // 粗排后再交 LLM 精排：全量笔记无上限塞入 prompt，笔记上千即超上下文而永远走不到 AI 判定。
+        // 优先用语义召回取候选，否则退化为最近更新的笔记；最多 MAX_LLM_NOTES 条。
+        val candidates: List<Note> = run {
+            val semanticIds = noteRepository?.searchByRelevance(query, maxResults = MAX_LLM_NOTES)
+                ?.mapNotNull { (idStr, _) -> idStr.toLongOrNull() }
+            if (!semanticIds.isNullOrEmpty()) {
+                semanticIds.mapNotNull { id -> allNotes.firstOrNull { it.id == id } }
+            } else {
+                allNotes.take(MAX_LLM_NOTES)
+            }
+        }.take(MAX_LLM_NOTES)
+        if (candidates.isEmpty()) return@withContext fallbackSemanticSearch(query)
+
         val prompt = buildString {
             appendLine("用户搜索问题：$query")
             appendLine()
-            appendLine("以下是所有笔记，请判断每条笔记与搜索问题的相关程度（0-100），并返回最相关的笔记ID列表：")
-            allNotes.forEach { note ->
+            appendLine("以下是候选笔记，请判断每条笔记与搜索问题的相关程度（0-100），并返回最相关的笔记ID列表：")
+            candidates.forEach { note ->
                 val preview = note.content.take(200).replace("\n", " ")
                 appendLine("[${note.id}] ${note.title}: $preview")
             }
@@ -63,6 +79,8 @@ class AiSearchEngine(
                     AiSearchResult(note, relevance)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DebugLog.e("AiSearchEngine failed: ${e.message}", e)
             fallbackSemanticSearch(query)

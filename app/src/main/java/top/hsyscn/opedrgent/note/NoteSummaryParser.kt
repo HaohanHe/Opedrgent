@@ -17,9 +17,17 @@ fun parseAiSummary(rawText: String): ParsedSummary {
         "【待办事项】" to "actionItems",
     )
 
-    val positions = markers.mapNotNull { (marker, key) ->
-        val idx = rawText.indexOf(marker)
-        if (idx >= 0) Triple(idx, marker.length, key) else null
+    // 收集所有标记出现位置（含重复标记），避免 indexOf 只命中首个而把后续内容吞并
+    val positions = markers.flatMap { (marker, key) ->
+        val hits = mutableListOf<Triple<Int, Int, String>>()
+        var cursor = 0
+        while (true) {
+            val found = rawText.indexOf(marker, cursor)
+            if (found < 0) break
+            hits.add(Triple(found, marker.length, key))
+            cursor = found + marker.length
+        }
+        hits
     }.sortedBy { it.first }
 
     if (positions.isEmpty()) {
@@ -30,7 +38,9 @@ fun parseAiSummary(rawText: String): ParsedSummary {
     for (i in positions.indices) {
         val start = positions[i].first + positions[i].second
         val end = if (i + 1 < positions.size) positions[i + 1].first else rawText.length
-        result[positions[i].third] = rawText.substring(start, end).trim()
+        val slice = rawText.substring(start, end).trim()
+        val key = positions[i].third
+        result[key] = if (result[key].isNullOrBlank()) slice else (result[key] + "\n" + slice)
     }
 
     fun extractListItems(text: String): List<String> {
@@ -41,11 +51,8 @@ fun parseAiSummary(rawText: String): ParsedSummary {
                 it.removePrefix("-").trim()
                     .removePrefix("•").trim()
                     .removePrefix("*").trim()
-                    .removePrefix("1.").trim()
-                    .removePrefix("2.").trim()
-                    .removePrefix("3.").trim()
-                    .removePrefix("4.").trim()
-                    .removePrefix("5.").trim()
+                    .replace(Regex("^\\d+[.、)]\\s*"), "") // 通用剥离 1./1、/1) 等任意编号前缀
+                    .trim()
             }
             .filter { it.isNotBlank() }
     }

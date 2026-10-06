@@ -1,6 +1,7 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import org.json.JSONObject
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
 import top.hsyscn.opedrgent.model.ToolStateType
@@ -16,11 +17,39 @@ import top.hsyscn.opedrgent.storage.ResearchStore
  */
 class RecallTool(private val context: Context) : ToolSet {
 
+    // 复用进程内单例：ResearchStore 自带 loadAll 内存缓存，避免每次调用都新建实例、
+    // 对 research_store.json 全量解析两遍。
+    private val store: ResearchStore by lazy { ResearchStore(context) }
+
     override fun getTools(): Map<String, ToolBinding> {
         return mapOf(
             "recall" to ToolBinding(
                 name = "recall",
-                description = "搜索或读取历史对话记录，实现跨会话记忆",
+                description = "搜索或读取历史对话记录，实现跨会话记忆。mode=search 按关键词列会话；mode=read 需传 session_id 读取完整内容。",
+                parameters = JSONObject("""
+                    {
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "type": "string",
+                                "enum": ["search", "read"],
+                                "description": "模式：search=按关键词搜索会话标题列表（默认）；read=读取某条会话完整内容，需配合 session_id。"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "search 模式下匹配会话标题的关键词；不传则列出最近会话。"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "search 模式返回条数，取值 1-20，默认 10。"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "read 模式必填：要读取的会话 ID（由 search 结果给出）。"
+                            }
+                        }
+                    }
+                """),
                 invoker = ::executeRecall,
             )
         )
@@ -45,7 +74,6 @@ class RecallTool(private val context: Context) : ToolSet {
         val query = tp.state.input["query"]
         val limit = (tp.state.input["limit"]?.toIntOrNull() ?: 10).coerceIn(1, 20)
 
-        val store = ResearchStore(context)
         val allSessions = store.listSessions()
 
         // 搜索匹配（标题匹配）
@@ -79,7 +107,6 @@ class RecallTool(private val context: Context) : ToolSet {
     private fun executeRead(tp: ToolPart): ToolResult {
         val sessionId = tp.state.input["session_id"] ?: return errorResult(tp, "read 模式需要提供 session_id 参数")
 
-        val store = ResearchStore(context)
         val session = store.getSession(sessionId) ?: return errorResult(tp, "未找到会话 ID: $sessionId")
 
         val result = buildString {

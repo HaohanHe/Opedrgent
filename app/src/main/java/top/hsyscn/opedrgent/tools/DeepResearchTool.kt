@@ -1,6 +1,8 @@
 package top.hsyscn.opedrgent.tools
 
 import android.content.Context
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
 import top.hsyscn.opedrgent.model.ToolPart
@@ -26,10 +28,16 @@ class DeepResearchTool(
     private val llm: LlmClient,
 ) : ToolSet {
 
+    private val webViewMutex = Mutex()
     private var webViewAgent: WebViewAgent? = null
 
     private suspend fun getWebViewAgent(): WebViewAgent {
-        return webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
+        // check-then-act 加锁：executeAll 在 Dispatchers.IO 并发跑多个 deep_research，
+        // 无锁会 new 出多个 WebViewAgent（单个 50-100MB），后写覆盖导致前一实例无法 destroy 而泄漏。
+        webViewAgent?.let { return it }
+        return webViewMutex.withLock {
+            webViewAgent ?: WebViewAgent(context).also { webViewAgent = it }
+        }
     }
 
     @Tool("deep_research")
@@ -119,6 +127,15 @@ class DeepResearchTool(
             "deep_research" to ToolBinding(
                 name = "deep_research",
                 description = "进行深度研究：多轮搜索并整合结果，生成结构化的研究报告。参数中 query 或 topic 为必填。",
+                parameters = org.json.JSONObject("""{
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "研究主题/查询词（与 topic 二选一必填）"},
+                        "topic": {"type": "string", "description": "研究主题（与 query 二选一必填）"},
+                        "max_fetch": {"type": "integer", "description": "最多抓取的来源数量，1-5，默认 3"}
+                    },
+                    "required": ["query"]
+                }"""),
                 invoker = { tp, config, sp, ups -> executeDeepResearch(tp, config, sp, ups) },
             ),
         )

@@ -27,6 +27,7 @@ import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 阶跃星辰 Realtime API 客户端 — WebSocket 双向实时语音。
@@ -90,6 +91,9 @@ class StepRealtimeClient(
 
     // ==================== 内部状态 ====================
 
+    // webSocket 由调用方线程(connect/retry)、IO 协程(openConnection 赋值)、OkHttp 回调线程(onFailure/onClosed)
+    // 三处并发读写，必须 @Volatile 保证可见性，否则 sendAudio/isConnected 可能读到陈旧 null（U57-01）
+    @Volatile
     private var webSocket: WebSocket? = null
     private var connectionJob: Job? = null
     private val httpClient = OkHttpClient.Builder()
@@ -113,8 +117,18 @@ class StepRealtimeClient(
     /** 是否由用户主动断开（主动断开不触发自动重连） */
     private val userInitiatedDisconnect = AtomicBoolean(false)
 
-    /** 当前已连续重连次数（连接成功后清零） */
-    private var reconnectAttempts = 0
+    /** 当前已连续重连次数（连接成功后清零）。多线程自增/清零，用 AtomicInteger 防丢失更新（U57-01） */
+    private val reconnectAttempts = AtomicInteger(0)
+
+    /** 连接代次：每次 connect/openConnection 自增；旧 socket 的迟到回调只处理本代次，避免在活连接之上重复建连（U57-03） */
+    private val connectionGeneration = AtomicInteger(0)
+
+    /** 应用层连接是否已 onOpen 成功。与对话态事件流解耦，isConnected 据此判定（U57-02） */
+    @Volatile
+    private var connected = false
+
+    /** 音频事件流背压累计丢弃帧数（U57-05） */
+    private var droppedAudioFrames = 0
 
     /** 退避重连协程 */
     private var reconnectJob: Job? = null
@@ -193,7 +207,10 @@ class StepRealtimeClient(
         webSocket = null
 
         userInitiatedDisconnect.set(false)
-        reconnectAttempts = 0
+        reconnectAttempts.set(0)
+        // 新一次连接：自增代次，使旧 socket 的迟到 onFailure/onClosed 失效（U57-03）
+        connectionGeneration.incrementAndGet()
+        connected = false
 
         DebugLog.i("$TAG: 正在连接 $WS_URL (model=$model, voice=$voice, clone=${referenceAudio != null})")
         _stateEvent.tryEmit(StepState.CONNECTING)
@@ -208,6 +225,8 @@ class StepRealtimeClient(
      */
     fun disconnect() {
         userInitiatedDisconnect.set(true)
+        connectionGeneration.incrementAndGet()
+        connected = false
         reconnectJob?.cancel()
         reconnectJob = null
         connectionJob?.cancel()
@@ -232,7 +251,9 @@ class StepRealtimeClient(
         }
         if (isConnected) return
         userInitiatedDisconnect.set(false)
-        reconnectAttempts = 0
+        reconnectAttempts.set(0)
+        connectionGeneration.incrementAndGet()
+        connected = false
         _stateEvent.tryEmit(StepState.CONNECTING)
         openConnection()
     }
@@ -243,6 +264,8 @@ class StepRealtimeClient(
      * 连接参数均来自已保存的 current* 字段，重连时无需外部再传。
      */
     private fun openConnection() {
+        // 捕获本代次；旧 socket 的迟到回调若代次已变（新 connect/retry/drop 已发生）则直接忽略（U57-03）
+        val myGen = connectionGeneration.get()
         connectionJob = scope.launch(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
@@ -255,8 +278,10 @@ class StepRealtimeClient(
                         // WebSocket 回调运行在 OkHttp 线程：任何未捕获异常都会终止连接线程，这里统一兜底
                         try {
                             DebugLog.i("$TAG: WebSocket 已连接")
+                            // 应用层连接态置位（U57-02）
+                            connected = true
                             // 连接成功，清零重连计数
-                            reconnectAttempts = 0
+                            reconnectAttempts.set(0)
                             _stateEvent.tryEmit(StepState.CONNECTED)
 
                             // 连接成功后立即发送 session 配置
@@ -281,20 +306,32 @@ class StepRealtimeClient(
                     }
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        // 旧代次 socket 的迟到失败回调：已有新连接接管，不再处理，避免触发重复重连（U57-03）
+                        if (myGen != connectionGeneration.get()) {
+                            DebugLog.d("$TAG: 忽略旧代次 socket 的 onFailure")
+                            return
+                        }
                         CrashReporter.logError(TAG, "WebSocket 失败", t)
                         DebugLog.e("$TAG: WebSocket 失败: ${t.message}", t)
                         // 仅当失败的就是当前 socket 时才清空引用，避免误清掉重连后的新连接
                         if (this@StepRealtimeClient.webSocket === webSocket) {
                             this@StepRealtimeClient.webSocket = null
                         }
+                        connected = false
                         handleDroppedConnection("连接失败: ${t.message}")
                     }
 
                     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                        // 旧代次 socket 的迟到关闭回调：已有新连接接管，不再处理（U57-03）
+                        if (myGen != connectionGeneration.get()) {
+                            DebugLog.d("$TAG: 忽略旧代次 socket 的 onClosed")
+                            return
+                        }
                         DebugLog.i("$TAG: WebSocket 已关闭: $code $reason")
                         if (this@StepRealtimeClient.webSocket === webSocket) {
                             this@StepRealtimeClient.webSocket = null
                         }
+                        connected = false
                         handleDroppedConnection("连接关闭: $reason")
                     }
                 }
@@ -337,23 +374,31 @@ class StepRealtimeClient(
         if (userInitiatedDisconnect.get()) return
         if (!scope.isActive) return
 
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttempts.get() >= MAX_RECONNECT_ATTEMPTS) {
             DebugLog.e("$TAG: 重连已达上限($MAX_RECONNECT_ATTEMPTS)，放弃自动重连")
             _stateEvent.tryEmit(StepState.RECONNECT_FAILED)
             _errorEvent.tryEmit("实时语音连接已断开，多次重连失败")
             return
         }
 
-        val attempt = reconnectAttempts
-        reconnectAttempts += 1
+        val attempt = reconnectAttempts.getAndIncrement()
         val backoff = (RECONNECT_BASE_BACKOFF_MS * (1L shl attempt)).coerceAtMost(RECONNECT_MAX_BACKOFF_MS)
+
+        // 捕获掉线时的代次；退避醒来时若代次已变（用户已手动 connect/retry 或主动断开），不再补建连（U57-03）
+        val genAtDrop = connectionGeneration.get()
 
         DebugLog.w("$TAG: 掉线($reason)，${backoff}ms 后进行第 ${attempt + 1}/$MAX_RECONNECT_ATTEMPTS 次重连")
         _stateEvent.tryEmit(StepState.RECONNECTING)
 
+        // 取消上一次还在退避等待的重连任务，避免多个退避 Job 并发建连（U57-03）
+        reconnectJob?.cancel()
         reconnectJob = scope.launch(Dispatchers.IO) {
             delay(backoff)
             if (userInitiatedDisconnect.get()) return@launch
+            if (genAtDrop != connectionGeneration.get()) {
+                DebugLog.d(TAG, "退避期间已有新连接接管，取消本次补建连")
+                return@launch
+            }
             openConnection()
         }
     }
@@ -457,8 +502,12 @@ class StepRealtimeClient(
 
     /**
      * 当前是否已连接。
+     *
+     * 用独立的 connected 标志判定，而非复用对话态事件流的 replayCache：
+     * 后者在 USER_SPEAKING / AI_SPEAKING / CLOSING 后 replay 末项就不再是 CONNECTED，
+     * 会把"已连接且正在对话"误判成未连接（U57-02）。
      */
-    val isConnected: Boolean get() = webSocket != null && _stateEvent.replayCache.lastOrNull() == StepState.CONNECTED
+    val isConnected: Boolean get() = webSocket != null && connected
 
     // ==================== 内部方法 ====================
 
@@ -580,7 +629,14 @@ class StepRealtimeClient(
                     if (deltaBase64.isNotEmpty()) {
                         try {
                             val audioBytes = Base64.getDecoder().decode(deltaBase64)
-                            _audioDelta.tryEmit(audioBytes)
+                            // 下游消费不及（TTS 播放慢于网络到达）时 tryEmit 会 false 并丢事件；
+                            // 累计丢弃计数并周期性告警，便于定位音频卡顿/吞字（U57-05）
+                            if (!_audioDelta.tryEmit(audioBytes)) {
+                                droppedAudioFrames++
+                                if (droppedAudioFrames % 50 == 1) {
+                                    DebugLog.w("$TAG: 音频事件流背压，已累计丢弃 $droppedAudioFrames 帧")
+                                }
+                            }
                         } catch (e: IllegalArgumentException) {
                             DebugLog.w("$TAG: 音频 Base64 解码失败")
                         }

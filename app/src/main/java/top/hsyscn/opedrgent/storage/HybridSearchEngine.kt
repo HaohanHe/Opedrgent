@@ -105,7 +105,8 @@ class HybridSearchEngine(
     ): SearchSummary = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
 
-        // 并行执行两个搜索通道
+        // 串行执行两个搜索通道（当前 ragSearch 为预留空实现、代价近零；
+        // 待接入真实云端向量检索后再改为 coroutineScope{ async{}+async{} } 真并行）
         val localResults = bm25Search(query, topK * 2, kbId)
         val cloudResults = if (!apiKey.isNullOrBlank()) {
             ragSearch(apiKey, query, storeId, topK * 2)
@@ -147,7 +148,9 @@ class HybridSearchEngine(
      * @param kbId 限定知识库 ID (可选，null 表示搜索全部)
      */
     private suspend fun bm25Search(query: String, topK: Int, kbId: String? = null): List<Bm25Document> =
-        withContext(Dispatchers.Default) {
+        // DB cursor 读取是磁盘 IO，切到 Dispatchers.IO 而非 Default 计算线程；
+        // 索引重建开销见类注释（后续升级 FTS5）。
+        withContext(Dispatchers.IO) {
             try {
                 // 获取本地所有知识库文档（可按 kbId 过滤）
                 val documents = if (kbId != null) {

@@ -16,13 +16,13 @@ import android.webkit.WebViewClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import top.hsyscn.opedrgent.utils.DebugLog
 import java.io.ByteArrayOutputStream
 import java.net.URLEncoder
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 data class WebSearchResult(
@@ -38,18 +38,22 @@ data class WebFetchResult(
     val screenshotBase64: String? = null,
 )
 
-enum class WebAgentMethod {
-    QUERY_SEARCH,
-    WEB_MCP,
-    SCREENSHOT_MULTIMODAL,
-}
-
 class WebViewAgent(context: Context) {
     private val appContext = context.applicationContext
 
     private var webView: WebView? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isInitialized = false
+
+    // 串行化"一次导航 + 一轮轮询"，避免并发调用踩踏同一 WebView 与共享 lastResult（U31-04）
+    private val navigationMutex = Mutex()
+
+    // 当前页面 URL（由 WebViewClient 回调维护），用于 JS 桥来源白名单校验（U31-02）
+    @Volatile
+    private var currentPageUrl: String = ""
+
+    // 允许通过 OpedrgentBridge.postResult 回写结构化结果的受信 host（搜索页）
+    private val bridgeTrustedHosts = setOf("bing.com", "www.bing.com", "cn.bing.com")
 
     data class JsBridgeResult(val result: String?)
 
@@ -59,12 +63,27 @@ class WebViewAgent(context: Context) {
 
         @JavascriptInterface
         fun postResult(json: String) {
+            // 仅信任受信来源回写结果，防止被加载页面伪造搜索结果投毒（U31-02）
+            if (!isBridgeTrustedSource(currentPageUrl)) {
+                DebugLog.w("WebViewAgent JS bridge rejected postResult from untrusted source: $currentPageUrl")
+                return
+            }
             lastResult.set(JsBridgeResult(json))
             DebugLog.d("WebViewAgent JS bridge received: ${json.take(200)}")
         }
     }
 
     private val jsBridge = JsBridge()
+
+    /** 判定来源是否允许通过 JS 桥回写结构化结果：仅 http(s) 且 host 命中受信搜索来源。 */
+    private fun isBridgeTrustedSource(url: String): Boolean {
+        val u = runCatching { java.net.URL(url) }.getOrNull() ?: return false
+        val scheme = u.protocol?.lowercase() ?: return false
+        if (scheme != "https" && scheme != "http") return false
+        val host = u.host?.lowercase()?.trim().orEmpty()
+        if (host.isEmpty()) return false
+        return bridgeTrustedHosts.any { host == it || host.endsWith(".$it") }
+    }
 
     @Suppress("unused")
     private inner class LoadingState {
@@ -93,9 +112,23 @@ class WebViewAgent(context: Context) {
             }
             addJavascriptInterface(jsBridge, "OpedrgentBridge")
             webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    currentPageUrl = url ?: ""
+                }
                 override fun onPageFinished(view: WebView?, url: String?) {
+                    if (!url.isNullOrEmpty()) currentPageUrl = url
                     val s = view?.tag as? LoadingState
                     if (s != null) s.pageLoaded = true
+                }
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val u = request?.url ?: return false
+                    val scheme = u.scheme?.lowercase() ?: ""
+                    // 拦截 file://、javascript:、content: 等非 http(s) 导航（U31-02）
+                    if (scheme != "http" && scheme != "https") {
+                        DebugLog.w("WebViewAgent: block non-http(s) navigation: $u")
+                        return true
+                    }
+                    return false
                 }
                 override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler, error: SslError) {
                     DebugLog.w("WebViewAgent SSL error: ${error.primaryError} for ${error.url}, cancelling")
@@ -118,7 +151,9 @@ class WebViewAgent(context: Context) {
         maxResults: Int = 5,
         timeoutMs: Long = 20000L,
     ): List<WebSearchResult> = withContext(Dispatchers.IO) {
+        navigationMutex.withLock {
         ensureInitialized()
+        jsBridge.lastResult.getAndSet(null)
         val deferred = CompletableDeferred<List<WebSearchResult>>()
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         val searchUrl = "https://cn.bing.com/search?q=$encodedQuery&count=$maxResults"
@@ -191,12 +226,14 @@ class WebViewAgent(context: Context) {
             deferred.complete(emptyList())
         }
         deferred.await()
+        }
     }
 
     suspend fun fetchUrl(
         url: String,
         timeoutMs: Long = 25000L,
     ): WebFetchResult? = withContext(Dispatchers.IO) {
+        navigationMutex.withLock {
         ensureInitialized()
         val deferred = CompletableDeferred<WebFetchResult?>()
         val state = (webView?.tag as? LoadingState) ?: LoadingState().also { webView?.tag = it }
@@ -259,6 +296,7 @@ class WebViewAgent(context: Context) {
             }
         }
         deferred.await()
+        }
     }
 
     suspend fun executeMcpScript(
@@ -266,6 +304,7 @@ class WebViewAgent(context: Context) {
         script: String,
         timeoutMs: Long = 30000L,
     ): String? = withContext(Dispatchers.IO) {
+        navigationMutex.withLock {
         ensureInitialized()
         val deferred = CompletableDeferred<String?>()
 
@@ -298,58 +337,71 @@ class WebViewAgent(context: Context) {
             deferred.complete(null)
         }
         deferred.await()
+        }
     }
 
-    suspend fun takeScreenshot(): String? = withContext(Dispatchers.Main) {
+    suspend fun takeScreenshot(): String? {
         ensureInitialized()
-        val deferred = CompletableDeferred<String?>()
-        val latch = CountDownLatch(1)
-        var bitmapRef: Bitmap? = null
-
-        webView?.setPictureListener { _, picture ->
-            if (picture != null) {
-                try {
-                    bitmapRef = Bitmap.createBitmap(picture.width, picture.height, Bitmap.Config.ARGB_8888)
-                    bitmapRef.let { canvas -> picture.draw(android.graphics.Canvas(canvas)) }
-                } catch (_: Exception) {}
+        // 在主线程注册 PictureListener 并触发重绘；回调本身也在主线程触发。
+        // 绝不能在主线程 latch.await —— 那样主线程被自己阻塞，回调永远无法派发（U31-01）。
+        val pictureDeferred = CompletableDeferred<Bitmap?>()
+        withContext(Dispatchers.Main) {
+            webView?.setPictureListener { _, picture ->
+                if (pictureDeferred.isCompleted) return@setPictureListener
+                val bmp = if (picture != null) {
+                    try {
+                        Bitmap.createBitmap(picture.width, picture.height, Bitmap.Config.ARGB_8888)
+                            .also { picture.draw(android.graphics.Canvas(it)) }
+                    } catch (e: Exception) {
+                        DebugLog.w("WebViewAgent.takeScreenshot: picture draw failed: ${e.message}")
+                        null
+                    }
+                } else null
+                pictureDeferred.complete(bmp)
             }
-            latch.countDown()
+            webView?.invalidate()
         }
 
-        webView?.invalidate()
-        latch.await(3, TimeUnit.SECONDS)
-        webView?.setPictureListener(null)
+        // 阻塞等待放在 IO 调度器，主线程保持空闲以接收 PictureListener 回调
+        val pictureBitmap: Bitmap? = try {
+            withTimeoutOrNull(3000L) { pictureDeferred.await() }
+        } finally {
+            withContext(Dispatchers.Main) { webView?.setPictureListener(null) }
+        }
 
-        val bitmap = bitmapRef
-        if (bitmap == null) {
-            DebugLog.w("WebViewAgent.takeScreenshot: bitmap is null, trying draw cache")
-            try {
-                val wv = webView ?: return@withContext null
-                val bmp = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
-                try {
-                    val canvas = android.graphics.Canvas(bmp)
-                    wv.draw(canvas)
-                    val stream = ByteArrayOutputStream()
-                    bmp.compress(Bitmap.CompressFormat.PNG, 80, stream)
-                    val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
-                    DebugLog.i("WebViewAgent.takeScreenshot: ${base64.length} chars base64 (drawCache)")
-                    deferred.complete(base64)
-                } finally {
-                    if (!bmp.isRecycled) bmp.recycle()
-                }
-            } catch (e: Exception) {
-                DebugLog.e("WebViewAgent.takeScreenshot failed: ${e.message}", e)
-                deferred.complete(null)
-            }
-        } else {
+        if (pictureBitmap != null && !pictureBitmap.isRecycled) {
             val stream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 80, stream)
+            pictureBitmap.compress(Bitmap.CompressFormat.PNG, 80, stream)
             val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
-            bitmap.recycle()
+            pictureBitmap.recycle()
             DebugLog.i("WebViewAgent.takeScreenshot: ${base64.length} chars base64")
-            deferred.complete(base64)
+            return base64
         }
-        deferred.await()
+
+        // draw-cache 兜底：离屏 WebView 未附着视图树时宽高恒为 0，需真机离屏 layout 才能生效（U31-05）
+        DebugLog.w("WebViewAgent.takeScreenshot: picture timeout/null, trying draw cache")
+        return withContext(Dispatchers.Main) {
+            val wv = webView ?: return@withContext null
+            if (wv.width <= 0 || wv.height <= 0) {
+                DebugLog.w("WebViewAgent.takeScreenshot: webview size ${wv.width}x${wv.height} = 0, requires real-device offscreen layout")
+                return@withContext null
+            }
+            val bmp = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
+            try {
+                val canvas = android.graphics.Canvas(bmp)
+                wv.draw(canvas)
+                val stream = ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.PNG, 80, stream)
+                val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
+                DebugLog.i("WebViewAgent.takeScreenshot: ${base64.length} chars base64 (drawCache)")
+                base64
+            } catch (e: Exception) {
+                DebugLog.e("WebViewAgent.takeScreenshot drawCache failed: ${e.message}", e)
+                null
+            } finally {
+                if (!bmp.isRecycled) bmp.recycle()
+            }
+        }
     }
 
     suspend fun multimodalClick(
@@ -360,6 +412,7 @@ class WebViewAgent(context: Context) {
         systemPrompt: String,
         maxRounds: Int = 5,
     ): String = withContext(Dispatchers.IO) {
+        navigationMutex.withLock {
         ensureInitialized()
         val sb = StringBuilder()
         sb.appendLine("[多模态虚拟点击] 目标：$query")
@@ -409,8 +462,11 @@ class WebViewAgent(context: Context) {
                 action.startsWith("CLICK(", true) -> {
                     val coords = Regex("""\((\d+)[,\s]+(\d+)\)""").find(action)?.groupValues
                     if (coords != null && coords.size >= 3) {
-                        val x = coords[1].toFloat() / 1000f * (webView?.width?.toFloat() ?: 1080f)
-                        val y = coords[2].toFloat() / 1000f * (webView?.height?.toFloat() ?: 1920f)
+                        // 离屏 WebView 宽高可能为 0：仅在 >0 时用实际尺寸，否则回退默认分辨率（U31-05）
+                        val vw = webView?.width?.takeIf { it > 0 } ?: 1080
+                        val vh = webView?.height?.takeIf { it > 0 } ?: 1920
+                        val x = coords[1].toFloat() / 1000f * vw.toFloat()
+                        val y = coords[2].toFloat() / 1000f * vh.toFloat()
                         mainHandler.post {
                             webView?.dispatchTouchEvent(
                                 android.view.MotionEvent.obtain(
@@ -441,12 +497,14 @@ class WebViewAgent(context: Context) {
                     sb.appendLine("执行向上滚动")
                 }
                 action.startsWith("TYPE(", true) -> {
-                    val text = action.removePrefix("type ").removePrefix("TYPE ")
-                        .removePrefix("(").removeSuffix(")").trim()
+                    // 正确解析 TYPE(hello)，并对文本做 JS 字符串转义，避免单引号截断/注入（U31-03）
+                    val raw = action.substringAfter("TYPE(", "").substringBeforeLast(")").trim()
+                    val escaped = raw.replace("\\", "\\\\").replace("'", "\\'")
+                        .replace("\n", "\\n").replace("\r", "\\r")
                     mainHandler.post {
-                        webView?.evaluateJavascript("document.activeElement.value += '$text';") {}
+                        webView?.evaluateJavascript("document.activeElement.value += '$escaped';") {}
                     }
-                    sb.appendLine("执行输入：$text")
+                    sb.appendLine("执行输入：$raw")
                 }
                 action.startsWith("EXTRACT_TEXT", true) -> {
                     val textRef = AtomicReference("")
@@ -479,6 +537,7 @@ class WebViewAgent(context: Context) {
         }
 
         sb.toString()
+        }
     }
 
     // ── CDP 等价能力层 ────────────────────────────────────────────
@@ -734,7 +793,9 @@ class WebViewAgent(context: Context) {
      */
     suspend fun getLocalStorage(key: String? = null): String? {
         return if (key != null) {
-            evalJs("(function(){return localStorage.getItem('$key');})()")
+            // 与 setLocalStorage 保持一致的 key 转义（U31-08）
+            val ek = key.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            evalJs("(function(){return localStorage.getItem('$ek');})()")
         } else {
             evalJs("""
                 (function(){
@@ -795,13 +856,6 @@ class WebViewAgent(context: Context) {
             })()
         """.trimIndent())
     }
-
-    /**
-     * 获取网络请求日志（需要配合 WebViewClient 拦截）
-     * 对标 CDP Network.requestWillBeSent
-     */
-    private val interceptedRequests = mutableListOf<String>()
-    fun getInterceptedRequests(): List<String> = interceptedRequests.toList()
 
     // ── 智能快照 (Smart Snapshot) ───────────────────────────────
     // 对标 agent-browser snapshot: 扫描所有可交互元素，生成 @e1 @e2 编号引用
@@ -1671,7 +1725,6 @@ class WebViewAgent(context: Context) {
 
     fun destroy() {
         mainHandler.post {
-            interceptedRequests.clear()
             webView?.stopLoading()
             webView?.removeJavascriptInterface("OpedrgentBridge")
             webView?.destroy()

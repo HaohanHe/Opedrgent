@@ -25,27 +25,26 @@ object SpeakerColorPalette {
     )
 
     /** 已分配的颜色缓存: speakerId -> colorInt */
-    private val assignedColors = mutableMapOf<String, Int>()
+    private val assignedColors = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /** 下一个可用预设颜色的索引 */
-    private var nextColorIndex = 0
+    private val nextColorIndex = java.util.concurrent.atomic.AtomicInteger(0)
 
     /**
      * 获取指定说话人的颜色。
      * 同一 speakerId 始终返回相同颜色；新说话人按顺序分配预设色。
+     * 线程安全：聚类在后台、UI 在主线程重建时共享本调色板（U46-08）。
      */
     fun getColor(speakerId: String): Int {
         return assignedColors.getOrPut(speakerId) {
-            val color = PRESET_COLORS[nextColorIndex % PRESET_COLORS.size]
-            nextColorIndex++
-            color
+            PRESET_COLORS[nextColorIndex.getAndIncrement() % PRESET_COLORS.size]
         }
     }
 
     /** 重置所有已分配的颜色（新会话时调用） */
     fun reset() {
         assignedColors.clear()
-        nextColorIndex = 0
+        nextColorIndex.set(0)
     }
 
     /**

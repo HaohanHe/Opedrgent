@@ -319,7 +319,9 @@ object StepFileParserClient {
         withContext(Dispatchers.IO) {
             try {
                 var urlStr = "$BASE_URL/files?limit=$limit"
-                if (!purpose.isNullOrBlank()) urlStr += "&purpose=$purpose"
+                if (!purpose.isNullOrBlank()) {
+                    urlStr += "&purpose=" + java.net.URLEncoder.encode(purpose, "UTF-8")
+                }
 
                 val request = Request.Builder()
                     .url(urlStr)
@@ -405,7 +407,9 @@ object StepFileParserClient {
                     .header("Authorization", "Bearer $apiKey")
                     .build()
 
-                client.newCall(request).execute().use { it.isSuccessful } || client.newCall(request).execute().use { it.code == 404 }
+                // 单次请求内同时判断 2xx 与 404（404 说明认证通过只是没有数据），
+                // 避免短路再发一次完全相同的 GET。
+                client.newCall(request).execute().use { it.isSuccessful || it.code == 404 }
             } catch (_: Exception) { false }
         }
 }

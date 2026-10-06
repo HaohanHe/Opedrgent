@@ -80,6 +80,9 @@ object PromptCacheBreakDetection {
     /** 1 小时 TTL 推断阈值。 */
     const val TTL_1H_MS = 60 * 60 * 1000L
 
+    /** 会话状态过期阈值：超过 1 小时未再访问的 session 在下次写入时被清扫，避免长驻泄漏。 */
+    private const val SESSION_TTL_MS = 60 * 60 * 1000L
+
     /** sessionStates：保存上一次 Phase 2 完成后的状态（含 lastCacheReadTokens）。 */
     private val sessionStates = ConcurrentHashMap<String, PromptCacheState>()
 
@@ -169,6 +172,8 @@ object PromptCacheBreakDetection {
         currentState: PromptCacheState,
         cacheReadTokens: Int,
     ): CacheBreakResult {
+        // 写入路径上顺带清扫长时间不活动的会话，防止用户直接关闭会话而不触发删除/压缩钩子导致的内存泄漏
+        sweepStaleSessions(System.currentTimeMillis())
         val prev = sessionStates[sessionId]
         val enrichedState = currentState.copy(lastCacheReadTokens = cacheReadTokens)
 
@@ -288,6 +293,27 @@ object PromptCacheBreakDetection {
             sessionBaselines[sessionId] = current
         }
         DebugLog.i(TAG, "notifyCompaction: session=$sessionId baseline reset (hadPrev=${current != null})")
+    }
+
+    /**
+     * 钩子：会话结束/销毁时调用，主动释放该会话在 sessionStates 与 sessionBaselines 中的状态。
+     * 与 [notifyCacheDeletion] 的区别：本钩子用于「会话生命周期结束」，而非「缓存被显式清空」。
+     */
+    fun removeSession(sessionId: String) {
+        sessionStates.remove(sessionId)
+        sessionBaselines.remove(sessionId)
+        DebugLog.i(TAG, "removeSession: session=$sessionId state evicted")
+    }
+
+    /** 清扫早于 now-SESSION_TTL_MS 的会话状态与压缩基线。 */
+    private fun sweepStaleSessions(now: Long) {
+        val cutoff = now - SESSION_TTL_MS
+        var removed = 0
+        if (sessionStates.entries.removeIf { it.value.timestamp < cutoff }) removed++
+        if (sessionBaselines.entries.removeIf { it.value.timestamp < cutoff }) removed++
+        if (removed > 0) {
+            DebugLog.d(TAG, "sweepStaleSessions: removed $removed stale session entries")
+        }
     }
 
     /** 仅供调试/观测：获取当前 session 的前次状态快照。 */

@@ -109,16 +109,19 @@ object AudioProcessor {
                 return null
             }
 
-            val (trackIndex, format) = trackResult
-            val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
-            val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
+            try {
+                val (trackIndex, format) = trackResult
+                val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
+                val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
 
-            val metadata = buildMetadataFromFormat(format, durationMs)
-            extractor.release()
+                val metadata = buildMetadataFromFormat(format, durationMs)
 
-            DebugLog.i(TAG, "音频元数据提取完成 duration=${durationMs}ms sr=${metadata.sampleRate} ch=${metadata.channels}")
+                DebugLog.i(TAG, "音频元数据提取完成 duration=${durationMs}ms sr=${metadata.sampleRate} ch=${metadata.channels}")
 
-            ProcessedAudio(filePath = videoUri.toString(), metadata = metadata)
+                ProcessedAudio(filePath = videoUri.toString(), metadata = metadata)
+            } finally {
+                extractor.release()
+            }
         } catch (e: SecurityException) {
             DebugLog.e(TAG, "权限不足，无法访问视频文件: ${e.message}", e)
             null
@@ -144,12 +147,15 @@ object AudioProcessor {
                 return null
             }
 
-            val (_, format) = trackResult
-            val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
-            val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
-            val metadata = buildMetadataFromFormat(format, durationMs)
-            extractor.release()
-            metadata
+            try {
+                val (_, format) = trackResult
+                val durationUs = safeFormatLong(format, MediaFormat.KEY_DURATION, -1L)
+                val durationMs = if (durationUs > 0) durationUs / 1000 else 0L
+                val metadata = buildMetadataFromFormat(format, durationMs)
+                metadata
+            } finally {
+                extractor.release()
+            }
         } catch (e: SecurityException) {
             DebugLog.e(TAG, "权限不足: ${e.message}")
             null
@@ -267,7 +273,7 @@ object AudioProcessor {
 
             while (true) {
                 val chunkId = dis.readInt()
-                val chunkSize = dis.readInt() and 0xFFFFFFFFL.toInt()
+                val chunkSize = dis.readInt()
                 bytesRead += 8 // chunk header (id + size)
 
                 when (chunkId) {
@@ -365,8 +371,29 @@ object AudioProcessor {
                     offset += read
                 }
 
-                val shortSamples = ShortArray(offset / 2)
-                ByteBuffer.wrap(rawPcm, 0, offset).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortSamples)
+                val bytesPerSample = header.bitsPerSample / 8
+                val sampleFrames = offset / bytesPerSample
+                // 按真实位深解包为 16-bit Short（U46-01）：8bit 无符号、24bit 三字节小端，不再统一按 16-bit 读取
+                val shortSamples = when (header.bitsPerSample) {
+                    16 -> ShortArray(sampleFrames).also {
+                        ByteBuffer.wrap(rawPcm, 0, offset).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(it)
+                    }
+                    8 -> ShortArray(sampleFrames) { i ->
+                        (((rawPcm[i].toInt() and 0xFF) - 128) * 256).toShort()
+                    }
+                    24 -> ShortArray(sampleFrames) { i ->
+                        val b0 = rawPcm[i * 3].toInt() and 0xFF
+                        val b1 = rawPcm[i * 3 + 1].toInt() and 0xFF
+                        val b2 = rawPcm[i * 3 + 2].toInt() and 0xFF
+                        var v = b0 or (b1 shl 8) or (b2 shl 16)
+                        if (v and 0x800000 != 0) v = v or 0xFF000000.toInt()
+                        (v shr 8).toShort()
+                    }
+                    else -> {
+                        DebugLog.w(TAG, "readWavFile: 不支持的位深 ${header.bitsPerSample}bit")
+                        return null
+                    }
+                }
 
                 val metadata = AudioMetadata(
                     durationMs = header.durationMs,
@@ -430,6 +457,9 @@ object AudioProcessor {
 
             DebugLog.i(TAG, "readRawPcmFallback 成功: 跳过 ${headerSize}B header, ${sampleCount} samples, ${metadata.durationMs}ms")
             Pair(shortSamples, metadata)
+        } catch (e: OutOfMemoryError) {
+            System.gc()
+            null
         } catch (e: Exception) {
             DebugLog.e(TAG, "readRawPcmFallback 失败: ${e.message}", e)
             null
@@ -629,17 +659,19 @@ object AudioProcessor {
                         dos.writeShort(WAVE_FORMAT_PCM)
                         dos.writeShort(metadata.channels)
                         dos.writeInt(metadata.sampleRate)
-                        dos.writeInt(metadata.sampleRate * metadata.channels * (metadata.bitDepth / 8))
-                        dos.writeShort(metadata.channels * (metadata.bitDepth / 8))
-                        dos.writeShort(metadata.bitDepth)
+                        // 固定输出 PCM 16-bit（floatArrayToShortArray 已产出 2 字节/样本），
+                        // 不要回读 metadata.bitDepth，否则头声明位深与实际落盘数据不一致（U46-03）
+                        dos.writeInt(metadata.sampleRate * metadata.channels * 2)
+                        dos.writeShort(metadata.channels * 2)
+                        dos.writeShort(16)
                         dos.writeInt(0x61746164)
                         dos.writeInt(pcmDataSize)
 
-                        for (s in shortData) {
-                            // 小端序写入：WAV 格式要求 PCM 数据为 little-endian
-                            dos.writeByte(s.toInt() and 0xFF)
-                            dos.writeByte((s.toInt() shr 8) and 0xFF)
-                        }
+                        // 小端序批量写入，避免逐样本两次 writeByte 的 JNI 开销（U46-10）
+                        val pcmBytes = ByteArray(shortData.size * 2)
+                        val pcmBuf = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
+                        for (s in shortData) pcmBuf.putShort(s)
+                        dos.write(pcmBytes)
                     }
                 }
             }

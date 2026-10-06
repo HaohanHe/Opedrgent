@@ -147,7 +147,16 @@ class VoiceConversationEngine(
      */
     private var ttsJob: Job? = null
 
-    private var engineScope = CoroutineScope(SupervisorJob())
+    // 初始值与重建值保持同一 dispatcher（Dispatchers.IO），避免裸 engineScope.launch{} 行为漂移（U56-10）
+    private var engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** 主线程 Handler：把 binder/IO 线程触发的 UI 回调切到主线程（U56-05）。 */
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** 在主线程执行 UI 回调（onAiSpeak/onUserSpeak/onStatusHint/onStateChange）。 */
+    private fun postToMain(block: () -> Unit) {
+        mainHandler.post(block)
+    }
 
     // ==================== 当前轮次状态 ====================
 
@@ -285,7 +294,9 @@ class VoiceConversationEngine(
         lastIdleNudgeMs = 0L
 
         try {
-            // 步骤1：初始化 ASR 管理器
+            // 步骤1：初始化 ASR 管理器。先关闭上一轮残留 native 引擎（forceLocal=true 为 MB 级 sherpa-onnx 句柄），
+            // 避免重入 / 早失败路径后旧句柄泄漏（U56-01）。
+            runCatching { asrManager?.close() }
             asrManager = AsrManager(context, apiSettings, forceLocal = true)
             asrManager?.ensureInitialized()
 
@@ -333,7 +344,7 @@ class VoiceConversationEngine(
                 }
 
                 if (conversationActive.get() && openingLine.isNotBlank()) {
-                    onAiSpeak(openingLine)
+                    postToMain { onAiSpeak(openingLine) }
 
                     duplexEngine.aiSpeakText(
                         text = openingLine,
@@ -382,12 +393,14 @@ class VoiceConversationEngine(
             // 持久化到长期存储（需要有 config 和 sessionId）
             val sid = currentSessionId
             val cfg = currentInterviewConfig
+            // 用 applicationContext 落盘，避免 NonCancellable IO Job 短窗持有 Activity（U56-09）
+            val appCtx = context.applicationContext
             if (sid != null && cfg != null) {
                 engineScope.launch(Dispatchers.IO + NonCancellable) {
                     try {
                         val snapshot = h.exportSessionSnapshot()
                         if (snapshot != null) {
-                            val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(context)
+                            val store = top.hsyscn.opedrgent.storage.HippocampusSessionStore(appCtx)
                             store.save(
                                 sessionId = sid,
                                 config = cfg,
@@ -396,7 +409,7 @@ class VoiceConversationEngine(
                                 startedAt = snapshot.startedAt,
                             )
                             // 同时写入轻量索引，让会话出现在海马体主界面
-                            val index = top.hsyscn.opedrgent.storage.HippocampusIndex(context)
+                            val index = top.hsyscn.opedrgent.storage.HippocampusIndex(appCtx)
                             val title = buildInterviewTitle(cfg)
                             index.upsertInterview(
                                 sessionId = sid,
@@ -408,8 +421,14 @@ class VoiceConversationEngine(
                         }
                     } catch (e: Exception) {
                         DebugLog.e(TAG, "持久化海马体会话失败: ${e.message}", e)
+                    } finally {
+                        // 无论落盘成功与否都从 InterviewAgent.activeHippocampus 移除，避免 map 僵尸累积（U56-03）
+                        InterviewAgent.closeSession(sid)
                     }
                 }
+            } else if (sid != null) {
+                // 无 config 也要从 map 移除，避免无配置会话残留（U56-03）
+                InterviewAgent.closeSession(sid)
             }
         }
 
@@ -429,8 +448,10 @@ class VoiceConversationEngine(
         asrProcessingJob?.cancel()
         asrProcessingJob = null
 
-        // 停止 ASR
+        // 停止 ASR 流式监听，并真正关闭本地识别引擎释放 native 句柄（U56-01）
         stopListening()
+        runCatching { asrManager?.close() }
+        asrManager = null
 
         // 关闭通话音频路由（与会话开始的 setCallRoute(true) 配对，避免重复/遗漏）
         runCatching { ttsPlayer.setCallRoute(false) }
@@ -708,8 +729,12 @@ class VoiceConversationEngine(
 
         DebugLog.i(TAG, "收集到用户语音 (${pcmData.size} bytes)，开始 ASR 识别...")
 
-        // 标记正在处理用户输入
-        isProcessing.set(true)
+        // CAS 抢占：同一时刻只允许一个回合在途。LLM 在途时用户再开口直接丢弃本段，
+        // 防止覆盖 asrProcessingJob 后旧 Job 孤儿并与新回合 TTS 叠播（U56-02）。
+        if (!isProcessing.compareAndSet(false, true)) {
+            DebugLog.i(TAG, "上一回合仍在处理，丢弃本段重复语音")
+            return
+        }
         onLegacyStateChange(ConversationState.PROCESSING)
 
         // 启动 ASR 识别协程
@@ -739,8 +764,8 @@ class VoiceConversationEngine(
                     return@launch
                 }
 
-                // 通知 UI：用户说的话
-                onUserSpeak(recognizedText)
+                // 通知 UI：用户说的话（切主线程，避免在采集协程线程更新 UI）（U56-05）
+                postToMain { onUserSpeak(recognizedText) }
                 latestUserText = recognizedText
 
                 // 在 LLM 调用前注入海马体注意力上下文
@@ -784,8 +809,8 @@ class VoiceConversationEngine(
                     this@VoiceConversationEngine.hippo?.updateCriticalSnapshot(turnCounter, "第${turnCounter}轮语音对话完成")
                 }
 
-                // 通知 UI：AI 的回复文字
-                onAiSpeak(aiResponse)
+                // 通知 UI：AI 的回复文字（切主线程）（U56-05）
+                postToMain { onAiSpeak(aiResponse) }
 
                 // 通过全双工引擎播放 TTS
                 duplexEngine.aiSpeakText(
@@ -843,57 +868,13 @@ class VoiceConversationEngine(
                 tempWavFile.safeDelete()
             }
         } catch (e: Exception) {
-            DebugLog.w(TAG, "离线识别失败，尝试流式降级: ${e.message}")
-            // 降级：使用流式 ASR（适用于实时场景）
-            recognizePcmStreaming(manager, onPartialText)
+            // 离线文件识别失败：不再另起麦克风流式采集（会与全双工管线抢同一麦克风，
+            // 且用户已闭嘴、1.5s 内采不到本段语音，降级等于识别错音频）。直接返回空串，由上层走 TTS 兜底（U56-04）。
+            DebugLog.w(TAG, "离线识别失败，放弃本段: ${e.message}")
+            ""
         }
     }
 
-    /**
-     * 流式 ASR 降级路径 — 用于实时录音场景（麦克风采集的 PCM 无法写入文件时）。
-     */
-    private suspend fun recognizePcmStreaming(
-        manager: top.hsyscn.opedrgent.stt.AsrManager,
-        onPartialText: (String) -> Unit,
-    ): String {
-        var finalResult = ""
-
-        asrJob = engineScope.launch(Dispatchers.IO) {
-            val flow: Flow<StreamingRecognitionState> = manager.startStreaming()
-            flow
-                .catch { e ->
-                    DebugLog.e(TAG, "ASR 流异常: ${e.message}", e)
-                }
-                .collect { state ->
-                    when (state) {
-                        is StreamingRecognitionState.Recognizing -> {
-                            onPartialText(state.partialText)
-                        }
-                        is StreamingRecognitionState.FinalResult -> {
-                            finalResult = state.text
-                            DebugLog.i(TAG, "ASR 最终结果: '${finalResult.take(100)}'")
-                        }
-                        is StreamingRecognitionState.Error -> {
-                            DebugLog.e(TAG, "ASR 错误: ${state.message}")
-                        }
-                        is StreamingRecognitionState.Stopped -> {
-                            DebugLog.d(TAG, "ASR 已停止")
-                        }
-                        is StreamingRecognitionState.Listening -> {
-                            DebugLog.d(TAG, "ASR 进入监听状态")
-                        }
-                    }
-                }
-        }
-
-        // 降级路径：给流式 ASR 最多约 1.5s 产出最终结果，超时即取消并按已收到文本返回
-        delay(1500L)
-
-        asrJob?.cancel()
-        asrJob = null
-
-        return finalResult
-    }
 
     /** 将原始 PCM 16-bit 单声道数据封装为 WAV 文件 */
     private fun pcmToWav(pcmData: ByteArray, outputFile: File) {
@@ -1125,7 +1106,7 @@ class VoiceConversationEngine(
                 networkAvailable = true
                 DebugLog.i(TAG, "网络已恢复")
                 if (wasOffline && conversationActive.get()) {
-                    onStatusHintRef?.invoke("网络已恢复")
+                    postToMain { onStatusHintRef?.invoke("网络已恢复") }
                 }
             }
 
@@ -1133,7 +1114,7 @@ class VoiceConversationEngine(
                 networkAvailable = false
                 DebugLog.w(TAG, "网络连接已断开")
                 if (conversationActive.get()) {
-                    onStatusHintRef?.invoke("网络连接已断开，正在等待恢复")
+                    postToMain { onStatusHintRef?.invoke("网络连接已断开，正在等待恢复") }
                 }
             }
         }
@@ -1154,7 +1135,7 @@ class VoiceConversationEngine(
         val now = System.currentTimeMillis()
         if (now - lastOfflineHintMs < OFFLINE_HINT_COOLDOWN_MS) return
         lastOfflineHintMs = now
-        onStatusHintRef?.invoke("网络连接已断开，正在等待恢复")
+        postToMain { onStatusHintRef?.invoke("网络连接已断开，正在等待恢复") }
     }
 
     /**
@@ -1167,6 +1148,9 @@ class VoiceConversationEngine(
     ) {
         if (onIdleNudge == null) return
         if (!conversationActive.get()) return
+        // 与在途 LLM/TTS 互斥：处理中或 AI 正在说时不叠播 nudge，避免两条 TTS 竞争（U56-08）
+        if (isProcessing.get()) return
+        if (duplexEngine.state == FullDuplexAudioEngine.DuplexState.AI_SPEAKING) return
         val now = System.currentTimeMillis()
         if (now - lastIdleNudgeMs < IDLE_NUDGE_COOLDOWN_MS) return
         lastIdleNudgeMs = now
@@ -1179,7 +1163,7 @@ class VoiceConversationEngine(
                 ""
             }
             if (!conversationActive.get() || nudge.isBlank()) return@launch
-            onAiSpeak(nudge)
+            postToMain { onAiSpeak(nudge) }
             duplexEngine.aiSpeakText(
                 text = nudge,
                 ttsPlayer = ttsPlayer,

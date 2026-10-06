@@ -26,6 +26,13 @@ object LocalEntityExtractor {
         "公司", "集团", "大学", "学院", "研究所", "银行", "医院", "政府", "部门", "团队",
     )
 
+    // 机构名匹配后用于剥离开头的语法/动词前缀字（召回特征收窄，不新增关键词词表）。
+    private val orgPrefixStops: Set<Char> = setOf(
+        '在', '我', '你', '他', '她', '它', '和', '与', '跟', '的', '了',
+        '是', '去', '到', '把', '被', '向', '从', '对', '为', '于', '及',
+        '等', '里', '中', '内', '后', '前', '上', '下', '这', '那', '有',
+    )
+
     private val relativeTimes: Set<String> = setOf(
         "今天", "昨天", "明天", "上周", "下周", "上个月", "下个月", "去年", "今年", "明年",
         "现在", "最近", "刚才", "之前", "之后", "不久",
@@ -111,9 +118,17 @@ object LocalEntityExtractor {
     private fun extractOrganizations(text: String): List<Entity> {
         val entities = mutableListOf<Entity>()
         val suffixPattern = orgSuffixes.joinToString("|") { Regex.escape(it) }
-        val pattern = Regex("([\\u4e00-\\u9fa5]{2,10})(?:$suffixPattern)")
+        // 前缀收到 2~6 字：原 2~10 贪婪会吞进前文（如"我在清华大学"整体被当成机构名）。
+        val pattern = Regex("([\\u4e00-\\u9fa5]{2,6})(?:$suffixPattern)")
         for (match in pattern.findAll(text)) {
-            entities.add(Entity(match.value, EntityType.ORGANIZATION, match.range.first, match.range.last + 1))
+            var name = match.value
+            var start = match.range.first
+            // 剥离开头的语法/动词前缀字，把"我在清华大学"收窄为"清华大学"。
+            while (name.length > 2 && name.first() in orgPrefixStops) {
+                name = name.substring(1)
+                start += 1
+            }
+            entities.add(Entity(name, EntityType.ORGANIZATION, start, start + name.length))
         }
         return entities
     }
@@ -135,13 +150,29 @@ object LocalEntityExtractor {
             .filter { it.type == EntityType.LOCATION || it.type == EntityType.ORGANIZATION }
             .map { it.start to it.end }
         val entities = mutableListOf<Entity>()
-        for (match in Regex("([\\u4e00-\\u9fa5]{2,4})").findAll(text)) {
-            val start = match.range.first
-            val end = match.range.last + 1
-            if (excludedRanges.any { start < it.second && end > it.first }) continue
-            val name = match.value
-            if (name.first().toString() in commonSurnames && !isLocationOrOrgName(name)) {
-                entities.add(Entity(name, EntityType.PERSON, start, end))
+        // 以姓氏字为锚点：候选名 = 姓氏 + 其后 1~2 个连续中文字（共 2~3 字）。
+        // 原先对整段中文做 2~4 字贪婪匹配，会把"王某某去吃"这类带动词尾的片段整体当成人名。
+        for (surname in commonSurnames) {
+            var pos = 0
+            while (true) {
+                val idx = text.indexOf(surname, pos)
+                if (idx < 0) break
+                pos = idx + 1
+                var len = 1
+                if (idx + 1 < text.length && text[idx + 1].code in 0x4E00..0x9FFF) {
+                    len = 2
+                    if (idx + 2 < text.length && text[idx + 2].code in 0x4E00..0x9FFF) {
+                        len = 3
+                    }
+                }
+                if (len < 2) continue
+                val start = idx
+                val end = idx + len
+                if (excludedRanges.any { start < it.second && end > it.first }) continue
+                val name = text.substring(start, end)
+                if (!isLocationOrOrgName(name)) {
+                    entities.add(Entity(name, EntityType.PERSON, start, end))
+                }
             }
         }
         return entities

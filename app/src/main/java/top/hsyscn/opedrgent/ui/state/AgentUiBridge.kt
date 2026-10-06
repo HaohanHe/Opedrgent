@@ -9,6 +9,7 @@ import top.hsyscn.opedrgent.ui.components.ConfirmationRequest
 import top.hsyscn.opedrgent.ui.components.QuestionInfo
 import top.hsyscn.opedrgent.ui.components.QuestionOption
 import top.hsyscn.opedrgent.ui.components.QuestionRequest
+import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
  * AgentService 与 UI 层之间的桥接辅助类。
@@ -20,24 +21,31 @@ class AgentUiBridge(private val app: Application) {
 
     fun parseQuestionInput(input: Map<String, String>): QuestionRequest {
         val questionsJson = input["questions"] ?: "[]"
-        val arr = JSONArray(questionsJson)
-        val questions = (0 until arr.length()).map { i ->
-            val q = arr.getJSONObject(i)
-            val optsArr = q.getJSONArray("options")
-            val options = (0 until optsArr.length()).map { j ->
-                val opt = optsArr.getJSONObject(j)
-                QuestionOption(
-                    label = opt.getString("label"),
-                    description = opt.optString("description", ""),
+        // LLM 偶发返回截断/夹带正文的畸形 JSON：裸 JSONArray/getJSONObject 会抛 JSONException 崩 UI。
+        // 包 try/catch 降级为空题板，不让一次解析失败拖垮整个 Agent 会话（U29-9）。
+        val questions = try {
+            val arr = JSONArray(questionsJson)
+            (0 until arr.length()).map { i ->
+                val q = arr.getJSONObject(i)
+                val optsArr = q.getJSONArray("options")
+                val options = (0 until optsArr.length()).map { j ->
+                    val opt = optsArr.getJSONObject(j)
+                    QuestionOption(
+                        label = opt.getString("label"),
+                        description = opt.optString("description", ""),
+                    )
+                }
+                QuestionInfo(
+                    question = q.optString("question", ""),
+                    header = q.optString("header", ""),
+                    options = options,
+                    multiple = q.optBoolean("multiple", false),
+                    allowCustom = q.optBoolean("allowCustom", false),
                 )
             }
-            QuestionInfo(
-                question = q.getString("question"),
-                header = q.optString("header", ""),
-                options = options,
-                multiple = q.optBoolean("multiple", false),
-                allowCustom = q.optBoolean("allowCustom", false),
-            )
+        } catch (e: Exception) {
+            DebugLog.w("AgentUiBridge: questions JSON 解析失败，降级为空题板: ${e.message}")
+            emptyList()
         }
         return QuestionRequest(questions = questions)
     }
