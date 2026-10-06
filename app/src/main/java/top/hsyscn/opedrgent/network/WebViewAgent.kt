@@ -100,7 +100,6 @@ class WebViewAgent(context: Context) {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                databaseEnabled = true
                 cacheMode = WebSettings.LOAD_DEFAULT
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
@@ -136,8 +135,9 @@ class WebViewAgent(context: Context) {
                 }
             }
             webChromeClient = object : WebChromeClient() {
-                override fun onConsoleMessage(message: String, lineNumber: Int, sourceID: String) {
-                    DebugLog.d("WebView console: $message at line $lineNumber in $sourceID")
+                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
+                    DebugLog.d("WebView console: ${consoleMessage.message()} at line ${consoleMessage.lineNumber()} in ${consoleMessage.sourceId()}")
+                    return true
                 }
             }
             tag = LoadingState()
@@ -340,6 +340,7 @@ class WebViewAgent(context: Context) {
         }
     }
 
+    @Suppress("DEPRECATION") // setPictureListener 在 API 34 废弃且无直接替代，截图仍依赖该回调
     suspend fun takeScreenshot(): String? {
         ensureInitialized()
         // 在主线程注册 PictureListener 并触发重绘；回调本身也在主线程触发。

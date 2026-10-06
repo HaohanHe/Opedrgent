@@ -337,14 +337,14 @@ fun NoteShareScreen(
 }
 
 data class SharePlatform(
-    @StringRes val nameRes: Int,
+    @get:StringRes val nameRes: Int,
     val icon: ImageVector,
     val color: Color,
     val action: String,
 )
 
 data class ShareFormat(
-    @StringRes val nameRes: Int,
+    @get:StringRes val nameRes: Int,
     val icon: ImageVector,
     val color: Color,
     val format: String,

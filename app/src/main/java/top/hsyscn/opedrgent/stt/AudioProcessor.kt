@@ -923,7 +923,6 @@ object AudioProcessor {
                 when (outputIndex) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {}
                     MediaCodec.INFO_TRY_AGAIN_LATER -> {}
-                    MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> {}
                     else -> {
                         if (outputIndex >= 0) {
                             if (bufferInfo.size > 0) {

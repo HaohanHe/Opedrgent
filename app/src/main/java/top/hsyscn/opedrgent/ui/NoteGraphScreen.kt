@@ -58,7 +58,7 @@ import top.hsyscn.opedrgent.ui.theme.customColors
 import top.hsyscn.opedrgent.ui.theme.graphLabel
 
 /** 视图模式 */
-private enum class GraphViewMode(@StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+private enum class GraphViewMode(@get:StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     GRAPH(R.string.graph_view_graph, Icons.Default.AccountTree),
     TIMELINE(R.string.graph_view_timeline, Icons.Default.Timeline),
 }
