@@ -223,7 +223,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     }
                 } else {
                     DebugLog.i("WebSearcher DDG: ${out.size} results")
-                    EngineStatusManager.recordSuccess("ddg")
+                    CircuitBreakerManager.getOrCreate("ddg").recordSuccess()
                 }
                 out
             }
@@ -343,7 +343,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     DebugLog.w("WebSearcher Bing: no results parsed. Body length: ${body.length}, contains b_results: ${doc.select("#b_results").isNotEmpty()}")
                 } else {
                     DebugLog.i("WebSearcher Bing: ${out.size} results")
-                    EngineStatusManager.recordSuccess("bing")
+                    CircuitBreakerManager.getOrCreate("bing").recordSuccess()
                 }
                 out
             }
@@ -540,7 +540,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     if (out.isNotEmpty()) {
                         DebugLog.i("WebSearcher Baidu JSON: ${out.size} results")
-                        EngineStatusManager.recordSuccess("baidu")
+                        CircuitBreakerManager.getOrCreate("baidu").recordSuccess()
                     } else {
                         DebugLog.w("WebSearcher Baidu JSON: parsed 0 results from ${entryArray.length()} items")
                     }
@@ -645,7 +645,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                     DebugLog.w("WebSearcher Baidu HTML: no results")
                 } else {
                     DebugLog.i("WebSearcher Baidu HTML: ${out.size} results")
-                    EngineStatusManager.recordSuccess("baidu")
+                    CircuitBreakerManager.getOrCreate("baidu").recordSuccess()
                 }
                 out
             }
@@ -839,7 +839,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
                         DebugLog.i(
                             "WebSearcher SearXNG: ${out.size}/${resultsArray.length()} results in ${responseTime}ms"
                         )
-                        EngineStatusManager.recordSuccess("searxng", responseTime)
+                        CircuitBreakerManager.getOrCreate("searxng").recordSuccess(responseTime)
                     } else {
                         DebugLog.w("WebSearcher SearXNG: parsed 0 results from ${resultsArray.length()} items")
                     }
@@ -1365,8 +1365,9 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                         val titleEl = item.selectFirst("h3.serp-title, h3.organic__title, a.serp-url__title, h2 > a")
                         val title = titleEl?.text()?.trim() ?: continue
-                        var href = titleEl.attr("href") ?: 
-                            item.selectFirst("a[href]")?.attr("href") ?: continue
+                        var href = titleEl.attr("href").ifBlank {
+                            item.selectFirst("a[href]")?.attr("href") ?: ""
+                        }
 
                         if (title.isBlank() || href.isBlank()) continue
 
@@ -1410,7 +1411,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     if (out.isNotEmpty()) {
                         DebugLog.i("WebSearcher Yandex: ${out.size} results")
-                        EngineStatusManager.recordSuccess("yandex")
+                        CircuitBreakerManager.getOrCreate("yandex").recordSuccess()
                     } else {
                         DebugLog.w("WebSearcher Yandex: no results parsed")
                     }
@@ -1541,7 +1542,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     if (out.isNotEmpty()) {
                         DebugLog.i("WebSearcher Sogou: ${out.size} results")
-                        EngineStatusManager.recordSuccess("sogou")
+                        CircuitBreakerManager.getOrCreate("sogou").recordSuccess()
                     } else {
                         DebugLog.w("WebSearcher Sogou: no results parsed")
                     }
@@ -1647,7 +1648,7 @@ class WebSearcher(private val http: OkHttpClient = HttpClients.default) {
 
                     if (out.isNotEmpty()) {
                         DebugLog.i("WebSearcher 360: ${out.size} results")
-                        EngineStatusManager.recordSuccess("360")
+                        CircuitBreakerManager.getOrCreate("360").recordSuccess()
                     } else {
                         DebugLog.w("WebSearcher 360: no results parsed")
                     }

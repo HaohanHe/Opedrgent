@@ -1,8 +1,8 @@
 package top.hsyscn.opedrgent.utils
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.CoroutineExceptionHandler
 import java.io.File
 import java.io.PrintWriter
@@ -154,7 +154,7 @@ object CrashReporter {
         }.getOrNull() ?: "unknown"
         val versionCode = runCatching {
             val pi = context.packageManager.getPackageInfo(context.packageName, 0)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode else pi.versionCode.toLong()
+            PackageInfoCompat.getLongVersionCode(pi)
         }.getOrNull() ?: -1L
         val threadName = Thread.currentThread().name
         val exceptionClass = throwable?.let { it.javaClass.name } ?: ""
