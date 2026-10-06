@@ -160,16 +160,6 @@
     <string name="onboarding_privacy_policy_link">View privacy policy</string>
     <string name="privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
 
-    <!-- OnboardingBaselineScreen -->
-    <string name="onboarding_baseline_title">Set your personal baseline</string>
-    <string name="onboarding_baseline_subtitle">Start from a starter template and write down how you want to act. It is only a scaffold for your reference, makes no automatic judgments, and can be edited later in the reflection mirror.</string>
-    <string name="onboarding_baseline_load_template">Load starter template</string>
-    <string name="onboarding_baseline_dimension_label">Dimension name</string>
-    <string name="onboarding_baseline_do_hint">What you want to do (one per line)</string>
-    <string name="onboarding_baseline_later">Set up later</string>
-    <string name="onboarding_baseline_save">Save and continue</string>
-    <string name="onboarding_baseline_error_empty">Please keep at least one dimension with a name.</string>
-
     <!-- MainViewModel / AppRoot UI messages -->
     <string name="error_api_key_required">Please fill in the API Key in Settings first</string>
     <string name="msg_confirm_execute_default">Confirm execution?</string>

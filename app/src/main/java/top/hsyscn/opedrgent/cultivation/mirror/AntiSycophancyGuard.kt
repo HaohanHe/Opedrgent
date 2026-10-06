@@ -3,7 +3,7 @@ package top.hsyscn.opedrgent.cultivation.mirror
 import org.json.JSONObject
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
 import top.hsyscn.opedrgent.cultivation.model.MirrorRoute
-import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
@@ -95,7 +95,7 @@ class AntiSycophancyGuard {
      */
     suspend fun selfReview(
         backend: MirrorLlmBackend,
-        baseline: VirtueBaseline,
+        persona: PersonaProfile?,
         transcript: String,
         originalRaw: String,
     ): SelfReviewResult {
@@ -107,8 +107,8 @@ class AntiSycophancyGuard {
             只输出一个 JSON：{"needsRevision": true/false, "reason": "简短理由", "revisedJson": "修订后的完整分析 JSON 字符串，无需修订时留空"}。
         """.trimIndent()
         val user = """
-            【基准】
-            ${MirrorPromptBuilder.userPrompt(baseline, transcript).substringBefore("【用户本人语音转写】")}
+            【画像】
+            ${MirrorPromptBuilder.userPrompt(persona, transcript).substringBefore("【用户本人语音转写】")}
             【转写】
             ${transcript.trim()}
 

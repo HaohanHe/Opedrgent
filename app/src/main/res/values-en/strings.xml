@@ -625,9 +625,9 @@
     <string name="theme_preview_title">Opedrgent Theme Palette</string>
     <!-- Cultivation (self mirror) -->
     <string name="cultivation_title">Self Cultivation</string>
-    <string name="cultivation_home_subtitle">Mirror your real speech against the person you want to become</string>
+    <string name="cultivation_home_subtitle">Mirror your real speech and see the gap between actual and aspired</string>
     <string name="cultivation_tab_mirror">Mirror</string>
-    <string name="cultivation_tab_baseline">Baseline</string>
+    <string name="cultivation_tab_baseline">Persona</string>
     <string name="cultivation_tab_history">History</string>
     <string name="cultivation_backend_label">Backend</string>
     <string name="cultivation_backend_local">On-device (default)</string>
@@ -645,7 +645,7 @@
     <string name="cultivation_start">Run mirror analysis</string>
     <string name="cultivation_analyzing">Analyzing…</string>
     <string name="cultivation_below_bar">Below the quality bar, no low-quality feedback shown:</string>
-    <string name="cultivation_ref">Baseline: %1$s</string>
+    <string name="cultivation_ref">Direction: %1$s</string>
     <string name="cultivation_alternative">Try instead: %1$s</string>
     <string name="cultivation_next_step">Next step: %1$s</string>
     <string name="cultivation_strengths">Your strengths</string>
@@ -665,13 +665,13 @@
     <string name="cultivation_route_analyze">Review</string>
     <string name="cultivation_route_support">Support</string>
     <string name="cultivation_route_crisis">Crisis care</string>
-    <string name="cultivation_baseline_intro">Define the person you want to become. For each dimension, list concrete behaviors to do and to avoid, one per line.</string>
-    <string name="cultivation_dim_name">Dimension</string>
-    <string name="cultivation_dim_do">Behaviors to do (one per line)</string>
-    <string name="cultivation_dim_dont">Behaviors to avoid (one per line)</string>
-    <string name="cultivation_remove_dim">Remove</string>
-    <string name="cultivation_add_dim">Add dimension</string>
-    <string name="cultivation_save_baseline">Save baseline</string>
+    <string name="cultivation_persona_intro">This persona is built and updated automatically as the model observes your speech; you fill in nothing. The actual self is observed behavior, the aspired self is inferred from what you express, each with verbatim evidence.</string>
+    <string name="cultivation_persona_empty">No persona yet. Keep recording and running reviews; the model will turn stable behaviors and the directions you reveal into a persona.</string>
+    <string name="cultivation_persona_actual">Actual self (observed behavior)</string>
+    <string name="cultivation_persona_aspired">Aspired self (inferred from what you express)</string>
+    <string name="cultivation_persona_open">Open questions (the model\'s own notes)</string>
+    <string name="cultivation_persona_none">None yet</string>
+    <string name="cultivation_persona_evidence">Evidence: %1$s</string>
     <string name="cultivation_history_title">History</string>
     <string name="cultivation_clear_all">Clear all</string>
     <string name="cultivation_dismiss">Done</string>

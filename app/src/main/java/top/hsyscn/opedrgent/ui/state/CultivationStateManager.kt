@@ -15,9 +15,7 @@ import top.hsyscn.opedrgent.cultivation.model.ExemplarReport
 import top.hsyscn.opedrgent.cultivation.model.IssueMark
 import top.hsyscn.opedrgent.cultivation.model.FollowUpStatus
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
-import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
-import top.hsyscn.opedrgent.cultivation.model.VirtueDimension
-import top.hsyscn.opedrgent.cultivation.model.BaselineTemplates
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
 import top.hsyscn.opedrgent.cultivation.model.ReflectionInsights
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.storage.HippocampusIndex
@@ -53,9 +51,8 @@ class CultivationStateManager(
         val lens: ReflectionLens = ReflectionLens.CRITIQUE,
         val transcript: String = "",
         val phase: ReflectionPhase = ReflectionPhase.Idle,
-        val activeBaseline: VirtueBaseline? = null,
-        val editingDimensions: List<VirtueDimension> = emptyList(),
-        val baselineDirty: Boolean = false,
+        /** 模型自动建立、持续演进的人格画像（现实自我 / 理想自我），用户只读。 */
+        val personaProfile: PersonaProfile? = null,
         val result: ReflectionRecord? = null,
         val history: List<ReflectionRecord> = emptyList(),
         val error: String? = null,
@@ -93,17 +90,15 @@ class CultivationStateManager(
         refresh()
     }
 
-    /** 加载活跃基准、历史轨迹与端侧模型就绪状态。 */
+    /** 加载自动画像、历史轨迹与端侧模型就绪状态。 */
     fun refresh() {
         coroutineScope.launch {
-            val baseline = runCatching { engine.activeBaseline() }.getOrNull()
+            val persona = runCatching { engine.persona() }.getOrNull()
             val history = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
             _state.update {
                 it.copy(
                     loading = false,
-                    activeBaseline = baseline,
-                    editingDimensions = if (it.baselineDirty) it.editingDimensions
-                        else baseline?.dimensions ?: BaselineTemplates.STARTER,
+                    personaProfile = persona,
                     history = history,
                     localReady = runtime.localReady(),
                     localModelId = runtime.localModelId(),
@@ -153,83 +148,6 @@ class CultivationStateManager(
             return
         }
         _state.update { it.copy(useCloud = useCloud) }
-    }
-
-    // ===== 基准编辑 =====
-
-    fun startBaselineEdit() = _state.update {
-        it.copy(editingDimensions = it.activeBaseline?.dimensions ?: BaselineTemplates.STARTER, baselineDirty = true)
-    }
-
-    /**
-     * 把起始模板 BaselineTemplates.STARTER 中指定下标的维度载入编辑区（仅脚手架，不是判定词表）。
-     * @param selectedIndex STARTER 的 0..3 下标；越界者忽略
-     * @param replace true=整体替换编辑区；false=按维度名（忽略大小写）去重后追加
-     */
-    fun loadStarterDimensions(selectedIndex: List<Int>, replace: Boolean) = _state.update {
-        val picked = selectedIndex.mapNotNull { idx -> BaselineTemplates.STARTER.getOrNull(idx) }
-        if (picked.isEmpty()) return@update it
-        val existing = it.editingDimensions.mapTo(HashSet()) { d -> d.name.trim().lowercase() }
-        val next = if (replace) picked
-            else it.editingDimensions + picked.filterNot { d -> d.name.trim().lowercase() in existing }
-        it.copy(editingDimensions = next, baselineDirty = true)
-    }
-
-    fun addDimension() = _state.update {
-        it.copy(
-            baselineDirty = true,
-            editingDimensions = it.editingDimensions + VirtueDimension(app.getString(R.string.cultivation_new_dimension), emptyList(), emptyList()),
-        )
-    }
-
-    fun removeDimension(index: Int) = _state.update {
-        it.copy(baselineDirty = true, editingDimensions = it.editingDimensions.filterIndexed { i, _ -> i != index })
-    }
-
-    fun setDimensionName(index: Int, name: String) = _state.update {
-        it.copy(baselineDirty = true, editingDimensions = it.editingDimensions.mapIndexed { i, d ->
-            if (i == index) d.copy(name = name) else d
-        })
-    }
-
-    fun setDimensionDo(index: Int, raw: String) = _state.update {
-        it.copy(baselineDirty = true, editingDimensions = it.editingDimensions.mapIndexed { i, d ->
-            if (i == index) d.copy(doBehaviors = splitBehaviors(raw)) else d
-        })
-    }
-
-    fun setDimensionDont(index: Int, raw: String) = _state.update {
-        it.copy(baselineDirty = true, editingDimensions = it.editingDimensions.mapIndexed { i, d ->
-            if (i == index) d.copy(dontBehaviors = splitBehaviors(raw)) else d
-        })
-    }
-
-    fun saveBaseline() {
-        val dims = _state.value.editingDimensions.map { d ->
-            d.copy(name = d.name.trim()).let { c ->
-                c.copy(doBehaviors = c.doBehaviors.map { s -> s.trim() }.filter { s -> s.isNotBlank() },
-                    dontBehaviors = c.dontBehaviors.map { s -> s.trim() }.filter { s -> s.isNotBlank() })
-            }
-        }.filter { it.name.isNotBlank() }
-        if (dims.isEmpty()) {
-            _state.update { it.copy(error = app.getString(R.string.cultivation_error_dim_name)) }
-            return
-        }
-        coroutineScope.launch {
-            val now = System.currentTimeMillis()
-            val baseline = VirtueBaseline(
-                id = 0,
-                version = 0,
-                dimensions = dims,
-                complete = true,
-                createdAt = now,
-                updatedAt = now,
-            )
-            runCatching { engine.saveBaseline(baseline) }
-                .onSuccess { _state.update { it.copy(baselineDirty = false, info = app.getString(R.string.cultivation_baseline_saved)) } }
-                .onFailure { e -> _state.update { it.copy(error = app.getString(R.string.cultivation_baseline_save_failed, e.message ?: "")) } }
-            refresh()
-        }
     }
 
     // ===== 分析 =====
@@ -282,6 +200,7 @@ class CultivationStateManager(
                     )
                 }
                 val history = runCatching { engine.reports().listRecent() }.getOrDefault(emptyList())
+                val persona = runCatching { engine.persona() }.getOrNull()
                 if (outcome.success && outcome.record != null) {
                     outcome.record.critique?.let { rpt ->
                         outcome.persistedId?.let { rid -> indexCultivation(rid, rpt) }
@@ -291,6 +210,7 @@ class CultivationStateManager(
                             phase = ReflectionPhase.Idle,
                             result = outcome.record,
                             history = history,
+                            personaProfile = persona,
                             info = if (outcome.attempts > 1) app.getString(R.string.cultivation_repassed_info) else null,
                         )
                     }
@@ -303,6 +223,7 @@ class CultivationStateManager(
                                 outcome.attempts,
                             ),
                             history = history,
+                            personaProfile = persona,
                             error = if (lens == ReflectionLens.COGNITIVE)
                                 app.getString(R.string.cultivation_quality_gate_cognitive)
                             else
@@ -526,9 +447,6 @@ class CultivationStateManager(
             hip.upsertCultivation(reportId, summary)
         }.onFailure { DebugLog.w("Cultivation", "写入榜样镜海马索引失败：${it.message}") }
     }
-
-    private fun splitBehaviors(raw: String): List<String> =
-        raw.split('\n', '；', ';', '，', ',').map { it.trim() }.filter { it.isNotBlank() }
 
     companion object {
         private const val MANUAL_SESSION = "cultivation-self"

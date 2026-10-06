@@ -19,8 +19,10 @@ import top.hsyscn.opedrgent.cultivation.model.ExemplarReport
 import top.hsyscn.opedrgent.cultivation.model.FeedbackMode
 import top.hsyscn.opedrgent.cultivation.model.FollowUp
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
 import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
 import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
+import top.hsyscn.opedrgent.cultivation.store.PersonaProfileStore
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.cultivation.store.ReflectionStore
 import top.hsyscn.opedrgent.cultivation.store.VirtueBaselineStore
@@ -44,6 +46,7 @@ class CultivationEngine(
     hippocampusProvider: () -> HippocampusIndex? = { null },
 ) {
     private val baselineStore = VirtueBaselineStore(context)
+    private val personaStore = PersonaProfileStore(context)
     private val reflectionStore = ReflectionStore(context)
     private val actionStore = ActionStore.getInstance(context)
     private val analyzer = MirrorAnalyzer()
@@ -51,7 +54,7 @@ class CultivationEngine(
     private val exemplarAnalyzer = ExemplarAnalyzer()
     private val exemplarGuard = ExemplarGuard()
     private val cognitiveAnalyzer = CognitiveAnalyzer()
-    private val tools = ReflectionToolMediator(reflectionStore, hippocampusProvider)
+    private val tools = ReflectionToolMediator(reflectionStore, personaStore, hippocampusProvider)
 
     /** 一次修炼会话的统一结果；[success] 为 false 时 [record] 为空，调用方展示“未达质量门槛”。 */
     data class ReflectionOutcome(
@@ -80,11 +83,10 @@ class CultivationEngine(
         transcriptId: String,
         mode: FeedbackMode = FeedbackMode.STANDARD,
         historyHint: String? = null,
-        baseline: VirtueBaseline? = null,
         persist: Boolean = true,
     ): ReflectionOutcome {
-        val effectiveBaseline = baseline ?: baselineStore.getActive()
-            ?: return fail(ReflectionLens.CRITIQUE, "尚未建立理想人格基准")
+        // 自动画像由模型在持续观察中维护，可能为空（刚开始）；不再要求用户手写基准。
+        val persona = personaStore.get()
         // 把此前仍 OPEN 的跟进交给模型在本次自主复评；工程只取清单，不做命中判定
         val openFollowUps = reflectionStore.openFollowUps().map { it.follow.text }
 
@@ -94,13 +96,13 @@ class CultivationEngine(
         attempts++
         var report = runCatching {
             val system = MirrorPromptBuilder.systemPrompt(mode)
-            val baseUser = MirrorPromptBuilder.userPrompt(effectiveBaseline, transcript, historyHint, openFollowUps)
+            val baseUser = MirrorPromptBuilder.userPrompt(persona, transcript, historyHint, openFollowUps)
             toolGuidedFinal(backend, system, baseUser, transcript) { raw ->
                 analyzer.parse(raw, sessionId, transcriptId, mode, backend)
             }
         }.getOrElse { e ->
             return critiqueFailRecovery(
-                e, attempts, backend, effectiveBaseline, transcript,
+                e, attempts, backend, persona, transcript,
                 sessionId, transcriptId, mode, historyHint, openFollowUps, persist,
             )
         }
@@ -111,7 +113,7 @@ class CultivationEngine(
             DebugLog.w(TAG, "首次未过质量门：${check.violations}")
             attempts++
             val revised = retryCritiqueOnce(
-                backend, effectiveBaseline, transcript, sessionId, transcriptId,
+                backend, persona, transcript, sessionId, transcriptId,
                 mode, historyHint, openFollowUps, report.rawResponse, check,
             )
             if (revised != null) {
@@ -130,7 +132,7 @@ class CultivationEngine(
     /** 重做一次：先模型自审，自审给修订 JSON 则重解析，否则带确定性违规清单重生成（不再走工具）。 */
     private suspend fun retryCritiqueOnce(
         backend: MirrorLlmBackend,
-        baseline: VirtueBaseline,
+        persona: PersonaProfile?,
         transcript: String,
         sessionId: String,
         transcriptId: String,
@@ -140,14 +142,14 @@ class CultivationEngine(
         firstRaw: String,
         firstCheck: GuardResult,
     ): MirrorReport? {
-        val review = guard.selfReview(backend, baseline, transcript, firstRaw)
+        val review = guard.selfReview(backend, persona, transcript, firstRaw)
         if (review.needsRevision && review.revisedRaw != null) {
             runCatching { analyzer.parse(review.revisedRaw, sessionId, transcriptId, mode, backend) }
                 .getOrNull()?.let { return it }
         }
         val system = MirrorPromptBuilder.systemPrompt(mode)
         val user = buildString {
-            append(MirrorPromptBuilder.userPrompt(baseline, transcript, historyHint, openFollowUps))
+            append(MirrorPromptBuilder.userPrompt(persona, transcript, historyHint, openFollowUps))
             appendLine()
             appendLine("你上一版输出存在以下需要修正的事实性问题，请只依据转写重新输出一份符合协议的 JSON：")
             firstCheck.violations.forEach { appendLine("- $it") }
@@ -166,7 +168,7 @@ class CultivationEngine(
         error: Throwable,
         attemptsIn: Int,
         backend: MirrorLlmBackend,
-        baseline: VirtueBaseline,
+        persona: PersonaProfile?,
         transcript: String,
         sessionId: String,
         transcriptId: String,
@@ -178,7 +180,7 @@ class CultivationEngine(
         if (error is MirrorParseException && attemptsIn < MAX_ATTEMPTS) {
             val second = runCatching {
                 val system = MirrorPromptBuilder.systemPrompt(mode)
-                val baseUser = MirrorPromptBuilder.userPrompt(baseline, transcript, historyHint, openFollowUps)
+                val baseUser = MirrorPromptBuilder.userPrompt(persona, transcript, historyHint, openFollowUps)
                 toolGuidedFinal(backend, system, baseUser, transcript) { raw ->
                     analyzer.parse(raw, sessionId, transcriptId, mode, backend)
                 }
@@ -424,13 +426,24 @@ class CultivationEngine(
                 )
             }
         }
-        return parseFinal(raw)
+        val result = parseFinal(raw)
+        // 报告解析成功后，静默应用模型随报告提交的画像更新（不额外发起模型往返、失败不阻断）。
+        runCatching {
+            ReflectionToolProtocol.parsePersonaUpdate(raw)?.let { call ->
+                val note = tools.applyPersona(call)
+                DebugLog.i(TAG, note)
+            }
+        }.onFailure { DebugLog.w(TAG, "画像更新未应用：${it.message}") }
+        return result
     }
 
     private fun fail(lens: ReflectionLens, reason: String): ReflectionOutcome =
         ReflectionOutcome(false, lens, null, 0, listOf(reason), null)
 
     // 对外暴露存储操作，便于上层 UI/用例直接复用，不再另写一套
+
+    /** 返回模型自动建立、持续演进的人格画像；尚未建立时为 null。 */
+    suspend fun persona(): PersonaProfile? = personaStore.get()
 
     /** 返回当前生效的理想人格基准；尚未建立时为 null。挂起函数，磁盘 IO 在 store 内执行。 */
     suspend fun activeBaseline(): VirtueBaseline? = baselineStore.getActive()

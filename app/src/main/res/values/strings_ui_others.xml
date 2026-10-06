@@ -160,16 +160,6 @@
     <string name="onboarding_privacy_policy_link">查看隐私政策</string>
     <string name="privacy_policy_url">https://github.com/HaohanHe/Opedrgent/blob/main/PRIVACY.md</string>
 
-    <!-- OnboardingBaselineScreen -->
-    <string name="onboarding_baseline_title">建立你的人格基准</string>
-    <string name="onboarding_baseline_subtitle">从一份起始模板开始，写下你希望如何行事。它只是供你参照的脚手架，不做自动判定，日后可在批判镜中随时修改。</string>
-    <string name="onboarding_baseline_load_template">载入起始模板</string>
-    <string name="onboarding_baseline_dimension_label">维度名称</string>
-    <string name="onboarding_baseline_do_hint">希望做到的事（每行一条）</string>
-    <string name="onboarding_baseline_later">稍后设置</string>
-    <string name="onboarding_baseline_save">保存并继续</string>
-    <string name="onboarding_baseline_error_empty">请至少保留一个已填写名称的维度</string>
-
     <!-- MainViewModel / AppRoot UI messages -->
     <string name="error_api_key_required">请先在设置里填写 API Key</string>
     <string name="msg_confirm_execute_default">确认执行？</string>

@@ -1,8 +1,13 @@
 package top.hsyscn.opedrgent.cultivation.engine
 
+import org.json.JSONArray
 import top.hsyscn.opedrgent.cultivation.mirror.ReflectionToolCall
 import top.hsyscn.opedrgent.cultivation.mirror.ReflectionToolProtocol
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
+import top.hsyscn.opedrgent.cultivation.model.PersonaTrait
+import top.hsyscn.opedrgent.cultivation.model.PersonaTraitStatus
 import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
+import top.hsyscn.opedrgent.cultivation.store.PersonaProfileStore
 import top.hsyscn.opedrgent.cultivation.store.ReflectionStore
 import top.hsyscn.opedrgent.storage.HippocampusIndex
 import top.hsyscn.opedrgent.storage.IndexedItem
@@ -10,19 +15,22 @@ import top.hsyscn.opedrgent.storage.SourceType
 import top.hsyscn.opedrgent.utils.DebugLog
 
 /**
- * 本地工具执行器（逻辑重设计 P1）。
+ * 本地工具执行器。
  *
- * 只执行 [ReflectionToolProtocol] 声明的两个只读工具，数据全部来自本机存储与海马索引，
- * 不发起任何网络请求。它把模型的工具意图翻译成确定性的本地查询，并把结果拼成可回填给模型的文本。
+ * 执行两类工具，数据全部来自本机存储，不发起任何网络请求：
+ * - 只读工具（[ReflectionToolProtocol.RECENT]/[ReflectionToolProtocol.MEMORY]）：把模型意图翻译成确定性的本地查询，
+ *   结果回填给模型；
+ * - 画像写入（[ReflectionToolProtocol.PERSONA_UPDATE]）：把模型随报告提交的画像静默落库。
  *
- * 关键纪律：任何工具取数失败都只在结果里说明、绝不抛断主流程——模型仍可只依据本次转写完成分析，
+ * 关键纪律：任何工具失败都只说明、绝不抛断主流程——模型仍可只依据本次转写完成分析，
  * 保证“工具可选、工程兜底、不更差”。
  */
 class ReflectionToolMediator(
     private val store: ReflectionStore,
+    private val personaStore: PersonaProfileStore,
     private val hippocampusProvider: () -> HippocampusIndex?,
 ) {
-    /** 执行一批工具调用，返回拼好的工具结果文本；无有效结果时返回空串。 */
+    /** 执行一批只读工具调用，返回拼好的工具结果文本；无有效结果时返回空串。 */
     suspend fun execute(calls: List<ReflectionToolCall>, transcript: String): String {
         val sb = StringBuilder()
         calls.forEach { call ->
@@ -33,6 +41,24 @@ class ReflectionToolMediator(
                 }
         }
         return sb.toString()
+    }
+
+    /** 应用模型随报告提交的画像更新，返回确认信息；失败不阻断报告。 */
+    suspend fun applyPersona(call: ReflectionToolCall): String = runCatching {
+        val a = call.args
+        val actual = traits(a.optJSONArray("actual_self"))
+        val aspired = traits(a.optJSONArray("aspired_self"))
+        val open = strings(a.optJSONArray("open_questions"))
+        if (actual.isEmpty() && aspired.isEmpty() && open.isEmpty()) {
+            return@runCatching "画像无内容、未更新"
+        }
+        val saved = personaStore.save(
+            PersonaProfile(actualSelf = actual, aspiredSelf = aspired, openQuestions = open),
+        )
+        "画像已更新到版本 ${saved.version}"
+    }.getOrElse {
+        DebugLog.w(TAG, "画像更新失败：${it.message}")
+        "画像更新失败，已忽略：${it.message}"
     }
 
     private suspend fun dispatch(call: ReflectionToolCall, transcript: String, sb: StringBuilder) {
@@ -86,6 +112,28 @@ class ReflectionToolMediator(
             val brief = item.summary.replace("\n", " ").take(80)
             sb.appendLine("- 【${item.sourceType.label}】${item.title}：$brief")
         }
+    }
+
+    private fun traits(arr: JSONArray?): List<PersonaTrait> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val text = o.optString("text", "").trim()
+            if (text.isBlank()) return@mapNotNull null
+            PersonaTrait(
+                text = text,
+                evidence = o.optString("evidence", "").trim(),
+                sourceLabel = o.optString("source", "").trim(),
+                observedAt = o.optLong("observedAt", System.currentTimeMillis()),
+                status = PersonaTraitStatus.fromName(o.optString("status", "active")),
+            )
+        }
+    }
+
+    private fun strings(arr: JSONArray?): List<String> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).map { arr.getString(it) }
+            .map { it.trim() }.filter { it.isNotBlank() }
     }
 
     companion object {

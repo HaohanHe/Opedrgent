@@ -621,9 +621,9 @@
     <string name="theme_preview_title">Opedrgent テーマカラー</string>
     <!-- Cultivation (self mirror) -->
     <string name="cultivation_title">言動の修練</string>
-    <string name="cultivation_home_subtitle">理想の自分像に照らして、率直に話し方を振り返る</string>
+    <string name="cultivation_home_subtitle">ありのままの話し方を映し、現実と理想の差を自動で捉える</string>
     <string name="cultivation_tab_mirror">振り返り</string>
-    <string name="cultivation_tab_baseline">基準</string>
+    <string name="cultivation_tab_baseline">ペルソナ</string>
     <string name="cultivation_tab_history">履歴</string>
     <string name="cultivation_backend_label">実行先</string>
     <string name="cultivation_backend_local">端末（既定）</string>
@@ -641,7 +641,7 @@
     <string name="cultivation_start">振り返りを実行</string>
     <string name="cultivation_analyzing">分析中…</string>
     <string name="cultivation_below_bar">品質基準に未達のため低品質な結果は非表示：</string>
-    <string name="cultivation_ref">基準：%1$s</string>
+    <string name="cultivation_ref">方向性：%1$s</string>
     <string name="cultivation_alternative">言い換え：%1$s</string>
     <string name="cultivation_next_step">次の一歩：%1$s</string>
     <string name="cultivation_strengths">あなたの強み</string>
@@ -661,13 +661,13 @@
     <string name="cultivation_route_analyze">言動レビュー</string>
     <string name="cultivation_route_support">サポート</string>
     <string name="cultivation_route_crisis">危機サポート</string>
-    <string name="cultivation_baseline_intro">理想の自分を定義します。各項目で「実践する行動」「避ける行動」を1行1件で記入してください。</string>
-    <string name="cultivation_dim_name">項目名</string>
-    <string name="cultivation_dim_do">実践する行動（1行1件）</string>
-    <string name="cultivation_dim_dont">避ける行動（1行1件）</string>
-    <string name="cultivation_remove_dim">項目を削除</string>
-    <string name="cultivation_add_dim">項目を追加</string>
-    <string name="cultivation_save_baseline">基準を保存</string>
+    <string name="cultivation_persona_intro">このペルソナは、モデルがあなたの言動を観察する中で自動的に作成・更新します。記入は不要です。現実の自分は観察された行動、理想の自分は表現から推測される方向性で、いずれも逐語の根拠を添えます。</string>
+    <string name="cultivation_persona_empty">ペルソナはまだありません。録音と振り返りを続けると、安定した行動とあなたがにじませる方向性をモデルが自動でまとめます。</string>
+    <string name="cultivation_persona_actual">現実の自分（観察された行動）</string>
+    <string name="cultivation_persona_aspired">理想の自分（表現から推測される方向性）</string>
+    <string name="cultivation_persona_open">観察メモ（モデル自身の備忘）</string>
+    <string name="cultivation_persona_none">なし</string>
+    <string name="cultivation_persona_evidence">根拠：%1$s</string>
     <string name="cultivation_history_title">履歴</string>
     <string name="cultivation_clear_all">すべて消去</string>
     <string name="cultivation_dismiss">完了</string>

@@ -655,9 +655,9 @@
     <!-- Onboarding -->
     <!-- Cultivation (self mirror) -->
     <string name="cultivation_title">言行修炼</string>
-    <string name="cultivation_home_subtitle">对照理想人格，反讨好地复盘你的真实表达</string>
+    <string name="cultivation_home_subtitle">镜鉴你的真实表达，自动看清现实与理想的差距</string>
     <string name="cultivation_tab_mirror">批判镜</string>
-    <string name="cultivation_tab_baseline">人格基准</string>
+    <string name="cultivation_tab_baseline">人格画像</string>
     <string name="cultivation_tab_history">修炼轨迹</string>
     <string name="cultivation_backend_label">运行后端</string>
     <string name="cultivation_backend_local">端侧（默认）</string>
@@ -675,7 +675,7 @@
     <string name="cultivation_start">开始批判镜分析</string>
     <string name="cultivation_analyzing">分析中…</string>
     <string name="cultivation_below_bar">本次未达质量门槛，未展示低质反馈：</string>
-    <string name="cultivation_ref">对照基准：%1$s</string>
+    <string name="cultivation_ref">对应方向：%1$s</string>
     <string name="cultivation_alternative">可改为：%1$s</string>
     <string name="cultivation_next_step">下一步：%1$s</string>
     <string name="cultivation_strengths">你的优势</string>
@@ -695,13 +695,13 @@
     <string name="cultivation_route_analyze">言行复盘</string>
     <string name="cultivation_route_support">情绪支持</string>
     <string name="cultivation_route_crisis">危机陪伴</string>
-    <string name="cultivation_baseline_intro">定义你想成为的人：每个维度写“做到”和“不接受”的具体行为，每行一条，分析将以此为镜。</string>
-    <string name="cultivation_dim_name">维度名称</string>
-    <string name="cultivation_dim_do">做到的行为（每行一条）</string>
-    <string name="cultivation_dim_dont">不接受的行为（每行一条）</string>
-    <string name="cultivation_remove_dim">删除该维度</string>
-    <string name="cultivation_add_dim">添加维度</string>
-    <string name="cultivation_save_baseline">保存基准</string>
+    <string name="cultivation_persona_intro">这份画像由模型在持续观察你的言行后自动建立与更新，你无需填写：现实自我是观察到的行为，理想自我是从你的表达中推断的方向，每条都附逐字证据。</string>
+    <string name="cultivation_persona_empty">画像还没有内容。正常录音、做几次复盘后，模型会自动把观察到的稳定行为和你流露的方向整理成画像。</string>
+    <string name="cultivation_persona_actual">现实自我（观察到的行为）</string>
+    <string name="cultivation_persona_aspired">理想自我（从你的表达中推断的方向）</string>
+    <string name="cultivation_persona_open">待观察（模型自己的备忘）</string>
+    <string name="cultivation_persona_none">暂无</string>
+    <string name="cultivation_persona_evidence">证据：%1$s</string>
     <string name="cultivation_history_title">历史轨迹</string>
     <string name="cultivation_clear_all">清空记录</string>
     <string name="cultivation_dismiss">完成</string>

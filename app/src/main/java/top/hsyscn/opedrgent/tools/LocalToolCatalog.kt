@@ -35,6 +35,7 @@ object LocalToolCatalog {
             LocalModelTool(ctx),
             RecallTool(ctx),
             ActionItemTool(ctx),
+            PersonaTool(ctx),
         )
         // 真机验证稳定后可按需纳入：BackupTool、RunJsTool、RunIntentTool、
         // RunCalendarTool、SatellitePassTool、ReverseGeocodeTool 等。

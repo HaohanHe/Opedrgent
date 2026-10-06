@@ -12,7 +12,7 @@ import top.hsyscn.opedrgent.cultivation.model.StrengthNote
 import top.hsyscn.opedrgent.cultivation.model.MirrorIssue
 import top.hsyscn.opedrgent.cultivation.model.MirrorReport
 import top.hsyscn.opedrgent.cultivation.model.MirrorRoute
-import top.hsyscn.opedrgent.cultivation.model.VirtueBaseline
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
 import top.hsyscn.opedrgent.llm.LocalLlmEngine
 import top.hsyscn.opedrgent.model.ChatMessage
 import top.hsyscn.opedrgent.model.Role
@@ -81,7 +81,7 @@ class MirrorAnalyzer {
      */
     suspend fun analyze(
         backend: MirrorLlmBackend,
-        baseline: VirtueBaseline,
+        persona: PersonaProfile?,
         transcript: String,
         sessionId: String,
         transcriptId: String,
@@ -89,7 +89,7 @@ class MirrorAnalyzer {
         historyHint: String? = null,
     ): MirrorReport {
         val system = MirrorPromptBuilder.systemPrompt(mode)
-        val user = MirrorPromptBuilder.userPrompt(baseline, transcript, historyHint)
+        val user = MirrorPromptBuilder.userPrompt(persona, transcript, historyHint)
         val raw = backend.complete(system, user)
         return parse(raw, sessionId, transcriptId, mode, backend)
     }

@@ -64,7 +64,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.hsyscn.opedrgent.R
-import top.hsyscn.opedrgent.cultivation.model.BaselineTemplates
+import top.hsyscn.opedrgent.cultivation.model.PersonaProfile
 import top.hsyscn.opedrgent.cultivation.model.ExemplarReport
 import top.hsyscn.opedrgent.cultivation.model.FeedbackMode
 import top.hsyscn.opedrgent.cultivation.model.FollowUp
@@ -74,7 +74,8 @@ import top.hsyscn.opedrgent.cultivation.model.MirrorRoute
 import top.hsyscn.opedrgent.cultivation.model.ReflectionInsights
 import top.hsyscn.opedrgent.cultivation.model.ReflectionLens
 import top.hsyscn.opedrgent.cultivation.model.TrendInsights
-import top.hsyscn.opedrgent.cultivation.model.VirtueDimension
+import top.hsyscn.opedrgent.cultivation.model.PersonaTrait
+import top.hsyscn.opedrgent.cultivation.model.PersonaTraitStatus
 import top.hsyscn.opedrgent.cultivation.store.ReflectionRecord
 import top.hsyscn.opedrgent.ui.components.TrendCard
 import top.hsyscn.opedrgent.ui.components.ModelRequiredCard
@@ -179,7 +180,6 @@ fun CultivationScreen(
                     // 认知镜不使用理想人格基准：MIRROR 且选了认知透镜时隐藏基准入口
                     showBaseline = !(tab == CultivationTab.MIRROR && state.lens == ReflectionLens.COGNITIVE),
                     onOpenBaseline = {
-                        manager.startBaselineEdit()
                         tab = CultivationTab.BASELINE
                     },
                     onOpenHistory = {
@@ -223,7 +223,7 @@ fun CultivationScreen(
 
             when (tab) {
                 CultivationTab.MIRROR -> mirrorItems(manager, state, readinessSnapshot.llm.state == ReadyState.READY, handoffSourceLabel)
-                CultivationTab.BASELINE -> baselineItems(manager, state.editingDimensions)
+                CultivationTab.BASELINE -> personaItems(state.personaProfile)
                 CultivationTab.HISTORY -> historyItems(manager, state.history, onOpenGrowth)
                 CultivationTab.EXEMPLAR -> exemplarItems(manager, state)
             }
@@ -841,164 +841,102 @@ private fun FollowUpRow(recordId: Long, follow: FollowUp, manager: CultivationSt
     }
 }
 
-// ==================== 基准 ====================
+// ==================== 人格画像（只读，模型自动维护） ====================
 
-/**
- * 起始模板卡：勾选 STARTER 维度后一键载入编辑区。
- * 仅脚手架，不做关键词判定；模板文案不参与任何自动分析。
- */
-@Composable
-private fun StarterTemplateCard(
-    currentDimensions: List<VirtueDimension>,
-    onLoad: (selectedIndices: List<Int>, replace: Boolean) -> Unit,
+private fun androidx.compose.foundation.lazy.LazyListScope.personaItems(
+    persona: PersonaProfile?,
 ) {
-    val starterList = remember { BaselineTemplates.STARTER }
-    var checked by rememberSaveable { mutableStateOf((0 until starterList.size).toSet()) }
-    var showReplaceDialog by remember { mutableStateOf(false) }
-
-    IosGroup {
-        IosRow {
-            Text(
-                stringResource(R.string.cultivation_starter_hint),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            starterList.forEachIndexed { index, dim ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = index in checked,
-                        onCheckedChange = { isChecked ->
-                            checked = if (isChecked) checked + index else checked - index
-                        },
-                    )
-                    Text(
-                        dim.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-
-            Button(
-                onClick = {
-                    val selected = checked.toList().sorted()
-                    if (selected.isEmpty()) return@Button
-                    if (currentDimensions.isEmpty()) {
-                        onLoad(selected, true)
-                    } else {
-                        showReplaceDialog = true
-                    }
-                },
-                shape = ShapeTokens.smallShape,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.cultivation_starter_load))
-            }
-
-            Text(
-                stringResource(R.string.cultivation_starter_disclaimer),
-                style = MaterialTheme.typography.bodySmall,
-                color = themeTextGrey(),
-            )
-        }
-    }
-
-    if (showReplaceDialog) {
-        AlertDialog(
-            onDismissRequest = { showReplaceDialog = false },
-            title = { Text(stringResource(R.string.cultivation_replace_title)) },
-            text = { Text(stringResource(R.string.cultivation_replace_message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showReplaceDialog = false
-                    onLoad(checked.toList().sorted(), true)
-                }) { Text(stringResource(R.string.cultivation_replace)) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { showReplaceDialog = false }) { Text(stringResource(R.string.action_cancel)) }
-                    TextButton(onClick = {
-                        showReplaceDialog = false
-                        onLoad(checked.toList().sorted(), false)
-                    }) { Text(stringResource(R.string.cultivation_append)) }
-                }
-            },
-        )
-    }
-}
-
-private fun androidx.compose.foundation.lazy.LazyListScope.baselineItems(
-    manager: CultivationStateManager,
-    dimensions: List<VirtueDimension>,
-) {
-    // 起始模板卡：勾选 STARTER 0..3，一键载入编辑区
-    item {
-        StarterTemplateCard(
-            currentDimensions = dimensions,
-            onLoad = { indices, replace -> manager.loadStarterDimensions(indices, replace) },
-        )
-    }
-
     item {
         Text(
-            stringResource(R.string.cultivation_baseline_intro),
+            stringResource(R.string.cultivation_persona_intro),
             style = MaterialTheme.typography.bodySmall,
             color = themeTextGrey(),
         )
     }
-    items(dimensions.size) { index ->
-        val d = dimensions[index]
-        IosGroup {
-            IosRow {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilledField(
-                        value = d.name,
-                        onValueChange = { manager.setDimensionName(index, it) },
-                        modifier = Modifier.weight(1f),
-                        label = { Text(stringResource(R.string.cultivation_dim_name)) },
-                        singleLine = true,
+
+    if (persona == null || persona.isEmpty()) {
+        item {
+            IosGroup {
+                IosRow {
+                    Text(
+                        stringResource(R.string.cultivation_persona_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = themeTextGrey(),
                     )
-                    IconButton(onClick = { manager.removeDimension(index) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.cultivation_remove_dim))
+                }
+            }
+        }
+        return
+    }
+
+    item { PersonaSectionCard(stringResource(R.string.cultivation_persona_actual), persona.actualSelf) }
+    item { PersonaSectionCard(stringResource(R.string.cultivation_persona_aspired), persona.aspiredSelf) }
+
+    if (persona.openQuestions.isNotEmpty()) {
+        item {
+            IosGroup {
+                IosRow {
+                    Text(
+                        stringResource(R.string.cultivation_persona_open),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                persona.openQuestions.forEach { q ->
+                    Hairline(startIndent = 0.dp)
+                    IosRow {
+                        Text(
+                            "· $q",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeTextGrey(),
+                        )
                     }
                 }
             }
-            Hairline(startIndent = 0.dp)
-            IosRow {
-                FilledField(
-                    value = d.doBehaviors.joinToString("\n"),
-                    onValueChange = { manager.setDimensionDo(index, it) },
-                    label = { Text(stringResource(R.string.cultivation_dim_do)) },
-                    minLines = 2,
-                )
-            }
-            Hairline(startIndent = 0.dp)
-            IosRow {
-                FilledField(
-                    value = d.dontBehaviors.joinToString("\n"),
-                    onValueChange = { manager.setDimensionDont(index, it) },
-                    label = { Text(stringResource(R.string.cultivation_dim_dont)) },
-                    minLines = 2,
-                )
-            }
         }
     }
-    item {
-        Row(horizontalArrangement = Arrangement.spacedBy(SpacingTokens.md), modifier = Modifier.fillMaxWidth()) {
-            TextButton(onClick = manager::addDimension, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.cultivation_add_dim))
+}
+
+/** 画像中某一层（现实自我 / 理想自我）的只读卡片。 */
+@Composable
+private fun PersonaSectionCard(title: String, traits: List<PersonaTrait>) {
+    IosGroup {
+        IosRow {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        val active = traits.filter { it.status == PersonaTraitStatus.ACTIVE }
+        if (active.isEmpty()) {
+            Hairline(startIndent = 0.dp)
+            IosRow {
+                Text(
+                    stringResource(R.string.cultivation_persona_none),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeTextGrey(),
+                )
             }
-            Button(
-                onClick = manager::saveBaseline,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp),
-                shape = ShapeTokens.smallShape,
-            ) {
-                Text(stringResource(R.string.cultivation_save_baseline))
+        } else {
+            active.forEach { t ->
+                Hairline(startIndent = 0.dp)
+                IosRow {
+                    Column {
+                        Text(
+                            "· ${t.text}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (t.evidence.isNotBlank()) {
+                            Text(
+                                stringResource(R.string.cultivation_persona_evidence, t.evidence),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = themeTextGrey(),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
