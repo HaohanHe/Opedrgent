@@ -10,9 +10,6 @@
 ![Gradle 8.14.5](https://img.shields.io/badge/Gradle-8.14.5-important.svg)
 ![versionName 1.2.1](https://img.shields.io/badge/versionName-1.2.1-orange.svg)
 
-> 截图与演示占位：仓库尚未收录产品截图或演示 GIF，此处不嵌入任何外部图片链接。素材就绪后请放入 `docs/screenshots/` 并在本处引用，例如 `![首页](docs/screenshots/home.png)`、`![演示](docs/screenshots/demo.gif)`。
-> スクリーンショット / デモのプレースホルダ：リポジトリに製品スクリーンショットやデモ GIF は未収録のため、外部画像リンクは埋め込んでいません。素材が用意でき次第 `docs/screenshots/` に配置し、ここから参照してください（例：`![ホーム](docs/screenshots/home.png)`、`![デモ](docs/screenshots/demo.gif)`）。
-> Screenshot / demo placeholder: the repository does not yet contain any product screenshots or demo GIFs, so no external image URLs are embedded here. Once assets are ready, place them under `docs/screenshots/` and reference them here, e.g. `![home screen](docs/screenshots/home.png)` and `![demo](docs/screenshots/demo.gif)`.
 
 ---
 
